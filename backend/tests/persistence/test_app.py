@@ -8,7 +8,7 @@ import sys
 from typing import Any
 from unittest.mock import Mock, patch
 
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parents[2]))
 import app
 from app import database_settings, initialize, ocr_tags_from_payload, parse_ocr_tags, start_runner, upsert_advertisement, upsert_template
 

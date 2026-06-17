@@ -9,7 +9,7 @@ import {
   parseArgs,
   shouldPauseForManualAction,
   summarizeFrames,
-} from "./tumblr-runner-core.mjs";
+} from "../../scripts/tumblr-runner-core.mjs";
 
 test("parseArgs accepts a plan and safety defaults", () => {
   const options = parseArgs(["--plan", "queue.json", "--no-pause"]);

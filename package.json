@@ -12,7 +12,10 @@
     "tumblr:inspect": "node scripts/tumblr-inspect.mjs",
     "tumblr:login": "node scripts/tumblr-login.mjs",
     "tumblr:runner": "node scripts/tumblr-runner.mjs",
-    "test:runner": "node --test scripts/*.test.mjs"
+    "test": "npm run test:runner && npm run test:frontend && npm run test:backend",
+    "test:runner": "node --test \"tests/runner/**/*.test.mjs\"",
+    "test:frontend": "node --test \"tests/frontend/**/*.test.mjs\"",
+    "test:backend": "python -m unittest discover -s backend/tests -p \"test_*.py\""
   },
   "dependencies": {
     "@tiptap/extension-link": "^3.27.0",
