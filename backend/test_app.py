@@ -6,9 +6,11 @@ import unittest
 from pathlib import Path
 import sys
 from typing import Any
+from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).parent))
-from app import database_settings, initialize, upsert_advertisement, upsert_template
+import app
+from app import database_settings, initialize, start_runner, upsert_advertisement, upsert_template
 
 
 class FakeCursor:
@@ -220,6 +222,47 @@ class PersistenceTests(unittest.TestCase):
 
         self.assertEqual(saved["name"], "Custom template")
         self.assertEqual(saved["tags"], ["#custom"])
+
+    def test_start_runner_writes_plan_and_launches_known_command(self) -> None:
+        temp_plan = Path("backend-test-runner-plan.json")
+        process = Mock()
+        process.pid = 123
+        process.poll.return_value = None
+        old_process = app.RUNNER_PROCESS
+        old_command = app.RUNNER_LAST_COMMAND
+        old_plan = app.RUNNER_PLAN_PATH
+        app.RUNNER_PROCESS = None
+        app.RUNNER_LAST_COMMAND = []
+        app.RUNNER_PLAN_PATH = temp_plan
+
+        try:
+            with patch("app.subprocess.Popen", return_value=process) as popen:
+                result = start_runner(
+                    {
+                        "items": [{"id": "queue-1", "runnerPayload": "{}"}],
+                        "mediaDir": r"C:\media",
+                        "slowMo": 700,
+                        "submit": True,
+                    }
+                )
+
+            self.assertTrue(result["running"])
+            self.assertEqual(result["pid"], 123)
+            self.assertIn("--login-first", result["command"])
+            self.assertIn("--media-dir", result["command"])
+            self.assertIn("--submit", result["command"])
+            self.assertEqual(json.loads(temp_plan.read_text(encoding="utf-8"))["items"][0]["id"], "queue-1")
+            popen.assert_called_once()
+        finally:
+            if temp_plan.exists():
+                temp_plan.unlink()
+            app.RUNNER_PROCESS = old_process
+            app.RUNNER_LAST_COMMAND = old_command
+            app.RUNNER_PLAN_PATH = old_plan
+
+    def test_start_runner_rejects_empty_queue(self) -> None:
+        with self.assertRaises(ValueError):
+            start_runner({"items": []})
 
 
 if __name__ == "__main__":
