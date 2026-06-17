@@ -9,6 +9,8 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --host 127.0.0.1",
     "tumblr:install-browsers": "playwright install chromium",
+    "tumblr:inspect": "node scripts/tumblr-inspect.mjs",
+    "tumblr:login": "node scripts/tumblr-login.mjs",
     "tumblr:runner": "node scripts/tumblr-runner.mjs",
     "test:runner": "node --test scripts/*.test.mjs"
   },

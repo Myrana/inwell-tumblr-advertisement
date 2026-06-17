@@ -114,6 +114,34 @@ export function frameCandidateScore(frameInfo) {
   return score;
 }
 
+export function summarizeFrames(frames) {
+  const blockerFrame = frames.find(
+    (frame) => frame.hasDeniedText || frame.hasCaptchaText || frame.hasLoginText,
+  );
+  const formFrame =
+    frames
+      .map((frame) => ({
+        ...frame,
+        controlCount:
+          (Number(frame.inputs) || 0) +
+          (Number(frame.textareas) || 0) +
+          (Number(frame.contenteditable) || 0) +
+          (Number(frame.buttons) || 0),
+      }))
+      .filter((frame) => frame.controlCount > 3)
+      .sort((left, right) => frameCandidateScore(right) - frameCandidateScore(left))[0] ?? null;
+
+  const combinedText = frames.map((frame) => frame.sample ?? "").join(" ");
+  return {
+    likelyLoggedIn:
+      /dashboard|following|for you|account|activity/i.test(combinedText) &&
+      !/log in to continue|login_register_required/i.test(combinedText),
+    blocker: blockerFrame?.sample ?? "",
+    blockerUrl: blockerFrame?.url ?? "",
+    formFrame,
+  };
+}
+
 export function dataUrlToBuffer(dataUrl) {
   const match = /^data:([^;,]+)?(;base64)?,(.*)$/s.exec(dataUrl);
   if (!match) {

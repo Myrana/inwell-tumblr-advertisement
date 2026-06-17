@@ -7,6 +7,7 @@ import {
   normalizeRunnerPlan,
   parseArgs,
   shouldPauseForManualAction,
+  summarizeFrames,
 } from "./tumblr-runner-core.mjs";
 
 test("parseArgs accepts a plan and safety defaults", () => {
@@ -66,4 +67,39 @@ test("frameCandidateScore prefers Tumblr submit iframe", () => {
   });
 
   assert.ok(submitFrame > themeFrame);
+});
+
+test("summarizeFrames reports blockers and form frames", () => {
+  const summary = summarizeFrames([
+    {
+      name: "",
+      title: "Login",
+      url: "https://www.tumblr.com/login",
+      inputs: 2,
+      textareas: 0,
+      contenteditable: 0,
+      buttons: 1,
+      hasLoginText: true,
+      hasDeniedText: false,
+      hasCaptchaText: false,
+      sample: "Log in to continue",
+    },
+    {
+      name: "submit_form",
+      title: "Submit",
+      url: "https://www.tumblr.com/submit_form/example.tumblr.com",
+      inputs: 2,
+      textareas: 1,
+      contenteditable: 1,
+      buttons: 2,
+      hasLoginText: false,
+      hasDeniedText: false,
+      hasCaptchaText: false,
+      sample: "Submit a post",
+    },
+  ]);
+
+  assert.equal(summary.likelyLoggedIn, false);
+  assert.equal(summary.blocker, "Log in to continue");
+  assert.equal(summary.formFrame?.name, "submit_form");
 });
