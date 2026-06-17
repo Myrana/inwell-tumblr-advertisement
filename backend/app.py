@@ -3,6 +3,9 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import tempfile
+import uuid
+from base64 import b64decode
 from datetime import date, datetime, timezone
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -22,6 +25,43 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 RUNNER_PLAN_PATH = REPO_ROOT / "tumblr-runner-plan.json"
 RUNNER_PROCESS: subprocess.Popen[Any] | None = None
 RUNNER_LAST_COMMAND: list[str] = []
+TAG_WORDS = {
+    "advertisement",
+    "animated",
+    "animal",
+    "app",
+    "based",
+    "boards",
+    "celeb",
+    "character",
+    "city",
+    "fantasy",
+    "futuristic",
+    "genre",
+    "harry",
+    "historical",
+    "invisionfree",
+    "jcink",
+    "multi",
+    "other",
+    "potter",
+    "premium",
+    "profile",
+    "public",
+    "real",
+    "request",
+    "resource",
+    "rpg",
+    "school",
+    "scifi",
+    "semi",
+    "shipper",
+    "short",
+    "site",
+    "staff",
+    "supernatural",
+    "zifboards",
+}
 
 SEED_TEMPLATES = [
     {
@@ -377,6 +417,85 @@ def start_runner(payload: dict[str, Any]) -> dict[str, Any]:
     return runner_status()
 
 
+def ocr_tags_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    data_url = str(payload.get("imageDataUrl") or "")
+    image_bytes, suffix = image_bytes_from_data_url(data_url)
+    temp_path = Path(tempfile.gettempdir()) / f"inwell-tag-ocr-{uuid.uuid4().hex}{suffix}"
+
+    try:
+        temp_path.write_bytes(image_bytes)
+        completed = subprocess.run(
+            ["tesseract", str(temp_path), "stdout", "--psm", "6"],
+            capture_output=True,
+            check=False,
+            text=True,
+            timeout=30,
+        )
+    except FileNotFoundError:
+        return {
+            "available": False,
+            "text": "",
+            "tags": [],
+            "message": "Tesseract OCR is not installed or not on PATH. Paste the tags manually or install Tesseract.",
+        }
+    except (subprocess.SubprocessError, OSError) as error:
+        return {
+            "available": True,
+            "text": "",
+            "tags": [],
+            "message": f"OCR failed: {error}",
+        }
+    finally:
+        temp_path.unlink(missing_ok=True)
+
+    text = completed.stdout.strip()
+    tags = parse_ocr_tags(text)
+    message = "Tags detected from screenshot." if tags else "OCR ran but did not find tag text. Paste the tags manually."
+    if completed.returncode != 0 and not text:
+        message = completed.stderr.strip() or message
+
+    return {
+        "available": True,
+        "text": text,
+        "tags": tags,
+        "message": message,
+    }
+
+
+def image_bytes_from_data_url(data_url: str) -> tuple[bytes, str]:
+    if not data_url.startswith("data:image/") or "," not in data_url:
+        raise ValueError("imageDataUrl must be an image data URL")
+
+    header, encoded = data_url.split(",", 1)
+    suffix = ".png"
+    if "image/jpeg" in header:
+        suffix = ".jpg"
+    elif "image/webp" in header:
+        suffix = ".webp"
+    elif "image/gif" in header:
+        suffix = ".gif"
+
+    if ";base64" not in header:
+        raise ValueError("imageDataUrl must be base64 encoded")
+
+    return b64decode(encoded), suffix
+
+
+def parse_ocr_tags(text: str) -> list[str]:
+    normalized = text.replace("\r", "\n").replace("|", "\n")
+    candidates: list[str] = []
+    for raw_line in normalized.splitlines():
+        line = " ".join(raw_line.replace("[", " ").replace("]", " ").split()).lower()
+        line = line.strip(":-*• ")
+        if line.startswith(("x ", "v ")):
+            line = line[2:].strip()
+        if not line or line == "tags":
+            continue
+        if any(word in line for word in TAG_WORDS):
+            candidates.append(line)
+    return list(dict.fromkeys(candidates))
+
+
 def powershell_quote(value: str) -> str:
     return "'" + value.replace("'", "''") + "'"
 
@@ -415,6 +534,13 @@ class Handler(BaseHTTPRequestHandler):
         if collection == "runner/start":
             try:
                 self.respond({"runner": start_runner(self.read_json())}, HTTPStatus.CREATED)
+            except ValueError as error:
+                self.respond({"error": str(error)}, HTTPStatus.BAD_REQUEST)
+            return
+
+        if collection == "tags/ocr":
+            try:
+                self.respond({"ocr": ocr_tags_from_payload(self.read_json())})
             except ValueError as error:
                 self.respond({"error": str(error)}, HTTPStatus.BAD_REQUEST)
             return
@@ -471,6 +597,8 @@ class Handler(BaseHTTPRequestHandler):
         if len(parts) == 2 and parts[0] == "api":
             return parts[1], None
         if len(parts) == 3 and parts[0] == "api" and parts[1] == "runner":
+            return f"{parts[1]}/{parts[2]}", None
+        if len(parts) == 3 and parts[0] == "api" and parts[1] == "tags":
             return f"{parts[1]}/{parts[2]}", None
         if len(parts) == 3 and parts[0] == "api":
             return parts[1], parts[2]
