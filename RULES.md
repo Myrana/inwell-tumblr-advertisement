@@ -16,6 +16,10 @@ guidance that is specific to this repository, team, product, stack, or workflow.
   more than one place or is likely to be shared. Parsing, normalization,
   validation, date/time formatting, queue payload shaping, and storage helpers
   should live outside React components unless the logic is truly component-local.
+- Critical code paths must have tests. Organize tests by the domain or feature
+  they validate, such as editor, queue, runner, submit targets, tags,
+  persistence, and shared utilities, instead of collecting unrelated coverage in
+  broad catch-all test files.
 - Organize new code by ownership and domain, such as editor, queue, runner,
   submit targets, tags, persistence, and shared utilities. Avoid creating broad
   catch-all files for unrelated helpers.
