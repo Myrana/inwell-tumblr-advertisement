@@ -6,8 +6,6 @@ import { SavedTemplate } from "../domain/types";
 type TemplateDraft = {
   name: string;
   content: string;
-  forumUrl: string;
-  tagsText: string;
 };
 
 type TemplatesWorkspaceProps = {
@@ -47,38 +45,20 @@ export function TemplatesWorkspace({
       </div>
 
       <form className="template-form" onSubmit={onCreateTemplate}>
-        <div className="field-grid two">
-          <label>
-            Template name
-            <input
-              value={draft.name}
-              onChange={(event) => onDraftChange({ name: event.target.value })}
-              placeholder="Premium supernatural ad"
-            />
-          </label>
-          <label>
-            Forum link
-            <input
-              value={draft.forumUrl}
-              onChange={(event) => onDraftChange({ forumUrl: event.target.value })}
-              placeholder="https://your-forum.jcink.net"
-            />
-          </label>
-        </div>
         <label>
-          Reusable post content
+          Template name
+          <input
+            value={draft.name}
+            onChange={(event) => onDraftChange({ name: event.target.value })}
+            placeholder="Premium supernatural ad"
+          />
+        </label>
+        <label>
+          Body text under the image
           <textarea
             value={draft.content}
             onChange={(event) => onDraftChange({ content: event.target.value })}
             placeholder="Paste the reusable advertisement text here."
-          />
-        </label>
-        <label>
-          Tags
-          <textarea
-            value={draft.tagsText}
-            onChange={(event) => onDraftChange({ tagsText: event.target.value })}
-            placeholder="One tag per line, or comma-separated tags."
           />
         </label>
         <button className="secondary" type="submit">
@@ -94,7 +74,7 @@ export function TemplatesWorkspace({
               <div>
                 <strong>{template.name}</strong>
                 <span>
-                  {template.tags.length} tags - {formatDate(template.updatedAt)}
+                  Body text - {formatDate(template.updatedAt)}
                 </span>
                 <p>{template.content || "No reusable content saved yet."}</p>
               </div>

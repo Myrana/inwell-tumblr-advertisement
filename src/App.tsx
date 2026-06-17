@@ -61,7 +61,7 @@ function App() {
   const [templates, setTemplates] = useState<SavedTemplate[]>(() => loadTemplates());
   const [apiAvailable, setApiAvailable] = useState(false);
   const [customTag, setCustomTag] = useState("");
-  const [templateDraft, setTemplateDraft] = useState({ name: "", content: "", forumUrl: "", tagsText: "" });
+  const [templateDraft, setTemplateDraft] = useState({ name: "", content: "" });
   const [templateStatus, setTemplateStatus] = useState("");
   const [newSubmitUrl, setNewSubmitUrl] = useState("");
   const [submitTargetStatus, setSubmitTargetStatus] = useState("");
@@ -74,7 +74,6 @@ function App() {
   const [queueStatus, setQueueStatus] = useState("");
   const [runnerSettings, setRunnerSettings] = useState<RunnerSettings>(() => loadRunnerSettings());
   const [runnerState, setRunnerState] = useState<RunnerStatus | null>(null);
-  const [termsAccepted, setTermsAccepted] = useState(false);
   const [activeView, setActiveView] = useState<WorkspaceView>("editor");
 
   const activeAd = useMemo(() => {
@@ -250,18 +249,18 @@ function App() {
     const template = normalizeTemplate({
       name: templateDraft.name,
       content: templateDraft.content,
-      forumUrl: templateDraft.forumUrl,
-      tags: parseImportedTags(templateDraft.tagsText),
+      forumUrl: "",
+      tags: [],
     });
 
     setTemplates((current) => [template, ...current]);
     syncTemplate(template);
-    setTemplateDraft({ name: "", content: "", forumUrl: "", tagsText: "" });
+    setTemplateDraft({ name: "", content: "" });
     setTemplateStatus(`Saved ${template.name}.`);
   }
 
   function applyTemplate(template: SavedTemplate) {
-    updateActiveAd(applyTemplateToAdvertisement(activeAd, template));
+    updateActiveAd(applyTemplateToAdvertisement(template));
     setTemplateStatus(`Applied ${template.name} to the current submission.`);
     setActiveView("editor");
   }
@@ -328,7 +327,6 @@ function App() {
     const next = emptyAd(targetId);
     setValidation([]);
     setGeneratedPost("");
-    setTermsAccepted(false);
     setStored((current) => ({
       ads: [next, ...current.ads],
       activeAdId: next.id,
@@ -357,7 +355,6 @@ function App() {
   function saveDraft() {
     updateActiveAd({ status: "draft" });
     setValidation([]);
-    setTermsAccepted(false);
   }
 
   function validateAd() {
@@ -380,34 +377,6 @@ function App() {
 
     setGeneratedPost(finalPost);
     updateActiveAd({ status: "ready" });
-  }
-
-  function submitRecord() {
-    const missing = validateAd();
-    if (!termsAccepted) {
-      missing.push("Accept the Terms of Submission.");
-    }
-
-    if (missing.length) {
-      setValidation(missing);
-      return;
-    }
-
-    setGeneratedPost(buildPost());
-    updateActiveAd({ status: "submitted" });
-  }
-
-  function openSubmitPage() {
-    const missing = validateAd();
-    if (missing.length) {
-      return;
-    }
-
-    setGeneratedPost(buildPost());
-    window.open(activeSubmitTarget.submitUrl, "_blank", "noopener,noreferrer");
-    setSubmitTargetStatus(
-      `Opened ${activeSubmitTarget.name}. Choose ${activeAd.postType} on Tumblr, then paste the prepared submission package.`,
-    );
   }
 
   function createQueueItem(target: TumblrSubmitTarget): SubmissionQueueItem {
@@ -722,20 +691,16 @@ function App() {
             submissionComplete={submissionComplete}
             submitTargetStatus={submitTargetStatus}
             targetOptions={targetOptions}
-            termsAccepted={termsAccepted}
             toolbarButtons={toolbarButtons}
             validation={validation}
             onAddCustomTag={addCustomTag}
             onAddSubmitTarget={addSubmitTarget}
             onImageUpload={handleImageUpload}
             onMergeActiveBlogTags={mergeActiveBlogTags}
-            onOpenSubmitPage={openSubmitPage}
             onQueueTargets={queueTargets}
             onReplaceActiveBlogTags={replaceActiveBlogTags}
             onSelectSubmitTarget={selectSubmitTarget}
-            onSubmitRecord={submitRecord}
             onTagScreenshotUpload={handleTagScreenshotUpload}
-            onTermsAcceptedChange={setTermsAccepted}
             onToggleTag={toggleTag}
             onUpdateActiveAd={updateActiveAd}
             onUpdateCustomTag={setCustomTag}

@@ -24,18 +24,15 @@ export function templateFromAdvertisement(advertisement: Advertisement): SavedTe
   return normalizeTemplate({
     name: advertisement.title || "Untitled template",
     content: advertisement.content || advertisement.imageCaption,
-    forumUrl: advertisement.forumUrl,
-    tags: advertisement.tags,
+    forumUrl: "",
+    tags: [],
   });
 }
 
-export function applyTemplateToAdvertisement(advertisement: Advertisement, template: SavedTemplate): Partial<Advertisement> {
+export function applyTemplateToAdvertisement(template: SavedTemplate): Partial<Advertisement> {
   return {
-    title: advertisement.title || template.name,
     content: template.content,
     imageCaption: "",
-    forumUrl: template.forumUrl,
-    tags: template.tags,
     status: "draft",
   };
 }
