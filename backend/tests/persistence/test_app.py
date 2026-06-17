@@ -273,6 +273,12 @@ class PersistenceTests(unittest.TestCase):
             self.assertIn("--submit", result["command"])
             self.assertEqual(json.loads(temp_plan.read_text(encoding="utf-8"))["items"][0]["id"], "queue-1")
             popen.assert_called_once()
+            launched_command = popen.call_args.args[0]
+            if os.name == "nt":
+                self.assertEqual(launched_command[0], "powershell.exe")
+                self.assertIn("; & 'npm.cmd' 'run' 'tumblr:runner'", launched_command[3])
+                self.assertIn("'--plan'", launched_command[3])
+                self.assertIn("'--login-first'", launched_command[3])
         finally:
             if temp_plan.exists():
                 temp_plan.unlink()
