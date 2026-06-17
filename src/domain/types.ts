@@ -1,6 +1,6 @@
 export type Status = "draft" | "ready" | "submitted";
 export type PostType = "text" | "photo" | "video";
-export type WorkspaceView = "editor" | "saved" | "queue";
+export type WorkspaceView = "editor" | "saved" | "templates" | "queue";
 
 export type Advertisement = {
   id: string;
@@ -22,6 +22,15 @@ export type Advertisement = {
 export type StoredState = {
   ads: Advertisement[];
   activeAdId: string;
+};
+
+export type SavedTemplate = {
+  id: string;
+  name: string;
+  content: string;
+  forumUrl: string;
+  tags: string[];
+  updatedAt: string;
 };
 
 export type TumblrSubmitTarget = {
@@ -80,5 +89,14 @@ export type ApiAdvertisement = {
   video_url?: string;
   video_name?: string;
   status: Status;
+  updated_at: string;
+};
+
+export type ApiTemplate = {
+  id: string;
+  name: string;
+  content: string;
+  forum_url: string;
+  tags: string[];
   updated_at: string;
 };

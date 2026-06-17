@@ -5,10 +5,11 @@ export const tagProfileStorageKey = "inwell-blog-tag-profiles";
 export const submitTargetStorageKey = "inwell-tumblr-submit-targets";
 export const submissionQueueStorageKey = "inwell-tumblr-submission-queue";
 export const runnerSettingsStorageKey = "inwell-tumblr-runner-settings";
+export const templateStorageKey = "inkwell-saved-templates";
 export const apiBaseUrl = "http://127.0.0.1:8021/api";
 
 export const defaultSubmitTargets: TumblrSubmitTarget[] = [
-  { id: "inwell-ads", name: "inwell-ads", submitUrl: "https://inwell-ads.tumblr.com/submit" },
+  { id: "inwell-ads", name: "Inkwell Ads", submitUrl: "https://inwell-ads.tumblr.com/submit" },
   { id: "jcink-directory", name: "jcink-directory", submitUrl: "https://jcink-directory.tumblr.com/submit" },
   { id: "roleplay-finder", name: "roleplay-finder", submitUrl: "https://roleplay-finder.tumblr.com/submit" },
 ];

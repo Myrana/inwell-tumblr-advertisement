@@ -15,9 +15,10 @@ import { AppSidebar } from "./components/AppSidebar";
 import { EditorWorkspace } from "./components/EditorWorkspace";
 import { QueueWorkspace } from "./components/QueueWorkspace";
 import { SavedSubmissionsView } from "./components/SavedSubmissionsView";
+import { TemplatesWorkspace } from "./components/TemplatesWorkspace";
 import { WorkspaceTopbar } from "./components/WorkspaceTopbar";
 
-import { apiRequest, removeAdvertisement, saveAdvertisement } from "./domain/api";
+import { apiRequest, loadBackendTemplates, removeAdvertisement, removeTemplate, saveAdvertisement, saveTemplate } from "./domain/api";
 import { composerContentFor, emptyAd, fromApiAdvertisement, normalizeStoredState } from "./domain/ads";
 import { defaultTagProfiles, postTypes } from "./domain/constants";
 import { buildPreparedPost, validateAdvertisement } from "./domain/post";
@@ -28,20 +29,24 @@ import {
   loadSubmissionQueue,
   loadSubmitTargets,
   loadTagProfiles,
+  loadTemplates,
   saveRunnerSettings,
   saveStoredState,
   saveSubmissionQueue,
   saveSubmitTargets,
   saveTagProfiles,
+  saveTemplates,
 } from "./domain/storage";
 import { fallbackTarget, submitTargetFromUrl, uniqueSubmitTargets } from "./domain/submitTargets";
 import { normalizeTag, parseImportedTags, uniqueTags } from "./domain/tags";
+import { applyTemplateToAdvertisement, normalizeTemplate, templateFromAdvertisement } from "./domain/templates";
 import {
   Advertisement,
   ApiAdvertisement,
   OcrResult,
   RunnerSettings,
   RunnerStatus,
+  SavedTemplate,
   SubmissionQueueItem,
   SubmissionStatus,
   StoredState,
@@ -53,8 +58,11 @@ function App() {
   const [submitTargets, setSubmitTargets] = useState<TumblrSubmitTarget[]>(() => loadSubmitTargets());
   const [submissionQueue, setSubmissionQueue] = useState<SubmissionQueueItem[]>(() => loadSubmissionQueue());
   const [tagProfiles, setTagProfiles] = useState<Record<string, string[]>>(() => loadTagProfiles());
+  const [templates, setTemplates] = useState<SavedTemplate[]>(() => loadTemplates());
   const [apiAvailable, setApiAvailable] = useState(false);
   const [customTag, setCustomTag] = useState("");
+  const [templateDraft, setTemplateDraft] = useState({ name: "", content: "", forumUrl: "", tagsText: "" });
+  const [templateStatus, setTemplateStatus] = useState("");
   const [newSubmitUrl, setNewSubmitUrl] = useState("");
   const [submitTargetStatus, setSubmitTargetStatus] = useState("");
   const [importText, setImportText] = useState("");
@@ -83,7 +91,6 @@ function App() {
   );
 
   const selectedTagCount = activeAd.tags.length;
-  const readySubmissions = stored.ads.filter((ad) => ad.status === "ready").length;
   const activeQueue = submissionQueue.filter((item) => item.adId === activeAd.id);
   const activeBlogTags = tagProfiles[activeAd.destinationBlog] ?? defaultTagProfiles[activeAd.destinationBlog] ?? [];
   const checklistTags = uniqueTags([...activeBlogTags, ...activeAd.tags]);
@@ -135,6 +142,10 @@ function App() {
   }, [tagProfiles]);
 
   useEffect(() => {
+    saveTemplates(templates);
+  }, [templates]);
+
+  useEffect(() => {
     saveRunnerSettings(runnerSettings);
   }, [runnerSettings]);
 
@@ -162,7 +173,10 @@ function App() {
 
     async function loadBackendState() {
       try {
-        const advertisementResponse = await apiRequest<{ advertisements: ApiAdvertisement[] }>("/advertisements");
+        const [advertisementResponse, backendTemplates] = await Promise.all([
+          apiRequest<{ advertisements: ApiAdvertisement[] }>("/advertisements"),
+          loadBackendTemplates(),
+        ]);
 
         if (cancelled) {
           return;
@@ -175,6 +189,7 @@ function App() {
         });
 
         setStored(nextStored);
+        setTemplates(backendTemplates);
         setApiAvailable(true);
       } catch {
         if (!cancelled) {
@@ -196,6 +211,15 @@ function App() {
       .catch(() => setApiAvailable(false));
   }
 
+  function syncTemplate(template: SavedTemplate) {
+    void saveTemplate(template)
+      .then((saved) => {
+        setTemplates((current) => current.map((item) => (item.id === saved.id ? saved : item)));
+        setApiAvailable(true);
+      })
+      .catch(() => setApiAvailable(false));
+  }
+
   function updateActiveAd(patch: Partial<Advertisement>) {
     let nextActiveAd: Advertisement | null = null;
 
@@ -212,6 +236,42 @@ function App() {
     if (nextActiveAd) {
       syncAdvertisement(nextActiveAd);
     }
+  }
+
+  function saveCurrentAsTemplate() {
+    const template = templateFromAdvertisement(activeAd);
+    setTemplates((current) => [template, ...current]);
+    syncTemplate(template);
+    setTemplateStatus(`Saved ${template.name} as a reusable template.`);
+  }
+
+  function createTemplate(event: FormEvent) {
+    event.preventDefault();
+    const template = normalizeTemplate({
+      name: templateDraft.name,
+      content: templateDraft.content,
+      forumUrl: templateDraft.forumUrl,
+      tags: parseImportedTags(templateDraft.tagsText),
+    });
+
+    setTemplates((current) => [template, ...current]);
+    syncTemplate(template);
+    setTemplateDraft({ name: "", content: "", forumUrl: "", tagsText: "" });
+    setTemplateStatus(`Saved ${template.name}.`);
+  }
+
+  function applyTemplate(template: SavedTemplate) {
+    updateActiveAd(applyTemplateToAdvertisement(activeAd, template));
+    setTemplateStatus(`Applied ${template.name} to the current submission.`);
+    setActiveView("editor");
+  }
+
+  function deleteTemplate(id: string) {
+    setTemplates((current) => current.filter((template) => template.id !== id));
+    void removeTemplate(id)
+      .then(() => setApiAvailable(true))
+      .catch(() => setApiAvailable(false));
+    setTemplateStatus("Deleted template.");
   }
 
   function selectSubmitTarget(targetId: string) {
@@ -567,6 +627,12 @@ function App() {
   }
 
   const submissionComplete = activeAd.status === "submitted";
+  const pageTitles: Record<WorkspaceView, { eyebrow: string; title: string }> = {
+    editor: { eyebrow: "Advertisement workspace", title: activeAd.title || "Untitled saved submission" },
+    saved: { eyebrow: "Saved submission library", title: "Saved submissions" },
+    templates: { eyebrow: "Reusable copy library", title: "Saved templates" },
+    queue: { eyebrow: "Tumblr automation", title: "Submission queue" },
+  };
   const toolbarButtons = [
     {
       label: "Bold",
@@ -624,15 +690,17 @@ function App() {
       <AppSidebar
         activeView={activeView}
         apiAvailable={apiAvailable}
-        readySubmissions={readySubmissions}
         savedCount={stored.ads.length}
         selectedTagCount={selectedTagCount}
+        templateCount={templates.length}
         onViewChange={setActiveView}
       />
 
       <section className="workspace">
         <WorkspaceTopbar
-          title={activeAd.title}
+          actionsVisible={activeView === "editor"}
+          eyebrow={pageTitles[activeView].eyebrow}
+          title={pageTitles[activeView].title}
           onCreateDraft={createDraft}
           onGeneratePost={generatePost}
           onSaveDraft={saveDraft}
@@ -691,6 +759,19 @@ function App() {
             onRunnerSettingsChange={(patch) => setRunnerSettings((current) => ({ ...current, ...patch }))}
             onStartRunner={startRunner}
             onUpdateQueueItem={updateQueueItem}
+          />
+        ) : null}
+
+        {activeView === "templates" ? (
+          <TemplatesWorkspace
+            draft={templateDraft}
+            status={templateStatus}
+            templates={templates}
+            onApplyTemplate={applyTemplate}
+            onCreateTemplate={createTemplate}
+            onDeleteTemplate={deleteTemplate}
+            onDraftChange={(patch) => setTemplateDraft((current) => ({ ...current, ...patch }))}
+            onSaveCurrentAsTemplate={saveCurrentAsTemplate}
           />
         ) : null}
 
