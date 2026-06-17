@@ -1,5 +1,5 @@
 import { Editor, EditorContent } from "@tiptap/react";
-import { ImagePlus, Link2, Plus, Send, Tags, Video } from "lucide-react";
+import { ImagePlus, Plus, Send, Tags, Video } from "lucide-react";
 import { ChangeEvent, FormEvent, ReactNode } from "react";
 import { postTypes } from "../domain/constants";
 import { Advertisement, PostType, TumblrSubmitTarget } from "../domain/types";
@@ -26,20 +26,16 @@ type EditorWorkspaceProps = {
   submissionComplete: boolean;
   submitTargetStatus: string;
   targetOptions: TumblrSubmitTarget[];
-  termsAccepted: boolean;
   toolbarButtons: ToolbarButton[];
   validation: string[];
   onAddCustomTag: (event: FormEvent) => void;
   onAddSubmitTarget: (event: FormEvent) => void;
   onImageUpload: (event: ChangeEvent<HTMLInputElement>) => void;
   onMergeActiveBlogTags: () => void;
-  onOpenSubmitPage: () => void;
   onQueueTargets: (targets: TumblrSubmitTarget[]) => void;
   onReplaceActiveBlogTags: () => void;
   onSelectSubmitTarget: (targetId: string) => void;
-  onSubmitRecord: () => void;
   onTagScreenshotUpload: (event: ChangeEvent<HTMLInputElement>) => void;
-  onTermsAcceptedChange: (value: boolean) => void;
   onToggleTag: (tag: string) => void;
   onUpdateActiveAd: (patch: Partial<Advertisement>) => void;
   onUpdateCustomTag: (value: string) => void;
@@ -63,20 +59,16 @@ export function EditorWorkspace({
   submissionComplete,
   submitTargetStatus,
   targetOptions,
-  termsAccepted,
   toolbarButtons,
   validation,
   onAddCustomTag,
   onAddSubmitTarget,
   onImageUpload,
   onMergeActiveBlogTags,
-  onOpenSubmitPage,
   onQueueTargets,
   onReplaceActiveBlogTags,
   onSelectSubmitTarget,
-  onSubmitRecord,
   onTagScreenshotUpload,
-  onTermsAcceptedChange,
   onToggleTag,
   onUpdateActiveAd,
   onUpdateCustomTag,
@@ -102,11 +94,15 @@ export function EditorWorkspace({
             <label>
               Target Tumblr blog
               <select value={activeAd.destinationBlog} onChange={(event) => onSelectSubmitTarget(event.target.value)}>
-                {targetOptions.map((target) => (
-                  <option key={target.id} value={target.id}>
-                    {target.name}
-                  </option>
-                ))}
+                {targetOptions.length ? (
+                  targetOptions.map((target) => (
+                    <option key={target.id} value={target.id}>
+                      {target.name}
+                    </option>
+                  ))
+                ) : (
+                  <option value="">Add a Tumblr blog</option>
+                )}
               </select>
               <span className="field-hint">{activeSubmitTarget.submitUrl}</span>
             </label>
@@ -135,10 +131,6 @@ export function EditorWorkspace({
           <button className="secondary" type="submit">
             <Plus size={18} />
             Add blog
-          </button>
-          <button className="secondary" type="button" onClick={onOpenSubmitPage}>
-            <Link2 size={18} />
-            Open submit page
           </button>
           {submitTargetStatus ? <p>{submitTargetStatus}</p> : null}
         </form>
@@ -220,7 +212,13 @@ export function EditorWorkspace({
                 <button type="button" title="Image" aria-label="Image" onClick={() => editor?.chain().focus().run()}>
                   <ImagePlus size={16} />
                 </button>
-                <button type="button" title="Queue current" aria-label="Queue current" onClick={() => onQueueTargets([activeSubmitTarget])}>
+                <button
+                  type="button"
+                  title="Queue current"
+                  aria-label="Queue current"
+                  onClick={() => onQueueTargets([activeSubmitTarget])}
+                  disabled={!activeSubmitTarget.submitUrl}
+                >
                   <Send size={16} />
                 </button>
               </div>
@@ -292,22 +290,12 @@ export function EditorWorkspace({
             </div>
 
             <div className="tumblr-submit-footer">
-              <label className="tumblr-terms">
-                <input
-                  type="checkbox"
-                  checked={termsAccepted}
-                  onChange={(event) => onTermsAcceptedChange(event.target.checked)}
-                />
-                I accept the <a href="#terms">Terms of Submission</a>
-              </label>
-              <button className="tumblr-submit-button" type="button" onClick={onSubmitRecord}>
-                Submit
-              </button>
-              <button className="secondary" type="button" onClick={onOpenSubmitPage}>
-                <Link2 size={18} />
-                Open Tumblr
-              </button>
-              <button className="secondary" type="button" onClick={() => onQueueTargets([activeSubmitTarget])}>
+              <button
+                className="secondary"
+                type="button"
+                onClick={() => onQueueTargets([activeSubmitTarget])}
+                disabled={!activeSubmitTarget.submitUrl}
+              >
                 <Send size={18} />
                 Queue
               </button>

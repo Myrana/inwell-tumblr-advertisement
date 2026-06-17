@@ -141,6 +141,10 @@ test("templates can be saved and applied from their own workspace", { timeout: 4
 
   await page.addInitScript(() => {
     localStorage.setItem(
+      "inwell-tumblr-submit-targets",
+      JSON.stringify([{ id: "custom-ads", name: "custom-ads", submitUrl: "https://custom-ads.tumblr.com/submit" }]),
+    );
+    localStorage.setItem(
       "inwell-ad-assistant-state",
       JSON.stringify({
         activeAdId: "ad-template",
@@ -150,7 +154,7 @@ test("templates can be saved and applied from their own workspace", { timeout: 4
             postType: "photo",
             title: "All Things Roleplay",
             content: "<p>Original copy</p>",
-            destinationBlog: "inwell-ads",
+            destinationBlog: "custom-ads",
             forumUrl: "https://forum.example/original",
             tags: ["jcink site"],
             imageCaption: "",
@@ -167,21 +171,25 @@ test("templates can be saved and applied from their own workspace", { timeout: 4
   });
 
   await page.goto(appUrl);
+  await page.getByLabel("Target Tumblr blog").selectOption("custom-ads");
+  assert.equal(await page.getByText("Inkwell Ads").count(), 0);
+  assert.equal(await page.getByText("jcink-directory").count(), 0);
+  assert.equal(await page.getByText("roleplay-finder").count(), 0);
+
   await page.getByRole("button", { name: "Templates" }).click();
   await page.getByRole("heading", { name: "Saved templates", level: 1 }).waitFor();
 
   await page.getByLabel("Template name").fill("Reusable premium ad");
-  await page.getByLabel("Forum link").fill("https://forum.example/template");
-  await page.getByLabel("Reusable post content").fill("Template body copy");
-  await page.getByLabel("Tags").fill("premium jcink\nsupernatural rpg");
+  await page.getByLabel("Body text under the image").fill("Template body copy");
   await page.getByRole("button", { name: "Save template" }).click();
   await page.getByText("Saved Reusable premium ad.").waitFor();
   await page.getByRole("button", { name: "Apply" }).click();
 
   await page.getByRole("heading", { name: "All Things Roleplay" }).waitFor();
   assert.match((await page.locator(".tumblr-rich-editor").textContent()) ?? "", /Template body copy/);
-  assert.equal(await page.getByLabel("Forum link").inputValue(), "https://forum.example/template");
-  assert.equal(await page.getByLabel("premium jcink").isChecked(), true);
+  assert.equal(await page.getByLabel("Forum link").inputValue(), "https://forum.example/original");
+  assert.equal(await page.getByLabel("jcink site").isChecked(), true);
+  assert.equal(await page.getByLabel("premium jcink").count(), 0);
 
   await page.getByRole("button", { name: "Saved Submissions" }).click();
   await page.getByRole("heading", { name: "Saved submissions", level: 1 }).waitFor();

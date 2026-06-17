@@ -1,6 +1,8 @@
 import { defaultSubmitTargets, submitTargetStorageKey } from "./constants";
 import { TumblrSubmitTarget } from "./types";
 
+const removedSeedTargetIds = new Set(["inwell-ads", "jcink-directory", "roleplay-finder"]);
+
 export function normalizeSubmitUrl(value: string) {
   try {
     const url = new URL(value.trim());
@@ -32,7 +34,15 @@ export function submitTargetFromUrl(value: string): TumblrSubmitTarget | null {
 }
 
 export function fallbackTarget(id: string): TumblrSubmitTarget {
-  const targetId = id.trim() || defaultSubmitTargets[0].id;
+  const targetId = id.trim();
+  if (!targetId || removedSeedTargetIds.has(targetId)) {
+    return {
+      id: "",
+      name: "Add a Tumblr blog",
+      submitUrl: "",
+    };
+  }
+
   return {
     id: targetId,
     name: targetId,
@@ -47,6 +57,10 @@ export function uniqueSubmitTargets(targets: TumblrSubmitTarget[]) {
       return false;
     }
 
+    if (removedSeedTargetIds.has(target.id)) {
+      return false;
+    }
+
     seen.add(target.id);
     return true;
   });
@@ -56,7 +70,7 @@ export function loadSubmitTargets() {
   try {
     const raw = localStorage.getItem(submitTargetStorageKey);
     if (!raw) {
-      return defaultSubmitTargets;
+      return [];
     }
 
     const parsed = JSON.parse(raw) as Partial<TumblrSubmitTarget>[];
@@ -71,8 +85,8 @@ export function loadSubmitTargets() {
           .filter((target): target is TumblrSubmitTarget => Boolean(target))
       : [];
 
-    return uniqueSubmitTargets([...defaultSubmitTargets, ...imported]);
+    return uniqueSubmitTargets(imported);
   } catch {
-    return defaultSubmitTargets;
+    return [];
   }
 }

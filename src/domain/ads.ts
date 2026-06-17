@@ -1,6 +1,8 @@
 import { blogs, defaultSelectedTags } from "./constants";
 import { Advertisement, ApiAdvertisement, StoredState } from "./types";
 
+const removedSeedTargetIds = new Set(["inwell-ads", "jcink-directory", "roleplay-finder"]);
+
 function createId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return crypto.randomUUID();
@@ -9,7 +11,7 @@ function createId() {
   return `ad-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-export const emptyAd = (destinationBlog = blogs[0]): Advertisement => ({
+export const emptyAd = (destinationBlog = blogs[0] ?? ""): Advertisement => ({
   id: createId(),
   postType: "photo",
   title: "",
@@ -35,6 +37,7 @@ export function normalizeAd(value: Partial<Advertisement> | null | undefined): A
     ...value,
     postType,
     id: value?.id || fallback.id,
+    destinationBlog: removedSeedTargetIds.has(value?.destinationBlog ?? "") ? "" : value?.destinationBlog ?? fallback.destinationBlog,
     tags: Array.isArray(value?.tags) ? value.tags : fallback.tags,
     status: value?.status === "ready" || value?.status === "submitted" ? value.status : "draft",
     updatedAt: value?.updatedAt || fallback.updatedAt,
