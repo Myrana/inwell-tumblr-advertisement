@@ -4,12 +4,14 @@ import {
   submissionQueueStorageKey,
   submitTargetStorageKey,
   tagProfileStorageKey,
+  templateStorageKey,
 } from "./constants";
 import { emptyAd, normalizeStoredState } from "./ads";
 import { loadSubmissionQueue } from "./queue";
 import { loadSubmitTargets } from "./submitTargets";
 import { loadTagProfiles } from "./tags";
-import { RunnerSettings, StoredState } from "./types";
+import { normalizeTemplate } from "./templates";
+import { RunnerSettings, SavedTemplate, StoredState } from "./types";
 
 export { loadSubmissionQueue, loadSubmitTargets, loadTagProfiles };
 
@@ -43,6 +45,16 @@ export function loadRunnerSettings(): RunnerSettings {
   }
 }
 
+export function loadTemplates(): SavedTemplate[] {
+  try {
+    const raw = localStorage.getItem(templateStorageKey);
+    const parsed = raw ? (JSON.parse(raw) as Partial<SavedTemplate>[]) : [];
+    return Array.isArray(parsed) ? parsed.map((template) => normalizeTemplate(template)) : [];
+  } catch {
+    return [];
+  }
+}
+
 export function saveStoredState(stored: StoredState) {
   localStorage.setItem(storageKey, JSON.stringify(stored));
 }
@@ -61,4 +73,8 @@ export function saveTagProfiles(value: unknown) {
 
 export function saveRunnerSettings(value: unknown) {
   localStorage.setItem(runnerSettingsStorageKey, JSON.stringify(value));
+}
+
+export function saveTemplates(value: unknown) {
+  localStorage.setItem(templateStorageKey, JSON.stringify(value));
 }

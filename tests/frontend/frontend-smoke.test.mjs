@@ -116,3 +116,76 @@ test("custom blog submission flow does not blank the editor", { timeout: 40000 }
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
   assert.match((await page.locator("main").textContent()) ?? "", /Advertisement workspace/);
 });
+
+test("templates can be saved and applied from their own workspace", { timeout: 40000 }, async (t) => {
+  const server = spawn("npx vite --host 127.0.0.1 --port 8123 --strictPort", {
+    cwd: process.cwd(),
+    shell: true,
+    stdio: "ignore",
+  });
+
+  t.after(() => {
+    stopProcessTree(server);
+  });
+
+  await waitForServer(appUrl);
+
+  const browser = await chromium.launch();
+  t.after(async () => {
+    await browser.close();
+  });
+
+  const page = await browser.newPage();
+  const pageErrors = [];
+  page.on("pageerror", (error) => pageErrors.push(error));
+
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      "inwell-ad-assistant-state",
+      JSON.stringify({
+        activeAdId: "ad-template",
+        ads: [
+          {
+            id: "ad-template",
+            postType: "photo",
+            title: "All Things Roleplay",
+            content: "<p>Original copy</p>",
+            destinationBlog: "inwell-ads",
+            forumUrl: "https://forum.example/original",
+            tags: ["jcink site"],
+            imageCaption: "",
+            imageName: "sample-forum-ad.png",
+            imageDataUrl: "/sample-forum-ad.png",
+            videoUrl: "",
+            videoName: "",
+            status: "draft",
+            updatedAt: "2026-06-17T00:00:00.000Z",
+          },
+        ],
+      }),
+    );
+  });
+
+  await page.goto(appUrl);
+  await page.getByRole("button", { name: "Templates" }).click();
+  await page.getByRole("heading", { name: "Saved templates", level: 1 }).waitFor();
+
+  await page.getByLabel("Template name").fill("Reusable premium ad");
+  await page.getByLabel("Forum link").fill("https://forum.example/template");
+  await page.getByLabel("Reusable post content").fill("Template body copy");
+  await page.getByLabel("Tags").fill("premium jcink\nsupernatural rpg");
+  await page.getByRole("button", { name: "Save template" }).click();
+  await page.getByText("Saved Reusable premium ad.").waitFor();
+  await page.getByRole("button", { name: "Apply" }).click();
+
+  await page.getByRole("heading", { name: "All Things Roleplay" }).waitFor();
+  assert.match((await page.locator(".tumblr-rich-editor").textContent()) ?? "", /Template body copy/);
+  assert.equal(await page.getByLabel("Forum link").inputValue(), "https://forum.example/template");
+  assert.equal(await page.getByLabel("premium jcink").isChecked(), true);
+
+  await page.getByRole("button", { name: "Saved Submissions" }).click();
+  await page.getByRole("heading", { name: "Saved submissions", level: 1 }).waitFor();
+  await page.getByRole("button", { name: "Queue" }).click();
+  await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
+  assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
+});

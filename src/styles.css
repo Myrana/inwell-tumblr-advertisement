@@ -214,14 +214,16 @@ h2 {
 .editor-surface,
 .preview-panel,
 .submission-queue-panel,
-.draft-table {
+.draft-table,
+.templates-workspace {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 8px;
 }
 
 .editor-surface,
-.draft-table {
+.draft-table,
+.templates-workspace {
   padding: 20px;
 }
 
@@ -1004,8 +1006,81 @@ pre {
   overflow-wrap: anywhere;
 }
 
-.draft-table {
+.draft-table,
+.templates-workspace {
   margin-top: 20px;
+}
+
+.template-actions {
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.template-status {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.template-form {
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafb;
+}
+
+.template-form textarea {
+  min-height: 120px;
+}
+
+.template-list {
+  margin-top: 16px;
+  display: grid;
+  gap: 10px;
+}
+
+.template-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.template-row strong,
+.template-row span {
+  display: block;
+}
+
+.template-row span,
+.template-row p {
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.template-row span {
+  margin-top: 3px;
+}
+
+.template-row p {
+  max-height: 4.6rem;
+  margin: 8px 0 0;
+  overflow: hidden;
+  line-height: 1.45;
+}
+
+.template-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .draft-row {
@@ -1080,7 +1155,8 @@ pre {
   .tag-grid,
   .tumblr-composer-header,
   .tumblr-tag-grid,
-  .tag-import-grid {
+  .tag-import-grid,
+  .template-row {
     grid-template-columns: 1fr;
   }
 

@@ -1,21 +1,21 @@
-import { Archive, FileText, LogOut, Send } from "lucide-react";
+import { Archive, ClipboardCheck, FileText, LogOut, Send } from "lucide-react";
 import { WorkspaceView } from "../domain/types";
 
 type AppSidebarProps = {
   activeView: WorkspaceView;
   apiAvailable: boolean;
-  readySubmissions: number;
   savedCount: number;
   selectedTagCount: number;
+  templateCount: number;
   onViewChange: (view: WorkspaceView) => void;
 };
 
 export function AppSidebar({
   activeView,
   apiAvailable,
-  readySubmissions,
   savedCount,
   selectedTagCount,
+  templateCount,
   onViewChange,
 }: AppSidebarProps) {
   return (
@@ -44,6 +44,10 @@ export function AppSidebar({
           <Archive size={18} />
           Saved Submissions
         </button>
+        <button className={activeView === "templates" ? "active" : ""} type="button" onClick={() => onViewChange("templates")}>
+          <ClipboardCheck size={18} />
+          Templates
+        </button>
         <button className={activeView === "queue" ? "active" : ""} type="button" onClick={() => onViewChange("queue")}>
           <Send size={18} />
           Queue
@@ -56,8 +60,8 @@ export function AppSidebar({
           <p>Saved</p>
         </div>
         <div>
-          <span>{readySubmissions}</span>
-          <p>Ready</p>
+          <span>{templateCount}</span>
+          <p>Templates</p>
         </div>
         <div>
           <span>{selectedTagCount}</span>
