@@ -665,21 +665,13 @@ textarea:focus {
   color: #444;
 }
 
-.tumblr-body-field,
-.tumblr-caption-field {
+.tumblr-body-field {
   padding: 12px;
   color: #444;
 }
 
 .tumblr-body-field {
   position: relative;
-}
-
-.tumblr-body-field > span {
-  display: block;
-  margin-bottom: 8px;
-  font-size: 0.9rem;
-  font-weight: 700;
 }
 
 .tumblr-rich-editor {
@@ -706,23 +698,9 @@ textarea:focus {
   text-decoration: underline;
 }
 
-.editor-placeholder {
-  position: absolute;
-  top: 42px;
-  left: 12px;
-  margin: 0;
-  color: #9aa5ad;
-  font-family: Georgia, "Times New Roman", serif;
-  pointer-events: none;
-}
-
 .tumblr-title-input:focus {
   outline: none;
   border-color: var(--line);
-}
-
-.tumblr-caption-field input {
-  border-style: dashed;
 }
 
 .tumblr-tag-panel {
