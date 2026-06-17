@@ -19,6 +19,7 @@ export function parseArgs(argv) {
     planPath: "",
     userDataDir: path.join(process.cwd(), ".tumblr-runner-profile"),
     headless: false,
+    noPause: false,
     submit: false,
     slowMo: 0,
   };
@@ -31,6 +32,8 @@ export function parseArgs(argv) {
       options.userDataDir = argv[++index] ?? "";
     } else if (arg === "--headless") {
       options.headless = true;
+    } else if (arg === "--no-pause") {
+      options.noPause = true;
     } else if (arg === "--submit") {
       options.submit = true;
     } else if (arg === "--slow-mo") {
@@ -100,6 +103,15 @@ export function normalizePostType(value) {
 export function shouldPauseForManualAction(text, url = "") {
   const haystack = `${url}\n${text}`;
   return manualActionPatterns.some((pattern) => pattern.test(haystack));
+}
+
+export function frameCandidateScore(frameInfo) {
+  let score = 0;
+  if (/submit_form/i.test(frameInfo.name ?? "")) score += 100;
+  if (/\/submit_form\//i.test(frameInfo.url ?? "")) score += 100;
+  if (/\/submit\b/i.test(frameInfo.url ?? "")) score += 25;
+  score += Math.min(Number(frameInfo.controlCount) || 0, 20);
+  return score;
 }
 
 export function dataUrlToBuffer(dataUrl) {
