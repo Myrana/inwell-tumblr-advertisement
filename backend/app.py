@@ -22,6 +22,7 @@ POST_TYPES = {"text", "photo", "video"}
 DEFAULT_PGHOST = "192.168.1.3"
 DEFAULT_PGDATABASE = "inwell_tumblr_advertisement"
 DEFAULT_PGUSER = "postgres"
+CURRENT_SCHEMA_VERSION = "0001_initial_schema"
 REPO_ROOT = Path(__file__).resolve().parent.parent
 RUNNER_PLAN_PATH = REPO_ROOT / "tumblr-runner-plan.json"
 RUNNER_PROCESS: subprocess.Popen[Any] | None = None
@@ -160,6 +161,7 @@ def connect() -> psycopg.Connection[Any]:
 
 
 def initialize(connection: ConnectionLike) -> None:
+    ensure_schema_version_table(connection)
     connection.execute(
         """
         CREATE TABLE IF NOT EXISTS advertisements (
@@ -195,6 +197,29 @@ def initialize(connection: ConnectionLike) -> None:
         """
     )
     seed_templates(connection)
+    record_schema_version(connection, CURRENT_SCHEMA_VERSION)
+
+
+def ensure_schema_version_table(connection: ConnectionLike) -> None:
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS schema_migrations (
+            version TEXT PRIMARY KEY,
+            applied_at TIMESTAMPTZ NOT NULL
+        )
+        """
+    )
+
+
+def record_schema_version(connection: ConnectionLike, version: str) -> None:
+    connection.execute(
+        """
+        INSERT INTO schema_migrations (version, applied_at)
+        VALUES (%s, %s)
+        ON CONFLICT(version) DO NOTHING
+        """,
+        (version, utc_now()),
+    )
 
 
 def seed_templates(connection: ConnectionLike) -> None:
