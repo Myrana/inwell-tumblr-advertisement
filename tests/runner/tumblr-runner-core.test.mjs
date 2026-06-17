@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  appearsLoggedInToTumblr,
   dataUrlToBuffer,
   fieldsForItem,
   frameCandidateScore,
@@ -70,6 +71,11 @@ test("manual action detection catches login and captcha states", () => {
   assert.equal(shouldPauseForManualAction("Please log in to continue"), true);
   assert.equal(shouldPauseForManualAction("Complete this captcha"), true);
   assert.equal(shouldPauseForManualAction("Public submit form"), false);
+});
+
+test("Tumblr login detection skips prompt for active dashboard sessions", () => {
+  assert.equal(appearsLoggedInToTumblr("Dashboard Following For you Activity Account", "https://www.tumblr.com/dashboard"), true);
+  assert.equal(appearsLoggedInToTumblr("Log in to continue", "https://www.tumblr.com/login"), false);
 });
 
 test("ready queue pages defer review until the full queue is processed", () => {
