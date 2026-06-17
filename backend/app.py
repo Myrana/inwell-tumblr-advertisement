@@ -463,7 +463,8 @@ def start_runner(payload: dict[str, Any]) -> dict[str, Any]:
             "powershell.exe",
             "-NoExit",
             "-Command",
-            f"Set-Location '{REPO_ROOT}'; " + " ".join(powershell_quote(arg) for arg in runner_args),
+            f"Set-Location -LiteralPath {powershell_quote(str(REPO_ROOT))}; & "
+            + " ".join(powershell_quote(arg) for arg in runner_args),
         ]
         creationflags = subprocess.CREATE_NEW_CONSOLE
     else:
