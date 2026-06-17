@@ -14,6 +14,7 @@ from typing import Any, Protocol
 from urllib.parse import urlparse
 
 import psycopg
+from PIL import Image, ImageEnhance, ImageOps
 from psycopg.rows import dict_row
 
 
@@ -62,6 +63,38 @@ TAG_WORDS = {
     "supernatural",
     "zifboards",
 }
+KNOWN_TAGS = [
+    "invisionfree/zifboards site",
+    "jcink site",
+    "premium jcink",
+    "site buzz",
+    "advertisement",
+    "character request",
+    "staff request",
+    "semi-private site",
+    "public site",
+    "short app",
+    "shipper app",
+    "profile app",
+    "band celeb rpg",
+    "city town rpg",
+    "historical rpg",
+    "school rpg",
+    "other real life rpg",
+    "futuristic postapoc rpg",
+    "harry potter rpg",
+    "supernatural rpg",
+    "other fantasy rpg",
+    "other scifi rpg",
+    "based on rpg",
+    "multi genre rpg",
+    "animal rpg",
+    "animated rpg",
+    "resource site",
+    "6 months",
+    "1 year",
+    "3 years",
+]
 
 SEED_TEMPLATES = [
     {
@@ -424,6 +457,7 @@ def ocr_tags_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
 
     try:
         temp_path.write_bytes(image_bytes)
+        preprocess_ocr_image(temp_path)
         completed = subprocess.run(
             ["tesseract", str(temp_path), "stdout", "--psm", "6"],
             capture_output=True,
@@ -481,12 +515,27 @@ def image_bytes_from_data_url(data_url: str) -> tuple[bytes, str]:
     return b64decode(encoded), suffix
 
 
+def preprocess_ocr_image(path: Path) -> None:
+    image = Image.open(path).convert("L")
+    image = ImageOps.autocontrast(image)
+    image = ImageEnhance.Contrast(image).enhance(3)
+    image = image.resize((image.width * 4, image.height * 4), Image.Resampling.LANCZOS)
+    image = image.point(lambda pixel: 0 if pixel < 180 else 255)
+    image.save(path)
+
+
 def parse_ocr_tags(text: str) -> list[str]:
-    normalized = text.replace("\r", "\n").replace("|", "\n")
+    normalized = " ".join(text.lower().replace("\r", "\n").replace("|", "\n").split())
+    known_matches = [tag for tag in KNOWN_TAGS if ocr_contains_tag(normalized, tag)]
+    if known_matches:
+        return known_matches
+
+    cleaned = text.replace("\r", "\n").replace("|", "\n")
+    cleaned = cleaned.replace("()", "\n").replace("( )", "\n").replace("c)", "\n").replace("o)", "\n")
     candidates: list[str] = []
-    for raw_line in normalized.splitlines():
+    for raw_line in cleaned.splitlines():
         line = " ".join(raw_line.replace("[", " ").replace("]", " ").split()).lower()
-        line = line.strip(":-*• ")
+        line = line.strip(":-*•()co ")
         if line.startswith(("x ", "v ")):
             line = line[2:].strip()
         if not line or line == "tags":
@@ -494,6 +543,19 @@ def parse_ocr_tags(text: str) -> list[str]:
         if any(word in line for word in TAG_WORDS):
             candidates.append(line)
     return list(dict.fromkeys(candidates))
+
+
+def ocr_contains_tag(text: str, tag: str) -> bool:
+    compact_text = text.replace(" ", "")
+    compact_tag = tag.replace(" ", "")
+    if compact_tag in compact_text:
+        return True
+
+    if tag == "invisionfree/zifboards site":
+        return "invisionfree/zif" in text or "zifooards" in text
+    if tag == "other scifi rpg":
+        return "other scfi" in text or "other scifi" in text
+    return False
 
 
 def powershell_quote(value: str) -> str:
