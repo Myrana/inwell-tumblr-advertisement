@@ -198,12 +198,12 @@ function createId() {
   return `ad-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-const emptyAd = (): Advertisement => ({
+const emptyAd = (destinationBlog = blogs[0]): Advertisement => ({
   id: createId(),
   postType: "photo",
   title: "",
   content: "",
-  destinationBlog: blogs[0],
+  destinationBlog,
   forumUrl: "",
   tags: defaultSelectedTags,
   imageCaption: "",
@@ -321,6 +321,18 @@ function loadStoredState(): StoredState {
   } catch {
     return { ads: [fallback], activeAdId: fallback.id };
   }
+}
+
+function normalizeStoredState(value: Partial<StoredState> | null | undefined): StoredState {
+  const ads = Array.isArray(value?.ads) ? value.ads.map((ad) => normalizeAd(ad)) : [];
+  if (!ads.length) {
+    const fallback = emptyAd();
+    return { ads: [fallback], activeAdId: fallback.id };
+  }
+
+  const requestedActiveAdId = value?.activeAdId;
+  const activeAdId = requestedActiveAdId && ads.some((ad) => ad.id === requestedActiveAdId) ? requestedActiveAdId : ads[0].id;
+  return { ads, activeAdId };
 }
 
 function formatDate(value: string) {
@@ -553,10 +565,10 @@ function App() {
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [activeView, setActiveView] = useState<WorkspaceView>("editor");
 
-  const activeAd = useMemo(
-    () => stored.ads.find((ad) => ad.id === stored.activeAdId) ?? stored.ads[0],
-    [stored],
-  );
+  const activeAd = useMemo(() => {
+    const normalized = normalizeStoredState(stored);
+    return normalized.ads.find((ad) => ad.id === normalized.activeAdId) ?? normalized.ads[0];
+  }, [stored]);
   const activeSubmitTarget = useMemo(
     () => submitTargets.find((target) => target.id === activeAd.destinationBlog) ?? fallbackTarget(activeAd.destinationBlog),
     [activeAd.destinationBlog, submitTargets],
@@ -625,12 +637,21 @@ function App() {
   useEffect(() => {
     const nextContent = composerContentFor(activeAd);
 
-    if (!editor || editor.getHTML() === nextContent) {
+    if (!editor || editor.isDestroyed) {
       return;
     }
 
-    editor.commands.setContent(nextContent, { emitUpdate: false });
-  }, [activeAd.content, activeAd.imageCaption, editor]);
+    try {
+      if (editor.getHTML() === nextContent) {
+        return;
+      }
+
+      editor.commands.setContent(nextContent, { emitUpdate: false });
+    } catch {
+      // TipTap can briefly expose an editor whose schema is already being
+      // replaced while switching drafts. The next editor instance will sync.
+    }
+  }, [activeAd.id, activeAd.content, activeAd.imageCaption, editor]);
 
   useEffect(() => {
     let cancelled = false;
@@ -644,12 +665,12 @@ function App() {
         }
 
         const backendAds = advertisementResponse.advertisements.map(fromApiAdvertisement);
-        const nextAds = backendAds.length ? backendAds : stored.ads;
-        const nextActiveAdId = nextAds.some((ad) => ad.id === stored.activeAdId)
-          ? stored.activeAdId
-          : nextAds[0].id;
+        const nextStored = normalizeStoredState({
+          ads: backendAds.length ? backendAds : stored.ads,
+          activeAdId: stored.activeAdId,
+        });
 
-        setStored({ ads: nextAds, activeAdId: nextActiveAdId });
+        setStored(nextStored);
         setApiAvailable(true);
       } catch {
         if (!cancelled) {
@@ -674,14 +695,15 @@ function App() {
   function updateActiveAd(patch: Partial<Advertisement>) {
     let nextActiveAd: Advertisement | null = null;
 
-    setStored((current) => ({
-      ...current,
-      ads: current.ads.map((ad) =>
-        ad.id === current.activeAdId
+    setStored((current) => {
+      const normalized = normalizeStoredState(current);
+      const ads = normalized.ads.map((ad) =>
+        ad.id === normalized.activeAdId
           ? (nextActiveAd = { ...ad, ...patch, updatedAt: new Date().toISOString() })
           : ad,
-      ),
-    }));
+      );
+      return { ...normalized, ads };
+    });
 
     if (nextActiveAd) {
       syncAdvertisement(nextActiveAd);
@@ -738,7 +760,8 @@ function App() {
   }
 
   function createDraft() {
-    const next = emptyAd();
+    const targetId = activeAd.destinationBlog || activeSubmitTarget.id;
+    const next = emptyAd(targetId);
     setValidation([]);
     setGeneratedPost("");
     setTermsAccepted(false);
