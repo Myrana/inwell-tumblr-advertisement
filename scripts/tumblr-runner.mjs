@@ -11,6 +11,7 @@ import {
   loadRunnerPlan,
   materializeDataUrl,
   parseArgs,
+  reviewPagesOpenMessage,
   shouldDeferReadyReview,
   shouldPauseForManualAction,
 } from "./tumblr-runner-core.mjs";
@@ -30,16 +31,16 @@ async function main() {
       await waitForTumblrLogin(context, options);
     }
 
-    let readyReviewCount = 0;
+    const reviewPages = [];
     for (const item of plan.items) {
       const result = await runQueueItem(context, item, options);
-      if (result?.readyForReview) {
-        readyReviewCount += 1;
+      if (result?.readyForReview && result.page) {
+        reviewPages.push(result.page);
       }
     }
 
-    if (readyReviewCount > 0) {
-      await pauseForQueueReview(options, readyReviewCount);
+    if (reviewPages.length > 0) {
+      await waitForQueueReviewPages(options, reviewPages);
     }
   } finally {
     await context.close();
@@ -131,7 +132,7 @@ async function runQueueItem(context, item, options) {
   if (await pageNeedsManualAction(page)) {
     console.log(`[manual-action] ${item.targetName}: page requires review before submit.`);
     if (shouldDeferReadyReview(options)) {
-      return { readyForReview: true };
+      return { readyForReview: true, page };
     }
 
     await pauseForOperator(page, options);
@@ -144,7 +145,7 @@ async function runQueueItem(context, item, options) {
   } else {
     console.log(`[ready] ${item.targetName}: fields filled where possible. Review the page, then submit manually or rerun with --submit.`);
     if (shouldDeferReadyReview(options)) {
-      return { readyForReview: true };
+      return { readyForReview: true, page };
     }
 
     await pauseForOperator(page, options);
@@ -930,18 +931,16 @@ async function pauseForOperator(page, options) {
   await page.close().catch(() => undefined);
 }
 
-async function pauseForQueueReview(options, readyReviewCount) {
+async function waitForQueueReviewPages(options, reviewPages) {
   if (options.headless || options.noPause) {
+    await Promise.all(reviewPages.map((page) => page.close().catch(() => undefined)));
     return;
   }
 
-  console.log(
-    `[runner] ${readyReviewCount} queued page${readyReviewCount === 1 ? " is" : "s are"} open for review. Press Enter here to close the runner browser.`,
-  );
-  await new Promise((resolve) => {
-    process.stdin.resume();
-    process.stdin.once("data", resolve);
-  });
+  console.log(reviewPagesOpenMessage(reviewPages.length));
+  while (reviewPages.some((page) => !page.isClosed())) {
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
 }
 
 main().catch((error) => {

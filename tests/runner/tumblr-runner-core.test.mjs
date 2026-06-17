@@ -8,6 +8,7 @@ import {
   htmlToPlainText,
   normalizeRunnerPlan,
   parseArgs,
+  reviewPagesOpenMessage,
   shouldDeferReadyReview,
   shouldPauseForManualAction,
   summarizeFrames,
@@ -83,6 +84,13 @@ test("ready queue pages defer review until the full queue is processed", () => {
   assert.equal(shouldDeferReadyReview({ submit: true, headless: false, noPause: false }), false);
   assert.equal(shouldDeferReadyReview({ submit: false, headless: true, noPause: false }), false);
   assert.equal(shouldDeferReadyReview({ submit: false, headless: false, noPause: true }), false);
+});
+
+test("review page message keeps browser review controlled by the operator", () => {
+  const message = reviewPagesOpenMessage(2);
+  assert.match(message, /2 queued pages are open for review/);
+  assert.match(message, /close those browser tabs when done/);
+  assert.doesNotMatch(message, /Enter/);
 });
 
 test("dataUrlToBuffer decodes embedded media", () => {
