@@ -1,0 +1,604 @@
+import {
+  Archive,
+  Check,
+  Copy,
+  FileText,
+  ImagePlus,
+  Library,
+  Link,
+  LogOut,
+  Plus,
+  Save,
+  Send,
+  Sparkles,
+  Tags,
+  Trash2,
+} from "lucide-react";
+import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
+
+type Status = "draft" | "ready" | "submitted";
+
+type Advertisement = {
+  id: string;
+  title: string;
+  content: string;
+  destinationBlog: string;
+  forumUrl: string;
+  tags: string[];
+  imageCaption: string;
+  imageName: string;
+  imageDataUrl: string;
+  status: Status;
+  updatedAt: string;
+};
+
+type Template = {
+  id: string;
+  name: string;
+  content: string;
+  tags: string[];
+  forumUrl: string;
+};
+
+type Snippet = {
+  id: string;
+  label: string;
+  body: string;
+};
+
+type SuggestedTag = {
+  tag: string;
+};
+
+const storageKey = "inwell-ad-assistant-state";
+
+const suggestedTags: SuggestedTag[] = [
+  { tag: "#jcink" },
+  { tag: "#jcink forum" },
+  { tag: "#forum rp" },
+  { tag: "#forum roleplay" },
+  { tag: "#site advertisement" },
+  { tag: "#fantasy rp" },
+  { tag: "#modern rp" },
+];
+
+const blogs = ["inwell-ads", "jcink-directory", "roleplay-finder"];
+
+const seedTemplates: Template[] = [
+  {
+    id: "template-plot-forward",
+    name: "Plot-forward forum ad",
+    forumUrl: "https://example-jcink-forum.test",
+    tags: ["#jcink", "#jcink forum", "#forum rp", "#site advertisement"],
+    content:
+      "A character-driven Jcink forum with active plotting, seasonal events, and a welcoming staff team. New members can jump into open threads, browse wanted ads, and build long-form stories at their own pace.",
+  },
+  {
+    id: "template-open-canons",
+    name: "Open canons and wanted ads",
+    forumUrl: "https://wanted-ads.example.test",
+    tags: ["#jcink", "#forum roleplay", "#site advertisement"],
+    content:
+      "Open canons, wanted connections, and new-member prompts are ready for players who want an easy entry point. Browse the latest openings and bring a fresh character into the story.",
+  },
+];
+
+const seedSnippets: Snippet[] = [
+  {
+    id: "snippet-stats",
+    label: "Site statistics",
+    body: "Established community, active staff, monthly prompts, and an accessible application process.",
+  },
+  {
+    id: "snippet-plot",
+    label: "Plot summary",
+    body: "Ongoing story arcs leave room for new characters to affect factions, relationships, and site-wide events.",
+  },
+  {
+    id: "snippet-links",
+    label: "Useful links",
+    body: "Quick links: guidebook, wanted ads, face claims, application template, and Discord information.",
+  },
+];
+
+function createId() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+
+  return `ad-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+const emptyAd = (): Advertisement => ({
+  id: createId(),
+  title: "",
+  content: "",
+  destinationBlog: blogs[0],
+  forumUrl: "",
+  tags: [],
+  imageCaption: "",
+  imageName: "sample-forum-ad.png",
+  imageDataUrl: "/sample-forum-ad.png",
+  status: "draft",
+  updatedAt: new Date().toISOString(),
+});
+
+type StoredState = {
+  ads: Advertisement[];
+  activeAdId: string;
+};
+
+function normalizeAd(value: Partial<Advertisement> | null | undefined): Advertisement {
+  const fallback = emptyAd();
+
+  return {
+    ...fallback,
+    ...value,
+    id: value?.id || fallback.id,
+    tags: Array.isArray(value?.tags) ? value.tags : fallback.tags,
+    status: value?.status === "ready" || value?.status === "submitted" ? value.status : "draft",
+    updatedAt: value?.updatedAt || fallback.updatedAt,
+  };
+}
+
+function loadStoredState(): StoredState {
+  const fallback = emptyAd();
+
+  try {
+    const raw = localStorage.getItem(storageKey);
+    if (!raw) {
+      return { ads: [fallback], activeAdId: fallback.id };
+    }
+
+    const parsed = JSON.parse(raw) as StoredState;
+    if (!Array.isArray(parsed.ads) || !parsed.ads.length || !parsed.activeAdId) {
+      return { ads: [fallback], activeAdId: fallback.id };
+    }
+
+    const ads = parsed.ads.map((ad) => normalizeAd(ad));
+    const activeAdId = ads.some((ad) => ad.id === parsed.activeAdId) ? parsed.activeAdId : ads[0].id;
+
+    return { ads, activeAdId };
+  } catch {
+    return { ads: [fallback], activeAdId: fallback.id };
+  }
+}
+
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat("en", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
+function App() {
+  const [stored, setStored] = useState<StoredState>(() => loadStoredState());
+  const [selectedTemplateId, setSelectedTemplateId] = useState(seedTemplates[0].id);
+  const [customTag, setCustomTag] = useState("");
+  const [validation, setValidation] = useState<string[]>([]);
+  const [generatedPost, setGeneratedPost] = useState("");
+  const [copyState, setCopyState] = useState("Copy");
+
+  const activeAd = useMemo(
+    () => stored.ads.find((ad) => ad.id === stored.activeAdId) ?? stored.ads[0],
+    [stored],
+  );
+
+  const selectedTagCount = activeAd.tags.length;
+  const readyDrafts = stored.ads.filter((ad) => ad.status === "ready").length;
+
+  useEffect(() => {
+    localStorage.setItem(storageKey, JSON.stringify(stored));
+  }, [stored]);
+
+  function updateActiveAd(patch: Partial<Advertisement>) {
+    setStored((current) => ({
+      ...current,
+      ads: current.ads.map((ad) =>
+        ad.id === current.activeAdId
+          ? { ...ad, ...patch, updatedAt: new Date().toISOString() }
+          : ad,
+      ),
+    }));
+  }
+
+  function applyTemplate(templateId: string) {
+    const template = seedTemplates.find((item) => item.id === templateId);
+    setSelectedTemplateId(templateId);
+
+    if (!template) {
+      return;
+    }
+
+    updateActiveAd({
+      content: template.content,
+      forumUrl: template.forumUrl,
+      tags: Array.from(new Set([...activeAd.tags, ...template.tags])),
+    });
+  }
+
+  function toggleTag(tag: string) {
+    const exists = activeAd.tags.includes(tag);
+    updateActiveAd({
+      tags: exists ? activeAd.tags.filter((item) => item !== tag) : [...activeAd.tags, tag],
+    });
+  }
+
+  function addCustomTag(event: FormEvent) {
+    event.preventDefault();
+    const normalized = customTag.trim().startsWith("#")
+      ? customTag.trim()
+      : `#${customTag.trim()}`;
+
+    if (normalized.length <= 1 || activeAd.tags.includes(normalized)) {
+      setCustomTag("");
+      return;
+    }
+
+    updateActiveAd({ tags: [...activeAd.tags, normalized] });
+    setCustomTag("");
+  }
+
+  function addSnippet(snippet: Snippet) {
+    const nextContent = activeAd.content
+      ? `${activeAd.content}\n\n${snippet.body}`
+      : snippet.body;
+    updateActiveAd({ content: nextContent });
+  }
+
+  function createDraft() {
+    const next = emptyAd();
+    setValidation([]);
+    setGeneratedPost("");
+    setStored((current) => ({
+      ads: [next, ...current.ads],
+      activeAdId: next.id,
+    }));
+  }
+
+  function deleteDraft(id: string) {
+    setStored((current) => {
+      const remaining = current.ads.filter((ad) => ad.id !== id);
+      if (!remaining.length) {
+        const next = emptyAd();
+        return { ads: [next], activeAdId: next.id };
+      }
+
+      return {
+        ads: remaining,
+        activeAdId: current.activeAdId === id ? remaining[0].id : current.activeAdId,
+      };
+    });
+  }
+
+  function saveDraft() {
+    updateActiveAd({ status: "draft" });
+    setValidation([]);
+  }
+
+  function validateAd() {
+    const missing = [
+      !activeAd.title.trim() ? "Add a title." : "",
+      !activeAd.imageCaption.trim() ? "Add the picture post caption." : "",
+      !activeAd.forumUrl.trim() ? "Add a forum URL." : "",
+      !activeAd.destinationBlog.trim() ? "Choose a destination blog." : "",
+    ].filter(Boolean);
+
+    setValidation(missing);
+    return missing;
+  }
+
+  function generatePost() {
+    const missing = validateAd();
+    if (missing.length) {
+      return;
+    }
+
+    const finalPost = [
+      activeAd.title.trim(),
+      "",
+      activeAd.imageCaption.trim(),
+      activeAd.content.trim(),
+      "",
+      `Forum: ${activeAd.forumUrl.trim()}`,
+      activeAd.tags.length ? `Tags: ${activeAd.tags.join(" ")}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    setGeneratedPost(finalPost);
+    updateActiveAd({ status: "ready" });
+  }
+
+  function submitRecord() {
+    if (!generatedPost) {
+      generatePost();
+      return;
+    }
+
+    updateActiveAd({ status: "submitted" });
+  }
+
+  function copyPost() {
+    if (!generatedPost) {
+      return;
+    }
+
+    navigator.clipboard.writeText(generatedPost);
+    setCopyState("Copied");
+    window.setTimeout(() => setCopyState("Copy"), 1400);
+  }
+
+  function handleImageUpload(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      updateActiveAd({
+        imageName: file.name,
+        imageDataUrl: String(reader.result),
+      });
+    };
+    reader.readAsDataURL(file);
+  }
+
+  return (
+    <main className="app-shell">
+      <aside className="sidebar">
+        <div className="brand">
+          <div className="brand-mark">I</div>
+          <div>
+            <strong>Inwell</strong>
+            <span>Tumblr Advertisement Assistant</span>
+          </div>
+        </div>
+
+        <div className="account-strip">
+          <span>Myrana Staff</span>
+          <button className="icon-button" type="button" aria-label="Log out" title="Log out">
+            <LogOut size={18} />
+          </button>
+        </div>
+
+        <nav className="nav-list" aria-label="Workspace views">
+          <a className="active" href="#editor">
+            <FileText size={18} />
+            Editor
+          </a>
+          <a href="#drafts">
+            <Archive size={18} />
+            Drafts
+          </a>
+          <a href="#library">
+            <Library size={18} />
+            Library
+          </a>
+        </nav>
+
+        <section className="metric-panel" aria-label="Advertisement counts">
+          <div>
+            <span>{stored.ads.length}</span>
+            <p>Drafts</p>
+          </div>
+          <div>
+            <span>{readyDrafts}</span>
+            <p>Ready</p>
+          </div>
+          <div>
+            <span>{selectedTagCount}</span>
+            <p>Selected tags</p>
+          </div>
+        </section>
+      </aside>
+
+      <section className="workspace">
+        <header className="topbar">
+          <div>
+            <p className="eyebrow">Advertisement workspace</p>
+            <h1>{activeAd.title || "Untitled Tumblr forum advertisement"}</h1>
+          </div>
+          <div className="topbar-actions">
+            <button className="secondary" type="button" onClick={createDraft}>
+              <Plus size={18} />
+              New
+            </button>
+            <button className="secondary" type="button" onClick={saveDraft}>
+              <Save size={18} />
+              Save
+            </button>
+            <button className="primary" type="button" onClick={generatePost}>
+              <Sparkles size={18} />
+              Generate
+            </button>
+          </div>
+        </header>
+
+        <div className="workspace-grid">
+          <section className="editor-surface" id="editor" aria-label="Advertisement editor">
+            <div className="field-grid two">
+              <label>
+                Title
+                <input
+                  value={activeAd.title}
+                  onChange={(event) => updateActiveAd({ title: event.target.value })}
+                  placeholder="Open canons and active plots"
+                />
+              </label>
+
+              <label>
+                Destination blog
+                <select
+                  value={activeAd.destinationBlog}
+                  onChange={(event) => updateActiveAd({ destinationBlog: event.target.value })}
+                >
+                  {blogs.map((blog) => (
+                    <option key={blog} value={blog}>
+                      {blog}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <div className="field-grid two">
+              <label>
+                Advertisement template
+                <select value={selectedTemplateId} onChange={(event) => applyTemplate(event.target.value)}>
+                  {seedTemplates.map((template) => (
+                    <option key={template.id} value={template.id}>
+                      {template.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label>
+                Forum URL
+                <input
+                  value={activeAd.forumUrl}
+                  onChange={(event) => updateActiveAd({ forumUrl: event.target.value })}
+                  placeholder="https://your-forum.jcink.net"
+                />
+              </label>
+            </div>
+
+            <label>
+              Optional advertisement copy
+              <textarea
+                value={activeAd.content}
+                onChange={(event) => updateActiveAd({ content: event.target.value })}
+                placeholder="Add extra reusable copy below the picture caption if needed."
+              />
+            </label>
+
+            <div className="tag-toolbar">
+              <div>
+                <Tags size={18} />
+                <strong>Optional Tumblr tags</strong>
+              </div>
+              <form onSubmit={addCustomTag} className="custom-tag-form">
+                <input
+                  value={customTag}
+                  onChange={(event) => setCustomTag(event.target.value)}
+                  placeholder="#custom-tag"
+                />
+                <button className="icon-button" type="submit" aria-label="Add custom tag" title="Add custom tag">
+                  <Plus size={18} />
+                </button>
+              </form>
+            </div>
+
+            <div className="tag-grid">
+              {suggestedTags.map((item) => {
+                const checked = activeAd.tags.includes(item.tag);
+                return (
+                  <label className={checked ? "tag-check selected" : "tag-check"} key={item.tag}>
+                    <input type="checkbox" checked={checked} onChange={() => toggleTag(item.tag)} />
+                    <span>{checked ? <Check size={16} /> : null}</span>
+                    {item.tag}
+                  </label>
+                );
+              })}
+            </div>
+
+            <div className="selected-tags" aria-label="Selected tags">
+              {activeAd.tags.map((tag) => (
+                <button key={tag} type="button" onClick={() => toggleTag(tag)}>
+                  {tag}
+                </button>
+              ))}
+            </div>
+
+            <div className="media-row">
+              <div className="media-preview">
+                <img src={activeAd.imageDataUrl || "/sample-forum-ad.png"} alt="" />
+              </div>
+              <div className="media-fields">
+                <label className="upload-button">
+                  <ImagePlus size={18} />
+                  Upload image
+                  <input type="file" accept="image/*" onChange={handleImageUpload} />
+                </label>
+                <p>{activeAd.imageName || "No image selected"}</p>
+                <label>
+                  Picture post caption
+                  <input
+                    value={activeAd.imageCaption}
+                    onChange={(event) => updateActiveAd({ imageCaption: event.target.value })}
+                    placeholder="Write the caption Tumblr requires for this picture post."
+                  />
+                </label>
+              </div>
+            </div>
+
+            {validation.length ? (
+              <div className="validation" role="alert">
+                {validation.map((item) => (
+                  <p key={item}>{item}</p>
+                ))}
+              </div>
+            ) : null}
+          </section>
+
+          <aside className="right-rail">
+            <section className="preview-panel" aria-label="Generated post preview">
+              <div className="panel-heading">
+                <h2>Final post</h2>
+                <button className="icon-button" type="button" onClick={copyPost} aria-label="Copy post" title="Copy post">
+                  <Copy size={18} />
+                </button>
+              </div>
+              <pre>{generatedPost || "Generate a ready-to-copy Tumblr picture post from the current draft."}</pre>
+              <button className="primary full" type="button" onClick={submitRecord}>
+                <Send size={18} />
+                Mark submitted
+              </button>
+              <span className="copy-state">{copyState}</span>
+            </section>
+
+            <section className="library-panel" id="library" aria-label="Reusable content library">
+              <div className="panel-heading">
+                <h2>Content library</h2>
+                <Library size={18} />
+              </div>
+              {seedSnippets.map((snippet) => (
+                <button className="snippet" key={snippet.id} type="button" onClick={() => addSnippet(snippet)}>
+                  <span>{snippet.label}</span>
+                  <Plus size={16} />
+                </button>
+              ))}
+            </section>
+          </aside>
+        </div>
+
+        <section className="draft-table" id="drafts" aria-label="Saved drafts">
+          <div className="panel-heading">
+            <h2>Saved drafts</h2>
+            <Archive size={18} />
+          </div>
+          {stored.ads.map((ad) => (
+            <article className={ad.id === activeAd.id ? "draft-row selected" : "draft-row"} key={ad.id}>
+              <button type="button" onClick={() => setStored((current) => ({ ...current, activeAdId: ad.id }))}>
+                <strong>{ad.title || "Untitled advertisement"}</strong>
+                <span>{ad.status} - {formatDate(ad.updatedAt)}</span>
+              </button>
+              <a href={ad.forumUrl || "#"} aria-label="Forum URL">
+                <Link size={18} />
+              </a>
+              <button className="icon-button" type="button" onClick={() => deleteDraft(ad.id)} aria-label="Delete draft" title="Delete draft">
+                <Trash2 size={18} />
+              </button>
+            </article>
+          ))}
+        </section>
+      </section>
+    </main>
+  );
+}
+
+export default App;
