@@ -180,13 +180,17 @@ test("templates can be saved and applied from their own workspace", { timeout: 4
   await page.getByRole("heading", { name: "Saved templates", level: 1 }).waitFor();
 
   await page.getByLabel("Template name").fill("Reusable premium ad");
-  await page.getByLabel("Body text under the image").fill("Template body copy");
+  await page.locator(".template-rich-editor").click();
+  await page.keyboard.press(process.platform === "darwin" ? "Meta+B" : "Control+B");
+  await page.keyboard.type("Template bold copy");
   await page.getByRole("button", { name: "Save template" }).click();
   await page.getByText("Saved Reusable premium ad.").waitFor();
+  await page.locator(".template-preview strong", { hasText: "Template bold copy" }).waitFor();
   await page.getByRole("button", { name: "Apply" }).click();
 
   await page.getByRole("heading", { name: "All Things Roleplay" }).waitFor();
-  assert.match((await page.locator(".tumblr-rich-editor").textContent()) ?? "", /Template body copy/);
+  assert.match((await page.locator(".tumblr-rich-editor").textContent()) ?? "", /Template bold copy/);
+  await page.locator(".tumblr-rich-editor strong", { hasText: "Template bold copy" }).waitFor();
   assert.equal(await page.getByLabel("Forum link").inputValue(), "https://forum.example/original");
   assert.equal(await page.getByLabel("jcink site").isChecked(), true);
   assert.equal(await page.getByLabel("premium jcink").count(), 0);

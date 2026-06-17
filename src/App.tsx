@@ -244,11 +244,11 @@ function App() {
     setTemplateStatus(`Saved ${template.name} as a reusable template.`);
   }
 
-  function createTemplate(event: FormEvent) {
+  function createTemplate(event: FormEvent, contentHtml = templateDraft.content) {
     event.preventDefault();
     const template = normalizeTemplate({
       name: templateDraft.name,
-      content: templateDraft.content,
+      content: contentHtml,
       forumUrl: "",
       tags: [],
     });
