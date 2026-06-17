@@ -10,6 +10,7 @@ import {
   loadRunnerPlan,
   materializeDataUrl,
   parseArgs,
+  shouldDeferReadyReview,
   shouldPauseForManualAction,
 } from "./tumblr-runner-core.mjs";
 
@@ -28,8 +29,16 @@ async function main() {
       await waitForTumblrLogin(context, options);
     }
 
+    let readyReviewCount = 0;
     for (const item of plan.items) {
-      await runQueueItem(context, item, options);
+      const result = await runQueueItem(context, item, options);
+      if (result?.readyForReview) {
+        readyReviewCount += 1;
+      }
+    }
+
+    if (readyReviewCount > 0) {
+      await pauseForQueueReview(options, readyReviewCount);
     }
   } finally {
     await context.close();
@@ -70,7 +79,7 @@ async function runQueueItem(context, item, options) {
   if (await pageNeedsManualAction(page)) {
     console.log(`[manual-action] ${item.targetName}: login, captcha, terms, or changed form detected.`);
     await pauseForOperator(page, options);
-    return;
+    return { readyForReview: false };
   }
 
   await logFrameDiagnostics(page);
@@ -82,7 +91,7 @@ async function runQueueItem(context, item, options) {
     if (!operatorSelected) {
       console.log(`[manual-action] ${item.targetName}: could not switch post type to ${item.postType}; stopping before fill.`);
       await pauseForOperator(page, options);
-      return;
+      return { readyForReview: false };
     }
   }
   await page.waitForLoadState("domcontentloaded", { timeout: 10000 }).catch(() => undefined);
@@ -99,8 +108,12 @@ async function runQueueItem(context, item, options) {
 
   if (await pageNeedsManualAction(page)) {
     console.log(`[manual-action] ${item.targetName}: page requires review before submit.`);
+    if (shouldDeferReadyReview(options)) {
+      return { readyForReview: true };
+    }
+
     await pauseForOperator(page, options);
-    return;
+    return { readyForReview: false };
   }
 
   if (options.submit) {
@@ -108,8 +121,14 @@ async function runQueueItem(context, item, options) {
     console.log(clicked ? `[submitted] ${item.targetName}: submit button clicked.` : `[manual-action] ${item.targetName}: no submit button found.`);
   } else {
     console.log(`[ready] ${item.targetName}: fields filled where possible. Review the page, then submit manually or rerun with --submit.`);
+    if (shouldDeferReadyReview(options)) {
+      return { readyForReview: true };
+    }
+
     await pauseForOperator(page, options);
   }
+
+  return { readyForReview: false };
 }
 
 async function pageNeedsManualAction(page) {
@@ -884,6 +903,20 @@ async function pauseForOperator(page, options) {
     process.stdin.once("data", resolve);
   });
   await page.close().catch(() => undefined);
+}
+
+async function pauseForQueueReview(options, readyReviewCount) {
+  if (options.headless || options.noPause) {
+    return;
+  }
+
+  console.log(
+    `[runner] ${readyReviewCount} queued page${readyReviewCount === 1 ? " is" : "s are"} open for review. Press Enter here to close the runner browser.`,
+  );
+  await new Promise((resolve) => {
+    process.stdin.resume();
+    process.stdin.once("data", resolve);
+  });
 }
 
 main().catch((error) => {
