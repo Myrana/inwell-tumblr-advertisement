@@ -7,6 +7,7 @@ import {
   htmlToPlainText,
   normalizeRunnerPlan,
   parseArgs,
+  shouldDeferReadyReview,
   shouldPauseForManualAction,
   summarizeFrames,
 } from "../../scripts/tumblr-runner-core.mjs";
@@ -69,6 +70,13 @@ test("manual action detection catches login and captcha states", () => {
   assert.equal(shouldPauseForManualAction("Please log in to continue"), true);
   assert.equal(shouldPauseForManualAction("Complete this captcha"), true);
   assert.equal(shouldPauseForManualAction("Public submit form"), false);
+});
+
+test("ready queue pages defer review until the full queue is processed", () => {
+  assert.equal(shouldDeferReadyReview({ submit: false, headless: false, noPause: false }), true);
+  assert.equal(shouldDeferReadyReview({ submit: true, headless: false, noPause: false }), false);
+  assert.equal(shouldDeferReadyReview({ submit: false, headless: true, noPause: false }), false);
+  assert.equal(shouldDeferReadyReview({ submit: false, headless: false, noPause: true }), false);
 });
 
 test("dataUrlToBuffer decodes embedded media", () => {

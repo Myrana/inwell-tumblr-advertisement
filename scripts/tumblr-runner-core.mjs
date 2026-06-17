@@ -110,6 +110,10 @@ export function shouldPauseForManualAction(text, url = "") {
   return manualActionPatterns.some((pattern) => pattern.test(haystack));
 }
 
+export function shouldDeferReadyReview(options) {
+  return !options.submit && !options.headless && !options.noPause;
+}
+
 export function frameCandidateScore(frameInfo) {
   let score = 0;
   if (/submit_form/i.test(frameInfo.name ?? "")) score += 100;
