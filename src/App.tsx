@@ -57,11 +57,8 @@ type Snippet = {
   body: string;
 };
 
-type SuggestedTag = {
-  tag: string;
-};
-
 const storageKey = "inwell-ad-assistant-state";
+const tagProfileStorageKey = "inwell-blog-tag-profiles";
 const apiBaseUrl = "http://127.0.0.1:8021/api";
 
 type ApiAdvertisement = {
@@ -89,40 +86,72 @@ type ApiTemplate = {
   tags: string[];
 };
 
-const suggestedTags: SuggestedTag[] = [
-  { tag: "invisionfree/zifboards site" },
-  { tag: "jcink site" },
-  { tag: "premium jcink" },
-  { tag: "site buzz" },
-  { tag: "advertisement" },
-  { tag: "character request" },
-  { tag: "staff request" },
-  { tag: "semi-private site" },
-  { tag: "public site" },
-  { tag: "short app" },
-  { tag: "shipper app" },
-  { tag: "profile app" },
-  { tag: "band celeb rpg" },
-  { tag: "city town rpg" },
-  { tag: "historical rpg" },
-  { tag: "school rpg" },
-  { tag: "other real life rpg" },
-  { tag: "futuristic postapoc rpg" },
-  { tag: "harry potter rpg" },
-  { tag: "supernatural rpg" },
-  { tag: "other fantasy rpg" },
-  { tag: "other scifi rpg" },
-  { tag: "based on rpg" },
-  { tag: "multi genre rpg" },
-  { tag: "animal rpg" },
-  { tag: "animated rpg" },
-  { tag: "resource site" },
-  { tag: "6 months" },
-  { tag: "1 year" },
-  { tag: "3 years" },
-];
-
 const blogs = ["inwell-ads", "jcink-directory", "roleplay-finder"];
+const defaultTagProfiles: Record<string, string[]> = {
+  "inwell-ads": [
+    "invisionfree/zifboards site",
+    "jcink site",
+    "premium jcink",
+    "site buzz",
+    "advertisement",
+    "character request",
+    "staff request",
+    "semi-private site",
+    "public site",
+    "short app",
+    "shipper app",
+    "profile app",
+    "band celeb rpg",
+    "city town rpg",
+    "historical rpg",
+    "school rpg",
+    "other real life rpg",
+    "futuristic postapoc rpg",
+    "harry potter rpg",
+    "supernatural rpg",
+    "other fantasy rpg",
+    "other scifi rpg",
+    "based on rpg",
+    "multi genre rpg",
+    "animal rpg",
+    "animated rpg",
+    "resource site",
+    "6 months",
+    "1 year",
+    "3 years",
+  ],
+  "jcink-directory": [
+    "jcink site",
+    "premium jcink",
+    "advertisement",
+    "character request",
+    "staff request",
+    "semi-private site",
+    "public site",
+    "short app",
+    "shipper app",
+    "supernatural rpg",
+    "other fantasy rpg",
+    "multi genre rpg",
+    "1 year",
+    "3 years",
+  ],
+  "roleplay-finder": [
+    "advertisement",
+    "public site",
+    "semi-private site",
+    "city town rpg",
+    "historical rpg",
+    "school rpg",
+    "other real life rpg",
+    "futuristic postapoc rpg",
+    "animal rpg",
+    "animated rpg",
+    "6 months",
+    "1 year",
+  ],
+};
+const defaultSelectedTags = ["jcink site", "premium jcink", "semi-private site", "supernatural rpg", "1 year"];
 const postTypes: { value: PostType; label: string }[] = [
   { value: "text", label: "Text" },
   { value: "photo", label: "Photo" },
@@ -181,7 +210,7 @@ const emptyAd = (): Advertisement => ({
   content: "",
   destinationBlog: blogs[0],
   forumUrl: "",
-  tags: ["jcink site", "premium jcink", "semi-private site", "supernatural rpg", "1 year"],
+  tags: defaultSelectedTags,
   imageCaption: "",
   imageName: "sample-forum-ad.png",
   imageDataUrl: "/sample-forum-ad.png",
@@ -318,12 +347,52 @@ function formatDate(value: string) {
   }).format(new Date(value));
 }
 
+function normalizeTag(value: string) {
+  return value.trim().replace(/^#/, "").replace(/\s+/g, " ");
+}
+
+function uniqueTags(values: string[]) {
+  return Array.from(new Set(values.map(normalizeTag).filter(Boolean)));
+}
+
+function parseImportedTags(value: string) {
+  return uniqueTags(
+    value
+      .replace(/^tags:\s*/gim, "")
+      .split(/[\n,;]+/)
+      .map((item) => item.replace(/^\[[ xX]?\]\s*/, "")),
+  );
+}
+
+function loadTagProfiles() {
+  try {
+    const raw = localStorage.getItem(tagProfileStorageKey);
+    if (!raw) {
+      return defaultTagProfiles;
+    }
+
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    return blogs.reduce<Record<string, string[]>>((profiles, blog) => {
+      const imported = Array.isArray(parsed[blog]) ? (parsed[blog] as string[]) : [];
+      profiles[blog] = imported.length ? uniqueTags(imported) : defaultTagProfiles[blog];
+      return profiles;
+    }, {});
+  } catch {
+    return defaultTagProfiles;
+  }
+}
+
 function App() {
   const [stored, setStored] = useState<StoredState>(() => loadStoredState());
+  const [tagProfiles, setTagProfiles] = useState<Record<string, string[]>>(() => loadTagProfiles());
   const [templates, setTemplates] = useState<Template[]>(seedTemplates);
   const [selectedTemplateId, setSelectedTemplateId] = useState(seedTemplates[0].id);
   const [apiAvailable, setApiAvailable] = useState(false);
   const [customTag, setCustomTag] = useState("");
+  const [importText, setImportText] = useState("");
+  const [importImageName, setImportImageName] = useState("");
+  const [importImageDataUrl, setImportImageDataUrl] = useState("");
+  const [importStatus, setImportStatus] = useState("");
   const [validation, setValidation] = useState<string[]>([]);
   const [generatedPost, setGeneratedPost] = useState("");
   const [copyState, setCopyState] = useState("Copy");
@@ -336,10 +405,17 @@ function App() {
 
   const selectedTagCount = activeAd.tags.length;
   const readyDrafts = stored.ads.filter((ad) => ad.status === "ready").length;
+  const activeBlogTags = tagProfiles[activeAd.destinationBlog] ?? defaultTagProfiles[activeAd.destinationBlog] ?? [];
+  const checklistTags = uniqueTags([...activeBlogTags, ...activeAd.tags]);
+  const parsedImportTags = parseImportedTags(importText);
 
   useEffect(() => {
     localStorage.setItem(storageKey, JSON.stringify(stored));
   }, [stored]);
+
+  useEffect(() => {
+    localStorage.setItem(tagProfileStorageKey, JSON.stringify(tagProfiles));
+  }, [tagProfiles]);
 
   useEffect(() => {
     let cancelled = false;
@@ -431,16 +507,18 @@ function App() {
 
   function addCustomTag(event: FormEvent) {
     event.preventDefault();
-    const normalized = customTag.trim().startsWith("#")
-      ? customTag.trim()
-      : `#${customTag.trim()}`;
+    const normalized = normalizeTag(customTag);
 
-    if (normalized.length <= 1 || activeAd.tags.includes(normalized)) {
+    if (!normalized || activeAd.tags.includes(normalized)) {
       setCustomTag("");
       return;
     }
 
     updateActiveAd({ tags: [...activeAd.tags, normalized] });
+    setTagProfiles((current) => ({
+      ...current,
+      [activeAd.destinationBlog]: uniqueTags([...(current[activeAd.destinationBlog] ?? []), normalized]),
+    }));
     setCustomTag("");
   }
 
@@ -608,6 +686,70 @@ function App() {
     }
 
     updateActiveAd({ videoName: file.name });
+  }
+
+  function handleTagScreenshotUpload(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const dataUrl = String(reader.result);
+      setImportImageName(file.name);
+      setImportImageDataUrl(dataUrl);
+      setImportStatus("Screenshot loaded. Review or paste the tags before importing.");
+
+      const textDetector = (window as typeof window & {
+        TextDetector?: new () => { detect: (source: HTMLImageElement) => Promise<{ rawValue?: string }[]> };
+      }).TextDetector;
+      if (!textDetector) {
+        return;
+      }
+
+      try {
+        const image = new Image();
+        image.src = dataUrl;
+        await image.decode();
+        const results = await new textDetector().detect(image);
+        const detectedText = results.map((result) => result.rawValue ?? "").filter(Boolean).join("\n");
+        if (detectedText) {
+          setImportText(detectedText);
+          setImportStatus("Text detected from screenshot. Review the tags before importing.");
+        }
+      } catch {
+        setImportStatus("Screenshot loaded. Automatic text detection was not available for this image.");
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function updateActiveBlogTags(tags: string[]) {
+    setTagProfiles((current) => ({
+      ...current,
+      [activeAd.destinationBlog]: uniqueTags(tags),
+    }));
+  }
+
+  function replaceActiveBlogTags() {
+    if (!parsedImportTags.length) {
+      setImportStatus("Add or detect tags before replacing this blog profile.");
+      return;
+    }
+
+    updateActiveBlogTags(parsedImportTags);
+    setImportStatus(`Replaced ${activeAd.destinationBlog} with ${parsedImportTags.length} tags.`);
+  }
+
+  function mergeActiveBlogTags() {
+    if (!parsedImportTags.length) {
+      setImportStatus("Add or detect tags before merging into this blog profile.");
+      return;
+    }
+
+    updateActiveBlogTags([...activeBlogTags, ...parsedImportTags]);
+    setImportStatus(`Merged ${parsedImportTags.length} tags into ${activeAd.destinationBlog}.`);
   }
 
   const contentLabel = activeAd.postType === "text" ? "Text post body" : "Optional advertisement copy";
@@ -839,7 +981,7 @@ function App() {
                   <div className="tag-toolbar">
                     <div>
                       <Tags size={18} />
-                      <strong>Tags:</strong>
+                      <strong>Tags for {activeAd.destinationBlog}:</strong>
                     </div>
                     <form onSubmit={addCustomTag} className="custom-tag-form">
                       <input
@@ -853,15 +995,52 @@ function App() {
                     </form>
                   </div>
 
+                  <div className="tag-import-panel">
+                    <div className="tag-import-copy">
+                      <strong>Import this blog's tags from a screenshot</strong>
+                      <span>Upload the Tumblr tag form image, then review the detected or pasted tag text.</span>
+                    </div>
+                    <div className="tag-import-grid">
+                      <label className="tumblr-file-button">
+                        Upload tag screenshot
+                        <input type="file" accept="image/*" onChange={handleTagScreenshotUpload} />
+                      </label>
+                      {importImageDataUrl ? (
+                        <div className="tag-import-preview">
+                          <img src={importImageDataUrl} alt="" />
+                          <span>{importImageName}</span>
+                        </div>
+                      ) : null}
+                      <label>
+                        Tags found in screenshot
+                        <textarea
+                          value={importText}
+                          onChange={(event) => setImportText(event.target.value)}
+                          placeholder={"Paste one tag per line, or comma-separated tags, after uploading the screenshot."}
+                        />
+                      </label>
+                    </div>
+                    <div className="tag-import-actions">
+                      <span>{parsedImportTags.length} tags ready</span>
+                      <button className="secondary" type="button" onClick={mergeActiveBlogTags}>
+                        Merge into blog
+                      </button>
+                      <button className="secondary" type="button" onClick={replaceActiveBlogTags}>
+                        Replace blog tags
+                      </button>
+                    </div>
+                    {importStatus ? <p className="tag-import-status">{importStatus}</p> : null}
+                  </div>
+
                   <div className="tumblr-tag-grid">
-                    {suggestedTags.map((item) => (
-                      <label className="tumblr-tag-check" key={item.tag}>
+                    {checklistTags.map((tag) => (
+                      <label className="tumblr-tag-check" key={tag}>
                         <input
                           type="checkbox"
-                          checked={activeAd.tags.includes(item.tag)}
-                          onChange={() => toggleTag(item.tag)}
+                          checked={activeAd.tags.includes(tag)}
+                          onChange={() => toggleTag(tag)}
                         />
-                        {item.tag}
+                        {tag}
                       </label>
                     ))}
                   </div>
