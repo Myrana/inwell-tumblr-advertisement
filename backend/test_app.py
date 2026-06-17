@@ -281,9 +281,27 @@ class PersistenceTests(unittest.TestCase):
         self.assertIn("semi-private site", tags)
         self.assertNotIn("random header", tags)
 
+    def test_parse_ocr_tags_splits_checkbox_output(self) -> None:
+        tags = parse_ocr_tags(
+            "Tags: () invisionfree/zifooards site () jcink site C) premium jcink "
+            "C) other scfimpg CJ based onrpg (C) multi genre rpg O1year O 3 years"
+        )
+
+        self.assertIn("invisionfree/zifboards site", tags)
+        self.assertIn("jcink site", tags)
+        self.assertIn("premium jcink", tags)
+        self.assertIn("other scifi rpg", tags)
+        self.assertIn("based on rpg", tags)
+        self.assertIn("multi genre rpg", tags)
+        self.assertIn("1 year", tags)
+        self.assertIn("3 years", tags)
+
     def test_ocr_tags_reports_missing_tesseract(self) -> None:
+        one_pixel_png = (
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII="
+        )
         with patch("app.subprocess.run", side_effect=FileNotFoundError):
-            result = ocr_tags_from_payload({"imageDataUrl": "data:image/png;base64,aGVsbG8="})
+            result = ocr_tags_from_payload({"imageDataUrl": f"data:image/png;base64,{one_pixel_png}"})
 
         self.assertFalse(result["available"])
         self.assertEqual(result["tags"], [])
