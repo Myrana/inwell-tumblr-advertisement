@@ -7,7 +7,7 @@ export default defineConfig({
     port: 8020,
     strictPort: true,
     watch: {
-      ignored: ["**/.tumblr-runner-profile/**", "**/tumblr-runner-plan.json"],
+      ignored: ["**/.tumblr-runner-profile/**", "**/tmp-runner-inspect-profile/**", "**/tumblr-runner-plan.json"],
     },
   },
 });
