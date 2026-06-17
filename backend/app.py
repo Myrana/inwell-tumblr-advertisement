@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 from datetime import date, datetime, timezone
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from typing import Any, Protocol
 from urllib.parse import urlparse
 
@@ -16,6 +18,10 @@ POST_TYPES = {"text", "photo", "video"}
 DEFAULT_PGHOST = "192.168.1.3"
 DEFAULT_PGDATABASE = "inwell_tumblr_advertisement"
 DEFAULT_PGUSER = "postgres"
+REPO_ROOT = Path(__file__).resolve().parent.parent
+RUNNER_PLAN_PATH = REPO_ROOT / "tumblr-runner-plan.json"
+RUNNER_PROCESS: subprocess.Popen[Any] | None = None
+RUNNER_LAST_COMMAND: list[str] = []
 
 SEED_TEMPLATES = [
     {
@@ -305,6 +311,76 @@ def upsert_template(connection: ConnectionLike, payload: dict[str, Any]) -> dict
     return row_to_template(row)
 
 
+def runner_status() -> dict[str, Any]:
+    running = RUNNER_PROCESS is not None and RUNNER_PROCESS.poll() is None
+    return {
+        "running": running,
+        "pid": RUNNER_PROCESS.pid if RUNNER_PROCESS is not None else None,
+        "plan_path": str(RUNNER_PLAN_PATH),
+        "command": RUNNER_LAST_COMMAND,
+    }
+
+
+def start_runner(payload: dict[str, Any]) -> dict[str, Any]:
+    global RUNNER_LAST_COMMAND, RUNNER_PROCESS
+
+    items = payload.get("items")
+    if not isinstance(items, list) or not items:
+        raise ValueError("items are required")
+
+    if RUNNER_PROCESS is not None and RUNNER_PROCESS.poll() is None:
+        raise ValueError("runner is already running")
+
+    plan = {
+        "version": 1,
+        "workflow": "tumblr-submission-queue",
+        "generatedAt": utc_now().isoformat(),
+        "items": items,
+    }
+    RUNNER_PLAN_PATH.write_text(json.dumps(plan, indent=2), encoding="utf-8")
+
+    slow_mo = int(payload.get("slowMo") or 500)
+    slow_mo = max(0, min(slow_mo, 5000))
+    media_dir = str(payload.get("mediaDir") or "").strip()
+    submit = bool(payload.get("submit"))
+
+    runner_args = [
+        "npm.cmd" if os.name == "nt" else "npm",
+        "run",
+        "tumblr:runner",
+        "--",
+        "--plan",
+        str(RUNNER_PLAN_PATH),
+        "--login-first",
+        "--slow-mo",
+        str(slow_mo),
+    ]
+    if media_dir:
+        runner_args.extend(["--media-dir", media_dir])
+    if submit:
+        runner_args.append("--submit")
+
+    if os.name == "nt":
+        command = [
+            "powershell.exe",
+            "-NoExit",
+            "-Command",
+            f"Set-Location '{REPO_ROOT}'; " + " ".join(powershell_quote(arg) for arg in runner_args),
+        ]
+        creationflags = subprocess.CREATE_NEW_CONSOLE
+    else:
+        command = runner_args
+        creationflags = 0
+
+    RUNNER_LAST_COMMAND = runner_args
+    RUNNER_PROCESS = subprocess.Popen(command, cwd=REPO_ROOT, creationflags=creationflags)
+    return runner_status()
+
+
+def powershell_quote(value: str) -> str:
+    return "'" + value.replace("'", "''") + "'"
+
+
 class Handler(BaseHTTPRequestHandler):
     def do_OPTIONS(self) -> None:
         self.send_response(HTTPStatus.NO_CONTENT)
@@ -313,6 +389,10 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         collection, item_id = self.route()
+        if collection == "runner/status" and item_id is None:
+            self.respond({"runner": runner_status()})
+            return
+
         with connect() as connection:
             if collection == "advertisements" and item_id is None:
                 rows = connection.execute("SELECT * FROM advertisements ORDER BY updated_at DESC").fetchall()
@@ -330,6 +410,13 @@ class Handler(BaseHTTPRequestHandler):
         collection, item_id = self.route()
         if item_id is not None:
             self.send_error(HTTPStatus.NOT_FOUND)
+            return
+
+        if collection == "runner/start":
+            try:
+                self.respond({"runner": start_runner(self.read_json())}, HTTPStatus.CREATED)
+            except ValueError as error:
+                self.respond({"error": str(error)}, HTTPStatus.BAD_REQUEST)
             return
 
         self.save_resource(collection, self.read_json(), HTTPStatus.CREATED)
@@ -383,6 +470,8 @@ class Handler(BaseHTTPRequestHandler):
         parts = [part for part in urlparse(self.path).path.split("/") if part]
         if len(parts) == 2 and parts[0] == "api":
             return parts[1], None
+        if len(parts) == 3 and parts[0] == "api" and parts[1] == "runner":
+            return f"{parts[1]}/{parts[2]}", None
         if len(parts) == 3 and parts[0] == "api":
             return parts[1], parts[2]
         return None, None

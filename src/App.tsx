@@ -10,6 +10,7 @@ import {
   List,
   ListOrdered,
   LogOut,
+  Play,
   Plus,
   Save,
   Send,
@@ -68,10 +69,24 @@ type SubmissionQueueItem = {
   runnerPayload: string;
 };
 
+type RunnerSettings = {
+  mediaDir: string;
+  slowMo: number;
+  submit: boolean;
+};
+
+type RunnerStatus = {
+  running: boolean;
+  pid: number | null;
+  plan_path: string;
+  command: string[];
+};
+
 const storageKey = "inwell-ad-assistant-state";
 const tagProfileStorageKey = "inwell-blog-tag-profiles";
 const submitTargetStorageKey = "inwell-tumblr-submit-targets";
 const submissionQueueStorageKey = "inwell-tumblr-submission-queue";
+const runnerSettingsStorageKey = "inwell-tumblr-runner-settings";
 const apiBaseUrl = "http://127.0.0.1:8021/api";
 
 type ApiAdvertisement = {
@@ -473,6 +488,20 @@ function loadSubmissionQueue() {
   }
 }
 
+function loadRunnerSettings(): RunnerSettings {
+  try {
+    const raw = localStorage.getItem(runnerSettingsStorageKey);
+    const parsed = raw ? (JSON.parse(raw) as Partial<RunnerSettings>) : {};
+    return {
+      mediaDir: typeof parsed.mediaDir === "string" ? parsed.mediaDir : "",
+      slowMo: Number(parsed.slowMo) || 500,
+      submit: Boolean(parsed.submit),
+    };
+  } catch {
+    return { mediaDir: "", slowMo: 500, submit: false };
+  }
+}
+
 function loadTagProfiles() {
   try {
     const raw = localStorage.getItem(tagProfileStorageKey);
@@ -512,6 +541,8 @@ function App() {
   const [validation, setValidation] = useState<string[]>([]);
   const [, setGeneratedPost] = useState("");
   const [queueStatus, setQueueStatus] = useState("");
+  const [runnerSettings, setRunnerSettings] = useState<RunnerSettings>(() => loadRunnerSettings());
+  const [runnerState, setRunnerState] = useState<RunnerStatus | null>(null);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [activeView, setActiveView] = useState<WorkspaceView>("editor");
 
@@ -579,6 +610,10 @@ function App() {
   useEffect(() => {
     localStorage.setItem(tagProfileStorageKey, JSON.stringify(tagProfiles));
   }, [tagProfiles]);
+
+  useEffect(() => {
+    localStorage.setItem(runnerSettingsStorageKey, JSON.stringify(runnerSettings));
+  }, [runnerSettings]);
 
   useEffect(() => {
     const nextContent = composerContentFor(activeAd);
@@ -918,17 +953,17 @@ function App() {
     setQueueStatus("Cleared submitted and failed entries for this saved submission.");
   }
 
+  function buildRunnerPlan() {
+    return {
+      version: 1,
+      workflow: "tumblr-submission-queue",
+      generatedAt: new Date().toISOString(),
+      items: activeQueue,
+    };
+  }
+
   function copyRunnerPlan() {
-    const plan = JSON.stringify(
-      {
-        version: 1,
-        workflow: "tumblr-submission-queue",
-        generatedAt: new Date().toISOString(),
-        items: activeQueue,
-      },
-      null,
-      2,
-    );
+    const plan = JSON.stringify(buildRunnerPlan(), null, 2);
     navigator.clipboard.writeText(plan);
     const blob = new Blob([plan], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -940,6 +975,41 @@ function App() {
     setQueueStatus(
       `Downloaded and copied runner plan for ${activeQueue.length} queued target${activeQueue.length === 1 ? "" : "s"}.`,
     );
+  }
+
+  async function refreshRunnerStatus() {
+    try {
+      const response = await apiRequest<{ runner: RunnerStatus }>("/runner/status");
+      setRunnerState(response.runner);
+      setApiAvailable(true);
+      setQueueStatus(response.runner.running ? `Runner is open in process ${response.runner.pid}.` : "Runner is not running.");
+    } catch {
+      setApiAvailable(false);
+      setQueueStatus("Start the Python API before launching the runner from the app.");
+    }
+  }
+
+  async function startRunner() {
+    if (!activeQueue.length) {
+      setQueueStatus("Queue at least one target before starting the runner.");
+      return;
+    }
+
+    try {
+      const response = await apiRequest<{ runner: RunnerStatus }>("/runner/start", {
+        method: "POST",
+        body: JSON.stringify({
+          ...runnerSettings,
+          items: activeQueue,
+        }),
+      });
+      setRunnerState(response.runner);
+      setApiAvailable(true);
+      setQueueStatus(`Runner launched in a visible PowerShell window. Plan: ${response.runner.plan_path}`);
+    } catch {
+      setApiAvailable(false);
+      setQueueStatus("Could not launch runner. Start the Python API and make sure no runner is already open.");
+    }
   }
 
   function handleImageUpload(event: ChangeEvent<HTMLInputElement>) {
@@ -1418,6 +1488,53 @@ function App() {
           <div className="panel-heading">
             <h2>Submission queue</h2>
             <Send size={18} />
+          </div>
+          <div className="runner-control-panel" aria-label="Local Tumblr runner controls">
+            <div className="field-grid three">
+              <label>
+                Media folder
+                <input
+                  value={runnerSettings.mediaDir}
+                  onChange={(event) => setRunnerSettings((current) => ({ ...current, mediaDir: event.target.value }))}
+                  placeholder="C:\Users\mandy\OneDrive\Desktop\rp\Grass is Greener"
+                />
+              </label>
+              <label>
+                Slow motion
+                <input
+                  min={0}
+                  max={5000}
+                  step={100}
+                  type="number"
+                  value={runnerSettings.slowMo}
+                  onChange={(event) =>
+                    setRunnerSettings((current) => ({ ...current, slowMo: Number(event.target.value) || 0 }))
+                  }
+                />
+              </label>
+              <label className="runner-submit-toggle">
+                <input
+                  checked={runnerSettings.submit}
+                  type="checkbox"
+                  onChange={(event) => setRunnerSettings((current) => ({ ...current, submit: event.target.checked }))}
+                />
+                Click Submit after filling
+              </label>
+            </div>
+            <div className="queue-actions">
+              <button className="primary" type="button" onClick={startRunner} disabled={!activeQueue.length}>
+                <Play size={18} />
+                Run queue
+              </button>
+              <button className="secondary" type="button" onClick={refreshRunnerStatus}>
+                Refresh runner status
+              </button>
+              {runnerState ? (
+                <span className="runner-state">
+                  {runnerState.running ? `Running: ${runnerState.pid}` : "Not running"}
+                </span>
+              ) : null}
+            </div>
           </div>
           <div className="queue-actions">
             <button className="secondary" type="button" onClick={() => queueTargets([activeSubmitTarget])}>

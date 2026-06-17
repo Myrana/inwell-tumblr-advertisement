@@ -928,6 +928,38 @@ pre {
   gap: 8px;
 }
 
+.runner-control-panel {
+  margin-bottom: 12px;
+  padding: 12px;
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafb;
+}
+
+.runner-submit-toggle {
+  min-height: 64px;
+  grid-template-columns: 16px 1fr;
+  align-items: center;
+  align-content: center;
+}
+
+.runner-submit-toggle input {
+  width: 14px;
+  height: 14px;
+  padding: 0;
+}
+
+.runner-state {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
 .queue-status,
 .queue-empty,
 .queue-item p {
