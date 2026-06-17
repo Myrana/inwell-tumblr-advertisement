@@ -11,14 +11,15 @@ export const manualActionPatterns = [
   /recaptcha/i,
   /verify you/i,
   /are you a robot/i,
-  /terms of submission/i,
 ];
 
 export function parseArgs(argv) {
   const options = {
     planPath: "",
     userDataDir: path.join(process.cwd(), ".tumblr-runner-profile"),
+    mediaDir: "",
     headless: false,
+    loginFirst: false,
     noPause: false,
     submit: false,
     slowMo: 0,
@@ -28,10 +29,14 @@ export function parseArgs(argv) {
     const arg = argv[index];
     if (arg === "--plan") {
       options.planPath = argv[++index] ?? "";
+    } else if (arg === "--media-dir") {
+      options.mediaDir = argv[++index] ?? "";
     } else if (arg === "--user-data-dir") {
       options.userDataDir = argv[++index] ?? "";
     } else if (arg === "--headless") {
       options.headless = true;
+    } else if (arg === "--login-first") {
+      options.loginFirst = true;
     } else if (arg === "--no-pause") {
       options.noPause = true;
     } else if (arg === "--submit") {
@@ -181,13 +186,31 @@ export function sanitizeFileName(value) {
   return cleaned || "tumblr-upload";
 }
 
+export function htmlToPlainText(value) {
+  return String(value)
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p\s*>/gi, "\n\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 export function fieldsForItem(item) {
   const fields = item.payload.fields ?? {};
   const advertisement = item.payload.advertisement ?? {};
+  const bodyHtml = String(fields.body || fields.caption || "");
   return {
-    body: String(fields.body || fields.caption || fields.package || ""),
-    caption: String(fields.caption || fields.body || fields.package || ""),
+    body: htmlToPlainText(bodyHtml || fields.package || ""),
+    caption: htmlToPlainText(bodyHtml || fields.package || ""),
+    bodyHtml,
     packageText: String(fields.package || fields.body || ""),
+    title: String(advertisement.savedOptionName || ""),
     videoUrl: String(fields.videoUrl || advertisement.videoUrl || ""),
     imageDataUrl: String(fields.imageDataUrl || advertisement.imageDataUrl || ""),
     imageName: String(advertisement.imageName || "tumblr-upload.png"),

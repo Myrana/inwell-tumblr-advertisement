@@ -4,6 +4,7 @@ import {
   dataUrlToBuffer,
   fieldsForItem,
   frameCandidateScore,
+  htmlToPlainText,
   normalizeRunnerPlan,
   parseArgs,
   shouldPauseForManualAction,
@@ -15,7 +16,16 @@ test("parseArgs accepts a plan and safety defaults", () => {
   assert.equal(options.planPath, "queue.json");
   assert.equal(options.submit, false);
   assert.equal(options.headless, false);
+  assert.equal(options.loginFirst, false);
   assert.equal(options.noPause, true);
+});
+
+test("parseArgs supports same-session login before queue execution", () => {
+  const options = parseArgs(["--plan", "queue.json", "--login-first", "--media-dir", "media", "--slow-mo", "125"]);
+  assert.equal(options.planPath, "queue.json");
+  assert.equal(options.loginFirst, true);
+  assert.equal(options.mediaDir, "media");
+  assert.equal(options.slowMo, 125);
 });
 
 test("normalizeRunnerPlan decodes queue item runner payload", () => {
@@ -39,7 +49,20 @@ test("normalizeRunnerPlan decodes queue item runner payload", () => {
 
   assert.equal(plan.items.length, 1);
   assert.equal(plan.items[0].postType, "photo");
+  assert.equal(fieldsForItem(plan.items[0]).title, "");
+  assert.match(fieldsForItem(plan.items[0]).bodyHtml, /<p>Hello<\/p>/);
   assert.deepEqual(fieldsForItem(plan.items[0]).tags, ["one", "two"]);
+});
+
+test("fieldsForItem includes the saved option name as a title hint", () => {
+  const fields = fieldsForItem({
+    payload: {
+      fields: { body: "Body" },
+      advertisement: { savedOptionName: "Saved title", tags: [] },
+    },
+  });
+
+  assert.equal(fields.title, "Saved title");
 });
 
 test("manual action detection catches login and captcha states", () => {
@@ -52,6 +75,10 @@ test("dataUrlToBuffer decodes embedded media", () => {
   const decoded = dataUrlToBuffer("data:text/plain;base64,aGVsbG8=");
   assert.equal(decoded?.mimeType, "text/plain");
   assert.equal(decoded?.buffer.toString("utf8"), "hello");
+});
+
+test("htmlToPlainText converts exported rich text to editor text", () => {
+  assert.equal(htmlToPlainText("<p>Hello&nbsp;<strong>world</strong></p><p>Next &amp; final</p>"), "Hello world\n\nNext & final");
 });
 
 test("frameCandidateScore prefers Tumblr submit iframe", () => {
