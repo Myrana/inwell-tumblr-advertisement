@@ -13,7 +13,7 @@ from psycopg.rows import dict_row
 
 
 POST_TYPES = {"text", "photo", "video"}
-DEFAULT_PGHOST = "19.168.1.3"
+DEFAULT_PGHOST = "192.168.1.3"
 DEFAULT_PGDATABASE = "inwell_tumblr_advertisement"
 DEFAULT_PGUSER = "postgres"
 
