@@ -41,6 +41,24 @@ It fills supported text, photo, video URL, and tag fields when the public submit
 form exposes normal controls. By default it pauses before final submission so
 you can review the form.
 
+When Tumblr drops or refuses the saved profile session, run login and queue
+execution in one visible browser session:
+
+```powershell
+npm.cmd run tumblr:runner -- --plan .\tumblr-runner-plan.json --login-first
+```
+
+Log into Tumblr in the Playwright browser, wait for the dashboard to finish
+loading, then press Enter in the runner terminal. The runner then opens the
+queued submit page in the same browser context.
+
+If an exported plan contains only an image filename, pass the folder that holds
+the image so the runner can upload it:
+
+```powershell
+npm.cmd run tumblr:runner -- --plan .\tumblr-runner-plan.json --media-dir "C:\path\to\images"
+```
+
 To open the persistent Playwright browser profile and log into Tumblr manually:
 
 ```powershell
