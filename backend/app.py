@@ -1,17 +1,21 @@
 from __future__ import annotations
 
 import json
-import sqlite3
-from datetime import datetime, timezone
+import os
+from datetime import date, datetime, timezone
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 from urllib.parse import urlparse
 
+import psycopg
+from psycopg.rows import dict_row
 
-DB_PATH = Path(__file__).with_name("inwell.sqlite3")
+
 POST_TYPES = {"text", "photo", "video"}
+DEFAULT_PGHOST = "19.168.1.3"
+DEFAULT_PGDATABASE = "inwell_tumblr_advertisement"
+DEFAULT_PGUSER = "postgres"
 
 SEED_TEMPLATES = [
     {
@@ -39,18 +43,44 @@ SEED_TEMPLATES = [
 ]
 
 
-def utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+class CursorLike(Protocol):
+    def fetchone(self) -> Any: ...
+
+    def fetchall(self) -> list[Any]: ...
 
 
-def connect(db_path: Path | str = DB_PATH) -> sqlite3.Connection:
-    connection = sqlite3.connect(db_path)
-    connection.row_factory = sqlite3.Row
+class ConnectionLike(Protocol):
+    def execute(self, query: str, params: tuple[Any, ...] | None = None) -> CursorLike: ...
+
+
+def utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def database_settings() -> dict[str, Any]:
+    return {
+        "host": os.environ.get("PGHOST", DEFAULT_PGHOST),
+        "port": int(os.environ.get("PGPORT", "5432")),
+        "dbname": os.environ.get("PGDATABASE", DEFAULT_PGDATABASE),
+        "user": os.environ.get("PGUSER", DEFAULT_PGUSER),
+        "password": os.environ.get("PGPASSWORD", ""),
+        "connect_timeout": int(os.environ.get("PGCONNECT_TIMEOUT", "5")),
+    }
+
+
+def connect() -> psycopg.Connection[Any]:
+    conninfo = os.environ.get("DATABASE_URL")
+    if conninfo:
+        connection = psycopg.connect(conninfo, row_factory=dict_row)
+    else:
+        settings = {key: value for key, value in database_settings().items() if value != ""}
+        connection = psycopg.connect(row_factory=dict_row, **settings)
+
     initialize(connection)
     return connection
 
 
-def initialize(connection: sqlite3.Connection) -> None:
+def initialize(connection: ConnectionLike) -> None:
     connection.execute(
         """
         CREATE TABLE IF NOT EXISTS advertisements (
@@ -60,15 +90,15 @@ def initialize(connection: sqlite3.Connection) -> None:
             content TEXT NOT NULL DEFAULT '',
             destination_blog TEXT NOT NULL DEFAULT '',
             forum_url TEXT NOT NULL DEFAULT '',
-            tags TEXT NOT NULL DEFAULT '[]',
+            tags JSONB NOT NULL DEFAULT '[]'::jsonb,
             image_caption TEXT NOT NULL DEFAULT '',
             image_name TEXT NOT NULL DEFAULT '',
             image_data_url TEXT NOT NULL DEFAULT '',
             video_url TEXT NOT NULL DEFAULT '',
             video_name TEXT NOT NULL DEFAULT '',
             status TEXT NOT NULL DEFAULT 'draft',
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL
+            created_at TIMESTAMPTZ NOT NULL,
+            updated_at TIMESTAMPTZ NOT NULL
         )
         """
     )
@@ -79,33 +109,25 @@ def initialize(connection: sqlite3.Connection) -> None:
             name TEXT NOT NULL,
             content TEXT NOT NULL DEFAULT '',
             forum_url TEXT NOT NULL DEFAULT '',
-            tags TEXT NOT NULL DEFAULT '[]',
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL
+            tags JSONB NOT NULL DEFAULT '[]'::jsonb,
+            created_at TIMESTAMPTZ NOT NULL,
+            updated_at TIMESTAMPTZ NOT NULL
         )
         """
     )
-    ensure_column(connection, "advertisements", "post_type", "post_type TEXT NOT NULL DEFAULT 'photo'")
-    ensure_column(connection, "advertisements", "video_url", "video_url TEXT NOT NULL DEFAULT ''")
-    ensure_column(connection, "advertisements", "video_name", "video_name TEXT NOT NULL DEFAULT ''")
     seed_templates(connection)
 
 
-def ensure_column(connection: sqlite3.Connection, table: str, column: str, definition: str) -> None:
-    columns = {row["name"] for row in connection.execute(f"PRAGMA table_info({table})")}
-    if column not in columns:
-        connection.execute(f"ALTER TABLE {table} ADD COLUMN {definition}")
-
-
-def seed_templates(connection: sqlite3.Connection) -> None:
+def seed_templates(connection: ConnectionLike) -> None:
     now = utc_now()
     for template in SEED_TEMPLATES:
         connection.execute(
             """
-            INSERT OR IGNORE INTO templates (
+            INSERT INTO templates (
                 id, name, content, forum_url, tags, created_at, updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s::jsonb, %s, %s)
+            ON CONFLICT(id) DO NOTHING
             """,
             (
                 template["id"],
@@ -131,16 +153,26 @@ def parse_tags(value: Any) -> list[str]:
     return []
 
 
-def row_to_advertisement(row: sqlite3.Row) -> dict[str, Any]:
-    data = dict(row)
+def normalize_datetime(value: Any) -> Any:
+    if isinstance(value, datetime | date):
+        return value.isoformat()
+    return value
+
+
+def row_to_dict(row: Any) -> dict[str, Any]:
+    return {key: normalize_datetime(value) for key, value in dict(row).items()}
+
+
+def row_to_advertisement(row: Any) -> dict[str, Any]:
+    data = row_to_dict(row)
     data["tags"] = parse_tags(data["tags"])
     if data.get("post_type") not in POST_TYPES:
         data["post_type"] = "photo"
     return data
 
 
-def row_to_template(row: sqlite3.Row) -> dict[str, Any]:
-    data = dict(row)
+def row_to_template(row: Any) -> dict[str, Any]:
+    data = row_to_dict(row)
     data["tags"] = parse_tags(data["tags"])
     return data
 
@@ -177,14 +209,14 @@ def template_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def upsert_advertisement(connection: sqlite3.Connection, payload: dict[str, Any]) -> dict[str, Any]:
+def upsert_advertisement(connection: ConnectionLike, payload: dict[str, Any]) -> dict[str, Any]:
     advertisement = advertisement_from_payload(payload)
     if not advertisement["id"]:
         raise ValueError("id is required")
 
     now = utc_now()
     existing = connection.execute(
-        "SELECT created_at FROM advertisements WHERE id = ?", (advertisement["id"],)
+        "SELECT created_at FROM advertisements WHERE id = %s", (advertisement["id"],)
     ).fetchone()
     created_at = existing["created_at"] if existing else now
 
@@ -195,7 +227,7 @@ def upsert_advertisement(connection: sqlite3.Connection, payload: dict[str, Any]
             image_caption, image_name, image_data_url, video_url, video_name,
             status, created_at, updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT(id) DO UPDATE SET
             post_type = excluded.post_type,
             title = excluded.title,
@@ -231,12 +263,12 @@ def upsert_advertisement(connection: sqlite3.Connection, payload: dict[str, Any]
     )
 
     row = connection.execute(
-        "SELECT * FROM advertisements WHERE id = ?", (advertisement["id"],)
+        "SELECT * FROM advertisements WHERE id = %s", (advertisement["id"],)
     ).fetchone()
     return row_to_advertisement(row)
 
 
-def upsert_template(connection: sqlite3.Connection, payload: dict[str, Any]) -> dict[str, Any]:
+def upsert_template(connection: ConnectionLike, payload: dict[str, Any]) -> dict[str, Any]:
     template = template_from_payload(payload)
     if not template["id"]:
         raise ValueError("id is required")
@@ -244,15 +276,13 @@ def upsert_template(connection: sqlite3.Connection, payload: dict[str, Any]) -> 
         raise ValueError("name is required")
 
     now = utc_now()
-    existing = connection.execute(
-        "SELECT created_at FROM templates WHERE id = ?", (template["id"],)
-    ).fetchone()
+    existing = connection.execute("SELECT created_at FROM templates WHERE id = %s", (template["id"],)).fetchone()
     created_at = existing["created_at"] if existing else now
 
     connection.execute(
         """
         INSERT INTO templates (id, name, content, forum_url, tags, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s, %s::jsonb, %s, %s)
         ON CONFLICT(id) DO UPDATE SET
             name = excluded.name,
             content = excluded.content,
@@ -271,13 +301,11 @@ def upsert_template(connection: sqlite3.Connection, payload: dict[str, Any]) -> 
         ),
     )
 
-    row = connection.execute("SELECT * FROM templates WHERE id = ?", (template["id"],)).fetchone()
+    row = connection.execute("SELECT * FROM templates WHERE id = %s", (template["id"],)).fetchone()
     return row_to_template(row)
 
 
 class Handler(BaseHTTPRequestHandler):
-    db_path = DB_PATH
-
     def do_OPTIONS(self) -> None:
         self.send_response(HTTPStatus.NO_CONTENT)
         self.send_common_headers()
@@ -285,11 +313,9 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         collection, item_id = self.route()
-        with connect(self.db_path) as connection:
+        with connect() as connection:
             if collection == "advertisements" and item_id is None:
-                rows = connection.execute(
-                    "SELECT * FROM advertisements ORDER BY updated_at DESC"
-                ).fetchall()
+                rows = connection.execute("SELECT * FROM advertisements ORDER BY updated_at DESC").fetchall()
                 self.respond({"advertisements": [row_to_advertisement(row) for row in rows]})
                 return
 
@@ -325,8 +351,8 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         table = "advertisements" if collection == "advertisements" else "templates"
-        with connect(self.db_path) as connection:
-            connection.execute(f"DELETE FROM {table} WHERE id = ?", (item_id,))
+        with connect() as connection:
+            connection.execute(f"DELETE FROM {table} WHERE id = %s", (item_id,))
 
         self.respond({"deleted": item_id})
 
@@ -337,7 +363,7 @@ class Handler(BaseHTTPRequestHandler):
         status: HTTPStatus = HTTPStatus.OK,
     ) -> None:
         try:
-            with connect(self.db_path) as connection:
+            with connect() as connection:
                 if collection == "advertisements":
                     item = upsert_advertisement(connection, payload)
                     self.respond({"advertisement": item}, status)
