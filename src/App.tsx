@@ -5,7 +5,6 @@ import {
   FileText,
   ImagePlus,
   Italic,
-  Library,
   Link,
   Link2,
   List,
@@ -25,6 +24,7 @@ import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 
 type Status = "draft" | "ready" | "submitted";
 type PostType = "text" | "photo" | "video";
+type WorkspaceView = "editor" | "drafts" | "queue";
 
 type Advertisement = {
   id: string;
@@ -49,12 +49,6 @@ type Template = {
   content: string;
   tags: string[];
   forumUrl: string;
-};
-
-type Snippet = {
-  id: string;
-  label: string;
-  body: string;
 };
 
 type TumblrSubmitTarget = {
@@ -203,24 +197,6 @@ const seedTemplates: Template[] = [
     tags: ["#jcink", "#forum roleplay", "#site advertisement"],
     content:
       "Open canons, wanted connections, and new-member prompts are ready for players who want an easy entry point. Browse the latest openings and bring a fresh character into the story.",
-  },
-];
-
-const seedSnippets: Snippet[] = [
-  {
-    id: "snippet-stats",
-    label: "Site statistics",
-    body: "Established community, active staff, monthly prompts, and an accessible application process.",
-  },
-  {
-    id: "snippet-plot",
-    label: "Plot summary",
-    body: "Ongoing story arcs leave room for new characters to affect factions, relationships, and site-wide events.",
-  },
-  {
-    id: "snippet-links",
-    label: "Useful links",
-    body: "Quick links: guidebook, wanted ads, face claims, application template, and Discord information.",
   },
 ];
 
@@ -561,6 +537,7 @@ function App() {
   const [copyState, setCopyState] = useState("Copy");
   const [queueStatus, setQueueStatus] = useState("");
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const [activeView, setActiveView] = useState<WorkspaceView>("editor");
 
   const activeAd = useMemo(
     () => stored.ads.find((ad) => ad.id === stored.activeAdId) ?? stored.ads[0],
@@ -728,13 +705,6 @@ function App() {
     setCustomTag("");
   }
 
-  function addSnippet(snippet: Snippet) {
-    const nextContent = activeAd.content
-      ? `${activeAd.content}\n\n${snippet.body}`
-      : snippet.body;
-    updateActiveAd({ content: nextContent });
-  }
-
   function createDraft() {
     const next = emptyAd();
     setValidation([]);
@@ -876,7 +846,7 @@ function App() {
     setGeneratedPost(buildPost());
     window.open(activeSubmitTarget.submitUrl, "_blank", "noopener,noreferrer");
     setSubmitTargetStatus(
-      `Opened ${activeSubmitTarget.name}. Choose ${activeAd.postType} on Tumblr, then paste the prepared package from Final post.`,
+      `Opened ${activeSubmitTarget.name}. Choose ${activeAd.postType} on Tumblr, then paste the prepared submission package.`,
     );
   }
 
@@ -1079,7 +1049,7 @@ function App() {
     activeAd.postType === "text"
       ? "Write the Tumblr text post body."
       : "Add extra reusable copy below the caption if needed.";
-  const previewPlaceholder = `Generate a ready-to-copy Tumblr ${activeAd.postType} post from the current draft.`;
+  const previewPlaceholder = `Prepare a Tumblr ${activeAd.postType} submission package from the current draft.`;
   const submissionComplete = activeAd.status === "submitted";
 
   return (
@@ -1101,18 +1071,18 @@ function App() {
         </div>
 
         <nav className="nav-list" aria-label="Workspace views">
-          <a className="active" href="#editor">
+          <button className={activeView === "editor" ? "active" : ""} type="button" onClick={() => setActiveView("editor")}>
             <FileText size={18} />
             Editor
-          </a>
-          <a href="#drafts">
+          </button>
+          <button className={activeView === "drafts" ? "active" : ""} type="button" onClick={() => setActiveView("drafts")}>
             <Archive size={18} />
             Drafts
-          </a>
-          <a href="#library">
-            <Library size={18} />
-            Library
-          </a>
+          </button>
+          <button className={activeView === "queue" ? "active" : ""} type="button" onClick={() => setActiveView("queue")}>
+            <Send size={18} />
+            Queue
+          </button>
         </nav>
 
         <section className="metric-panel" aria-label="Advertisement counts">
@@ -1152,11 +1122,12 @@ function App() {
             </button>
             <button className="primary" type="button" onClick={generatePost}>
               <Sparkles size={18} />
-              Generate
+              Prepare
             </button>
           </div>
         </header>
 
+        {activeView === "editor" ? (
         <div className="workspace-grid">
           <section className="editor-surface" id="editor" aria-label="Advertisement editor">
             <div className="field-grid two">
@@ -1400,7 +1371,7 @@ function App() {
                     I accept the <a href="#terms">Terms of Submission</a>
                   </label>
                   <button className="tumblr-submit-button" type="button" onClick={submitRecord}>
-                    Mark submitted
+                    Mark locally submitted
                   </button>
                   <button className="secondary" type="button" onClick={openSubmitPage}>
                     <Link2 size={18} />
@@ -1420,9 +1391,9 @@ function App() {
           </section>
 
           <aside className="right-rail">
-            <section className="preview-panel" aria-label="Generated post preview">
+            <section className="preview-panel" aria-label="Prepared submission preview">
               <div className="panel-heading">
-                <h2>Final post</h2>
+                <h2>Prepared submission</h2>
                 <button className="icon-button" type="button" onClick={copyPost} aria-label="Copy post" title="Copy post">
                   <Copy size={18} />
                 </button>
@@ -1432,111 +1403,104 @@ function App() {
                 <Link size={18} />
                 {activeSubmitTarget.submitUrl}
               </a>
-              <button className="primary full" type="button" onClick={submitRecord}>
-                <Send size={18} />
-                Mark submitted
-              </button>
               <span className="copy-state">{copyState}</span>
-            </section>
-
-            <section className="submission-queue-panel" aria-label="Tumblr submission queue">
-              <div className="panel-heading">
-                <h2>Submission queue</h2>
-                <Send size={18} />
-              </div>
-              <div className="queue-actions">
-                <button className="secondary" type="button" onClick={() => queueTargets([activeSubmitTarget])}>
-                  <Plus size={18} />
-                  Queue current
-                </button>
-                <button className="secondary" type="button" onClick={() => queueTargets(targetOptions)}>
-                  <List size={18} />
-                  Queue all
-                </button>
-                <button className="secondary" type="button" onClick={copyRunnerPlan} disabled={!activeQueue.length}>
-                  <Copy size={18} />
-                  Copy runner plan
-                </button>
-              </div>
-              {queueStatus ? <p className="queue-status">{queueStatus}</p> : null}
-              <div className="queue-list">
-                {activeQueue.length ? (
-                  activeQueue.map((item) => (
-                    <article className="queue-item" key={item.id}>
-                      <div>
-                        <strong>{item.targetName}</strong>
-                        <span>{item.postType} - {item.status} - {formatDate(item.updatedAt)}</span>
-                        <a href={item.submitUrl} target="_blank" rel="noreferrer">
-                          {item.submitUrl}
-                        </a>
-                      </div>
-                      <div className="queue-item-actions">
-                        <button
-                          className="secondary"
-                          type="button"
-                          onClick={() => updateQueueItem(item.id, "submitting", "Runner started this target.")}
-                        >
-                          Runner started
-                        </button>
-                        <button
-                          className="secondary"
-                          type="button"
-                          onClick={() =>
-                            updateQueueItem(item.id, "manual-action", "Tumblr requires login, captcha, media upload, or form review.")
-                          }
-                        >
-                          Manual action
-                        </button>
-                        <button
-                          className="secondary"
-                          type="button"
-                          onClick={() => updateQueueItem(item.id, "submitted", "Marked submitted after Tumblr accepted the form.")}
-                        >
-                          Submitted
-                        </button>
-                        <button
-                          className="secondary"
-                          type="button"
-                          onClick={() => updateQueueItem(item.id, "failed", "Marked failed for runner retry or review.")}
-                        >
-                          Failed
-                        </button>
-                      </div>
-                      <p>{item.notes}</p>
-                    </article>
-                  ))
-                ) : (
-                  <p className="queue-empty">Queue this post for one or all Tumblr submit targets before running automation.</p>
-                )}
-              </div>
-              <button className="secondary full" type="button" onClick={clearCompletedQueueItems}>
-                Clear completed
-              </button>
-            </section>
-
-            <section className="library-panel" id="library" aria-label="Reusable content library">
-              <div className="panel-heading">
-                <h2>Content library</h2>
-                <Library size={18} />
-              </div>
-              {seedSnippets.map((snippet) => (
-                <button className="snippet" key={snippet.id} type="button" onClick={() => addSnippet(snippet)}>
-                  <span>{snippet.label}</span>
-                  <Plus size={16} />
-                </button>
-              ))}
             </section>
           </aside>
         </div>
+        ) : null}
 
-        <section className="draft-table" id="drafts" aria-label="Saved drafts">
+        {activeView === "queue" ? (
+        <section className="submission-queue-panel queue-workspace" aria-label="Tumblr submission queue">
+          <div className="panel-heading">
+            <h2>Submission queue</h2>
+            <Send size={18} />
+          </div>
+          <div className="queue-actions">
+            <button className="secondary" type="button" onClick={() => queueTargets([activeSubmitTarget])}>
+              <Plus size={18} />
+              Queue current
+            </button>
+            <button className="secondary" type="button" onClick={() => queueTargets(targetOptions)}>
+              <List size={18} />
+              Queue all targets
+            </button>
+            <button className="secondary" type="button" onClick={copyRunnerPlan} disabled={!activeQueue.length}>
+              <Copy size={18} />
+              Export automation plan
+            </button>
+            <button className="secondary" type="button" onClick={clearCompletedQueueItems}>
+              Clear completed
+            </button>
+          </div>
+          {queueStatus ? <p className="queue-status">{queueStatus}</p> : null}
+          <div className="queue-list">
+            {activeQueue.length ? (
+              activeQueue.map((item) => (
+                <article className="queue-item" key={item.id}>
+                  <div>
+                    <strong>{item.targetName}</strong>
+                  <span>{item.postType} - {item.status} - {formatDate(item.updatedAt)}</span>
+                    <a href={item.submitUrl} target="_blank" rel="noreferrer">
+                      {item.submitUrl}
+                    </a>
+                  </div>
+                  <div className="queue-item-actions">
+                    <button
+                      className="secondary"
+                      type="button"
+                      onClick={() => updateQueueItem(item.id, "submitting", "Runner started this target.")}
+                    >
+                      Runner started
+                    </button>
+                    <button
+                      className="secondary"
+                      type="button"
+                      onClick={() =>
+                        updateQueueItem(item.id, "manual-action", "Tumblr requires login, captcha, media upload, or form review.")
+                      }
+                    >
+                      Needs action
+                    </button>
+                    <button
+                      className="secondary"
+                      type="button"
+                      onClick={() => updateQueueItem(item.id, "submitted", "Marked submitted after Tumblr accepted the form.")}
+                    >
+                      Submitted
+                    </button>
+                    <button
+                      className="secondary"
+                      type="button"
+                      onClick={() => updateQueueItem(item.id, "failed", "Marked failed for runner retry or review.")}
+                    >
+                      Failed
+                    </button>
+                  </div>
+                  <p>{item.notes}</p>
+                </article>
+              ))
+            ) : (
+              <p className="queue-empty">Queue one or more Tumblr blogs, then run the automation step.</p>
+            )}
+          </div>
+        </section>
+        ) : null}
+
+        {activeView === "drafts" ? (
+        <section className="draft-table" aria-label="Saved drafts">
           <div className="panel-heading">
             <h2>Saved drafts</h2>
             <Archive size={18} />
           </div>
           {stored.ads.map((ad) => (
             <article className={ad.id === activeAd.id ? "draft-row selected" : "draft-row"} key={ad.id}>
-              <button type="button" onClick={() => setStored((current) => ({ ...current, activeAdId: ad.id }))}>
+              <button
+                type="button"
+                onClick={() => {
+                  setStored((current) => ({ ...current, activeAdId: ad.id }));
+                  setActiveView("editor");
+                }}
+              >
                 <strong>{ad.title || "Untitled saved option"}</strong>
                 <span>{ad.postType} - {ad.status} - {formatDate(ad.updatedAt)}</span>
               </button>
@@ -1549,6 +1513,7 @@ function App() {
             </article>
           ))}
         </section>
+        ) : null}
       </section>
     </main>
   );
