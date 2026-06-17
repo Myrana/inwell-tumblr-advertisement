@@ -110,7 +110,7 @@ class PersistenceTests(unittest.TestCase):
         initialize(self.connection)
 
     def test_database_settings_default_to_requested_postgres_host(self) -> None:
-        self.assertEqual(database_settings()["host"], "19.168.1.3")
+        self.assertEqual(database_settings()["host"], "192.168.1.3")
         self.assertEqual(database_settings()["dbname"], "inwell_tumblr_advertisement")
 
     def test_database_settings_honor_environment_overrides(self) -> None:

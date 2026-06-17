@@ -21,7 +21,7 @@ The frontend uses the API when it is running and falls back to browser-local sto
 The API reads PostgreSQL settings from the standard environment variables:
 
 ```powershell
-$env:PGHOST = "19.168.1.3"
+$env:PGHOST = "192.168.1.3"
 $env:PGPORT = "5432"
 $env:PGDATABASE = "inwell_tumblr_advertisement"
 $env:PGUSER = "postgres"
