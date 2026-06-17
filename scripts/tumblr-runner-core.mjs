@@ -1,0 +1,156 @@
+import { Buffer } from "node:buffer";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+
+export const manualActionPatterns = [
+  /log in/i,
+  /login/i,
+  /sign in/i,
+  /captcha/i,
+  /recaptcha/i,
+  /verify you/i,
+  /are you a robot/i,
+  /terms of submission/i,
+];
+
+export function parseArgs(argv) {
+  const options = {
+    planPath: "",
+    userDataDir: path.join(process.cwd(), ".tumblr-runner-profile"),
+    headless: false,
+    submit: false,
+    slowMo: 0,
+  };
+
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index];
+    if (arg === "--plan") {
+      options.planPath = argv[++index] ?? "";
+    } else if (arg === "--user-data-dir") {
+      options.userDataDir = argv[++index] ?? "";
+    } else if (arg === "--headless") {
+      options.headless = true;
+    } else if (arg === "--submit") {
+      options.submit = true;
+    } else if (arg === "--slow-mo") {
+      options.slowMo = Number(argv[++index] ?? "0") || 0;
+    } else if (!arg.startsWith("--") && !options.planPath) {
+      options.planPath = arg;
+    } else {
+      throw new Error(`Unknown runner argument: ${arg}`);
+    }
+  }
+
+  if (!options.planPath) {
+    throw new Error("Missing queue plan. Use --plan tumblr-runner-plan.json.");
+  }
+
+  return options;
+}
+
+export async function loadRunnerPlan(planPath) {
+  const raw = await fs.readFile(planPath, "utf8");
+  return normalizeRunnerPlan(JSON.parse(raw));
+}
+
+export function normalizeRunnerPlan(value) {
+  if (value?.workflow !== "tumblr-submission-queue" || !Array.isArray(value.items)) {
+    throw new Error("Expected a tumblr-submission-queue plan with an items array.");
+  }
+
+  return {
+    version: Number(value.version) || 1,
+    generatedAt: String(value.generatedAt ?? ""),
+    items: value.items.map(normalizeQueueItem).filter(Boolean),
+  };
+}
+
+export function normalizeQueueItem(value) {
+  if (!value?.id || !value.submitUrl || !value.runnerPayload) {
+    return null;
+  }
+
+  const payload = decodeRunnerPayload(value.runnerPayload);
+  return {
+    id: String(value.id),
+    targetName: String(value.targetName || value.targetId || payload.target?.name || "Tumblr target"),
+    submitUrl: String(value.submitUrl),
+    postType: normalizePostType(value.postType || payload.advertisement?.postType),
+    payload,
+  };
+}
+
+export function decodeRunnerPayload(value) {
+  if (typeof value === "string") {
+    return JSON.parse(value);
+  }
+
+  if (value && typeof value === "object") {
+    return value;
+  }
+
+  throw new Error("Queue item has an invalid runnerPayload.");
+}
+
+export function normalizePostType(value) {
+  return value === "text" || value === "video" ? value : "photo";
+}
+
+export function shouldPauseForManualAction(text, url = "") {
+  const haystack = `${url}\n${text}`;
+  return manualActionPatterns.some((pattern) => pattern.test(haystack));
+}
+
+export function dataUrlToBuffer(dataUrl) {
+  const match = /^data:([^;,]+)?(;base64)?,(.*)$/s.exec(dataUrl);
+  if (!match) {
+    return null;
+  }
+
+  const [, mimeType = "application/octet-stream", base64, body] = match;
+  const buffer = base64 ? Buffer.from(body, "base64") : Buffer.from(decodeURIComponent(body), "utf8");
+  return { buffer, mimeType };
+}
+
+export async function materializeDataUrl(dataUrl, preferredName, directory = os.tmpdir()) {
+  const parsed = dataUrlToBuffer(dataUrl);
+  if (!parsed) {
+    return null;
+  }
+
+  const extension = extensionForMimeType(parsed.mimeType);
+  const safeName = sanitizeFileName(preferredName || `tumblr-upload${extension}`);
+  const targetPath = path.join(directory, safeName.endsWith(extension) ? safeName : `${safeName}${extension}`);
+  await fs.mkdir(directory, { recursive: true });
+  await fs.writeFile(targetPath, parsed.buffer);
+  return targetPath;
+}
+
+export function extensionForMimeType(mimeType) {
+  if (mimeType === "image/jpeg") return ".jpg";
+  if (mimeType === "image/png") return ".png";
+  if (mimeType === "image/gif") return ".gif";
+  if (mimeType === "image/webp") return ".webp";
+  if (mimeType === "video/mp4") return ".mp4";
+  return ".bin";
+}
+
+export function sanitizeFileName(value) {
+  const cleaned = String(value).replace(/[<>:"/\\|?*\x00-\x1f]/g, "-").trim();
+  return cleaned || "tumblr-upload";
+}
+
+export function fieldsForItem(item) {
+  const fields = item.payload.fields ?? {};
+  const advertisement = item.payload.advertisement ?? {};
+  return {
+    body: String(fields.body || fields.caption || fields.package || ""),
+    caption: String(fields.caption || fields.body || fields.package || ""),
+    packageText: String(fields.package || fields.body || ""),
+    videoUrl: String(fields.videoUrl || advertisement.videoUrl || ""),
+    imageDataUrl: String(fields.imageDataUrl || advertisement.imageDataUrl || ""),
+    imageName: String(advertisement.imageName || "tumblr-upload.png"),
+    tags: Array.isArray(advertisement.tags) ? advertisement.tags.map(String) : [],
+  };
+}

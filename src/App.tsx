@@ -839,12 +839,15 @@ function App() {
           forumUrl: activeAd.forumUrl,
           tags: activeAd.tags,
           imageName: activeAd.imageName,
+          imageDataUrl: activeAd.imageDataUrl,
           videoName: activeAd.videoName,
+          videoUrl: activeAd.videoUrl,
         },
         fields: {
           body: composerContent,
           caption: composerContent,
           videoUrl: activeAd.videoUrl,
+          imageDataUrl: activeAd.imageDataUrl,
           package: postPackage,
         },
         runnerNotes: [
@@ -927,7 +930,16 @@ function App() {
       2,
     );
     navigator.clipboard.writeText(plan);
-    setQueueStatus(`Copied runner plan for ${activeQueue.length} queued target${activeQueue.length === 1 ? "" : "s"}.`);
+    const blob = new Blob([plan], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "tumblr-runner-plan.json";
+    link.click();
+    URL.revokeObjectURL(url);
+    setQueueStatus(
+      `Downloaded and copied runner plan for ${activeQueue.length} queued target${activeQueue.length === 1 ? "" : "s"}.`,
+    );
   }
 
   function handleImageUpload(event: ChangeEvent<HTMLInputElement>) {
