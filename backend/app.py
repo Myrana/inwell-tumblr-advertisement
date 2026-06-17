@@ -497,7 +497,6 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def run(port: int = 8021) -> None:
-    connect().close()
     server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     print(f"Inwell API listening on http://127.0.0.1:{port}")
     server.serve_forever()
