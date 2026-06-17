@@ -41,6 +41,22 @@ It fills supported text, photo, video URL, and tag fields when the public submit
 form exposes normal controls. By default it pauses before final submission so
 you can review the form.
 
+To open the persistent Playwright browser profile and log into Tumblr manually:
+
+```powershell
+npm.cmd run tumblr:login
+```
+
+After logging in, inspect the queued target before running automation:
+
+```powershell
+npm.cmd run tumblr:inspect -- --plan .\tumblr-runner-plan.json
+```
+
+The inspect command reports whether the dashboard is logged in, whether the
+direct Tumblr submit form is accessible, whether the public submit page exposes
+form controls, and any blocker text Tumblr returns.
+
 To allow the runner to click the detected submit button after filling the form:
 
 ```powershell
