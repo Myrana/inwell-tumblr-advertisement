@@ -114,6 +114,14 @@ export function shouldDeferReadyReview(options) {
   return !options.submit && !options.headless && !options.noPause;
 }
 
+export function appearsLoggedInToTumblr(text, url = "") {
+  const haystack = `${url}\n${text}`;
+  return (
+    /dashboard|following|for you|account|activity|home/i.test(haystack) &&
+    !/log in to continue|login_register_required|log in|sign in/i.test(haystack)
+  );
+}
+
 export function frameCandidateScore(frameInfo) {
   let score = 0;
   if (/submit_form/i.test(frameInfo.name ?? "")) score += 100;

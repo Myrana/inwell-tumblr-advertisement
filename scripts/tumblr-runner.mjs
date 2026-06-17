@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { chromium } from "playwright";
 import {
+  appearsLoggedInToTumblr,
   frameCandidateScore,
   fieldsForItem,
   loadRunnerPlan,
@@ -54,6 +55,12 @@ async function waitForTumblrLogin(context, options) {
   });
   await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => undefined);
 
+  if (await tumblrSessionReady(page)) {
+    console.log("[login] Tumblr session is already active; continuing without an Enter prompt.");
+    await page.close().catch(() => undefined);
+    return;
+  }
+
   if (options.headless || options.noPause) {
     console.log("[login] Noninteractive mode: continuing without waiting for manual login.");
     await page.close().catch(() => undefined);
@@ -66,6 +73,21 @@ async function waitForTumblrLogin(context, options) {
     process.stdin.once("data", resolve);
   });
   await page.close().catch(() => undefined);
+}
+
+async function tumblrSessionReady(page) {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    for (const frame of page.frames()) {
+      const text = await frame.locator("body").innerText({ timeout: 2000 }).catch(() => "");
+      if (appearsLoggedInToTumblr(text, frame.url())) {
+        return true;
+      }
+    }
+
+    await page.waitForTimeout(500).catch(() => undefined);
+  }
+
+  return false;
 }
 
 async function runQueueItem(context, item, options) {
@@ -289,11 +311,14 @@ async function waitForOperatorPostTypeSelection(page, item, options) {
   }
 
   const optionValue = item.postType === "text" ? "text" : item.postType === "video" ? "video" : "photo";
-  console.log(`[manual-action] Select ${optionValue} in the Tumblr post type dropdown, then press Enter here to continue filling.`);
-  await new Promise((resolve) => {
-    process.stdin.resume();
-    process.stdin.once("data", resolve);
-  });
+  console.log(`[manual-action] Select ${optionValue} in the Tumblr post type dropdown. The runner will continue automatically.`);
+  for (let attempt = 0; attempt < 120; attempt += 1) {
+    if (await postTypeSelected(page, optionValue)) {
+      return true;
+    }
+
+    await page.waitForTimeout(500).catch(() => undefined);
+  }
 
   const selected = await postTypeSelected(page, optionValue);
   if (!selected) {
