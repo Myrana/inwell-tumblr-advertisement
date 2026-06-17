@@ -186,7 +186,8 @@ h2 {
 .topbar-actions,
 .custom-tag-form,
 .selected-tags,
-.media-fields {
+.media-fields,
+.type-picker {
   display: flex;
   gap: 10px;
 }
@@ -238,6 +239,33 @@ h2 {
 
 .field-grid.two {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.type-picker {
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafb;
+}
+
+.type-option {
+  flex: 1;
+  min-height: 44px;
+  border: 0;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: transparent;
+  color: #3d4652;
+  font-weight: 800;
+}
+
+.type-option.active {
+  background: var(--surface);
+  color: var(--green);
+  box-shadow: 0 0 0 1px rgba(47, 118, 93, 0.22);
 }
 
 label {
@@ -413,6 +441,27 @@ textarea:focus {
   object-fit: cover;
 }
 
+.video-drop {
+  width: 260px;
+  aspect-ratio: 16 / 9;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  padding: 16px;
+  overflow-wrap: anywhere;
+  text-align: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #eef5f7;
+  color: #315f6c;
+}
+
+.video-drop span {
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
 .media-fields {
   flex: 1;
   flex-direction: column;
@@ -571,7 +620,8 @@ pre {
     grid-template-columns: 1fr;
   }
 
-  .media-preview {
+  .media-preview,
+  .video-drop {
     width: 100%;
   }
 

@@ -11,6 +11,7 @@ from urllib.parse import urlparse
 
 
 DB_PATH = Path(__file__).with_name("inwell.sqlite3")
+POST_TYPES = {"text", "photo", "video"}
 
 SEED_TEMPLATES = [
     {
@@ -54,6 +55,7 @@ def initialize(connection: sqlite3.Connection) -> None:
         """
         CREATE TABLE IF NOT EXISTS advertisements (
             id TEXT PRIMARY KEY,
+            post_type TEXT NOT NULL DEFAULT 'photo',
             title TEXT NOT NULL DEFAULT '',
             content TEXT NOT NULL DEFAULT '',
             destination_blog TEXT NOT NULL DEFAULT '',
@@ -62,6 +64,8 @@ def initialize(connection: sqlite3.Connection) -> None:
             image_caption TEXT NOT NULL DEFAULT '',
             image_name TEXT NOT NULL DEFAULT '',
             image_data_url TEXT NOT NULL DEFAULT '',
+            video_url TEXT NOT NULL DEFAULT '',
+            video_name TEXT NOT NULL DEFAULT '',
             status TEXT NOT NULL DEFAULT 'draft',
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL
@@ -81,7 +85,16 @@ def initialize(connection: sqlite3.Connection) -> None:
         )
         """
     )
+    ensure_column(connection, "advertisements", "post_type", "post_type TEXT NOT NULL DEFAULT 'photo'")
+    ensure_column(connection, "advertisements", "video_url", "video_url TEXT NOT NULL DEFAULT ''")
+    ensure_column(connection, "advertisements", "video_name", "video_name TEXT NOT NULL DEFAULT ''")
     seed_templates(connection)
+
+
+def ensure_column(connection: sqlite3.Connection, table: str, column: str, definition: str) -> None:
+    columns = {row["name"] for row in connection.execute(f"PRAGMA table_info({table})")}
+    if column not in columns:
+        connection.execute(f"ALTER TABLE {table} ADD COLUMN {definition}")
 
 
 def seed_templates(connection: sqlite3.Connection) -> None:
@@ -121,6 +134,8 @@ def parse_tags(value: Any) -> list[str]:
 def row_to_advertisement(row: sqlite3.Row) -> dict[str, Any]:
     data = dict(row)
     data["tags"] = parse_tags(data["tags"])
+    if data.get("post_type") not in POST_TYPES:
+        data["post_type"] = "photo"
     return data
 
 
@@ -131,8 +146,13 @@ def row_to_template(row: sqlite3.Row) -> dict[str, Any]:
 
 
 def advertisement_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    post_type = str(payload.get("post_type", "photo")).strip().lower()
+    if post_type not in POST_TYPES:
+        post_type = "photo"
+
     return {
         "id": str(payload.get("id", "")).strip(),
+        "post_type": post_type,
         "title": str(payload.get("title", "")).strip(),
         "content": str(payload.get("content", "")),
         "destination_blog": str(payload.get("destination_blog", "")).strip(),
@@ -141,6 +161,8 @@ def advertisement_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "image_caption": str(payload.get("image_caption", "")),
         "image_name": str(payload.get("image_name", "")),
         "image_data_url": str(payload.get("image_data_url", "")),
+        "video_url": str(payload.get("video_url", "")),
+        "video_name": str(payload.get("video_name", "")),
         "status": str(payload.get("status", "draft")).strip() or "draft",
     }
 
@@ -169,11 +191,13 @@ def upsert_advertisement(connection: sqlite3.Connection, payload: dict[str, Any]
     connection.execute(
         """
         INSERT INTO advertisements (
-            id, title, content, destination_blog, forum_url, tags,
-            image_caption, image_name, image_data_url, status, created_at, updated_at
+            id, post_type, title, content, destination_blog, forum_url, tags,
+            image_caption, image_name, image_data_url, video_url, video_name,
+            status, created_at, updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
+            post_type = excluded.post_type,
             title = excluded.title,
             content = excluded.content,
             destination_blog = excluded.destination_blog,
@@ -182,11 +206,14 @@ def upsert_advertisement(connection: sqlite3.Connection, payload: dict[str, Any]
             image_caption = excluded.image_caption,
             image_name = excluded.image_name,
             image_data_url = excluded.image_data_url,
+            video_url = excluded.video_url,
+            video_name = excluded.video_name,
             status = excluded.status,
             updated_at = excluded.updated_at
         """,
         (
             advertisement["id"],
+            advertisement["post_type"],
             advertisement["title"],
             advertisement["content"],
             advertisement["destination_blog"],
@@ -195,6 +222,8 @@ def upsert_advertisement(connection: sqlite3.Connection, payload: dict[str, Any]
             advertisement["image_caption"],
             advertisement["image_name"],
             advertisement["image_data_url"],
+            advertisement["video_url"],
+            advertisement["video_name"],
             advertisement["status"],
             created_at,
             now,

@@ -13,13 +13,17 @@ import {
   Sparkles,
   Tags,
   Trash2,
+  Type,
+  Video,
 } from "lucide-react";
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 
 type Status = "draft" | "ready" | "submitted";
+type PostType = "text" | "photo" | "video";
 
 type Advertisement = {
   id: string;
+  postType: PostType;
   title: string;
   content: string;
   destinationBlog: string;
@@ -28,6 +32,8 @@ type Advertisement = {
   imageCaption: string;
   imageName: string;
   imageDataUrl: string;
+  videoUrl: string;
+  videoName: string;
   status: Status;
   updatedAt: string;
 };
@@ -55,6 +61,7 @@ const apiBaseUrl = "http://127.0.0.1:8021/api";
 
 type ApiAdvertisement = {
   id: string;
+  post_type?: PostType;
   title: string;
   content: string;
   destination_blog: string;
@@ -63,6 +70,8 @@ type ApiAdvertisement = {
   image_caption: string;
   image_name: string;
   image_data_url: string;
+  video_url?: string;
+  video_name?: string;
   status: Status;
   updated_at: string;
 };
@@ -86,6 +95,11 @@ const suggestedTags: SuggestedTag[] = [
 ];
 
 const blogs = ["inwell-ads", "jcink-directory", "roleplay-finder"];
+const postTypes: { value: PostType; label: string; icon: typeof Type }[] = [
+  { value: "text", label: "Text", icon: Type },
+  { value: "photo", label: "Photo", icon: ImagePlus },
+  { value: "video", label: "Video", icon: Video },
+];
 
 const seedTemplates: Template[] = [
   {
@@ -134,6 +148,7 @@ function createId() {
 
 const emptyAd = (): Advertisement => ({
   id: createId(),
+  postType: "photo",
   title: "",
   content: "",
   destinationBlog: blogs[0],
@@ -142,6 +157,8 @@ const emptyAd = (): Advertisement => ({
   imageCaption: "",
   imageName: "sample-forum-ad.png",
   imageDataUrl: "/sample-forum-ad.png",
+  videoUrl: "",
+  videoName: "",
   status: "draft",
   updatedAt: new Date().toISOString(),
 });
@@ -153,10 +170,12 @@ type StoredState = {
 
 function normalizeAd(value: Partial<Advertisement> | null | undefined): Advertisement {
   const fallback = emptyAd();
+  const postType = value?.postType === "text" || value?.postType === "video" ? value.postType : "photo";
 
   return {
     ...fallback,
     ...value,
+    postType,
     id: value?.id || fallback.id,
     tags: Array.isArray(value?.tags) ? value.tags : fallback.tags,
     status: value?.status === "ready" || value?.status === "submitted" ? value.status : "draft",
@@ -167,6 +186,7 @@ function normalizeAd(value: Partial<Advertisement> | null | undefined): Advertis
 function fromApiAdvertisement(value: ApiAdvertisement): Advertisement {
   return normalizeAd({
     id: value.id,
+    postType: value.post_type,
     title: value.title,
     content: value.content,
     destinationBlog: value.destination_blog,
@@ -175,6 +195,8 @@ function fromApiAdvertisement(value: ApiAdvertisement): Advertisement {
     imageCaption: value.image_caption,
     imageName: value.image_name,
     imageDataUrl: value.image_data_url,
+    videoUrl: value.video_url ?? "",
+    videoName: value.video_name ?? "",
     status: value.status,
     updatedAt: value.updated_at,
   });
@@ -183,6 +205,7 @@ function fromApiAdvertisement(value: ApiAdvertisement): Advertisement {
 function toApiAdvertisement(advertisement: Advertisement): ApiAdvertisement {
   return {
     id: advertisement.id,
+    post_type: advertisement.postType,
     title: advertisement.title,
     content: advertisement.content,
     destination_blog: advertisement.destinationBlog,
@@ -191,6 +214,8 @@ function toApiAdvertisement(advertisement: Advertisement): ApiAdvertisement {
     image_caption: advertisement.imageCaption,
     image_name: advertisement.imageName,
     image_data_url: advertisement.imageDataUrl,
+    video_url: advertisement.videoUrl,
+    video_name: advertisement.videoName,
     status: advertisement.status,
     updated_at: advertisement.updatedAt,
   };
@@ -434,9 +459,21 @@ function App() {
   function validateAd() {
     const missing = [
       !activeAd.title.trim() ? "Add a title." : "",
-      !activeAd.imageCaption.trim() ? "Add the picture post caption." : "",
       !activeAd.forumUrl.trim() ? "Add a forum URL." : "",
       !activeAd.destinationBlog.trim() ? "Choose a destination blog." : "",
+      activeAd.postType === "text" && !activeAd.content.trim() ? "Add text post body copy." : "",
+      activeAd.postType === "photo" && !activeAd.imageCaption.trim()
+        ? "Add the picture post caption."
+        : "",
+      activeAd.postType === "photo" && !activeAd.imageDataUrl.trim() && !activeAd.imageName.trim()
+        ? "Choose an image for the photo post."
+        : "",
+      activeAd.postType === "video" && !activeAd.imageCaption.trim()
+        ? "Add the video caption or description."
+        : "",
+      activeAd.postType === "video" && !activeAd.videoUrl.trim() && !activeAd.videoName.trim()
+        ? "Add a video URL or upload a video file."
+        : "",
     ].filter(Boolean);
 
     setValidation(missing);
@@ -449,17 +486,46 @@ function App() {
       return;
     }
 
-    const finalPost = [
-      activeAd.title.trim(),
-      "",
-      activeAd.imageCaption.trim(),
-      activeAd.content.trim(),
+    const sharedLines = [
       "",
       `Forum: ${activeAd.forumUrl.trim()}`,
       activeAd.tags.length ? `Tags: ${activeAd.tags.join(" ")}` : "",
-    ]
-      .filter(Boolean)
-      .join("\n");
+    ].filter(Boolean);
+    const finalPost =
+      activeAd.postType === "text"
+        ? [
+            "Tumblr Text Post",
+            activeAd.title.trim(),
+            "",
+            activeAd.content.trim(),
+            ...sharedLines,
+          ]
+            .filter(Boolean)
+            .join("\n")
+        : activeAd.postType === "video"
+          ? [
+              "Tumblr Video Post",
+              activeAd.title.trim(),
+              activeAd.videoUrl.trim() ? `Video URL: ${activeAd.videoUrl.trim()}` : "",
+              activeAd.videoName.trim() ? `Video file: ${activeAd.videoName.trim()}` : "",
+              "",
+              activeAd.imageCaption.trim(),
+              activeAd.content.trim(),
+              ...sharedLines,
+            ]
+              .filter(Boolean)
+              .join("\n")
+          : [
+              "Tumblr Photo Post",
+              activeAd.title.trim(),
+              activeAd.imageName.trim() ? `Image: ${activeAd.imageName.trim()}` : "",
+              "",
+              activeAd.imageCaption.trim(),
+              activeAd.content.trim(),
+              ...sharedLines,
+            ]
+              .filter(Boolean)
+              .join("\n");
 
     setGeneratedPost(finalPost);
     updateActiveAd({ status: "ready" });
@@ -499,6 +565,22 @@ function App() {
     };
     reader.readAsDataURL(file);
   }
+
+  function handleVideoUpload(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    updateActiveAd({ videoName: file.name });
+  }
+
+  const contentLabel = activeAd.postType === "text" ? "Text post body" : "Optional advertisement copy";
+  const contentPlaceholder =
+    activeAd.postType === "text"
+      ? "Write the Tumblr text post body."
+      : "Add extra reusable copy below the caption if needed.";
+  const previewPlaceholder = `Generate a ready-to-copy Tumblr ${activeAd.postType} post from the current draft.`;
 
   return (
     <main className="app-shell">
@@ -577,6 +659,24 @@ function App() {
 
         <div className="workspace-grid">
           <section className="editor-surface" id="editor" aria-label="Advertisement editor">
+            <div className="type-picker" role="group" aria-label="Tumblr post type">
+              {postTypes.map((type) => {
+                const Icon = type.icon;
+                return (
+                  <button
+                    className={activeAd.postType === type.value ? "type-option active" : "type-option"}
+                    key={type.value}
+                    type="button"
+                    onClick={() => updateActiveAd({ postType: type.value })}
+                    aria-pressed={activeAd.postType === type.value}
+                  >
+                    <Icon size={18} />
+                    {type.label}
+                  </button>
+                );
+              })}
+            </div>
+
             <div className="field-grid two">
               <label>
                 Title
@@ -625,11 +725,11 @@ function App() {
             </div>
 
             <label>
-              Optional advertisement copy
+              {contentLabel}
               <textarea
                 value={activeAd.content}
                 onChange={(event) => updateActiveAd({ content: event.target.value })}
-                placeholder="Add extra reusable copy below the picture caption if needed."
+                placeholder={contentPlaceholder}
               />
             </label>
 
@@ -671,27 +771,62 @@ function App() {
               ))}
             </div>
 
-            <div className="media-row">
-              <div className="media-preview">
-                <img src={activeAd.imageDataUrl || "/sample-forum-ad.png"} alt="" />
+            {activeAd.postType === "photo" ? (
+              <div className="media-row">
+                <div className="media-preview">
+                  <img src={activeAd.imageDataUrl || "/sample-forum-ad.png"} alt="" />
+                </div>
+                <div className="media-fields">
+                  <label className="upload-button">
+                    <ImagePlus size={18} />
+                    Upload image
+                    <input type="file" accept="image/*" onChange={handleImageUpload} />
+                  </label>
+                  <p>{activeAd.imageName || "No image selected"}</p>
+                  <label>
+                    Picture post caption
+                    <input
+                      value={activeAd.imageCaption}
+                      onChange={(event) => updateActiveAd({ imageCaption: event.target.value })}
+                      placeholder="Write the caption Tumblr requires for this picture post."
+                    />
+                  </label>
+                </div>
               </div>
-              <div className="media-fields">
-                <label className="upload-button">
-                  <ImagePlus size={18} />
-                  Upload image
-                  <input type="file" accept="image/*" onChange={handleImageUpload} />
-                </label>
-                <p>{activeAd.imageName || "No image selected"}</p>
-                <label>
-                  Picture post caption
-                  <input
-                    value={activeAd.imageCaption}
-                    onChange={(event) => updateActiveAd({ imageCaption: event.target.value })}
-                    placeholder="Write the caption Tumblr requires for this picture post."
-                  />
-                </label>
+            ) : null}
+
+            {activeAd.postType === "video" ? (
+              <div className="media-row">
+                <div className="video-drop">
+                  <Video size={34} />
+                  <strong>Video form</strong>
+                  <span>{activeAd.videoName || "No video file selected"}</span>
+                </div>
+                <div className="media-fields">
+                  <label>
+                    Video URL
+                    <input
+                      value={activeAd.videoUrl}
+                      onChange={(event) => updateActiveAd({ videoUrl: event.target.value })}
+                      placeholder="https://video.example.test/clip"
+                    />
+                  </label>
+                  <label className="upload-button">
+                    <Video size={18} />
+                    Upload video
+                    <input type="file" accept="video/*" onChange={handleVideoUpload} />
+                  </label>
+                  <label>
+                    Video caption or description
+                    <input
+                      value={activeAd.imageCaption}
+                      onChange={(event) => updateActiveAd({ imageCaption: event.target.value })}
+                      placeholder="Write the caption or description for the Tumblr video form."
+                    />
+                  </label>
+                </div>
               </div>
-            </div>
+            ) : null}
 
             {validation.length ? (
               <div className="validation" role="alert">
@@ -710,7 +845,7 @@ function App() {
                   <Copy size={18} />
                 </button>
               </div>
-              <pre>{generatedPost || "Generate a ready-to-copy Tumblr picture post from the current draft."}</pre>
+              <pre>{generatedPost || previewPlaceholder}</pre>
               <button className="primary full" type="button" onClick={submitRecord}>
                 <Send size={18} />
                 Mark submitted
@@ -742,7 +877,7 @@ function App() {
             <article className={ad.id === activeAd.id ? "draft-row selected" : "draft-row"} key={ad.id}>
               <button type="button" onClick={() => setStored((current) => ({ ...current, activeAdId: ad.id }))}>
                 <strong>{ad.title || "Untitled advertisement"}</strong>
-                <span>{ad.status} - {formatDate(ad.updatedAt)}</span>
+                <span>{ad.postType} - {ad.status} - {formatDate(ad.updatedAt)}</span>
               </button>
               <a href={ad.forumUrl || "#"} aria-label="Forum URL">
                 <Link size={18} />

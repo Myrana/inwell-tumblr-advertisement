@@ -30,6 +30,7 @@ class PersistenceTests(unittest.TestCase):
             self.connection,
             {
                 "id": "ad-1",
+                "post_type": "video",
                 "title": "Open canons",
                 "content": "Optional copy",
                 "destination_blog": "inwell-ads",
@@ -38,13 +39,18 @@ class PersistenceTests(unittest.TestCase):
                 "image_caption": "Picture post caption",
                 "image_name": "banner.png",
                 "image_data_url": "/banner.png",
+                "video_url": "https://video.example.test/watch",
+                "video_name": "tour.mp4",
                 "status": "draft",
             },
         )
 
         self.assertEqual(saved["id"], "ad-1")
+        self.assertEqual(saved["post_type"], "video")
         self.assertEqual(saved["tags"], ["#jcink", "#forum rp"])
         self.assertEqual(saved["image_caption"], "Picture post caption")
+        self.assertEqual(saved["video_url"], "https://video.example.test/watch")
+        self.assertEqual(saved["video_name"], "tour.mp4")
 
         updated = upsert_advertisement(
             self.connection,
@@ -59,6 +65,21 @@ class PersistenceTests(unittest.TestCase):
         self.assertEqual(updated["title"], "Updated title")
         self.assertEqual(updated["tags"], [])
         self.assertEqual(updated["status"], "ready")
+
+    def test_invalid_post_type_defaults_to_photo(self) -> None:
+        saved = upsert_advertisement(
+            self.connection,
+            {
+                "id": "ad-invalid-type",
+                "post_type": "audio",
+                "title": "Bad type",
+                "destination_blog": "inwell-ads",
+                "forum_url": "https://forum.example.test",
+                "status": "draft",
+            },
+        )
+
+        self.assertEqual(saved["post_type"], "photo")
 
     def test_template_upsert_round_trips_reusable_copy(self) -> None:
         saved = upsert_template(
