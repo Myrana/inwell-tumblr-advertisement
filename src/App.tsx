@@ -1,19 +1,24 @@
 import {
   Archive,
-  Check,
+  Bold,
   Copy,
   FileText,
   ImagePlus,
+  Italic,
   Library,
   Link,
+  Link2,
+  List,
+  ListOrdered,
   LogOut,
   Plus,
   Save,
   Send,
   Sparkles,
+  Strikethrough,
   Tags,
   Trash2,
-  Type,
+  Unlink,
   Video,
 } from "lucide-react";
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
@@ -85,20 +90,43 @@ type ApiTemplate = {
 };
 
 const suggestedTags: SuggestedTag[] = [
-  { tag: "#jcink" },
-  { tag: "#jcink forum" },
-  { tag: "#forum rp" },
-  { tag: "#forum roleplay" },
-  { tag: "#site advertisement" },
-  { tag: "#fantasy rp" },
-  { tag: "#modern rp" },
+  { tag: "invisionfree/zifboards site" },
+  { tag: "jcink site" },
+  { tag: "premium jcink" },
+  { tag: "site buzz" },
+  { tag: "advertisement" },
+  { tag: "character request" },
+  { tag: "staff request" },
+  { tag: "semi-private site" },
+  { tag: "public site" },
+  { tag: "short app" },
+  { tag: "shipper app" },
+  { tag: "profile app" },
+  { tag: "band celeb rpg" },
+  { tag: "city town rpg" },
+  { tag: "historical rpg" },
+  { tag: "school rpg" },
+  { tag: "other real life rpg" },
+  { tag: "futuristic postapoc rpg" },
+  { tag: "harry potter rpg" },
+  { tag: "supernatural rpg" },
+  { tag: "other fantasy rpg" },
+  { tag: "other scifi rpg" },
+  { tag: "based on rpg" },
+  { tag: "multi genre rpg" },
+  { tag: "animal rpg" },
+  { tag: "animated rpg" },
+  { tag: "resource site" },
+  { tag: "6 months" },
+  { tag: "1 year" },
+  { tag: "3 years" },
 ];
 
 const blogs = ["inwell-ads", "jcink-directory", "roleplay-finder"];
-const postTypes: { value: PostType; label: string; icon: typeof Type }[] = [
-  { value: "text", label: "Text", icon: Type },
-  { value: "photo", label: "Photo", icon: ImagePlus },
-  { value: "video", label: "Video", icon: Video },
+const postTypes: { value: PostType; label: string }[] = [
+  { value: "text", label: "Text" },
+  { value: "photo", label: "Photo" },
+  { value: "video", label: "Video" },
 ];
 
 const seedTemplates: Template[] = [
@@ -153,7 +181,7 @@ const emptyAd = (): Advertisement => ({
   content: "",
   destinationBlog: blogs[0],
   forumUrl: "",
-  tags: [],
+  tags: ["jcink site", "premium jcink", "semi-private site", "supernatural rpg", "1 year"],
   imageCaption: "",
   imageName: "sample-forum-ad.png",
   imageDataUrl: "/sample-forum-ad.png",
@@ -299,6 +327,7 @@ function App() {
   const [validation, setValidation] = useState<string[]>([]);
   const [generatedPost, setGeneratedPost] = useState("");
   const [copyState, setCopyState] = useState("Copy");
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   const activeAd = useMemo(
     () => stored.ads.find((ad) => ad.id === stored.activeAdId) ?? stored.ads[0],
@@ -426,6 +455,7 @@ function App() {
     const next = emptyAd();
     setValidation([]);
     setGeneratedPost("");
+    setTermsAccepted(false);
     setStored((current) => ({
       ads: [next, ...current.ads],
       activeAdId: next.id,
@@ -454,6 +484,7 @@ function App() {
   function saveDraft() {
     updateActiveAd({ status: "draft" });
     setValidation([]);
+    setTermsAccepted(false);
   }
 
   function validateAd() {
@@ -480,63 +511,67 @@ function App() {
     return missing;
   }
 
+  function buildPost() {
+    const sharedLines = [
+      "",
+      `Forum: ${activeAd.forumUrl.trim()}`,
+      activeAd.tags.length ? `Tags: ${activeAd.tags.join(" ")}` : "",
+    ].filter(Boolean);
+
+    return activeAd.postType === "text"
+      ? ["Tumblr Text Post", activeAd.title.trim(), "", activeAd.content.trim(), ...sharedLines]
+          .filter(Boolean)
+          .join("\n")
+      : activeAd.postType === "video"
+        ? [
+            "Tumblr Video Post",
+            activeAd.title.trim(),
+            activeAd.videoUrl.trim() ? `Video URL: ${activeAd.videoUrl.trim()}` : "",
+            activeAd.videoName.trim() ? `Video file: ${activeAd.videoName.trim()}` : "",
+            "",
+            activeAd.imageCaption.trim(),
+            activeAd.content.trim(),
+            ...sharedLines,
+          ]
+            .filter(Boolean)
+            .join("\n")
+        : [
+            "Tumblr Photo Post",
+            activeAd.title.trim(),
+            activeAd.imageName.trim() ? `Image: ${activeAd.imageName.trim()}` : "",
+            "",
+            activeAd.imageCaption.trim(),
+            activeAd.content.trim(),
+            ...sharedLines,
+          ]
+            .filter(Boolean)
+            .join("\n");
+  }
+
   function generatePost() {
     const missing = validateAd();
     if (missing.length) {
       return;
     }
 
-    const sharedLines = [
-      "",
-      `Forum: ${activeAd.forumUrl.trim()}`,
-      activeAd.tags.length ? `Tags: ${activeAd.tags.join(" ")}` : "",
-    ].filter(Boolean);
-    const finalPost =
-      activeAd.postType === "text"
-        ? [
-            "Tumblr Text Post",
-            activeAd.title.trim(),
-            "",
-            activeAd.content.trim(),
-            ...sharedLines,
-          ]
-            .filter(Boolean)
-            .join("\n")
-        : activeAd.postType === "video"
-          ? [
-              "Tumblr Video Post",
-              activeAd.title.trim(),
-              activeAd.videoUrl.trim() ? `Video URL: ${activeAd.videoUrl.trim()}` : "",
-              activeAd.videoName.trim() ? `Video file: ${activeAd.videoName.trim()}` : "",
-              "",
-              activeAd.imageCaption.trim(),
-              activeAd.content.trim(),
-              ...sharedLines,
-            ]
-              .filter(Boolean)
-              .join("\n")
-          : [
-              "Tumblr Photo Post",
-              activeAd.title.trim(),
-              activeAd.imageName.trim() ? `Image: ${activeAd.imageName.trim()}` : "",
-              "",
-              activeAd.imageCaption.trim(),
-              activeAd.content.trim(),
-              ...sharedLines,
-            ]
-              .filter(Boolean)
-              .join("\n");
+    const finalPost = buildPost();
 
     setGeneratedPost(finalPost);
     updateActiveAd({ status: "ready" });
   }
 
   function submitRecord() {
-    if (!generatedPost) {
-      generatePost();
+    const missing = validateAd();
+    if (!termsAccepted) {
+      missing.push("Accept the Terms of Submission.");
+    }
+
+    if (missing.length) {
+      setValidation(missing);
       return;
     }
 
+    setGeneratedPost(buildPost());
     updateActiveAd({ status: "submitted" });
   }
 
@@ -581,6 +616,7 @@ function App() {
       ? "Write the Tumblr text post body."
       : "Add extra reusable copy below the caption if needed.";
   const previewPlaceholder = `Generate a ready-to-copy Tumblr ${activeAd.postType} post from the current draft.`;
+  const submissionComplete = activeAd.status === "submitted";
 
   return (
     <main className="app-shell">
@@ -659,24 +695,6 @@ function App() {
 
         <div className="workspace-grid">
           <section className="editor-surface" id="editor" aria-label="Advertisement editor">
-            <div className="type-picker" role="group" aria-label="Tumblr post type">
-              {postTypes.map((type) => {
-                const Icon = type.icon;
-                return (
-                  <button
-                    className={activeAd.postType === type.value ? "type-option active" : "type-option"}
-                    key={type.value}
-                    type="button"
-                    onClick={() => updateActiveAd({ postType: type.value })}
-                    aria-pressed={activeAd.postType === type.value}
-                  >
-                    <Icon size={18} />
-                    {type.label}
-                  </button>
-                );
-              })}
-            </div>
-
             <div className="field-grid two">
               <label>
                 Title
@@ -724,109 +742,146 @@ function App() {
               </label>
             </div>
 
-            <label>
-              {contentLabel}
-              <textarea
-                value={activeAd.content}
-                onChange={(event) => updateActiveAd({ content: event.target.value })}
-                placeholder={contentPlaceholder}
-              />
-            </label>
-
-            <div className="tag-toolbar">
-              <div>
-                <Tags size={18} />
-                <strong>Optional Tumblr tags</strong>
-              </div>
-              <form onSubmit={addCustomTag} className="custom-tag-form">
-                <input
-                  value={customTag}
-                  onChange={(event) => setCustomTag(event.target.value)}
-                  placeholder="#custom-tag"
-                />
-                <button className="icon-button" type="submit" aria-label="Add custom tag" title="Add custom tag">
-                  <Plus size={18} />
-                </button>
-              </form>
-            </div>
-
-            <div className="tag-grid">
-              {suggestedTags.map((item) => {
-                const checked = activeAd.tags.includes(item.tag);
-                return (
-                  <label className={checked ? "tag-check selected" : "tag-check"} key={item.tag}>
-                    <input type="checkbox" checked={checked} onChange={() => toggleTag(item.tag)} />
-                    <span>{checked ? <Check size={16} /> : null}</span>
-                    {item.tag}
-                  </label>
-                );
-              })}
-            </div>
-
-            <div className="selected-tags" aria-label="Selected tags">
-              {activeAd.tags.map((tag) => (
-                <button key={tag} type="button" onClick={() => toggleTag(tag)}>
-                  {tag}
-                </button>
-              ))}
-            </div>
-
-            {activeAd.postType === "photo" ? (
-              <div className="media-row">
-                <div className="media-preview">
-                  <img src={activeAd.imageDataUrl || "/sample-forum-ad.png"} alt="" />
-                </div>
-                <div className="media-fields">
-                  <label className="upload-button">
-                    <ImagePlus size={18} />
-                    Upload image
-                    <input type="file" accept="image/*" onChange={handleImageUpload} />
-                  </label>
-                  <p>{activeAd.imageName || "No image selected"}</p>
-                  <label>
-                    Picture post caption
-                    <input
-                      value={activeAd.imageCaption}
-                      onChange={(event) => updateActiveAd({ imageCaption: event.target.value })}
-                      placeholder="Write the caption Tumblr requires for this picture post."
-                    />
-                  </label>
+            {submissionComplete ? (
+              <div className="tumblr-submit-shell">
+                <div className="tumblr-thank-you" role="status">
+                  <h2>Thank you!</h2>
+                  <p>Your submission has been received and is awaiting moderator approval.</p>
                 </div>
               </div>
-            ) : null}
+            ) : (
+              <div className="tumblr-submit-shell">
+                <div className="tumblr-composer">
+                  <div className="tumblr-composer-header">
+                    <label>
+                      <select
+                        value={activeAd.postType}
+                        onChange={(event) => updateActiveAd({ postType: event.target.value as PostType })}
+                      >
+                        {postTypes.map((type) => (
+                          <option key={type.value} value={type.value}>
+                            {type.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <div className="tumblr-blog-id">
+                      <span>{activeAd.destinationBlog}</span>
+                      <div className="tumblr-blog-avatar">I</div>
+                    </div>
+                  </div>
 
-            {activeAd.postType === "video" ? (
-              <div className="media-row">
-                <div className="video-drop">
-                  <Video size={34} />
-                  <strong>Video form</strong>
-                  <span>{activeAd.videoName || "No video file selected"}</span>
+                  {activeAd.postType === "photo" ? (
+                    <div className="tumblr-photo-stage">
+                      <ImagePlus size={42} />
+                      <strong>{activeAd.imageName || "Choose a photo"}</strong>
+                      <label className="tumblr-file-button">
+                        Upload image
+                        <input type="file" accept="image/*" onChange={handleImageUpload} />
+                      </label>
+                    </div>
+                  ) : null}
+
+                  {activeAd.postType === "video" ? (
+                    <div className="tumblr-photo-stage">
+                      <Video size={42} />
+                      <strong>{activeAd.videoName || "Choose a video"}</strong>
+                      <input
+                        value={activeAd.videoUrl}
+                        onChange={(event) => updateActiveAd({ videoUrl: event.target.value })}
+                        placeholder="Video URL"
+                      />
+                      <label className="tumblr-file-button">
+                        Upload video
+                        <input type="file" accept="video/*" onChange={handleVideoUpload} />
+                      </label>
+                    </div>
+                  ) : null}
+
+                  <div className="tumblr-editor-tools" aria-label="Editor tools">
+                    <Bold size={16} />
+                    <Italic size={16} />
+                    <Strikethrough size={16} />
+                    <Link2 size={16} />
+                    <Unlink size={16} />
+                    <ListOrdered size={16} />
+                    <List size={16} />
+                    <ImagePlus size={16} />
+                    <Send size={16} />
+                  </div>
+
+                  <label className="tumblr-body-field">
+                    {contentLabel}
+                    <textarea
+                      value={activeAd.content}
+                      onChange={(event) => updateActiveAd({ content: event.target.value })}
+                      placeholder={contentPlaceholder}
+                    />
+                  </label>
+
+                  {activeAd.postType !== "text" ? (
+                    <label className="tumblr-caption-field">
+                      {activeAd.postType === "photo" ? "Photo caption" : "Video caption"}
+                      <input
+                        value={activeAd.imageCaption}
+                        onChange={(event) => updateActiveAd({ imageCaption: event.target.value })}
+                        placeholder={
+                          activeAd.postType === "photo"
+                            ? "Write the caption Tumblr requires for this picture post."
+                            : "Write the caption or description for the video post."
+                        }
+                      />
+                    </label>
+                  ) : null}
                 </div>
-                <div className="media-fields">
-                  <label>
-                    Video URL
+
+                <div className="tumblr-tag-panel">
+                  <div className="tag-toolbar">
+                    <div>
+                      <Tags size={18} />
+                      <strong>Tags:</strong>
+                    </div>
+                    <form onSubmit={addCustomTag} className="custom-tag-form">
+                      <input
+                        value={customTag}
+                        onChange={(event) => setCustomTag(event.target.value)}
+                        placeholder="custom tag"
+                      />
+                      <button className="icon-button" type="submit" aria-label="Add custom tag" title="Add custom tag">
+                        <Plus size={18} />
+                      </button>
+                    </form>
+                  </div>
+
+                  <div className="tumblr-tag-grid">
+                    {suggestedTags.map((item) => (
+                      <label className="tumblr-tag-check" key={item.tag}>
+                        <input
+                          type="checkbox"
+                          checked={activeAd.tags.includes(item.tag)}
+                          onChange={() => toggleTag(item.tag)}
+                        />
+                        {item.tag}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="tumblr-submit-footer">
+                  <label className="tumblr-terms">
                     <input
-                      value={activeAd.videoUrl}
-                      onChange={(event) => updateActiveAd({ videoUrl: event.target.value })}
-                      placeholder="https://video.example.test/clip"
+                      type="checkbox"
+                      checked={termsAccepted}
+                      onChange={(event) => setTermsAccepted(event.target.checked)}
                     />
+                    I accept the <a href="#terms">Terms of Submission</a>
                   </label>
-                  <label className="upload-button">
-                    <Video size={18} />
-                    Upload video
-                    <input type="file" accept="video/*" onChange={handleVideoUpload} />
-                  </label>
-                  <label>
-                    Video caption or description
-                    <input
-                      value={activeAd.imageCaption}
-                      onChange={(event) => updateActiveAd({ imageCaption: event.target.value })}
-                      placeholder="Write the caption or description for the Tumblr video form."
-                    />
-                  </label>
+                  <button className="tumblr-submit-button" type="button" onClick={submitRecord}>
+                    Submit
+                  </button>
                 </div>
               </div>
-            ) : null}
+            )}
 
             {validation.length ? (
               <div className="validation" role="alert">
