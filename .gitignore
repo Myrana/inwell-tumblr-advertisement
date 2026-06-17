@@ -1,5 +1,6 @@
 node_modules/
 dist/
+__pycache__/
 *.tsbuildinfo
 vite.config.d.ts
 vite.config.js

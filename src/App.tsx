@@ -51,6 +51,29 @@ type SuggestedTag = {
 };
 
 const storageKey = "inwell-ad-assistant-state";
+const apiBaseUrl = "http://127.0.0.1:8021/api";
+
+type ApiAdvertisement = {
+  id: string;
+  title: string;
+  content: string;
+  destination_blog: string;
+  forum_url: string;
+  tags: string[];
+  image_caption: string;
+  image_name: string;
+  image_data_url: string;
+  status: Status;
+  updated_at: string;
+};
+
+type ApiTemplate = {
+  id: string;
+  name: string;
+  content: string;
+  forum_url: string;
+  tags: string[];
+};
 
 const suggestedTags: SuggestedTag[] = [
   { tag: "#jcink" },
@@ -141,6 +164,75 @@ function normalizeAd(value: Partial<Advertisement> | null | undefined): Advertis
   };
 }
 
+function fromApiAdvertisement(value: ApiAdvertisement): Advertisement {
+  return normalizeAd({
+    id: value.id,
+    title: value.title,
+    content: value.content,
+    destinationBlog: value.destination_blog,
+    forumUrl: value.forum_url,
+    tags: value.tags,
+    imageCaption: value.image_caption,
+    imageName: value.image_name,
+    imageDataUrl: value.image_data_url,
+    status: value.status,
+    updatedAt: value.updated_at,
+  });
+}
+
+function toApiAdvertisement(advertisement: Advertisement): ApiAdvertisement {
+  return {
+    id: advertisement.id,
+    title: advertisement.title,
+    content: advertisement.content,
+    destination_blog: advertisement.destinationBlog,
+    forum_url: advertisement.forumUrl,
+    tags: advertisement.tags,
+    image_caption: advertisement.imageCaption,
+    image_name: advertisement.imageName,
+    image_data_url: advertisement.imageDataUrl,
+    status: advertisement.status,
+    updated_at: advertisement.updatedAt,
+  };
+}
+
+function fromApiTemplate(value: ApiTemplate): Template {
+  return {
+    id: value.id,
+    name: value.name,
+    content: value.content,
+    forumUrl: value.forum_url,
+    tags: Array.isArray(value.tags) ? value.tags : [],
+  };
+}
+
+async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(`${apiBaseUrl}${path}`, {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...init?.headers,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`API request failed: ${response.status}`);
+  }
+
+  return response.json() as Promise<T>;
+}
+
+async function saveAdvertisement(advertisement: Advertisement) {
+  await apiRequest<{ advertisement: ApiAdvertisement }>(`/advertisements/${advertisement.id}`, {
+    method: "PUT",
+    body: JSON.stringify(toApiAdvertisement(advertisement)),
+  });
+}
+
+async function removeAdvertisement(id: string) {
+  await apiRequest<{ deleted: string }>(`/advertisements/${id}`, { method: "DELETE" });
+}
+
 function loadStoredState(): StoredState {
   const fallback = emptyAd();
 
@@ -175,7 +267,9 @@ function formatDate(value: string) {
 
 function App() {
   const [stored, setStored] = useState<StoredState>(() => loadStoredState());
+  const [templates, setTemplates] = useState<Template[]>(seedTemplates);
   const [selectedTemplateId, setSelectedTemplateId] = useState(seedTemplates[0].id);
+  const [apiAvailable, setApiAvailable] = useState(false);
   const [customTag, setCustomTag] = useState("");
   const [validation, setValidation] = useState<string[]>([]);
   const [generatedPost, setGeneratedPost] = useState("");
@@ -193,19 +287,74 @@ function App() {
     localStorage.setItem(storageKey, JSON.stringify(stored));
   }, [stored]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadBackendState() {
+      try {
+        const [advertisementResponse, templateResponse] = await Promise.all([
+          apiRequest<{ advertisements: ApiAdvertisement[] }>("/advertisements"),
+          apiRequest<{ templates: ApiTemplate[] }>("/templates"),
+        ]);
+
+        if (cancelled) {
+          return;
+        }
+
+        const backendAds = advertisementResponse.advertisements.map(fromApiAdvertisement);
+        const nextAds = backendAds.length ? backendAds : stored.ads;
+        const nextActiveAdId = nextAds.some((ad) => ad.id === stored.activeAdId)
+          ? stored.activeAdId
+          : nextAds[0].id;
+        const nextTemplates = templateResponse.templates.map(fromApiTemplate);
+
+        setTemplates(nextTemplates.length ? nextTemplates : seedTemplates);
+        setSelectedTemplateId((current) =>
+          nextTemplates.some((template) => template.id === current)
+            ? current
+            : (nextTemplates[0]?.id ?? seedTemplates[0].id),
+        );
+        setStored({ ads: nextAds, activeAdId: nextActiveAdId });
+        setApiAvailable(true);
+      } catch {
+        if (!cancelled) {
+          setApiAvailable(false);
+        }
+      }
+    }
+
+    void loadBackendState();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  function syncAdvertisement(advertisement: Advertisement) {
+    void saveAdvertisement(advertisement)
+      .then(() => setApiAvailable(true))
+      .catch(() => setApiAvailable(false));
+  }
+
   function updateActiveAd(patch: Partial<Advertisement>) {
+    let nextActiveAd: Advertisement | null = null;
+
     setStored((current) => ({
       ...current,
       ads: current.ads.map((ad) =>
         ad.id === current.activeAdId
-          ? { ...ad, ...patch, updatedAt: new Date().toISOString() }
+          ? (nextActiveAd = { ...ad, ...patch, updatedAt: new Date().toISOString() })
           : ad,
       ),
     }));
+
+    if (nextActiveAd) {
+      syncAdvertisement(nextActiveAd);
+    }
   }
 
   function applyTemplate(templateId: string) {
-    const template = seedTemplates.find((item) => item.id === templateId);
+    const template = templates.find((item) => item.id === templateId);
     setSelectedTemplateId(templateId);
 
     if (!template) {
@@ -256,6 +405,7 @@ function App() {
       ads: [next, ...current.ads],
       activeAdId: next.id,
     }));
+    syncAdvertisement(next);
   }
 
   function deleteDraft(id: string) {
@@ -271,6 +421,9 @@ function App() {
         activeAdId: current.activeAdId === id ? remaining[0].id : current.activeAdId,
       };
     });
+    void removeAdvertisement(id)
+      .then(() => setApiAvailable(true))
+      .catch(() => setApiAvailable(false));
   }
 
   function saveDraft() {
@@ -393,6 +546,10 @@ function App() {
             <span>{selectedTagCount}</span>
             <p>Selected tags</p>
           </div>
+          <div>
+            <span>{apiAvailable ? "API" : "Local"}</span>
+            <p>Storage</p>
+          </div>
         </section>
       </aside>
 
@@ -449,7 +606,7 @@ function App() {
               <label>
                 Advertisement template
                 <select value={selectedTemplateId} onChange={(event) => applyTemplate(event.target.value)}>
-                  {seedTemplates.map((template) => (
+                  {templates.map((template) => (
                     <option key={template.id} value={template.id}>
                       {template.name}
                     </option>
