@@ -327,6 +327,10 @@ function htmlToPlainText(value: string) {
     .trim();
 }
 
+function composerContentFor(advertisement: Advertisement) {
+  return advertisement.content || advertisement.imageCaption;
+}
+
 function normalizeTag(value: string) {
   return value.trim().replace(/^#/, "").replace(/\s+/g, " ");
 }
@@ -546,15 +550,15 @@ function App() {
           defaultProtocol: "https",
         }),
       ],
-      content: activeAd.content || "",
+      content: composerContentFor(activeAd),
       editorProps: {
         attributes: {
           class: "tumblr-rich-editor",
-          "aria-label": activeAd.postType === "text" ? "Text post body" : "Additional advertisement copy",
+          "aria-label": "Tumblr post content",
         },
       },
       onUpdate: ({ editor: currentEditor }) => {
-        updateActiveAd({ content: currentEditor.getHTML() });
+        updateActiveAd({ content: currentEditor.getHTML(), imageCaption: "" });
       },
     },
     [activeAd.id],
@@ -577,12 +581,14 @@ function App() {
   }, [tagProfiles]);
 
   useEffect(() => {
-    if (!editor || editor.getHTML() === activeAd.content) {
+    const nextContent = composerContentFor(activeAd);
+
+    if (!editor || editor.getHTML() === nextContent) {
       return;
     }
 
-    editor.commands.setContent(activeAd.content || "", { emitUpdate: false });
-  }, [activeAd.content, editor]);
+    editor.commands.setContent(nextContent, { emitUpdate: false });
+  }, [activeAd.content, activeAd.imageCaption, editor]);
 
   useEffect(() => {
     let cancelled = false;
@@ -726,20 +732,14 @@ function App() {
   }
 
   function validateAd() {
-    const bodyText = htmlToPlainText(activeAd.content);
+    const bodyText = htmlToPlainText(composerContentFor(activeAd));
     const missing = [
       !activeAd.title.trim() ? "Add a saved submission name." : "",
       !activeAd.forumUrl.trim() ? "Add a forum URL." : "",
       !activeAd.destinationBlog.trim() ? "Choose a target Tumblr blog." : "",
-      activeAd.postType === "text" && !bodyText ? "Add text post body copy." : "",
-      activeAd.postType === "photo" && !activeAd.imageCaption.trim()
-        ? "Add the picture post caption."
-        : "",
+      !bodyText ? "Add post content." : "",
       activeAd.postType === "photo" && !activeAd.imageDataUrl.trim() && !activeAd.imageName.trim()
         ? "Choose an image for the photo post."
-        : "",
-      activeAd.postType === "video" && !activeAd.imageCaption.trim()
-        ? "Add the video caption or description."
         : "",
       activeAd.postType === "video" && !activeAd.videoUrl.trim() && !activeAd.videoName.trim()
         ? "Add a video URL or upload a video file."
@@ -751,7 +751,7 @@ function App() {
   }
 
   function buildPost() {
-    const richBody = activeAd.content.trim();
+    const richBody = composerContentFor(activeAd).trim();
     const sharedLines = [
       "",
       `Forum: ${activeAd.forumUrl.trim()}`,
@@ -768,7 +768,6 @@ function App() {
             activeAd.videoUrl.trim() ? `Video URL: ${activeAd.videoUrl.trim()}` : "",
             activeAd.videoName.trim() ? `Video file: ${activeAd.videoName.trim()}` : "",
             "",
-            activeAd.imageCaption.trim(),
             richBody,
             ...sharedLines,
           ]
@@ -778,7 +777,6 @@ function App() {
             "Tumblr Photo Post",
             activeAd.imageName.trim() ? `Image: ${activeAd.imageName.trim()}` : "",
             "",
-            activeAd.imageCaption.trim(),
             richBody,
             ...sharedLines,
           ]
@@ -828,6 +826,7 @@ function App() {
 
   function buildRunnerPayload(target: TumblrSubmitTarget) {
     const postPackage = buildPost();
+    const composerContent = composerContentFor(activeAd);
     return JSON.stringify(
       {
         version: 1,
@@ -843,8 +842,8 @@ function App() {
           videoName: activeAd.videoName,
         },
         fields: {
-          body: activeAd.content,
-          caption: activeAd.imageCaption,
+          body: composerContent,
+          caption: composerContent,
           videoUrl: activeAd.videoUrl,
           package: postPackage,
         },
@@ -1020,11 +1019,6 @@ function App() {
     setImportStatus(`Merged ${parsedImportTags.length} tags into ${activeAd.destinationBlog}.`);
   }
 
-  const contentLabel = activeAd.postType === "text" ? "Text" : "Additional copy";
-  const contentPlaceholder =
-    activeAd.postType === "text"
-      ? "Write the Tumblr text post body."
-      : "Add extra reusable copy below the caption if needed.";
   const submissionComplete = activeAd.status === "submitted";
   const toolbarButtons = [
     {
@@ -1297,26 +1291,9 @@ function App() {
                     </button>
                   </div>
 
-                  <section className="tumblr-body-field" aria-label={contentLabel}>
-                    <span>{contentLabel}</span>
+                  <section className="tumblr-body-field" aria-label="Tumblr post content">
                     <EditorContent editor={editor} />
-                    {!htmlToPlainText(activeAd.content) ? <p className="editor-placeholder">{contentPlaceholder}</p> : null}
                   </section>
-
-                  {activeAd.postType !== "text" ? (
-                    <label className="tumblr-caption-field">
-                      {activeAd.postType === "photo" ? "Photo caption" : "Video caption"}
-                      <input
-                        value={activeAd.imageCaption}
-                        onChange={(event) => updateActiveAd({ imageCaption: event.target.value })}
-                        placeholder={
-                          activeAd.postType === "photo"
-                            ? "Write the caption Tumblr requires for this picture post."
-                            : "Write the caption or description for the video post."
-                        }
-                      />
-                    </label>
-                  ) : null}
                 </div>
 
                 <div className="tumblr-tag-panel">
