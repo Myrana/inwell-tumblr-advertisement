@@ -660,7 +660,8 @@ textarea:focus {
 }
 
 .tumblr-editor-tools button:hover,
-.tumblr-editor-tools button:focus-visible {
+.tumblr-editor-tools button:focus-visible,
+.tumblr-editor-tools button.active {
   color: #444;
 }
 
@@ -670,16 +671,51 @@ textarea:focus {
   color: #444;
 }
 
-.tumblr-body-field textarea {
-  min-height: 210px;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: 0.96rem;
+.tumblr-body-field {
+  position: relative;
 }
 
-.tumblr-body-field textarea:focus,
+.tumblr-body-field > span {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.tumblr-rich-editor {
+  min-height: 210px;
+  padding: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 0.96rem;
+  line-height: 1.5;
+  outline: none;
+}
+
+.tumblr-rich-editor p {
+  margin: 0 0 0.75rem;
+}
+
+.tumblr-rich-editor ul,
+.tumblr-rich-editor ol {
+  margin: 0 0 0.75rem 1.25rem;
+  padding: 0;
+}
+
+.tumblr-rich-editor a {
+  color: #2e8fa3;
+  text-decoration: underline;
+}
+
+.editor-placeholder {
+  position: absolute;
+  top: 42px;
+  left: 12px;
+  margin: 0;
+  color: #9aa5ad;
+  font-family: Georgia, "Times New Roman", serif;
+  pointer-events: none;
+}
+
 .tumblr-title-input:focus {
   outline: none;
   border-color: var(--line);
