@@ -20,7 +20,10 @@ import {
   Unlink,
   Video,
 } from "lucide-react";
-import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { EditorContent, useEditor } from "@tiptap/react";
+import LinkExtension from "@tiptap/extension-link";
+import StarterKit from "@tiptap/starter-kit";
+import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 
 type Status = "draft" | "ready" | "submitted";
 type PostType = "text" | "photo" | "video";
@@ -315,6 +318,15 @@ function formatStatus(value: Status) {
   return value;
 }
 
+function htmlToPlainText(value: string) {
+  return value
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .trim();
+}
+
 function normalizeTag(value: string) {
   return value.trim().replace(/^#/, "").replace(/\s+/g, " ");
 }
@@ -498,7 +510,6 @@ function App() {
   const [queueStatus, setQueueStatus] = useState("");
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [activeView, setActiveView] = useState<WorkspaceView>("editor");
-  const bodyTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const activeAd = useMemo(
     () => stored.ads.find((ad) => ad.id === stored.activeAdId) ?? stored.ads[0],
@@ -519,6 +530,35 @@ function App() {
   const activeBlogTags = tagProfiles[activeAd.destinationBlog] ?? defaultTagProfiles[activeAd.destinationBlog] ?? [];
   const checklistTags = uniqueTags([...activeBlogTags, ...activeAd.tags]);
   const parsedImportTags = parseImportedTags(importText);
+  const editor = useEditor(
+    {
+      extensions: [
+        StarterKit.configure({
+          heading: false,
+          blockquote: false,
+          code: false,
+          codeBlock: false,
+          horizontalRule: false,
+        }),
+        LinkExtension.configure({
+          openOnClick: false,
+          autolink: true,
+          defaultProtocol: "https",
+        }),
+      ],
+      content: activeAd.content || "",
+      editorProps: {
+        attributes: {
+          class: "tumblr-rich-editor",
+          "aria-label": activeAd.postType === "text" ? "Text post body" : "Additional advertisement copy",
+        },
+      },
+      onUpdate: ({ editor: currentEditor }) => {
+        updateActiveAd({ content: currentEditor.getHTML() });
+      },
+    },
+    [activeAd.id],
+  );
 
   useEffect(() => {
     localStorage.setItem(storageKey, JSON.stringify(stored));
@@ -535,6 +575,14 @@ function App() {
   useEffect(() => {
     localStorage.setItem(tagProfileStorageKey, JSON.stringify(tagProfiles));
   }, [tagProfiles]);
+
+  useEffect(() => {
+    if (!editor || editor.getHTML() === activeAd.content) {
+      return;
+    }
+
+    editor.commands.setContent(activeAd.content || "", { emitUpdate: false });
+  }, [activeAd.content, editor]);
 
   useEffect(() => {
     let cancelled = false;
@@ -677,61 +725,13 @@ function App() {
     setTermsAccepted(false);
   }
 
-  function replaceBodySelection(replacer: (selection: string) => string) {
-    const textarea = bodyTextareaRef.current;
-    const start = textarea?.selectionStart ?? activeAd.content.length;
-    const end = textarea?.selectionEnd ?? activeAd.content.length;
-    const selection = activeAd.content.slice(start, end);
-    const replacement = replacer(selection || "text");
-    const nextContent = `${activeAd.content.slice(0, start)}${replacement}${activeAd.content.slice(end)}`;
-
-    updateActiveAd({ content: nextContent });
-    window.requestAnimationFrame(() => {
-      textarea?.focus();
-      textarea?.setSelectionRange(start, start + replacement.length);
-    });
-  }
-
-  function formatBody(command: "bold" | "italic" | "strike" | "link" | "ordered" | "bulleted" | "unlink") {
-    if (command === "bold") {
-      replaceBodySelection((selection) => `**${selection}**`);
-      return;
-    }
-
-    if (command === "italic") {
-      replaceBodySelection((selection) => `_${selection}_`);
-      return;
-    }
-
-    if (command === "strike") {
-      replaceBodySelection((selection) => `~~${selection}~~`);
-      return;
-    }
-
-    if (command === "link") {
-      replaceBodySelection((selection) => `[${selection}](https://)`);
-      return;
-    }
-
-    if (command === "unlink") {
-      replaceBodySelection((selection) => selection.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1"));
-      return;
-    }
-
-    replaceBodySelection((selection) =>
-      selection
-        .split("\n")
-        .map((line, index) => (command === "ordered" ? `${index + 1}. ${line}` : `- ${line}`))
-        .join("\n"),
-    );
-  }
-
   function validateAd() {
+    const bodyText = htmlToPlainText(activeAd.content);
     const missing = [
       !activeAd.title.trim() ? "Add a saved submission name." : "",
       !activeAd.forumUrl.trim() ? "Add a forum URL." : "",
       !activeAd.destinationBlog.trim() ? "Choose a target Tumblr blog." : "",
-      activeAd.postType === "text" && !activeAd.content.trim() ? "Add text post body copy." : "",
+      activeAd.postType === "text" && !bodyText ? "Add text post body copy." : "",
       activeAd.postType === "photo" && !activeAd.imageCaption.trim()
         ? "Add the picture post caption."
         : "",
@@ -751,6 +751,7 @@ function App() {
   }
 
   function buildPost() {
+    const richBody = activeAd.content.trim();
     const sharedLines = [
       "",
       `Forum: ${activeAd.forumUrl.trim()}`,
@@ -758,7 +759,7 @@ function App() {
     ].filter(Boolean);
 
     return activeAd.postType === "text"
-      ? ["Tumblr Text Post", activeAd.content.trim(), ...sharedLines]
+      ? ["Tumblr Text Post", richBody, ...sharedLines]
           .filter(Boolean)
           .join("\n")
       : activeAd.postType === "video"
@@ -768,7 +769,7 @@ function App() {
             activeAd.videoName.trim() ? `Video file: ${activeAd.videoName.trim()}` : "",
             "",
             activeAd.imageCaption.trim(),
-            activeAd.content.trim(),
+            richBody,
             ...sharedLines,
           ]
             .filter(Boolean)
@@ -778,7 +779,7 @@ function App() {
             activeAd.imageName.trim() ? `Image: ${activeAd.imageName.trim()}` : "",
             "",
             activeAd.imageCaption.trim(),
-            activeAd.content.trim(),
+            richBody,
             ...sharedLines,
           ]
             .filter(Boolean)
@@ -1026,13 +1027,55 @@ function App() {
       : "Add extra reusable copy below the caption if needed.";
   const submissionComplete = activeAd.status === "submitted";
   const toolbarButtons = [
-    { label: "Bold", icon: <Bold size={16} />, command: "bold" as const },
-    { label: "Italic", icon: <Italic size={16} />, command: "italic" as const },
-    { label: "Strikethrough", icon: <Strikethrough size={16} />, command: "strike" as const },
-    { label: "Link", icon: <Link2 size={16} />, command: "link" as const },
-    { label: "Unlink", icon: <Unlink size={16} />, command: "unlink" as const },
-    { label: "Ordered list", icon: <ListOrdered size={16} />, command: "ordered" as const },
-    { label: "Bulleted list", icon: <List size={16} />, command: "bulleted" as const },
+    {
+      label: "Bold",
+      icon: <Bold size={16} />,
+      active: editor?.isActive("bold") ?? false,
+      onClick: () => editor?.chain().focus().toggleBold().run(),
+    },
+    {
+      label: "Italic",
+      icon: <Italic size={16} />,
+      active: editor?.isActive("italic") ?? false,
+      onClick: () => editor?.chain().focus().toggleItalic().run(),
+    },
+    {
+      label: "Strikethrough",
+      icon: <Strikethrough size={16} />,
+      active: editor?.isActive("strike") ?? false,
+      onClick: () => editor?.chain().focus().toggleStrike().run(),
+    },
+    {
+      label: "Link",
+      icon: <Link2 size={16} />,
+      active: editor?.isActive("link") ?? false,
+      onClick: () => {
+        const href = window.prompt("Link URL", editor?.getAttributes("link").href ?? "https://");
+        if (!href) {
+          return;
+        }
+
+        editor?.chain().focus().extendMarkRange("link").setLink({ href }).run();
+      },
+    },
+    {
+      label: "Unlink",
+      icon: <Unlink size={16} />,
+      active: false,
+      onClick: () => editor?.chain().focus().unsetLink().run(),
+    },
+    {
+      label: "Ordered list",
+      icon: <ListOrdered size={16} />,
+      active: editor?.isActive("orderedList") ?? false,
+      onClick: () => editor?.chain().focus().toggleOrderedList().run(),
+    },
+    {
+      label: "Bulleted list",
+      icon: <List size={16} />,
+      active: editor?.isActive("bulletList") ?? false,
+      onClick: () => editor?.chain().focus().toggleBulletList().run(),
+    },
   ];
 
   return (
@@ -1236,15 +1279,17 @@ function App() {
                     {toolbarButtons.map((button) => (
                       <button
                         key={button.label}
+                        className={button.active ? "active" : ""}
                         type="button"
                         title={button.label}
                         aria-label={button.label}
-                        onClick={() => formatBody(button.command)}
+                        onClick={button.onClick}
+                        disabled={!editor}
                       >
                         {button.icon}
                       </button>
                     ))}
-                    <button type="button" title="Image" aria-label="Image" onClick={() => bodyTextareaRef.current?.focus()}>
+                    <button type="button" title="Image" aria-label="Image" onClick={() => editor?.chain().focus().run()}>
                       <ImagePlus size={16} />
                     </button>
                     <button type="button" title="Queue current" aria-label="Queue current" onClick={() => queueTargets([activeSubmitTarget])}>
@@ -1252,15 +1297,11 @@ function App() {
                     </button>
                   </div>
 
-                  <label className="tumblr-body-field">
-                    {contentLabel}
-                    <textarea
-                      ref={bodyTextareaRef}
-                      value={activeAd.content}
-                      onChange={(event) => updateActiveAd({ content: event.target.value })}
-                      placeholder={contentPlaceholder}
-                    />
-                  </label>
+                  <section className="tumblr-body-field" aria-label={contentLabel}>
+                    <span>{contentLabel}</span>
+                    <EditorContent editor={editor} />
+                    {!htmlToPlainText(activeAd.content) ? <p className="editor-placeholder">{contentPlaceholder}</p> : null}
+                  </section>
 
                   {activeAd.postType !== "text" ? (
                     <label className="tumblr-caption-field">
