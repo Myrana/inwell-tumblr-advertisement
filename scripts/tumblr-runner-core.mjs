@@ -114,6 +114,10 @@ export function shouldDeferReadyReview(options) {
   return !options.submit && !options.headless && !options.noPause;
 }
 
+export function reviewPagesOpenMessage(readyReviewCount) {
+  return `[runner] ${readyReviewCount} queued page${readyReviewCount === 1 ? " is" : "s are"} open for review. Submit or review in the browser, then close ${readyReviewCount === 1 ? "that browser tab" : "those browser tabs"} when done.`;
+}
+
 export function appearsLoggedInToTumblr(text, url = "") {
   const haystack = `${url}\n${text}`;
   return (
