@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { chromium } from "playwright";
 import {
+  frameCandidateScore,
   fieldsForItem,
   loadRunnerPlan,
   materializeDataUrl,
@@ -39,32 +40,57 @@ async function runQueueItem(context, item, options) {
 
   if (await pageNeedsManualAction(page)) {
     console.log(`[manual-action] ${item.targetName}: login, captcha, terms, or changed form detected.`);
-    await pauseForOperator(page);
+    await pauseForOperator(page, options);
     return;
   }
 
-  await choosePostType(page, item.postType);
-  await fillTextFields(page, fields);
-  await uploadMedia(page, item, fields);
+  const target = await automationTarget(page);
+  await choosePostType(target, item.postType);
+  await fillTextFields(target, fields);
+  await uploadMedia(target, item, fields);
 
   if (await pageNeedsManualAction(page)) {
     console.log(`[manual-action] ${item.targetName}: page requires review before submit.`);
-    await pauseForOperator(page);
+    await pauseForOperator(page, options);
     return;
   }
 
   if (options.submit) {
-    const clicked = await clickSubmit(page);
+    const clicked = await clickSubmit(target);
     console.log(clicked ? `[submitted] ${item.targetName}: submit button clicked.` : `[manual-action] ${item.targetName}: no submit button found.`);
   } else {
     console.log(`[ready] ${item.targetName}: fields filled where possible. Review the page, then submit manually or rerun with --submit.`);
-    await pauseForOperator(page);
+    await pauseForOperator(page, options);
   }
 }
 
 async function pageNeedsManualAction(page) {
-  const text = await page.locator("body").innerText({ timeout: 5000 }).catch(() => "");
-  return shouldPauseForManualAction(text, page.url());
+  for (const frame of page.frames()) {
+    const text = await frame.locator("body").innerText({ timeout: 5000 }).catch(() => "");
+    if (shouldPauseForManualAction(text, frame.url())) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+async function automationTarget(page) {
+  const candidates = [];
+  for (const frame of page.frames()) {
+    const controlCount = await frame.locator("input, textarea, button, [contenteditable='true']").count().catch(() => 0);
+    candidates.push({
+      frame,
+      score: frameCandidateScore({
+        name: frame.name(),
+        url: frame.url(),
+        controlCount,
+      }),
+    });
+  }
+
+  candidates.sort((left, right) => right.score - left.score);
+  return candidates[0]?.frame ?? page;
 }
 
 async function choosePostType(page, postType) {
@@ -167,7 +193,12 @@ async function clickSubmit(page) {
   return false;
 }
 
-async function pauseForOperator(page) {
+async function pauseForOperator(page, options) {
+  if (options.headless || options.noPause) {
+    await page.close().catch(() => undefined);
+    return;
+  }
+
   console.log("[runner] Browser remains open for review. Press Enter here to continue.");
   await new Promise((resolve) => {
     process.stdin.resume();

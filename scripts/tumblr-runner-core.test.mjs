@@ -3,16 +3,18 @@ import test from "node:test";
 import {
   dataUrlToBuffer,
   fieldsForItem,
+  frameCandidateScore,
   normalizeRunnerPlan,
   parseArgs,
   shouldPauseForManualAction,
 } from "./tumblr-runner-core.mjs";
 
 test("parseArgs accepts a plan and safety defaults", () => {
-  const options = parseArgs(["--plan", "queue.json"]);
+  const options = parseArgs(["--plan", "queue.json", "--no-pause"]);
   assert.equal(options.planPath, "queue.json");
   assert.equal(options.submit, false);
   assert.equal(options.headless, false);
+  assert.equal(options.noPause, true);
 });
 
 test("normalizeRunnerPlan decodes queue item runner payload", () => {
@@ -49,4 +51,19 @@ test("dataUrlToBuffer decodes embedded media", () => {
   const decoded = dataUrlToBuffer("data:text/plain;base64,aGVsbG8=");
   assert.equal(decoded?.mimeType, "text/plain");
   assert.equal(decoded?.buffer.toString("utf8"), "hello");
+});
+
+test("frameCandidateScore prefers Tumblr submit iframe", () => {
+  const submitFrame = frameCandidateScore({
+    name: "submit_form",
+    url: "https://www.tumblr.com/submit_form/example.tumblr.com",
+    controlCount: 0,
+  });
+  const themeFrame = frameCandidateScore({
+    name: "",
+    url: "https://example.tumblr.com/submit",
+    controlCount: 3,
+  });
+
+  assert.ok(submitFrame > themeFrame);
 });

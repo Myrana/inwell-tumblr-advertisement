@@ -6,4 +6,5 @@ vite.config.d.ts
 vite.config.js
 backend/*.sqlite3
 .tumblr-runner-profile/
+tmp-runner-inspect-profile/
 tumblr-runner-plan.json

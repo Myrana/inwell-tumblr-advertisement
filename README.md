@@ -52,6 +52,13 @@ markup, missing upload controls, target-blog terms, or any other state that need
 human review. It does not store Tumblr credentials and does not bypass Tumblr
 protections.
 
+For a noninteractive smoke test that opens the queued target, reports the state,
+and exits without waiting for review:
+
+```powershell
+npm.cmd run tumblr:runner -- --plan .\tumblr-runner-plan.json --headless --no-pause
+```
+
 ## PostgreSQL Configuration
 
 The API reads PostgreSQL settings from the standard environment variables:
