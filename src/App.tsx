@@ -20,11 +20,11 @@ import {
   Unlink,
   Video,
 } from "lucide-react";
-import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 type Status = "draft" | "ready" | "submitted";
 type PostType = "text" | "photo" | "video";
-type WorkspaceView = "editor" | "drafts" | "queue";
+type WorkspaceView = "editor" | "saved" | "queue";
 
 type Advertisement = {
   id: string;
@@ -41,14 +41,6 @@ type Advertisement = {
   videoName: string;
   status: Status;
   updatedAt: string;
-};
-
-type Template = {
-  id: string;
-  name: string;
-  content: string;
-  tags: string[];
-  forumUrl: string;
 };
 
 type TumblrSubmitTarget = {
@@ -94,14 +86,6 @@ type ApiAdvertisement = {
   video_name?: string;
   status: Status;
   updated_at: string;
-};
-
-type ApiTemplate = {
-  id: string;
-  name: string;
-  content: string;
-  forum_url: string;
-  tags: string[];
 };
 
 const defaultSubmitTargets: TumblrSubmitTarget[] = [
@@ -179,25 +163,6 @@ const postTypes: { value: PostType; label: string }[] = [
   { value: "text", label: "Text" },
   { value: "photo", label: "Photo" },
   { value: "video", label: "Video" },
-];
-
-const seedTemplates: Template[] = [
-  {
-    id: "template-plot-forward",
-    name: "Plot-forward forum ad",
-    forumUrl: "https://example-jcink-forum.test",
-    tags: ["#jcink", "#jcink forum", "#forum rp", "#site advertisement"],
-    content:
-      "A character-driven Jcink forum with active plotting, seasonal events, and a welcoming staff team. New members can jump into open threads, browse wanted ads, and build long-form stories at their own pace.",
-  },
-  {
-    id: "template-open-canons",
-    name: "Open canons and wanted ads",
-    forumUrl: "https://wanted-ads.example.test",
-    tags: ["#jcink", "#forum roleplay", "#site advertisement"],
-    content:
-      "Open canons, wanted connections, and new-member prompts are ready for players who want an easy entry point. Browse the latest openings and bring a fresh character into the story.",
-  },
 ];
 
 function createId() {
@@ -283,16 +248,6 @@ function toApiAdvertisement(advertisement: Advertisement): ApiAdvertisement {
   };
 }
 
-function fromApiTemplate(value: ApiTemplate): Template {
-  return {
-    id: value.id,
-    name: value.name,
-    content: value.content,
-    forumUrl: value.forum_url,
-    tags: Array.isArray(value.tags) ? value.tags : [],
-  };
-}
-
 async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${apiBaseUrl}${path}`, {
     ...init,
@@ -350,6 +305,14 @@ function formatDate(value: string) {
     hour: "numeric",
     minute: "2-digit",
   }).format(new Date(value));
+}
+
+function formatStatus(value: Status) {
+  if (value === "draft") {
+    return "saved";
+  }
+
+  return value;
 }
 
 function normalizeTag(value: string) {
@@ -522,8 +485,6 @@ function App() {
   const [submitTargets, setSubmitTargets] = useState<TumblrSubmitTarget[]>(() => loadSubmitTargets());
   const [submissionQueue, setSubmissionQueue] = useState<SubmissionQueueItem[]>(() => loadSubmissionQueue());
   const [tagProfiles, setTagProfiles] = useState<Record<string, string[]>>(() => loadTagProfiles());
-  const [templates, setTemplates] = useState<Template[]>(seedTemplates);
-  const [selectedTemplateId, setSelectedTemplateId] = useState(seedTemplates[0].id);
   const [apiAvailable, setApiAvailable] = useState(false);
   const [customTag, setCustomTag] = useState("");
   const [newSubmitUrl, setNewSubmitUrl] = useState("");
@@ -533,11 +494,11 @@ function App() {
   const [importImageDataUrl, setImportImageDataUrl] = useState("");
   const [importStatus, setImportStatus] = useState("");
   const [validation, setValidation] = useState<string[]>([]);
-  const [generatedPost, setGeneratedPost] = useState("");
-  const [copyState, setCopyState] = useState("Copy");
+  const [, setGeneratedPost] = useState("");
   const [queueStatus, setQueueStatus] = useState("");
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [activeView, setActiveView] = useState<WorkspaceView>("editor");
+  const bodyTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const activeAd = useMemo(
     () => stored.ads.find((ad) => ad.id === stored.activeAdId) ?? stored.ads[0],
@@ -553,7 +514,7 @@ function App() {
   );
 
   const selectedTagCount = activeAd.tags.length;
-  const readyDrafts = stored.ads.filter((ad) => ad.status === "ready").length;
+  const readySubmissions = stored.ads.filter((ad) => ad.status === "ready").length;
   const activeQueue = submissionQueue.filter((item) => item.adId === activeAd.id);
   const activeBlogTags = tagProfiles[activeAd.destinationBlog] ?? defaultTagProfiles[activeAd.destinationBlog] ?? [];
   const checklistTags = uniqueTags([...activeBlogTags, ...activeAd.tags]);
@@ -580,10 +541,7 @@ function App() {
 
     async function loadBackendState() {
       try {
-        const [advertisementResponse, templateResponse] = await Promise.all([
-          apiRequest<{ advertisements: ApiAdvertisement[] }>("/advertisements"),
-          apiRequest<{ templates: ApiTemplate[] }>("/templates"),
-        ]);
+        const advertisementResponse = await apiRequest<{ advertisements: ApiAdvertisement[] }>("/advertisements");
 
         if (cancelled) {
           return;
@@ -594,14 +552,7 @@ function App() {
         const nextActiveAdId = nextAds.some((ad) => ad.id === stored.activeAdId)
           ? stored.activeAdId
           : nextAds[0].id;
-        const nextTemplates = templateResponse.templates.map(fromApiTemplate);
 
-        setTemplates(nextTemplates.length ? nextTemplates : seedTemplates);
-        setSelectedTemplateId((current) =>
-          nextTemplates.some((template) => template.id === current)
-            ? current
-            : (nextTemplates[0]?.id ?? seedTemplates[0].id),
-        );
         setStored({ ads: nextAds, activeAdId: nextActiveAdId });
         setApiAvailable(true);
       } catch {
@@ -639,21 +590,6 @@ function App() {
     if (nextActiveAd) {
       syncAdvertisement(nextActiveAd);
     }
-  }
-
-  function applyTemplate(templateId: string) {
-    const template = templates.find((item) => item.id === templateId);
-    setSelectedTemplateId(templateId);
-
-    if (!template) {
-      return;
-    }
-
-    updateActiveAd({
-      content: template.content,
-      forumUrl: template.forumUrl,
-      tags: Array.from(new Set([...activeAd.tags, ...template.tags])),
-    });
   }
 
   function selectSubmitTarget(targetId: string) {
@@ -741,9 +677,58 @@ function App() {
     setTermsAccepted(false);
   }
 
+  function replaceBodySelection(replacer: (selection: string) => string) {
+    const textarea = bodyTextareaRef.current;
+    const start = textarea?.selectionStart ?? activeAd.content.length;
+    const end = textarea?.selectionEnd ?? activeAd.content.length;
+    const selection = activeAd.content.slice(start, end);
+    const replacement = replacer(selection || "text");
+    const nextContent = `${activeAd.content.slice(0, start)}${replacement}${activeAd.content.slice(end)}`;
+
+    updateActiveAd({ content: nextContent });
+    window.requestAnimationFrame(() => {
+      textarea?.focus();
+      textarea?.setSelectionRange(start, start + replacement.length);
+    });
+  }
+
+  function formatBody(command: "bold" | "italic" | "strike" | "link" | "ordered" | "bulleted" | "unlink") {
+    if (command === "bold") {
+      replaceBodySelection((selection) => `**${selection}**`);
+      return;
+    }
+
+    if (command === "italic") {
+      replaceBodySelection((selection) => `_${selection}_`);
+      return;
+    }
+
+    if (command === "strike") {
+      replaceBodySelection((selection) => `~~${selection}~~`);
+      return;
+    }
+
+    if (command === "link") {
+      replaceBodySelection((selection) => `[${selection}](https://)`);
+      return;
+    }
+
+    if (command === "unlink") {
+      replaceBodySelection((selection) => selection.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1"));
+      return;
+    }
+
+    replaceBodySelection((selection) =>
+      selection
+        .split("\n")
+        .map((line, index) => (command === "ordered" ? `${index + 1}. ${line}` : `- ${line}`))
+        .join("\n"),
+    );
+  }
+
   function validateAd() {
     const missing = [
-      !activeAd.title.trim() ? "Add a saved option name." : "",
+      !activeAd.title.trim() ? "Add a saved submission name." : "",
       !activeAd.forumUrl.trim() ? "Add a forum URL." : "",
       !activeAd.destinationBlog.trim() ? "Choose a target Tumblr blog." : "",
       activeAd.postType === "text" && !activeAd.content.trim() ? "Add text post body copy." : "",
@@ -825,16 +810,6 @@ function App() {
 
     setGeneratedPost(buildPost());
     updateActiveAd({ status: "submitted" });
-  }
-
-  function copyPost() {
-    if (!generatedPost) {
-      return;
-    }
-
-    navigator.clipboard.writeText(generatedPost);
-    setCopyState("Copied");
-    window.setTimeout(() => setCopyState("Copy"), 1400);
   }
 
   function openSubmitPage() {
@@ -937,7 +912,7 @@ function App() {
     setSubmissionQueue((current) =>
       current.filter((item) => item.adId !== activeAd.id || !["submitted", "failed"].includes(item.status)),
     );
-    setQueueStatus("Cleared submitted and failed entries for this saved option.");
+    setQueueStatus("Cleared submitted and failed entries for this saved submission.");
   }
 
   function copyRunnerPlan() {
@@ -1044,13 +1019,21 @@ function App() {
     setImportStatus(`Merged ${parsedImportTags.length} tags into ${activeAd.destinationBlog}.`);
   }
 
-  const contentLabel = activeAd.postType === "text" ? "Text post body" : "Optional advertisement copy";
+  const contentLabel = activeAd.postType === "text" ? "Text" : "Additional copy";
   const contentPlaceholder =
     activeAd.postType === "text"
       ? "Write the Tumblr text post body."
       : "Add extra reusable copy below the caption if needed.";
-  const previewPlaceholder = `Prepare a Tumblr ${activeAd.postType} submission package from the current draft.`;
   const submissionComplete = activeAd.status === "submitted";
+  const toolbarButtons = [
+    { label: "Bold", icon: <Bold size={16} />, command: "bold" as const },
+    { label: "Italic", icon: <Italic size={16} />, command: "italic" as const },
+    { label: "Strikethrough", icon: <Strikethrough size={16} />, command: "strike" as const },
+    { label: "Link", icon: <Link2 size={16} />, command: "link" as const },
+    { label: "Unlink", icon: <Unlink size={16} />, command: "unlink" as const },
+    { label: "Ordered list", icon: <ListOrdered size={16} />, command: "ordered" as const },
+    { label: "Bulleted list", icon: <List size={16} />, command: "bulleted" as const },
+  ];
 
   return (
     <main className="app-shell">
@@ -1075,9 +1058,9 @@ function App() {
             <FileText size={18} />
             Editor
           </button>
-          <button className={activeView === "drafts" ? "active" : ""} type="button" onClick={() => setActiveView("drafts")}>
+          <button className={activeView === "saved" ? "active" : ""} type="button" onClick={() => setActiveView("saved")}>
             <Archive size={18} />
-            Drafts
+            Saved Submissions
           </button>
           <button className={activeView === "queue" ? "active" : ""} type="button" onClick={() => setActiveView("queue")}>
             <Send size={18} />
@@ -1088,10 +1071,10 @@ function App() {
         <section className="metric-panel" aria-label="Advertisement counts">
           <div>
             <span>{stored.ads.length}</span>
-            <p>Drafts</p>
+            <p>Saved</p>
           </div>
           <div>
-            <span>{readyDrafts}</span>
+            <span>{readySubmissions}</span>
             <p>Ready</p>
           </div>
           <div>
@@ -1109,7 +1092,7 @@ function App() {
         <header className="topbar">
           <div>
             <p className="eyebrow">Advertisement workspace</p>
-            <h1>{activeAd.title || "Untitled saved option"}</h1>
+            <h1>{activeAd.title || "Untitled saved submission"}</h1>
           </div>
           <div className="topbar-actions">
             <button className="secondary" type="button" onClick={createDraft}>
@@ -1128,17 +1111,18 @@ function App() {
         </header>
 
         {activeView === "editor" ? (
-        <div className="workspace-grid">
+        <div className="workspace-grid editor-only">
           <section className="editor-surface" id="editor" aria-label="Advertisement editor">
-            <div className="field-grid two">
+            <div className="setup-panel">
+              <div className="field-grid three">
               <label>
-                Saved option name
+                Saved submission name
                 <input
                   value={activeAd.title}
                   onChange={(event) => updateActiveAd({ title: event.target.value })}
                   placeholder="Open canons photo ad"
                 />
-                <span className="field-hint">Only used to save this option in your library.</span>
+                <span className="field-hint">Only used to find this saved submission again.</span>
               </label>
 
               <label>
@@ -1155,6 +1139,17 @@ function App() {
                 </select>
                 <span className="field-hint">{activeSubmitTarget.submitUrl}</span>
               </label>
+
+              <label>
+                Forum link
+                <input
+                  value={activeAd.forumUrl}
+                  onChange={(event) => updateActiveAd({ forumUrl: event.target.value })}
+                  placeholder="https://your-forum.jcink.net"
+                />
+                <span className="field-hint">Included in the queued Tumblr submission package.</span>
+              </label>
+              </div>
             </div>
 
             <form className="submit-target-manager" onSubmit={addSubmitTarget}>
@@ -1176,28 +1171,6 @@ function App() {
               </button>
               {submitTargetStatus ? <p>{submitTargetStatus}</p> : null}
             </form>
-
-            <div className="field-grid two">
-              <label>
-                Advertisement template
-                <select value={selectedTemplateId} onChange={(event) => applyTemplate(event.target.value)}>
-                  {templates.map((template) => (
-                    <option key={template.id} value={template.id}>
-                      {template.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label>
-                Forum URL
-                <input
-                  value={activeAd.forumUrl}
-                  onChange={(event) => updateActiveAd({ forumUrl: event.target.value })}
-                  placeholder="https://your-forum.jcink.net"
-                />
-              </label>
-            </div>
 
             {submissionComplete ? (
               <div className="tumblr-submit-shell">
@@ -1228,6 +1201,10 @@ function App() {
                     </div>
                   </div>
 
+                  {activeAd.postType === "text" ? (
+                    <input className="tumblr-title-input" placeholder="Title" aria-label="Optional Tumblr title" />
+                  ) : null}
+
                   {activeAd.postType === "photo" ? (
                     <div className="tumblr-photo-stage">
                       <ImagePlus size={42} />
@@ -1256,20 +1233,29 @@ function App() {
                   ) : null}
 
                   <div className="tumblr-editor-tools" aria-label="Editor tools">
-                    <Bold size={16} />
-                    <Italic size={16} />
-                    <Strikethrough size={16} />
-                    <Link2 size={16} />
-                    <Unlink size={16} />
-                    <ListOrdered size={16} />
-                    <List size={16} />
-                    <ImagePlus size={16} />
-                    <Send size={16} />
+                    {toolbarButtons.map((button) => (
+                      <button
+                        key={button.label}
+                        type="button"
+                        title={button.label}
+                        aria-label={button.label}
+                        onClick={() => formatBody(button.command)}
+                      >
+                        {button.icon}
+                      </button>
+                    ))}
+                    <button type="button" title="Image" aria-label="Image" onClick={() => bodyTextareaRef.current?.focus()}>
+                      <ImagePlus size={16} />
+                    </button>
+                    <button type="button" title="Queue current" aria-label="Queue current" onClick={() => queueTargets([activeSubmitTarget])}>
+                      <Send size={16} />
+                    </button>
                   </div>
 
                   <label className="tumblr-body-field">
                     {contentLabel}
                     <textarea
+                      ref={bodyTextareaRef}
                       value={activeAd.content}
                       onChange={(event) => updateActiveAd({ content: event.target.value })}
                       placeholder={contentPlaceholder}
@@ -1371,11 +1357,15 @@ function App() {
                     I accept the <a href="#terms">Terms of Submission</a>
                   </label>
                   <button className="tumblr-submit-button" type="button" onClick={submitRecord}>
-                    Mark locally submitted
+                    Submit
                   </button>
                   <button className="secondary" type="button" onClick={openSubmitPage}>
                     <Link2 size={18} />
                     Open Tumblr
+                  </button>
+                  <button className="secondary" type="button" onClick={() => queueTargets([activeSubmitTarget])}>
+                    <Send size={18} />
+                    Queue
                   </button>
                 </div>
               </div>
@@ -1390,22 +1380,6 @@ function App() {
             ) : null}
           </section>
 
-          <aside className="right-rail">
-            <section className="preview-panel" aria-label="Prepared submission preview">
-              <div className="panel-heading">
-                <h2>Prepared submission</h2>
-                <button className="icon-button" type="button" onClick={copyPost} aria-label="Copy post" title="Copy post">
-                  <Copy size={18} />
-                </button>
-              </div>
-              <pre>{generatedPost || previewPlaceholder}</pre>
-              <a className="submit-url-link" href={activeSubmitTarget.submitUrl} target="_blank" rel="noreferrer">
-                <Link size={18} />
-                {activeSubmitTarget.submitUrl}
-              </a>
-              <span className="copy-state">{copyState}</span>
-            </section>
-          </aside>
         </div>
         ) : null}
 
@@ -1486,10 +1460,10 @@ function App() {
         </section>
         ) : null}
 
-        {activeView === "drafts" ? (
-        <section className="draft-table" aria-label="Saved drafts">
+        {activeView === "saved" ? (
+        <section className="draft-table" aria-label="Saved submissions">
           <div className="panel-heading">
-            <h2>Saved drafts</h2>
+            <h2>Saved submissions</h2>
             <Archive size={18} />
           </div>
           {stored.ads.map((ad) => (
@@ -1501,13 +1475,19 @@ function App() {
                   setActiveView("editor");
                 }}
               >
-                <strong>{ad.title || "Untitled saved option"}</strong>
-                <span>{ad.postType} - {ad.status} - {formatDate(ad.updatedAt)}</span>
+                <strong>{ad.title || "Untitled saved submission"}</strong>
+                <span>{ad.postType} - {formatStatus(ad.status)} - {formatDate(ad.updatedAt)}</span>
               </button>
               <a href={ad.forumUrl || "#"} aria-label="Forum URL">
                 <Link size={18} />
               </a>
-              <button className="icon-button" type="button" onClick={() => deleteDraft(ad.id)} aria-label="Delete draft" title="Delete draft">
+              <button
+                className="icon-button"
+                type="button"
+                onClick={() => deleteDraft(ad.id)}
+                aria-label="Delete saved submission"
+                title="Delete saved submission"
+              >
                 <Trash2 size={18} />
               </button>
             </article>
