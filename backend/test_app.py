@@ -27,6 +27,7 @@ class FakeCursor:
 class FakePostgresConnection:
     def __init__(self) -> None:
         self.advertisements: dict[str, dict[str, Any]] = {}
+        self.schema_migrations: dict[str, dict[str, Any]] = {}
         self.templates: dict[str, dict[str, Any]] = {}
 
     def execute(self, query: str, params: tuple[Any, ...] | None = None) -> FakeCursor:
@@ -34,6 +35,17 @@ class FakePostgresConnection:
         params = params or ()
 
         if normalized.startswith("create table"):
+            return FakeCursor()
+
+        if normalized.startswith("select * from schema_migrations order by"):
+            return FakeCursor(sorted(self.schema_migrations.values(), key=lambda row: row["version"]))
+
+        if normalized.startswith("insert into schema_migrations"):
+            if str(params[0]) not in self.schema_migrations:
+                self.schema_migrations[str(params[0])] = {
+                    "version": params[0],
+                    "applied_at": params[1],
+                }
             return FakeCursor()
 
         if normalized.startswith("select created_at from advertisements"):
@@ -125,6 +137,14 @@ class PersistenceTests(unittest.TestCase):
                 os.environ.pop("PGHOST", None)
             else:
                 os.environ["PGHOST"] = old_host
+
+    def test_initialize_records_current_schema_version_once(self) -> None:
+        initialize(self.connection)
+
+        rows = self.connection.execute("SELECT * FROM schema_migrations ORDER BY version").fetchall()
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["version"], app.CURRENT_SCHEMA_VERSION)
 
     def test_seed_templates_are_created(self) -> None:
         rows = self.connection.execute("SELECT * FROM templates ORDER BY name").fetchall()

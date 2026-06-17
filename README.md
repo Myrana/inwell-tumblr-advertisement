@@ -107,3 +107,14 @@ npm.cmd run api
 ```
 
 `DATABASE_URL` can be used instead of the individual `PG*` variables. Passwords and connection strings should stay in your local environment, not in source control.
+
+### Database schema versions
+
+The API keeps a `schema_migrations` table in PostgreSQL. `backend/app.py` records the current baseline as `0001_initial_schema` during startup after the required tables are present.
+
+For future database changes:
+
+1. Add the migration logic to `initialize`.
+2. Give the migration a new ordered version id, such as `0002_add_queue_notes`.
+3. Record the version with `record_schema_version` only after the migration succeeds.
+4. Add or update backend tests so the migration is idempotent.
