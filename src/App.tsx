@@ -567,9 +567,9 @@ function App() {
 
   function validateAd() {
     const missing = [
-      !activeAd.title.trim() ? "Add a title." : "",
+      !activeAd.title.trim() ? "Add a saved option name." : "",
       !activeAd.forumUrl.trim() ? "Add a forum URL." : "",
-      !activeAd.destinationBlog.trim() ? "Choose a destination blog." : "",
+      !activeAd.destinationBlog.trim() ? "Choose a target Tumblr blog." : "",
       activeAd.postType === "text" && !activeAd.content.trim() ? "Add text post body copy." : "",
       activeAd.postType === "photo" && !activeAd.imageCaption.trim()
         ? "Add the picture post caption."
@@ -597,13 +597,12 @@ function App() {
     ].filter(Boolean);
 
     return activeAd.postType === "text"
-      ? ["Tumblr Text Post", activeAd.title.trim(), "", activeAd.content.trim(), ...sharedLines]
+      ? ["Tumblr Text Post", activeAd.content.trim(), ...sharedLines]
           .filter(Boolean)
           .join("\n")
       : activeAd.postType === "video"
         ? [
             "Tumblr Video Post",
-            activeAd.title.trim(),
             activeAd.videoUrl.trim() ? `Video URL: ${activeAd.videoUrl.trim()}` : "",
             activeAd.videoName.trim() ? `Video file: ${activeAd.videoName.trim()}` : "",
             "",
@@ -615,7 +614,6 @@ function App() {
             .join("\n")
         : [
             "Tumblr Photo Post",
-            activeAd.title.trim(),
             activeAd.imageName.trim() ? `Image: ${activeAd.imageName.trim()}` : "",
             "",
             activeAd.imageCaption.trim(),
@@ -817,7 +815,7 @@ function App() {
         <header className="topbar">
           <div>
             <p className="eyebrow">Advertisement workspace</p>
-            <h1>{activeAd.title || "Untitled Tumblr forum advertisement"}</h1>
+            <h1>{activeAd.title || "Untitled saved option"}</h1>
           </div>
           <div className="topbar-actions">
             <button className="secondary" type="button" onClick={createDraft}>
@@ -839,16 +837,17 @@ function App() {
           <section className="editor-surface" id="editor" aria-label="Advertisement editor">
             <div className="field-grid two">
               <label>
-                Title
+                Saved option name
                 <input
                   value={activeAd.title}
                   onChange={(event) => updateActiveAd({ title: event.target.value })}
-                  placeholder="Open canons and active plots"
+                  placeholder="Open canons photo ad"
                 />
+                <span className="field-hint">Only used to save this option in your library.</span>
               </label>
 
               <label>
-                Destination blog
+                Target Tumblr blog
                 <select
                   value={activeAd.destinationBlog}
                   onChange={(event) => updateActiveAd({ destinationBlog: event.target.value })}
@@ -859,6 +858,7 @@ function App() {
                     </option>
                   ))}
                 </select>
+                <span className="field-hint">The Tumblr submit-to blog and tag profile for this post.</span>
               </label>
             </div>
 
@@ -1110,7 +1110,7 @@ function App() {
           {stored.ads.map((ad) => (
             <article className={ad.id === activeAd.id ? "draft-row selected" : "draft-row"} key={ad.id}>
               <button type="button" onClick={() => setStored((current) => ({ ...current, activeAdId: ad.id }))}>
-                <strong>{ad.title || "Untitled advertisement"}</strong>
+                <strong>{ad.title || "Untitled saved option"}</strong>
                 <span>{ad.postType} - {ad.status} - {formatDate(ad.updatedAt)}</span>
               </button>
               <a href={ad.forumUrl || "#"} aria-label="Forum URL">
