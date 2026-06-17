@@ -1,5 +1,20 @@
-import { ClipboardCheck, FilePlus2, Save, Trash2 } from "lucide-react";
-import { FormEvent } from "react";
+import { EditorContent, useEditor } from "@tiptap/react";
+import LinkExtension from "@tiptap/extension-link";
+import StarterKit from "@tiptap/starter-kit";
+import {
+  Bold,
+  ClipboardCheck,
+  FilePlus2,
+  Italic,
+  Link2,
+  List,
+  ListOrdered,
+  Save,
+  Strikethrough,
+  Trash2,
+  Unlink,
+} from "lucide-react";
+import { FormEvent, useEffect } from "react";
 import { formatDate } from "../domain/format";
 import { SavedTemplate } from "../domain/types";
 
@@ -13,7 +28,7 @@ type TemplatesWorkspaceProps = {
   status: string;
   templates: SavedTemplate[];
   onApplyTemplate: (template: SavedTemplate) => void;
-  onCreateTemplate: (event: FormEvent) => void;
+  onCreateTemplate: (event: FormEvent, contentHtml: string) => void;
   onDeleteTemplate: (id: string) => void;
   onDraftChange: (patch: Partial<TemplateDraft>) => void;
   onSaveCurrentAsTemplate: () => void;
@@ -29,6 +44,41 @@ export function TemplatesWorkspace({
   onDraftChange,
   onSaveCurrentAsTemplate,
 }: TemplatesWorkspaceProps) {
+  const editor = useEditor({
+    extensions: [
+      StarterKit.configure({
+        heading: false,
+        blockquote: false,
+        code: false,
+        codeBlock: false,
+        horizontalRule: false,
+      }),
+      LinkExtension.configure({
+        openOnClick: false,
+        autolink: true,
+        defaultProtocol: "https",
+      }),
+    ],
+    content: draft.content,
+    editorProps: {
+      attributes: {
+        class: "tumblr-rich-editor template-rich-editor",
+        "aria-label": "Template body text under the image",
+      },
+    },
+    onUpdate: ({ editor: currentEditor }) => {
+      onDraftChange({ content: currentEditor.getHTML() });
+    },
+  });
+
+  useEffect(() => {
+    if (!editor || editor.isDestroyed || editor.getHTML() === draft.content) {
+      return;
+    }
+
+    editor.commands.setContent(draft.content || "", { emitUpdate: false });
+  }, [draft.content, editor]);
+
   return (
     <section className="templates-workspace" aria-label="Saved templates">
       <div className="panel-heading">
@@ -44,7 +94,7 @@ export function TemplatesWorkspace({
         {status ? <p className="template-status">{status}</p> : null}
       </div>
 
-      <form className="template-form" onSubmit={onCreateTemplate}>
+      <form className="template-form" onSubmit={(event) => onCreateTemplate(event, editor?.getHTML() ?? draft.content)}>
         <label>
           Template name
           <input
@@ -53,14 +103,92 @@ export function TemplatesWorkspace({
             placeholder="Premium supernatural ad"
           />
         </label>
-        <label>
-          Body text under the image
-          <textarea
-            value={draft.content}
-            onChange={(event) => onDraftChange({ content: event.target.value })}
-            placeholder="Paste the reusable advertisement text here."
-          />
-        </label>
+        <div className="template-editor-field">
+          <span>Body text under the image</span>
+          <div className="template-composer">
+            <div className="tumblr-editor-tools" aria-label="Template editor tools" onMouseDown={(event) => event.preventDefault()}>
+              <button
+                className={editor?.isActive("bold") ? "active" : ""}
+                type="button"
+                title="Bold"
+                aria-label="Bold"
+                onClick={() => editor?.chain().focus().toggleBold().run()}
+                disabled={!editor}
+              >
+                <Bold size={16} />
+              </button>
+              <button
+                className={editor?.isActive("italic") ? "active" : ""}
+                type="button"
+                title="Italic"
+                aria-label="Italic"
+                onClick={() => editor?.chain().focus().toggleItalic().run()}
+                disabled={!editor}
+              >
+                <Italic size={16} />
+              </button>
+              <button
+                className={editor?.isActive("strike") ? "active" : ""}
+                type="button"
+                title="Strikethrough"
+                aria-label="Strikethrough"
+                onClick={() => editor?.chain().focus().toggleStrike().run()}
+                disabled={!editor}
+              >
+                <Strikethrough size={16} />
+              </button>
+              <button
+                className={editor?.isActive("link") ? "active" : ""}
+                type="button"
+                title="Link"
+                aria-label="Link"
+                onClick={() => {
+                  const href = window.prompt("Link URL", editor?.getAttributes("link").href ?? "https://");
+                  if (!href) {
+                    return;
+                  }
+
+                  editor?.chain().focus().extendMarkRange("link").setLink({ href }).run();
+                }}
+                disabled={!editor}
+              >
+                <Link2 size={16} />
+              </button>
+              <button
+                type="button"
+                title="Unlink"
+                aria-label="Unlink"
+                onClick={() => editor?.chain().focus().unsetLink().run()}
+                disabled={!editor}
+              >
+                <Unlink size={16} />
+              </button>
+              <button
+                className={editor?.isActive("orderedList") ? "active" : ""}
+                type="button"
+                title="Ordered list"
+                aria-label="Ordered list"
+                onClick={() => editor?.chain().focus().toggleOrderedList().run()}
+                disabled={!editor}
+              >
+                <ListOrdered size={16} />
+              </button>
+              <button
+                className={editor?.isActive("bulletList") ? "active" : ""}
+                type="button"
+                title="Bulleted list"
+                aria-label="Bulleted list"
+                onClick={() => editor?.chain().focus().toggleBulletList().run()}
+                disabled={!editor}
+              >
+                <List size={16} />
+              </button>
+            </div>
+            <div className="template-body-field">
+              <EditorContent editor={editor} />
+            </div>
+          </div>
+        </div>
         <button className="secondary" type="submit">
           <FilePlus2 size={18} />
           Save template
@@ -76,7 +204,10 @@ export function TemplatesWorkspace({
                 <span>
                   Body text - {formatDate(template.updatedAt)}
                 </span>
-                <p>{template.content || "No reusable content saved yet."}</p>
+                <div
+                  className="template-preview"
+                  dangerouslySetInnerHTML={{ __html: template.content || "<p>No reusable content saved yet.</p>" }}
+                />
               </div>
               <div className="template-row-actions">
                 <button className="secondary" type="button" onClick={() => onApplyTemplate(template)}>

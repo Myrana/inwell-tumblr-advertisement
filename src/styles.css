@@ -1039,6 +1039,29 @@ pre {
   min-height: 120px;
 }
 
+.template-editor-field {
+  display: grid;
+  gap: 7px;
+  color: #384151;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.template-composer {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.template-body-field {
+  padding: 12px;
+}
+
+.template-rich-editor {
+  min-height: 150px;
+}
+
 .template-list {
   margin-top: 16px;
   display: grid;
@@ -1061,7 +1084,7 @@ pre {
 }
 
 .template-row span,
-.template-row p {
+.template-preview {
   color: var(--muted);
   font-size: 0.84rem;
 }
@@ -1070,11 +1093,23 @@ pre {
   margin-top: 3px;
 }
 
-.template-row p {
+.template-preview {
   max-height: 4.6rem;
   margin: 8px 0 0;
   overflow: hidden;
   line-height: 1.45;
+}
+
+.template-preview p {
+  margin: 0 0 0.65rem;
+}
+
+.template-preview strong {
+  display: inline;
+}
+
+.template-preview a {
+  color: #2e8fa3;
 }
 
 .template-row-actions {
