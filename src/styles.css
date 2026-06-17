@@ -630,6 +630,74 @@ textarea:focus {
   margin-top: 12px;
 }
 
+.tag-import-panel {
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.tag-import-copy {
+  display: grid;
+  gap: 4px;
+  color: #444;
+}
+
+.tag-import-copy span,
+.tag-import-actions span,
+.tag-import-status {
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.tag-import-grid {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: minmax(150px, 180px) minmax(120px, 160px) minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.tag-import-grid textarea {
+  min-height: 110px;
+}
+
+.tag-import-preview {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.tag-import-preview img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  display: block;
+  object-fit: cover;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #f4f4f4;
+}
+
+.tag-import-preview span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  overflow-wrap: anywhere;
+}
+
+.tag-import-actions {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.tag-import-status {
+  margin: 8px 0 0;
+}
+
 .tumblr-tag-check {
   min-width: 0;
   display: flex;
@@ -819,7 +887,8 @@ pre {
   .field-grid.two,
   .tag-grid,
   .tumblr-composer-header,
-  .tumblr-tag-grid {
+  .tumblr-tag-grid,
+  .tag-import-grid {
     grid-template-columns: 1fr;
   }
 
