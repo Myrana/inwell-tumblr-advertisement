@@ -501,6 +501,207 @@ textarea:focus {
   margin-top: 6px;
 }
 
+.tumblr-submit-shell {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.tumblr-composer-header {
+  min-height: 40px;
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  border-bottom: 1px solid var(--line);
+}
+
+.tumblr-composer-header label {
+  display: block;
+}
+
+.tumblr-composer-header select {
+  height: 40px;
+  border: 0;
+  border-right: 1px solid var(--line);
+  border-radius: 0;
+  color: #444;
+  font-weight: 800;
+}
+
+.tumblr-blog-id {
+  min-width: 0;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  color: #b2b2b2;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.tumblr-blog-avatar {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 4px;
+  background: #ef7b45;
+  color: #fff;
+  font-size: 0.8rem;
+}
+
+.tumblr-photo-stage {
+  min-height: 200px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 10px;
+  padding: 24px;
+  color: #454545;
+  text-align: center;
+  border-bottom: 1px solid var(--line);
+  background: #f8f8f8;
+}
+
+.tumblr-photo-stage strong {
+  overflow-wrap: anywhere;
+}
+
+.tumblr-photo-stage input {
+  max-width: 360px;
+}
+
+.tumblr-file-button {
+  width: fit-content;
+  min-height: 34px;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 6px;
+  background: #e8eef1;
+  color: #26323b;
+}
+
+.tumblr-file-button input {
+  display: none;
+}
+
+.tumblr-editor-tools {
+  min-height: 32px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  border-bottom: 1px solid var(--line);
+  color: #a9a9a9;
+}
+
+.tumblr-body-field,
+.tumblr-caption-field {
+  padding: 12px;
+  color: #444;
+}
+
+.tumblr-body-field textarea {
+  min-height: 210px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 0.96rem;
+}
+
+.tumblr-caption-field input {
+  border-style: dashed;
+}
+
+.tumblr-tag-panel {
+  padding: 12px 16px;
+  border-top: 1px solid var(--line);
+  background: #fbfbfb;
+}
+
+.tumblr-tag-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px 14px;
+  margin-top: 12px;
+}
+
+.tumblr-tag-check {
+  min-width: 0;
+  display: flex;
+  grid-template-columns: none;
+  align-items: center;
+  gap: 7px;
+  color: #a0a0a0;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.tumblr-tag-check input,
+.tumblr-terms input {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  padding: 0;
+  accent-color: #4da9ff;
+}
+
+.tumblr-submit-footer {
+  min-height: 86px;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.tumblr-terms {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #a0a0a0;
+  font-weight: 600;
+}
+
+.tumblr-terms a {
+  color: #919191;
+}
+
+.tumblr-submit-button {
+  min-width: 90px;
+  min-height: 36px;
+  border: 0;
+  border-radius: 4px;
+  background: #4db3f6;
+  color: #fff;
+  font-weight: 800;
+}
+
+.tumblr-thank-you {
+  min-height: 200px;
+  padding: 48px 20px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  text-align: center;
+  color: #a0a0a0;
+}
+
+.tumblr-thank-you h2 {
+  margin-bottom: 12px;
+  color: #444;
+  font-size: 1.45rem;
+}
+
+.tumblr-thank-you p {
+  margin-bottom: 0;
+}
+
 .panel-heading {
   justify-content: space-between;
   gap: 10px;
@@ -616,8 +817,20 @@ pre {
   }
 
   .field-grid.two,
-  .tag-grid {
+  .tag-grid,
+  .tumblr-composer-header,
+  .tumblr-tag-grid {
     grid-template-columns: 1fr;
+  }
+
+  .tumblr-composer-header select {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .tumblr-submit-footer {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .media-preview,
