@@ -10,7 +10,7 @@ from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).parent))
 import app
-from app import database_settings, initialize, start_runner, upsert_advertisement, upsert_template
+from app import database_settings, initialize, ocr_tags_from_payload, parse_ocr_tags, start_runner, upsert_advertisement, upsert_template
 
 
 class FakeCursor:
@@ -263,6 +263,31 @@ class PersistenceTests(unittest.TestCase):
     def test_start_runner_rejects_empty_queue(self) -> None:
         with self.assertRaises(ValueError):
             start_runner({"items": []})
+
+    def test_parse_ocr_tags_keeps_likely_tag_lines(self) -> None:
+        tags = parse_ocr_tags(
+            """
+            Tags:
+            [x] jcink site
+            premium jcink
+            random header
+            semi-private site
+            1 year
+            """
+        )
+
+        self.assertIn("jcink site", tags)
+        self.assertIn("premium jcink", tags)
+        self.assertIn("semi-private site", tags)
+        self.assertNotIn("random header", tags)
+
+    def test_ocr_tags_reports_missing_tesseract(self) -> None:
+        with patch("app.subprocess.run", side_effect=FileNotFoundError):
+            result = ocr_tags_from_payload({"imageDataUrl": "data:image/png;base64,aGVsbG8="})
+
+        self.assertFalse(result["available"])
+        self.assertEqual(result["tags"], [])
+        self.assertIn("Tesseract", result["message"])
 
 
 if __name__ == "__main__":

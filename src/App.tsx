@@ -82,6 +82,13 @@ type RunnerStatus = {
   command: string[];
 };
 
+type OcrResult = {
+  available: boolean;
+  text: string;
+  tags: string[];
+  message: string;
+};
+
 const storageKey = "inwell-ad-assistant-state";
 const tagProfileStorageKey = "inwell-blog-tag-profiles";
 const submitTargetStorageKey = "inwell-tumblr-submit-targets";
@@ -1048,12 +1055,37 @@ function App() {
       const dataUrl = String(reader.result);
       setImportImageName(file.name);
       setImportImageDataUrl(dataUrl);
-      setImportStatus("Screenshot loaded. Review or paste the tags before importing.");
+      setImportStatus("Screenshot loaded. Running local OCR.");
+
+      try {
+        const response = await apiRequest<{ ocr: OcrResult }>("/tags/ocr", {
+          method: "POST",
+          body: JSON.stringify({ imageDataUrl: dataUrl }),
+        });
+
+        if (response.ocr.tags.length) {
+          setImportText(response.ocr.tags.join("\n"));
+          setImportStatus(`${response.ocr.tags.length} tags detected from screenshot. Review before importing.`);
+          setApiAvailable(true);
+          return;
+        }
+
+        if (response.ocr.text.trim()) {
+          setImportText(response.ocr.text);
+        }
+        setImportStatus(response.ocr.message || "OCR did not find tags. Paste the tags manually.");
+        setApiAvailable(true);
+        return;
+      } catch {
+        setApiAvailable(false);
+        setImportStatus("Local OCR was not available. Start the Python API or paste the tags manually.");
+      }
 
       const textDetector = (window as typeof window & {
         TextDetector?: new () => { detect: (source: HTMLImageElement) => Promise<{ rawValue?: string }[]> };
       }).TextDetector;
       if (!textDetector) {
+        setImportStatus("Automatic text detection was not available. Paste the tags manually.");
         return;
       }
 
