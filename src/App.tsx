@@ -57,8 +57,15 @@ type Snippet = {
   body: string;
 };
 
+type TumblrSubmitTarget = {
+  id: string;
+  name: string;
+  submitUrl: string;
+};
+
 const storageKey = "inwell-ad-assistant-state";
 const tagProfileStorageKey = "inwell-blog-tag-profiles";
+const submitTargetStorageKey = "inwell-tumblr-submit-targets";
 const apiBaseUrl = "http://127.0.0.1:8021/api";
 
 type ApiAdvertisement = {
@@ -86,7 +93,12 @@ type ApiTemplate = {
   tags: string[];
 };
 
-const blogs = ["inwell-ads", "jcink-directory", "roleplay-finder"];
+const defaultSubmitTargets: TumblrSubmitTarget[] = [
+  { id: "inwell-ads", name: "inwell-ads", submitUrl: "https://inwell-ads.tumblr.com/submit" },
+  { id: "jcink-directory", name: "jcink-directory", submitUrl: "https://jcink-directory.tumblr.com/submit" },
+  { id: "roleplay-finder", name: "roleplay-finder", submitUrl: "https://roleplay-finder.tumblr.com/submit" },
+];
+const blogs = defaultSubmitTargets.map((target) => target.id);
 const defaultTagProfiles: Record<string, string[]> = {
   "inwell-ads": [
     "invisionfree/zifboards site",
@@ -364,6 +376,87 @@ function parseImportedTags(value: string) {
   );
 }
 
+function normalizeSubmitUrl(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  try {
+    const url = new URL(trimmed.startsWith("http") ? trimmed : `https://${trimmed}`);
+    if (!url.hostname.endsWith("tumblr.com")) {
+      return "";
+    }
+
+    url.protocol = "https:";
+    url.pathname = "/submit";
+    url.search = "";
+    url.hash = "";
+    return url.toString();
+  } catch {
+    return "";
+  }
+}
+
+function submitTargetFromUrl(value: string): TumblrSubmitTarget | null {
+  const submitUrl = normalizeSubmitUrl(value);
+  if (!submitUrl) {
+    return null;
+  }
+
+  const hostname = new URL(submitUrl).hostname;
+  const blogName = hostname.replace(/\.tumblr\.com$/i, "");
+  const id = blogName.toLowerCase();
+
+  return { id, name: blogName, submitUrl };
+}
+
+function fallbackTarget(id: string): TumblrSubmitTarget {
+  const targetId = id.trim() || defaultSubmitTargets[0].id;
+  return {
+    id: targetId,
+    name: targetId,
+    submitUrl: `https://${targetId}.tumblr.com/submit`,
+  };
+}
+
+function uniqueSubmitTargets(targets: TumblrSubmitTarget[]) {
+  const seen = new Set<string>();
+  return targets.filter((target) => {
+    if (!target.id || seen.has(target.id)) {
+      return false;
+    }
+
+    seen.add(target.id);
+    return true;
+  });
+}
+
+function loadSubmitTargets() {
+  try {
+    const raw = localStorage.getItem(submitTargetStorageKey);
+    if (!raw) {
+      return defaultSubmitTargets;
+    }
+
+    const parsed = JSON.parse(raw) as Partial<TumblrSubmitTarget>[];
+    const imported = Array.isArray(parsed)
+      ? parsed
+          .map((target) => {
+            const submitUrl = normalizeSubmitUrl(target.submitUrl ?? "");
+            const id = (target.id ?? "").trim().toLowerCase();
+            const name = (target.name ?? id).trim();
+            return submitUrl && id ? { id, name: name || id, submitUrl } : null;
+          })
+          .filter((target): target is TumblrSubmitTarget => Boolean(target))
+      : [];
+
+    return uniqueSubmitTargets([...defaultSubmitTargets, ...imported]);
+  } catch {
+    return defaultSubmitTargets;
+  }
+}
+
 function loadTagProfiles() {
   try {
     const raw = localStorage.getItem(tagProfileStorageKey);
@@ -372,11 +465,16 @@ function loadTagProfiles() {
     }
 
     const parsed = JSON.parse(raw) as Record<string, unknown>;
-    return blogs.reduce<Record<string, string[]>>((profiles, blog) => {
-      const imported = Array.isArray(parsed[blog]) ? (parsed[blog] as string[]) : [];
-      profiles[blog] = imported.length ? uniqueTags(imported) : defaultTagProfiles[blog];
-      return profiles;
-    }, {});
+    const profiles: Record<string, string[]> = { ...defaultTagProfiles };
+    Object.entries(parsed).forEach(([blog, tags]) => {
+      if (Array.isArray(tags)) {
+        profiles[blog] = tags.length ? uniqueTags(tags as string[]) : (defaultTagProfiles[blog] ?? []);
+      }
+    });
+    blogs.forEach((blog) => {
+      profiles[blog] = profiles[blog] ?? defaultTagProfiles[blog];
+    });
+    return profiles;
   } catch {
     return defaultTagProfiles;
   }
@@ -384,11 +482,14 @@ function loadTagProfiles() {
 
 function App() {
   const [stored, setStored] = useState<StoredState>(() => loadStoredState());
+  const [submitTargets, setSubmitTargets] = useState<TumblrSubmitTarget[]>(() => loadSubmitTargets());
   const [tagProfiles, setTagProfiles] = useState<Record<string, string[]>>(() => loadTagProfiles());
   const [templates, setTemplates] = useState<Template[]>(seedTemplates);
   const [selectedTemplateId, setSelectedTemplateId] = useState(seedTemplates[0].id);
   const [apiAvailable, setApiAvailable] = useState(false);
   const [customTag, setCustomTag] = useState("");
+  const [newSubmitUrl, setNewSubmitUrl] = useState("");
+  const [submitTargetStatus, setSubmitTargetStatus] = useState("");
   const [importText, setImportText] = useState("");
   const [importImageName, setImportImageName] = useState("");
   const [importImageDataUrl, setImportImageDataUrl] = useState("");
@@ -402,6 +503,14 @@ function App() {
     () => stored.ads.find((ad) => ad.id === stored.activeAdId) ?? stored.ads[0],
     [stored],
   );
+  const activeSubmitTarget = useMemo(
+    () => submitTargets.find((target) => target.id === activeAd.destinationBlog) ?? fallbackTarget(activeAd.destinationBlog),
+    [activeAd.destinationBlog, submitTargets],
+  );
+  const targetOptions = useMemo(
+    () => uniqueSubmitTargets([...submitTargets, activeSubmitTarget]),
+    [activeSubmitTarget, submitTargets],
+  );
 
   const selectedTagCount = activeAd.tags.length;
   const readyDrafts = stored.ads.filter((ad) => ad.status === "ready").length;
@@ -412,6 +521,10 @@ function App() {
   useEffect(() => {
     localStorage.setItem(storageKey, JSON.stringify(stored));
   }, [stored]);
+
+  useEffect(() => {
+    localStorage.setItem(submitTargetStorageKey, JSON.stringify(submitTargets));
+  }, [submitTargets]);
 
   useEffect(() => {
     localStorage.setItem(tagProfileStorageKey, JSON.stringify(tagProfiles));
@@ -496,6 +609,31 @@ function App() {
       forumUrl: template.forumUrl,
       tags: Array.from(new Set([...activeAd.tags, ...template.tags])),
     });
+  }
+
+  function selectSubmitTarget(targetId: string) {
+    const target = targetOptions.find((item) => item.id === targetId) ?? fallbackTarget(targetId);
+    setSubmitTargetStatus(`Selected ${target.name}. Tumblr submit page: ${target.submitUrl}`);
+    updateActiveAd({ destinationBlog: target.id });
+  }
+
+  function addSubmitTarget(event: FormEvent) {
+    event.preventDefault();
+    const target = submitTargetFromUrl(newSubmitUrl);
+
+    if (!target) {
+      setSubmitTargetStatus("Enter a Tumblr submit URL, like https://allthingsroleplay.tumblr.com/submit.");
+      return;
+    }
+
+    setSubmitTargets((current) => uniqueSubmitTargets([...current, target]));
+    setTagProfiles((current) => ({
+      ...current,
+      [target.id]: current[target.id] ?? [],
+    }));
+    updateActiveAd({ destinationBlog: target.id });
+    setNewSubmitUrl("");
+    setSubmitTargetStatus(`Added ${target.name}. Open ${target.submitUrl} when you are ready to paste the post into Tumblr.`);
   }
 
   function toggleTag(tag: string) {
@@ -659,6 +797,19 @@ function App() {
     navigator.clipboard.writeText(generatedPost);
     setCopyState("Copied");
     window.setTimeout(() => setCopyState("Copy"), 1400);
+  }
+
+  function openSubmitPage() {
+    const missing = validateAd();
+    if (missing.length) {
+      return;
+    }
+
+    setGeneratedPost(buildPost());
+    window.open(activeSubmitTarget.submitUrl, "_blank", "noopener,noreferrer");
+    setSubmitTargetStatus(
+      `Opened ${activeSubmitTarget.name}. Choose ${activeAd.postType} on Tumblr, then paste the prepared package from Final post.`,
+    );
   }
 
   function handleImageUpload(event: ChangeEvent<HTMLInputElement>) {
@@ -850,17 +1001,37 @@ function App() {
                 Target Tumblr blog
                 <select
                   value={activeAd.destinationBlog}
-                  onChange={(event) => updateActiveAd({ destinationBlog: event.target.value })}
+                  onChange={(event) => selectSubmitTarget(event.target.value)}
                 >
-                  {blogs.map((blog) => (
-                    <option key={blog} value={blog}>
-                      {blog}
+                  {targetOptions.map((target) => (
+                    <option key={target.id} value={target.id}>
+                      {target.name}
                     </option>
                   ))}
                 </select>
-                <span className="field-hint">The Tumblr submit-to blog and tag profile for this post.</span>
+                <span className="field-hint">{activeSubmitTarget.submitUrl}</span>
               </label>
             </div>
+
+            <form className="submit-target-manager" onSubmit={addSubmitTarget}>
+              <label>
+                Add Tumblr submit URL
+                <input
+                  value={newSubmitUrl}
+                  onChange={(event) => setNewSubmitUrl(event.target.value)}
+                  placeholder="https://allthingsroleplay.tumblr.com/submit"
+                />
+              </label>
+              <button className="secondary" type="submit">
+                <Plus size={18} />
+                Add blog
+              </button>
+              <button className="secondary" type="button" onClick={openSubmitPage}>
+                <Link2 size={18} />
+                Open submit page
+              </button>
+              {submitTargetStatus ? <p>{submitTargetStatus}</p> : null}
+            </form>
 
             <div className="field-grid two">
               <label>
@@ -908,7 +1079,7 @@ function App() {
                       </select>
                     </label>
                     <div className="tumblr-blog-id">
-                      <span>{activeAd.destinationBlog}</span>
+                      <span>{activeSubmitTarget.name}</span>
                       <div className="tumblr-blog-avatar">I</div>
                     </div>
                   </div>
@@ -981,7 +1152,7 @@ function App() {
                   <div className="tag-toolbar">
                     <div>
                       <Tags size={18} />
-                      <strong>Tags for {activeAd.destinationBlog}:</strong>
+                      <strong>Tags for {activeSubmitTarget.name}:</strong>
                     </div>
                     <form onSubmit={addCustomTag} className="custom-tag-form">
                       <input
@@ -1056,7 +1227,11 @@ function App() {
                     I accept the <a href="#terms">Terms of Submission</a>
                   </label>
                   <button className="tumblr-submit-button" type="button" onClick={submitRecord}>
-                    Submit
+                    Mark submitted
+                  </button>
+                  <button className="secondary" type="button" onClick={openSubmitPage}>
+                    <Link2 size={18} />
+                    Open Tumblr
                   </button>
                 </div>
               </div>
@@ -1080,6 +1255,10 @@ function App() {
                 </button>
               </div>
               <pre>{generatedPost || previewPlaceholder}</pre>
+              <a className="submit-url-link" href={activeSubmitTarget.submitUrl} target="_blank" rel="noreferrer">
+                <Link size={18} />
+                {activeSubmitTarget.submitUrl}
+              </a>
               <button className="primary full" type="button" onClick={submitRecord}>
                 <Send size={18} />
                 Mark submitted

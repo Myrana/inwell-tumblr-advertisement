@@ -508,6 +508,26 @@ textarea:focus {
   margin-top: 6px;
 }
 
+.submit-target-manager {
+  margin-bottom: 16px;
+  padding: 12px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 10px;
+  align-items: end;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafb;
+}
+
+.submit-target-manager p {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
 .tumblr-submit-shell {
   overflow: hidden;
   border: 1px solid var(--line);
@@ -735,6 +755,10 @@ textarea:focus {
   border-top: 1px solid var(--line);
 }
 
+.tumblr-submit-footer > button {
+  flex: 0 0 auto;
+}
+
 .tumblr-terms {
   display: flex;
   align-items: center;
@@ -794,6 +818,22 @@ pre {
   color: #2f3742;
   white-space: pre-wrap;
   line-height: 1.45;
+}
+
+.submit-url-link {
+  min-height: 38px;
+  margin-bottom: 12px;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: #315f6c;
+  font-size: 0.85rem;
+  font-weight: 800;
+  overflow-wrap: anywhere;
 }
 
 .copy-state {
@@ -892,6 +932,7 @@ pre {
   }
 
   .field-grid.two,
+  .submit-target-manager,
   .tag-grid,
   .tumblr-composer-header,
   .tumblr-tag-grid,
