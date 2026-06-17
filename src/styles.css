@@ -845,6 +845,61 @@ pre {
   text-align: right;
 }
 
+.submission-queue-panel {
+  margin-top: 16px;
+}
+
+.queue-actions,
+.queue-item-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.queue-status,
+.queue-empty,
+.queue-item p {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.queue-list {
+  margin-top: 10px;
+  display: grid;
+  gap: 10px;
+}
+
+.queue-item {
+  padding: 10px;
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.queue-item strong,
+.queue-item span,
+.queue-item a {
+  display: block;
+}
+
+.queue-item span {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.queue-item a {
+  margin-top: 5px;
+  color: #315f6c;
+  font-size: 0.82rem;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
 .snippet {
   width: 100%;
   min-height: 42px;

@@ -63,9 +63,26 @@ type TumblrSubmitTarget = {
   submitUrl: string;
 };
 
+type SubmissionStatus = "queued" | "submitting" | "submitted" | "manual-action" | "failed";
+
+type SubmissionQueueItem = {
+  id: string;
+  adId: string;
+  targetId: string;
+  targetName: string;
+  submitUrl: string;
+  postType: PostType;
+  status: SubmissionStatus;
+  createdAt: string;
+  updatedAt: string;
+  notes: string;
+  runnerPayload: string;
+};
+
 const storageKey = "inwell-ad-assistant-state";
 const tagProfileStorageKey = "inwell-blog-tag-profiles";
 const submitTargetStorageKey = "inwell-tumblr-submit-targets";
+const submissionQueueStorageKey = "inwell-tumblr-submission-queue";
 const apiBaseUrl = "http://127.0.0.1:8021/api";
 
 type ApiAdvertisement = {
@@ -457,6 +474,50 @@ function loadSubmitTargets() {
   }
 }
 
+function normalizeQueueItem(value: Partial<SubmissionQueueItem> | null | undefined): SubmissionQueueItem | null {
+  if (!value?.id || !value.adId || !value.targetId || !value.submitUrl) {
+    return null;
+  }
+
+  const status: SubmissionStatus =
+    value.status === "submitting" ||
+    value.status === "submitted" ||
+    value.status === "manual-action" ||
+    value.status === "failed"
+      ? value.status
+      : "queued";
+
+  return {
+    id: value.id,
+    adId: value.adId,
+    targetId: value.targetId,
+    targetName: value.targetName || value.targetId,
+    submitUrl: value.submitUrl,
+    postType: value.postType === "text" || value.postType === "video" ? value.postType : "photo",
+    status,
+    createdAt: value.createdAt || new Date().toISOString(),
+    updatedAt: value.updatedAt || new Date().toISOString(),
+    notes: value.notes || "",
+    runnerPayload: value.runnerPayload || "",
+  };
+}
+
+function loadSubmissionQueue() {
+  try {
+    const raw = localStorage.getItem(submissionQueueStorageKey);
+    if (!raw) {
+      return [];
+    }
+
+    const parsed = JSON.parse(raw) as Partial<SubmissionQueueItem>[];
+    return Array.isArray(parsed)
+      ? parsed.map((item) => normalizeQueueItem(item)).filter((item): item is SubmissionQueueItem => Boolean(item))
+      : [];
+  } catch {
+    return [];
+  }
+}
+
 function loadTagProfiles() {
   try {
     const raw = localStorage.getItem(tagProfileStorageKey);
@@ -483,6 +544,7 @@ function loadTagProfiles() {
 function App() {
   const [stored, setStored] = useState<StoredState>(() => loadStoredState());
   const [submitTargets, setSubmitTargets] = useState<TumblrSubmitTarget[]>(() => loadSubmitTargets());
+  const [submissionQueue, setSubmissionQueue] = useState<SubmissionQueueItem[]>(() => loadSubmissionQueue());
   const [tagProfiles, setTagProfiles] = useState<Record<string, string[]>>(() => loadTagProfiles());
   const [templates, setTemplates] = useState<Template[]>(seedTemplates);
   const [selectedTemplateId, setSelectedTemplateId] = useState(seedTemplates[0].id);
@@ -497,6 +559,7 @@ function App() {
   const [validation, setValidation] = useState<string[]>([]);
   const [generatedPost, setGeneratedPost] = useState("");
   const [copyState, setCopyState] = useState("Copy");
+  const [queueStatus, setQueueStatus] = useState("");
   const [termsAccepted, setTermsAccepted] = useState(false);
 
   const activeAd = useMemo(
@@ -514,6 +577,7 @@ function App() {
 
   const selectedTagCount = activeAd.tags.length;
   const readyDrafts = stored.ads.filter((ad) => ad.status === "ready").length;
+  const activeQueue = submissionQueue.filter((item) => item.adId === activeAd.id);
   const activeBlogTags = tagProfiles[activeAd.destinationBlog] ?? defaultTagProfiles[activeAd.destinationBlog] ?? [];
   const checklistTags = uniqueTags([...activeBlogTags, ...activeAd.tags]);
   const parsedImportTags = parseImportedTags(importText);
@@ -525,6 +589,10 @@ function App() {
   useEffect(() => {
     localStorage.setItem(submitTargetStorageKey, JSON.stringify(submitTargets));
   }, [submitTargets]);
+
+  useEffect(() => {
+    localStorage.setItem(submissionQueueStorageKey, JSON.stringify(submissionQueue));
+  }, [submissionQueue]);
 
   useEffect(() => {
     localStorage.setItem(tagProfileStorageKey, JSON.stringify(tagProfiles));
@@ -810,6 +878,111 @@ function App() {
     setSubmitTargetStatus(
       `Opened ${activeSubmitTarget.name}. Choose ${activeAd.postType} on Tumblr, then paste the prepared package from Final post.`,
     );
+  }
+
+  function buildRunnerPayload(target: TumblrSubmitTarget) {
+    const postPackage = buildPost();
+    return JSON.stringify(
+      {
+        version: 1,
+        workflow: "tumblr-public-submit-page",
+        target,
+        advertisement: {
+          id: activeAd.id,
+          savedOptionName: activeAd.title,
+          postType: activeAd.postType,
+          forumUrl: activeAd.forumUrl,
+          tags: activeAd.tags,
+          imageName: activeAd.imageName,
+          videoName: activeAd.videoName,
+        },
+        fields: {
+          body: activeAd.content,
+          caption: activeAd.imageCaption,
+          videoUrl: activeAd.videoUrl,
+          package: postPackage,
+        },
+        runnerNotes: [
+          "Open submitUrl in a logged-in Tumblr browser session.",
+          "Choose the matching text/photo/video form.",
+          "Paste the prepared fields, upload local media when needed, accept required blog terms, and submit.",
+          "If Tumblr shows login, captcha, or changed form markup, pause for manual action.",
+        ],
+      },
+      null,
+      2,
+    );
+  }
+
+  function createQueueItem(target: TumblrSubmitTarget): SubmissionQueueItem {
+    const timestamp = new Date().toISOString();
+    return {
+      id: `${activeAd.id}-${target.id}`,
+      adId: activeAd.id,
+      targetId: target.id,
+      targetName: target.name,
+      submitUrl: target.submitUrl,
+      postType: activeAd.postType,
+      status: "queued",
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      notes: "Ready for local browser runner.",
+      runnerPayload: buildRunnerPayload(target),
+    };
+  }
+
+  function queueTargets(targets: TumblrSubmitTarget[]) {
+    const missing = validateAd();
+    if (missing.length) {
+      return;
+    }
+
+    const nextItems = targets.map((target) => createQueueItem(target));
+    setGeneratedPost(buildPost());
+    setSubmissionQueue((current) => {
+      const withoutExisting = current.filter(
+        (item) => item.adId !== activeAd.id || !nextItems.some((next) => next.targetId === item.targetId),
+      );
+      return [...nextItems, ...withoutExisting];
+    });
+    setQueueStatus(`Queued ${nextItems.length} target${nextItems.length === 1 ? "" : "s"} for the local runner.`);
+  }
+
+  function updateQueueItem(id: string, status: SubmissionStatus, notes: string) {
+    setSubmissionQueue((current) =>
+      current.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              status,
+              notes,
+              updatedAt: new Date().toISOString(),
+            }
+          : item,
+      ),
+    );
+  }
+
+  function clearCompletedQueueItems() {
+    setSubmissionQueue((current) =>
+      current.filter((item) => item.adId !== activeAd.id || !["submitted", "failed"].includes(item.status)),
+    );
+    setQueueStatus("Cleared submitted and failed entries for this saved option.");
+  }
+
+  function copyRunnerPlan() {
+    const plan = JSON.stringify(
+      {
+        version: 1,
+        workflow: "tumblr-submission-queue",
+        generatedAt: new Date().toISOString(),
+        items: activeQueue,
+      },
+      null,
+      2,
+    );
+    navigator.clipboard.writeText(plan);
+    setQueueStatus(`Copied runner plan for ${activeQueue.length} queued target${activeQueue.length === 1 ? "" : "s"}.`);
   }
 
   function handleImageUpload(event: ChangeEvent<HTMLInputElement>) {
@@ -1264,6 +1437,81 @@ function App() {
                 Mark submitted
               </button>
               <span className="copy-state">{copyState}</span>
+            </section>
+
+            <section className="submission-queue-panel" aria-label="Tumblr submission queue">
+              <div className="panel-heading">
+                <h2>Submission queue</h2>
+                <Send size={18} />
+              </div>
+              <div className="queue-actions">
+                <button className="secondary" type="button" onClick={() => queueTargets([activeSubmitTarget])}>
+                  <Plus size={18} />
+                  Queue current
+                </button>
+                <button className="secondary" type="button" onClick={() => queueTargets(targetOptions)}>
+                  <List size={18} />
+                  Queue all
+                </button>
+                <button className="secondary" type="button" onClick={copyRunnerPlan} disabled={!activeQueue.length}>
+                  <Copy size={18} />
+                  Copy runner plan
+                </button>
+              </div>
+              {queueStatus ? <p className="queue-status">{queueStatus}</p> : null}
+              <div className="queue-list">
+                {activeQueue.length ? (
+                  activeQueue.map((item) => (
+                    <article className="queue-item" key={item.id}>
+                      <div>
+                        <strong>{item.targetName}</strong>
+                        <span>{item.postType} - {item.status} - {formatDate(item.updatedAt)}</span>
+                        <a href={item.submitUrl} target="_blank" rel="noreferrer">
+                          {item.submitUrl}
+                        </a>
+                      </div>
+                      <div className="queue-item-actions">
+                        <button
+                          className="secondary"
+                          type="button"
+                          onClick={() => updateQueueItem(item.id, "submitting", "Runner started this target.")}
+                        >
+                          Runner started
+                        </button>
+                        <button
+                          className="secondary"
+                          type="button"
+                          onClick={() =>
+                            updateQueueItem(item.id, "manual-action", "Tumblr requires login, captcha, media upload, or form review.")
+                          }
+                        >
+                          Manual action
+                        </button>
+                        <button
+                          className="secondary"
+                          type="button"
+                          onClick={() => updateQueueItem(item.id, "submitted", "Marked submitted after Tumblr accepted the form.")}
+                        >
+                          Submitted
+                        </button>
+                        <button
+                          className="secondary"
+                          type="button"
+                          onClick={() => updateQueueItem(item.id, "failed", "Marked failed for runner retry or review.")}
+                        >
+                          Failed
+                        </button>
+                      </div>
+                      <p>{item.notes}</p>
+                    </article>
+                  ))
+                ) : (
+                  <p className="queue-empty">Queue this post for one or all Tumblr submit targets before running automation.</p>
+                )}
+              </div>
+              <button className="secondary full" type="button" onClick={clearCompletedQueueItems}>
+                Clear completed
+              </button>
             </section>
 
             <section className="library-panel" id="library" aria-label="Reusable content library">
