@@ -127,6 +127,17 @@ export function RunnerLogsWorkspace({
                 </button>
                 {isOpen ? (
                   <div className="queue-log-list" aria-label={`${groupTitle} entries`}>
+                    {group.targetSummaries.length ? (
+                      <div className="runner-target-summary-list" aria-label={`${groupTitle} target summaries`}>
+                        {group.targetSummaries.map((summary) => (
+                          <div className={`runner-target-summary runner-target-summary-${summary.status}`} key={summary.id}>
+                            <strong>{summary.name}</strong>
+                            <span>{targetSummaryLabel(summary.status)}</span>
+                            {summary.explanation ? <span>{summary.explanation}</span> : null}
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
                     {group.failureExplanations.length ? (
                       <div className="runner-failure-summary" role="status">
                         <strong>{group.errorCount ? "Why this run failed" : "Why this run needs review"}</strong>
@@ -159,4 +170,17 @@ export function RunnerLogsWorkspace({
       )}
     </section>
   );
+}
+
+function targetSummaryLabel(status: string) {
+  if (status === "failed") {
+    return "Failed";
+  }
+  if (status === "needs-review") {
+    return "Needs review";
+  }
+  if (status === "ready") {
+    return "Ready for manual review";
+  }
+  return "Running";
 }

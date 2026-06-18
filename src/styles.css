@@ -1179,6 +1179,47 @@ pre {
   font-weight: 700;
 }
 
+.runner-target-summary-list {
+  display: grid;
+  gap: 8px;
+}
+
+.runner-target-summary {
+  padding: 9px 10px;
+  display: grid;
+  grid-template-columns: minmax(130px, 1fr) auto;
+  gap: 4px 10px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--cyan);
+  border-radius: 8px;
+  background: #f8fafb;
+}
+
+.runner-target-summary span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.runner-target-summary span:last-child {
+  grid-column: 1 / -1;
+}
+
+.runner-target-summary-failed {
+  border-left-color: var(--coral);
+  background: #fff7f5;
+}
+
+.runner-target-summary-needs-review {
+  border-left-color: var(--amber);
+  background: #fffaf0;
+}
+
+.runner-target-summary-ready {
+  border-left-color: var(--cyan);
+}
+
 .runner-log-run .queue-log-list {
   padding: 10px;
 }

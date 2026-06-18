@@ -292,6 +292,16 @@ test("runner logs are grouped by expandable queue run", { timeout: 40000 }, asyn
             created_at: "2026-06-18T21:30:00.000Z",
           },
           {
+            id: "log-new-ready-jcink",
+            run_id: "run-new",
+            queue_item_id: "queue-new-jcink",
+            target_name: "jcinktinder",
+            level: "info",
+            message: "Fields filled and ready for manual review.",
+            details: {},
+            created_at: "2026-06-18T21:30:00.000Z",
+          },
+          {
             id: "log-new-open",
             run_id: "run-new",
             queue_item_id: "queue-new",
@@ -348,7 +358,10 @@ test("runner logs are grouped by expandable queue run", { timeout: 40000 }, asyn
   await page.getByRole("button", { name: "Runner Logs" }).click();
   await page.getByRole("heading", { name: "Runner logs", level: 1 }).waitFor();
   await page.getByRole("button", { name: /Latest run run-new/ }).waitFor();
-  await page.getByText("Fields filled and ready for manual review.").waitFor();
+  assert.equal(await page.locator(".queue-log strong", { hasText: "Fields filled and ready for manual review." }).count(), 2);
+  await page.getByLabel("Run run-new target summaries").getByText("allthingsroleplay").waitFor();
+  await page.getByLabel("Run run-new target summaries").getByText("jcinktinder").waitFor();
+  assert.equal(await page.getByLabel("Run run-new target summaries").getByText("Ready for manual review").count(), 2);
   assert.equal(await page.getByRole("button", { name: /Run run-old/ }).count(), 0);
 
   await page.getByRole("button", { name: "Show all history" }).click();
@@ -508,5 +521,6 @@ test("running the queue sends a run id and shows failure explanations", { timeou
   await page.getByRole("button", { name: "Runner Logs" }).click();
   await page.getByRole("button", { name: /Latest run run-visible/ }).waitFor();
   await page.getByText("Why this run failed").waitFor();
+  await page.getByLabel("Run run-visible target summaries").getByText("Failed").waitFor();
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
 });
