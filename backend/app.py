@@ -94,6 +94,7 @@ def connect() -> psycopg.Connection[Any]:
 
 def initialize(connection: ConnectionLike) -> None:
     ensure_schema_version_table(connection)
+    has_schema_history = bool(connection.execute("SELECT * FROM schema_migrations ORDER BY version").fetchall())
     connection.execute(
         """
         CREATE TABLE IF NOT EXISTS advertisements (
@@ -166,7 +167,8 @@ def initialize(connection: ConnectionLike) -> None:
     )
     connection.execute("ALTER TABLE runner_logs ADD COLUMN IF NOT EXISTS run_id TEXT NOT NULL DEFAULT ''")
     connection.execute("ALTER TABLE runner_logs ADD COLUMN IF NOT EXISTS target_name TEXT NOT NULL DEFAULT ''")
-    seed_templates(connection)
+    if not has_schema_history:
+        seed_templates(connection)
     record_schema_version(connection, CURRENT_SCHEMA_VERSION)
 
 

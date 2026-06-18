@@ -224,6 +224,15 @@ class PersistenceTests(unittest.TestCase):
         self.assertGreaterEqual(len(rows), 2)
         self.assertEqual(rows[0]["id"], "template-open-canons")
 
+    def test_cleared_templates_are_not_reseeded_after_schema_history_exists(self) -> None:
+        self.connection.execute("DELETE FROM templates WHERE id = %s", ("template-open-canons",))
+        self.connection.execute("DELETE FROM templates WHERE id = %s", ("template-plot-forward",))
+
+        initialize(self.connection)
+
+        rows = self.connection.execute("SELECT * FROM templates ORDER BY name").fetchall()
+        self.assertEqual(rows, [])
+
     def test_advertisement_upsert_round_trips_tags_and_image_fields(self) -> None:
         saved = upsert_advertisement(
             self.connection,
