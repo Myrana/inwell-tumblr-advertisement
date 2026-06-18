@@ -116,6 +116,8 @@ test("custom blog submission flow does not blank the editor", { timeout: 40000 }
 
   await page.goto(appUrl);
   await assert.doesNotReject(() => page.getByRole("heading", { name: "Custom target ad" }).waitFor());
+  assert.equal(await page.getByRole("button", { name: "Log out" }).count(), 0);
+  assert.equal(await page.getByLabel("Advertisement counts").count(), 0);
 
   const targetSelect = page.locator('label:has-text("Target Tumblr blog") select');
   const addBlogInput = page.locator('label:has-text("Add Tumblr submit URL") input');
@@ -242,6 +244,11 @@ test("templates can be saved and applied from their own workspace", { timeout: 4
   await page.getByRole("heading", { name: "Saved submissions", level: 1 }).waitFor();
   await page.getByRole("button", { name: "Queue" }).click();
   await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
+  assert.equal(await page.getByRole("button", { name: "Export automation plan" }).count(), 0);
+  assert.equal(await page.getByLabel("Schedule in Eastern time").count(), 0);
+  await page.getByRole("button", { name: "Queue current" }).waitFor();
+  await page.getByRole("button", { name: "Queue all targets" }).waitFor();
+  await page.getByRole("button", { name: "Run queue" }).waitFor();
   await page.getByLabel("Run this queue daily").check();
   await page.getByLabel("Daily run time").fill("09:30");
   await page.getByText("Daily automation is on.").waitFor();

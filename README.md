@@ -18,21 +18,15 @@ The frontend uses the API when it is running and falls back to browser-local sto
 
 ## Tumblr Queue Runner
 
-The submission queue can export a local automation plan for a Playwright browser runner.
+The submission queue can launch the local Playwright browser runner from the app.
 
 1. Queue one or more Tumblr targets in the app.
-2. Click `Export automation plan`.
-3. Save the downloaded `tumblr-runner-plan.json`.
-4. Install the Playwright browser once:
+2. Confirm the Queue page runner settings, including media folder, slow motion, and whether the runner should click Submit after filling.
+3. Click `Run queue`.
+4. Install the Playwright browser once if the runner has not been installed:
 
 ```powershell
 npm.cmd run tumblr:install-browsers
-```
-
-5. Run the local browser runner:
-
-```powershell
-npm.cmd run tumblr:runner -- --plan .\tumblr-runner-plan.json
 ```
 
 The runner opens Tumblr submit pages in a persistent local browser profile at
@@ -42,22 +36,7 @@ form exposes normal controls. By default it pauses before final submission so
 you can review the form.
 
 When Tumblr drops or refuses the saved profile session, run login and queue
-execution in one visible browser session:
-
-```powershell
-npm.cmd run tumblr:runner -- --plan .\tumblr-runner-plan.json --login-first
-```
-
-Log into Tumblr in the Playwright browser, wait for the dashboard to finish
-loading, then press Enter in the runner terminal. The runner then opens the
-queued submit page in the same browser context.
-
-If an exported plan contains only an image filename, pass the folder that holds
-the image so the runner can upload it:
-
-```powershell
-npm.cmd run tumblr:runner -- --plan .\tumblr-runner-plan.json --media-dir "C:\path\to\images"
-```
+execution again from the app after logging in.
 
 To open the persistent Playwright browser profile and log into Tumblr manually:
 
@@ -65,33 +44,10 @@ To open the persistent Playwright browser profile and log into Tumblr manually:
 npm.cmd run tumblr:login
 ```
 
-After logging in, inspect the queued target before running automation:
-
-```powershell
-npm.cmd run tumblr:inspect -- --plan .\tumblr-runner-plan.json
-```
-
-The inspect command reports whether the dashboard is logged in, whether the
-direct Tumblr submit form is accessible, whether the public submit page exposes
-form controls, and any blocker text Tumblr returns.
-
-To allow the runner to click the detected submit button after filling the form:
-
-```powershell
-npm.cmd run tumblr:runner -- --plan .\tumblr-runner-plan.json --submit
-```
-
 The runner stops for manual action when Tumblr shows login, captcha, changed form
 markup, missing upload controls, target-blog terms, or any other state that needs
 human review. It does not store Tumblr credentials and does not bypass Tumblr
 protections.
-
-For a noninteractive smoke test that opens the queued target, reports the state,
-and exits without waiting for review:
-
-```powershell
-npm.cmd run tumblr:runner -- --plan .\tumblr-runner-plan.json --headless --no-pause
-```
 
 ## PostgreSQL Configuration
 
