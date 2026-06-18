@@ -38,12 +38,14 @@ import { buildPreparedPost, validateAdvertisement } from "./domain/post";
 import { createQueueItem as createSubmissionQueueItem } from "./domain/queue";
 import { dateTimeLocalToIso } from "./domain/format";
 import {
+  loadQueueScheduleSettings,
   loadRunnerSettings,
   loadStoredState,
   loadSubmissionQueue,
   loadSubmitTargets,
   loadTagProfiles,
   loadTemplates,
+  saveQueueScheduleSettings,
   saveRunnerSettings,
   saveStoredState,
   saveSubmissionQueue,
@@ -63,6 +65,7 @@ import { applyTemplateToAdvertisement, normalizeTemplate, templateFromAdvertisem
 import {
   Advertisement,
   ApiAdvertisement,
+  QueueScheduleSettings,
   RunnerLog,
   RunnerSettings,
   RunnerStatus,
@@ -89,6 +92,7 @@ function App() {
   const [validation, setValidation] = useState<string[]>([]);
   const [, setGeneratedPost] = useState("");
   const [queueStatus, setQueueStatus] = useState("");
+  const [queueScheduleSettings, setQueueScheduleSettings] = useState<QueueScheduleSettings>(() => loadQueueScheduleSettings());
   const [runnerSettings, setRunnerSettings] = useState<RunnerSettings>(() => loadRunnerSettings());
   const [runnerState, setRunnerState] = useState<RunnerStatus | null>(null);
   const [runnerLogs, setRunnerLogs] = useState<RunnerLog[]>([]);
@@ -165,6 +169,10 @@ function App() {
   useEffect(() => {
     saveRunnerSettings(runnerSettings);
   }, [runnerSettings]);
+
+  useEffect(() => {
+    saveQueueScheduleSettings(queueScheduleSettings);
+  }, [queueScheduleSettings]);
 
   useEffect(() => {
     activeDestinationBlogRef.current = activeAd.destinationBlog;
@@ -768,6 +776,7 @@ function App() {
             activeQueue={activeQueue}
             activeSubmitTarget={activeSubmitTarget}
             queueStatus={queueStatus}
+            queueScheduleSettings={queueScheduleSettings}
             runnerSettings={runnerSettings}
             runnerState={runnerState}
             runnerLogs={runnerLogs}
@@ -775,6 +784,7 @@ function App() {
             onClearCompleted={clearCompletedQueueItems}
             onCopyRunnerPlan={copyRunnerPlan}
             onQueueTargets={queueTargets}
+            onQueueScheduleSettingsChange={(patch) => setQueueScheduleSettings((current) => ({ ...current, ...patch }))}
             onRefreshRunnerStatus={refreshRunnerStatus}
             onRunnerSettingsChange={(patch) => setRunnerSettings((current) => ({ ...current, ...patch }))}
             onStartRunner={startRunner}
