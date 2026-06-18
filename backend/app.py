@@ -99,6 +99,13 @@ def initialize_database() -> None:
         pass
 
 
+def initialize_database_for_startup() -> None:
+    try:
+        initialize_database()
+    except psycopg.Error as error:
+        print(f"Inwell database initialization skipped: {error}", flush=True)
+
+
 def initialize(connection: ConnectionLike) -> None:
     ensure_schema_version_table(connection)
     has_schema_history = bool(connection.execute("SELECT * FROM schema_migrations ORDER BY version").fetchall())
@@ -877,7 +884,7 @@ class Handler(BaseHTTPRequestHandler):
 def run(port: int | None = None, host: str | None = None) -> None:
     port = port or int(os.environ.get("PORT", "8021"))
     host = host or os.environ.get("HOST", "127.0.0.1")
-    initialize_database()
+    initialize_database_for_startup()
     server = ThreadingHTTPServer((host, port), Handler)
     print(f"Inwell web service listening on http://{host}:{port}")
     server.serve_forever()

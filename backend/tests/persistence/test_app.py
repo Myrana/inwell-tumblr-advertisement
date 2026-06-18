@@ -13,6 +13,7 @@ import app
 from app import (
     database_settings,
     initialize,
+    initialize_database_for_startup,
     record_runner_log,
     run,
     start_runner,
@@ -474,12 +475,12 @@ class PersistenceTests(unittest.TestCase):
         server = Mock()
         try:
             with (
-                patch("app.initialize_database") as initialize_database,
+                patch("app.initialize_database_for_startup") as initialize_database_for_startup,
                 patch("app.ThreadingHTTPServer", return_value=server) as server_factory,
             ):
                 run()
 
-            initialize_database.assert_called_once()
+            initialize_database_for_startup.assert_called_once()
             server_factory.assert_called_once()
             self.assertEqual(server_factory.call_args.args[0], ("0.0.0.0", 9001))
             server.serve_forever.assert_called_once()
@@ -492,6 +493,16 @@ class PersistenceTests(unittest.TestCase):
                 os.environ.pop("PORT", None)
             else:
                 os.environ["PORT"] = old_port
+
+    def test_startup_database_initialization_does_not_abort_on_connection_failure(self) -> None:
+        with (
+            patch("app.initialize_database", side_effect=app.psycopg.OperationalError("bad database url")),
+            patch("builtins.print") as print_mock,
+        ):
+            initialize_database_for_startup()
+
+        print_mock.assert_called_once()
+        self.assertIn("database initialization skipped", print_mock.call_args.args[0])
 
     def test_start_runner_rejects_empty_queue(self) -> None:
         with self.assertRaises(ValueError):
