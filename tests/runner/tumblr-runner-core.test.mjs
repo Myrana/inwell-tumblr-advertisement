@@ -6,6 +6,7 @@ import {
   fieldsForItem,
   frameCandidateScore,
   htmlToPlainText,
+  loginWaitMessage,
   normalizeRunnerPlan,
   parseArgs,
   postTypeCandidateIndex,
@@ -78,6 +79,12 @@ test("manual action detection catches login and captcha states", () => {
 test("Tumblr login detection skips prompt for active dashboard sessions", () => {
   assert.equal(appearsLoggedInToTumblr("Dashboard Following For you Activity Account", "https://www.tumblr.com/dashboard"), true);
   assert.equal(appearsLoggedInToTumblr("Log in to continue", "https://www.tumblr.com/login"), false);
+});
+
+test("login wait message does not require an Enter prompt", () => {
+  const message = loginWaitMessage(300);
+  assert.match(message, /continue automatically/);
+  assert.doesNotMatch(message, /Enter/);
 });
 
 test("ready queue pages defer review until the full queue is processed", () => {
