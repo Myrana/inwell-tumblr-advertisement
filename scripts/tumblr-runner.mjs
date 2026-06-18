@@ -508,6 +508,7 @@ async function choosePostTypeFromVisibleTumblrOption(page, target, optionValue) 
   }
 
   await page.waitForTimeout(500).catch(() => undefined);
+  const optionSelector = ".option, li, [role='option'], button, a, div, span";
   const candidates = await target
     .evaluate(() =>
       Array.from(document.querySelectorAll(".option, li, [role='option'], button, a, div, span")).map((node) => {
@@ -526,6 +527,15 @@ async function choosePostTypeFromVisibleTumblrOption(page, target, optionValue) 
   const candidateIndex = postTypeCandidateIndex(candidates, optionValue);
   if (candidateIndex < 0) {
     return false;
+  }
+
+  const option = target.locator(optionSelector).nth(candidateIndex);
+  const clickedWithPlaywright = await option.click({ force: true, timeout: 1500 }).then(() => true).catch(() => false);
+  if (clickedWithPlaywright) {
+    await page.waitForTimeout(1000).catch(() => undefined);
+    if (await postTypeSelected(page, optionValue)) {
+      return true;
+    }
   }
 
   const clicked = await target
