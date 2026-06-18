@@ -738,10 +738,12 @@ function App() {
             submissionComplete={submissionComplete}
             submitTargetStatus={submitTargetStatus}
             targetOptions={targetOptions}
+            templates={templates}
             toolbarButtons={toolbarButtons}
             validation={validation}
             onAddCustomTag={addCustomTag}
             onAddSubmitTarget={addSubmitTarget}
+            onApplyTemplate={applyTemplate}
             onImageUpload={handleImageUpload}
             onQueueTargets={queueTargets}
             onSelectSubmitTarget={selectSubmitTarget}

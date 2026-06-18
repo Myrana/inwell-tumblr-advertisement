@@ -99,6 +99,19 @@ test("custom blog submission flow does not blank the editor", { timeout: 40000 }
         ],
       }),
     );
+    localStorage.setItem(
+      "inkwell-saved-templates",
+      JSON.stringify([
+        {
+          id: "template-editor",
+          name: "Editor quick template",
+          content: "<p><strong>Quick saved copy</strong></p>",
+          forumUrl: "",
+          tags: [],
+          updatedAt: "2026-06-17T00:00:00.000Z",
+        },
+      ]),
+    );
   });
 
   await page.goto(appUrl);
@@ -122,6 +135,9 @@ test("custom blog submission flow does not blank the editor", { timeout: 40000 }
   await forumInput.fill("https://forum.example/updated");
   const persistedTargets = await page.evaluate(() => JSON.parse(localStorage.getItem("inwell-tumblr-submit-targets") ?? "[]"));
   assert.equal(persistedTargets.find((target) => target.id === "another-rp")?.forumUrl, "https://forum.example/updated");
+  await page.getByRole("heading", { name: "Media library" }).waitFor();
+  await page.getByRole("button", { name: /Editor quick template/ }).click();
+  await page.locator(".tumblr-rich-editor strong", { hasText: "Quick saved copy" }).waitFor();
   assert.equal(await page.getByText("Import this blog's tags from a screenshot").count(), 0);
   assert.equal(await page.getByLabel("jcink site").count(), 0);
   await page.getByPlaceholder("custom tag").fill("manual test tag");
