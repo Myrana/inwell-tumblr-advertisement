@@ -66,6 +66,7 @@ test("custom blog submission flow does not blank the editor", { timeout: 40000 }
   const page = await browser.newPage();
   const pageErrors = [];
   page.on("pageerror", (error) => pageErrors.push(error));
+  await page.route("http://127.0.0.1:8021/api/**", (route) => route.abort());
 
   await page.addInitScript(() => {
     localStorage.setItem(
@@ -138,6 +139,7 @@ test("templates can be saved and applied from their own workspace", { timeout: 4
   const page = await browser.newPage();
   const pageErrors = [];
   page.on("pageerror", (error) => pageErrors.push(error));
+  await page.route("http://127.0.0.1:8021/api/**", (route) => route.abort());
 
   await page.addInitScript(() => {
     localStorage.setItem(
@@ -186,7 +188,7 @@ test("templates can be saved and applied from their own workspace", { timeout: 4
   await page.getByRole("button", { name: "Save template" }).click();
   await page.getByText("Saved Reusable premium ad.").waitFor();
   await page.locator(".template-preview strong", { hasText: "Template bold copy" }).waitFor();
-  await page.getByRole("button", { name: "Apply" }).click();
+  await page.getByRole("button", { name: "Apply Reusable premium ad" }).click();
 
   await page.getByRole("heading", { name: "All Things Roleplay" }).waitFor();
   assert.match((await page.locator(".tumblr-rich-editor").textContent()) ?? "", /Template bold copy/);

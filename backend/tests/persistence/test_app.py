@@ -46,7 +46,7 @@ class FakePostgresConnection:
         normalized = " ".join(query.split()).lower()
         params = params or ()
 
-        if normalized.startswith("create table"):
+        if normalized.startswith("create table") or normalized.startswith("alter table"):
             return FakeCursor()
 
         if normalized.startswith("select * from schema_migrations order by"):
@@ -167,13 +167,19 @@ class FakePostgresConnection:
         if normalized.startswith("insert into runner_logs"):
             row = {
                 "id": params[0],
-                "queue_item_id": params[1],
-                "level": params[2],
-                "message": params[3],
-                "details": json.loads(params[4]),
-                "created_at": params[5],
+                "run_id": params[1],
+                "queue_item_id": params[2],
+                "target_name": params[3],
+                "level": params[4],
+                "message": params[5],
+                "details": json.loads(params[6]),
+                "created_at": params[7],
             }
             self.runner_logs[str(params[0])] = row
+            return FakeCursor()
+
+        if normalized == "delete from runner_logs":
+            self.runner_logs.clear()
             return FakeCursor()
 
         if normalized.startswith("select * from runner_logs where id"):
@@ -342,6 +348,7 @@ class PersistenceTests(unittest.TestCase):
                 "id": "queue-log-1",
                 "ad_id": "ad-1",
                 "target_id": "target-1",
+                "target_name": "allthingsroleplay",
                 "submit_url": "https://example.tumblr.com/submit",
                 "runner_payload": "{}",
             },
@@ -351,6 +358,7 @@ class PersistenceTests(unittest.TestCase):
             self.connection,
             {
                 "queue_item_id": "queue-log-1",
+                "run_id": "run-test",
                 "level": "info",
                 "status": "posted",
                 "message": "Submit button clicked.",
@@ -359,6 +367,8 @@ class PersistenceTests(unittest.TestCase):
         )
 
         self.assertEqual(log["message"], "Submit button clicked.")
+        self.assertEqual(log["run_id"], "run-test")
+        self.assertEqual(log["target_name"], "allthingsroleplay")
         self.assertEqual(log["details"], {"submit": True})
         self.assertEqual(self.connection.submission_queue["queue-log-1"]["status"], "posted")
         self.assertIsNotNone(self.connection.submission_queue["queue-log-1"]["posted_at"])
@@ -390,9 +400,13 @@ class PersistenceTests(unittest.TestCase):
             self.assertEqual(result["pid"], 123)
             self.assertIn("--login-first", result["command"])
             self.assertIn("--api-base", result["command"])
+            self.assertIn("--run-id", result["command"])
             self.assertIn("--media-dir", result["command"])
             self.assertIn("--submit", result["command"])
-            self.assertEqual(json.loads(temp_plan.read_text(encoding="utf-8"))["items"][0]["id"], "queue-1")
+            plan = json.loads(temp_plan.read_text(encoding="utf-8"))
+            self.assertEqual(plan["items"][0]["id"], "queue-1")
+            self.assertTrue(plan["runId"].startswith("run-"))
+            self.assertEqual(result["run_id"], plan["runId"])
             popen.assert_called_once()
             launched_command = popen.call_args.args[0]
             if os.name == "nt":

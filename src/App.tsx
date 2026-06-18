@@ -10,7 +10,7 @@ import {
 import { useEditor } from "@tiptap/react";
 import LinkExtension from "@tiptap/extension-link";
 import StarterKit from "@tiptap/starter-kit";
-import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { AppSidebar } from "./components/AppSidebar";
 import { EditorWorkspace } from "./components/EditorWorkspace";
 import { QueueWorkspace } from "./components/QueueWorkspace";
@@ -20,6 +20,7 @@ import { WorkspaceTopbar } from "./components/WorkspaceTopbar";
 
 import {
   apiRequest,
+  clearRunnerLogs,
   loadBackendQueue,
   loadBackendTemplates,
   loadRunnerLogs,
@@ -105,6 +106,7 @@ function App() {
 
   const selectedTagCount = activeAd.tags.length;
   const activeQueue = submissionQueue.filter((item) => item.adId === activeAd.id);
+  const activeDestinationBlogRef = useRef(activeAd.destinationBlog);
   const activeBlogTags = tagProfiles[activeAd.destinationBlog] ?? defaultTagProfiles[activeAd.destinationBlog] ?? [];
   const checklistTags = uniqueTags([...activeBlogTags, ...activeAd.tags]);
   const parsedImportTags = parseImportedTags(importText);
@@ -161,6 +163,10 @@ function App() {
   useEffect(() => {
     saveRunnerSettings(runnerSettings);
   }, [runnerSettings]);
+
+  useEffect(() => {
+    activeDestinationBlogRef.current = activeAd.destinationBlog;
+  }, [activeAd.destinationBlog]);
 
   useEffect(() => {
     const nextContent = composerContentFor(activeAd);
@@ -223,6 +229,18 @@ function App() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (activeView !== "queue" || !runnerState?.running) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      void refreshRunnerStatus({ quiet: true });
+    }, 3000);
+
+    return () => window.clearInterval(intervalId);
+  }, [activeView, runnerState?.running]);
 
   function syncAdvertisement(advertisement: Advertisement) {
     void saveAdvertisement(advertisement)
@@ -304,6 +322,7 @@ function App() {
 
   function selectSubmitTarget(targetId: string) {
     const target = targetOptions.find((item) => item.id === targetId) ?? fallbackTarget(targetId);
+    activeDestinationBlogRef.current = target.id;
     setSubmitTargetStatus(`Selected ${target.name}. Tumblr submit page: ${target.submitUrl}`);
     updateActiveAd({ destinationBlog: target.id });
   }
@@ -322,6 +341,7 @@ function App() {
       ...current,
       [target.id]: current[target.id] ?? [],
     }));
+    activeDestinationBlogRef.current = target.id;
     updateActiveAd({ destinationBlog: target.id });
     setNewSubmitUrl("");
     setSubmitTargetStatus(`Added ${target.name}. Open ${target.submitUrl} when you are ready to paste the post into Tumblr.`);
@@ -352,7 +372,7 @@ function App() {
   }
 
   function createDraft() {
-    const targetId = activeAd.destinationBlog || activeSubmitTarget.id;
+    const targetId = activeDestinationBlogRef.current || activeAd.destinationBlog || activeSubmitTarget.id;
     const next = emptyAd(targetId);
     setValidation([]);
     setGeneratedPost("");
@@ -521,17 +541,25 @@ function App() {
     );
   }
 
-  async function refreshRunnerStatus() {
+  async function refreshRunnerStatus(options: { quiet?: boolean } = {}) {
     try {
-      const response = await apiRequest<{ runner: RunnerStatus }>("/runner/status");
-      const logs = await loadRunnerLogs();
+      const [response, logs, backendQueue] = await Promise.all([
+        apiRequest<{ runner: RunnerStatus }>("/runner/status"),
+        loadRunnerLogs(),
+        loadBackendQueue(),
+      ]);
       setRunnerState(response.runner);
       setRunnerLogs(logs);
+      setSubmissionQueue(backendQueue);
       setApiAvailable(true);
-      setQueueStatus(response.runner.running ? `Runner is open in process ${response.runner.pid}.` : "Runner is not running.");
+      if (!options.quiet) {
+        setQueueStatus(response.runner.running ? `Runner is open in process ${response.runner.pid}.` : "Runner is not running.");
+      }
     } catch {
       setApiAvailable(false);
-      setQueueStatus("Start the Python API before launching the runner from the app.");
+      if (!options.quiet) {
+        setQueueStatus("Start the Python API before launching the runner from the app.");
+      }
     }
   }
 
@@ -551,12 +579,26 @@ function App() {
         }),
       });
       setRunnerState(response.runner);
-      setRunnerLogs(await loadRunnerLogs());
+      const [logs, backendQueue] = await Promise.all([loadRunnerLogs(), loadBackendQueue()]);
+      setRunnerLogs(logs);
+      setSubmissionQueue(backendQueue);
       setApiAvailable(true);
       setQueueStatus(`Runner launched in a visible PowerShell window. Plan: ${response.runner.plan_path}`);
     } catch {
       setApiAvailable(false);
       setQueueStatus("Could not launch runner. Start the Python API and make sure no runner is already open.");
+    }
+  }
+
+  async function clearRunnerLogHistory() {
+    try {
+      await clearRunnerLogs();
+      setRunnerLogs([]);
+      setApiAvailable(true);
+      setQueueStatus("Runner log history cleared.");
+    } catch {
+      setApiAvailable(false);
+      setQueueStatus("Could not clear runner logs. Start the Python API and try again.");
     }
   }
 
@@ -798,6 +840,7 @@ function App() {
             runnerLogs={runnerLogs}
             targetOptions={targetOptions}
             onClearCompleted={clearCompletedQueueItems}
+            onClearRunnerLogs={clearRunnerLogHistory}
             onCopyRunnerPlan={copyRunnerPlan}
             onQueueTargets={queueTargets}
             onRefreshRunnerStatus={refreshRunnerStatus}

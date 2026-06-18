@@ -210,7 +210,12 @@ export function TemplatesWorkspace({
                 />
               </div>
               <div className="template-row-actions">
-                <button className="secondary" type="button" onClick={() => onApplyTemplate(template)}>
+                <button
+                  className="secondary"
+                  type="button"
+                  aria-label={`Apply ${template.name}`}
+                  onClick={() => onApplyTemplate(template)}
+                >
                   Apply
                 </button>
                 <button
