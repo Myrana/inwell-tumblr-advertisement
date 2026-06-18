@@ -85,13 +85,6 @@ export type RunnerLog = {
   createdAt: string;
 };
 
-export type OcrResult = {
-  available: boolean;
-  text: string;
-  tags: string[];
-  message: string;
-};
-
 export type ApiAdvertisement = {
   id: string;
   post_type?: PostType;

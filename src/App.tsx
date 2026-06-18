@@ -51,12 +51,11 @@ import {
   saveTemplates,
 } from "./domain/storage";
 import { fallbackTarget, submitTargetFromUrl, uniqueSubmitTargets } from "./domain/submitTargets";
-import { normalizeTag, parseImportedTags, uniqueTags } from "./domain/tags";
+import { normalizeTag, uniqueTags } from "./domain/tags";
 import { applyTemplateToAdvertisement, normalizeTemplate, templateFromAdvertisement } from "./domain/templates";
 import {
   Advertisement,
   ApiAdvertisement,
-  OcrResult,
   RunnerLog,
   RunnerSettings,
   RunnerStatus,
@@ -77,12 +76,9 @@ function App() {
   const [customTag, setCustomTag] = useState("");
   const [templateDraft, setTemplateDraft] = useState({ name: "", content: "" });
   const [templateStatus, setTemplateStatus] = useState("");
+  const [saveStatus, setSaveStatus] = useState("");
   const [newSubmitUrl, setNewSubmitUrl] = useState("");
   const [submitTargetStatus, setSubmitTargetStatus] = useState("");
-  const [importText, setImportText] = useState("");
-  const [importImageName, setImportImageName] = useState("");
-  const [importImageDataUrl, setImportImageDataUrl] = useState("");
-  const [importStatus, setImportStatus] = useState("");
   const [validation, setValidation] = useState<string[]>([]);
   const [, setGeneratedPost] = useState("");
   const [queueStatus, setQueueStatus] = useState("");
@@ -109,7 +105,6 @@ function App() {
   const activeDestinationBlogRef = useRef(activeAd.destinationBlog);
   const activeBlogTags = tagProfiles[activeAd.destinationBlog] ?? defaultTagProfiles[activeAd.destinationBlog] ?? [];
   const checklistTags = uniqueTags([...activeBlogTags, ...activeAd.tags]);
-  const parsedImportTags = parseImportedTags(importText);
   const editor = useEditor(
     {
       extensions: [
@@ -376,6 +371,7 @@ function App() {
     const next = emptyAd(targetId);
     setValidation([]);
     setGeneratedPost("");
+    setSaveStatus("");
     setStored((current) => ({
       ads: [next, ...current.ads],
       activeAdId: next.id,
@@ -404,6 +400,7 @@ function App() {
   function saveDraft() {
     updateActiveAd({ status: "draft" });
     setValidation([]);
+    setSaveStatus("Saved. Start a new submission or keep editing this one.");
   }
 
   function validateAd() {
@@ -627,95 +624,6 @@ function App() {
     updateActiveAd({ videoName: file.name });
   }
 
-  function handleTagScreenshotUpload(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (!file) {
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const dataUrl = String(reader.result);
-      setImportImageName(file.name);
-      setImportImageDataUrl(dataUrl);
-      setImportStatus("Screenshot loaded. Running local OCR.");
-
-      try {
-        const response = await apiRequest<{ ocr: OcrResult }>("/tags/ocr", {
-          method: "POST",
-          body: JSON.stringify({ imageDataUrl: dataUrl }),
-        });
-
-        if (response.ocr.tags.length) {
-          setImportText(response.ocr.tags.join("\n"));
-          setImportStatus(`${response.ocr.tags.length} tags detected from screenshot. Review before importing.`);
-          setApiAvailable(true);
-          return;
-        }
-
-        if (response.ocr.text.trim()) {
-          setImportText(response.ocr.text);
-        }
-        setImportStatus(response.ocr.message || "OCR did not find tags. Paste the tags manually.");
-        setApiAvailable(true);
-        return;
-      } catch {
-        setApiAvailable(false);
-        setImportStatus("Local OCR was not available. Start the Python API or paste the tags manually.");
-      }
-
-      const textDetector = (window as typeof window & {
-        TextDetector?: new () => { detect: (source: HTMLImageElement) => Promise<{ rawValue?: string }[]> };
-      }).TextDetector;
-      if (!textDetector) {
-        setImportStatus("Automatic text detection was not available. Paste the tags manually.");
-        return;
-      }
-
-      try {
-        const image = new Image();
-        image.src = dataUrl;
-        await image.decode();
-        const results = await new textDetector().detect(image);
-        const detectedText = results.map((result) => result.rawValue ?? "").filter(Boolean).join("\n");
-        if (detectedText) {
-          setImportText(detectedText);
-          setImportStatus("Text detected from screenshot. Review the tags before importing.");
-        }
-      } catch {
-        setImportStatus("Screenshot loaded. Automatic text detection was not available for this image.");
-      }
-    };
-    reader.readAsDataURL(file);
-  }
-
-  function updateActiveBlogTags(tags: string[]) {
-    setTagProfiles((current) => ({
-      ...current,
-      [activeAd.destinationBlog]: uniqueTags(tags),
-    }));
-  }
-
-  function replaceActiveBlogTags() {
-    if (!parsedImportTags.length) {
-      setImportStatus("Add or detect tags before replacing this blog profile.");
-      return;
-    }
-
-    updateActiveBlogTags(parsedImportTags);
-    setImportStatus(`Replaced ${activeAd.destinationBlog} with ${parsedImportTags.length} tags.`);
-  }
-
-  function mergeActiveBlogTags() {
-    if (!parsedImportTags.length) {
-      setImportStatus("Add or detect tags before merging into this blog profile.");
-      return;
-    }
-
-    updateActiveBlogTags([...activeBlogTags, ...parsedImportTags]);
-    setImportStatus(`Merged ${parsedImportTags.length} tags into ${activeAd.destinationBlog}.`);
-  }
-
   const submissionComplete = activeAd.status === "submitted";
   const pageTitles: Record<WorkspaceView, { eyebrow: string; title: string }> = {
     editor: { eyebrow: "Advertisement workspace", title: activeAd.title || "Untitled saved submission" },
@@ -791,8 +699,10 @@ function App() {
           actionsVisible={activeView === "editor"}
           eyebrow={pageTitles[activeView].eyebrow}
           title={pageTitles[activeView].title}
+          saveStatus={saveStatus}
           onCreateDraft={createDraft}
           onGeneratePost={generatePost}
+          onKeepEditing={() => setSaveStatus("")}
           onSaveDraft={saveDraft}
         />
 
@@ -803,12 +713,7 @@ function App() {
             checklistTags={checklistTags}
             customTag={customTag}
             editor={editor}
-            importImageDataUrl={importImageDataUrl}
-            importImageName={importImageName}
-            importStatus={importStatus}
-            importText={importText}
             newSubmitUrl={newSubmitUrl}
-            parsedImportTagCount={parsedImportTags.length}
             submissionComplete={submissionComplete}
             submitTargetStatus={submitTargetStatus}
             targetOptions={targetOptions}
@@ -817,15 +722,11 @@ function App() {
             onAddCustomTag={addCustomTag}
             onAddSubmitTarget={addSubmitTarget}
             onImageUpload={handleImageUpload}
-            onMergeActiveBlogTags={mergeActiveBlogTags}
             onQueueTargets={queueTargets}
-            onReplaceActiveBlogTags={replaceActiveBlogTags}
             onSelectSubmitTarget={selectSubmitTarget}
-            onTagScreenshotUpload={handleTagScreenshotUpload}
             onToggleTag={toggleTag}
             onUpdateActiveAd={updateActiveAd}
             onUpdateCustomTag={setCustomTag}
-            onUpdateImportText={setImportText}
             onUpdateNewSubmitUrl={setNewSubmitUrl}
             onVideoUpload={handleVideoUpload}
           />

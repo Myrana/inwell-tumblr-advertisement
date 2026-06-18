@@ -195,29 +195,21 @@ export function TemplatesWorkspace({
         </button>
       </form>
 
-      <div className="template-list">
+      <div className="template-library" aria-label="Template library">
         {templates.length ? (
           templates.map((template) => (
-            <article className="template-row" key={template.id}>
-              <div>
+            <article className="template-card" key={template.id}>
+              <button className="template-card-main" type="button" onClick={() => onApplyTemplate(template)}>
                 <strong>{template.name}</strong>
                 <span>
-                  Body text - {formatDate(template.updatedAt)}
+                  Click to apply - {formatDate(template.updatedAt)}
                 </span>
                 <div
                   className="template-preview"
                   dangerouslySetInnerHTML={{ __html: template.content || "<p>No reusable content saved yet.</p>" }}
                 />
-              </div>
-              <div className="template-row-actions">
-                <button
-                  className="secondary"
-                  type="button"
-                  aria-label={`Apply ${template.name}`}
-                  onClick={() => onApplyTemplate(template)}
-                >
-                  Apply
-                </button>
+              </button>
+              <div className="template-card-actions">
                 <button
                   className="icon-button"
                   type="button"

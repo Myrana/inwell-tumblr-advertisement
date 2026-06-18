@@ -1,4 +1,4 @@
-import { blogs, defaultSelectedTags } from "./constants";
+import { blogs } from "./constants";
 import { Advertisement, ApiAdvertisement, StoredState } from "./types";
 
 const removedSeedTargetIds = new Set(["inwell-ads", "jcink-directory", "roleplay-finder"]);
@@ -18,7 +18,7 @@ export const emptyAd = (destinationBlog = blogs[0] ?? ""): Advertisement => ({
   content: "",
   destinationBlog,
   forumUrl: "",
-  tags: defaultSelectedTags,
+  tags: [],
   imageCaption: "",
   imageName: "sample-forum-ad.png",
   imageDataUrl: "/sample-forum-ad.png",
