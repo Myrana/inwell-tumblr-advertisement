@@ -247,3 +247,115 @@ test("templates can be saved and applied from their own workspace", { timeout: 4
   await page.getByText("No runner logs yet.").waitFor();
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
 });
+
+test("runner logs are grouped by expandable queue run", { timeout: 40000 }, async (t) => {
+  const server = spawn("npx vite --host 127.0.0.1 --port 8123 --strictPort", {
+    cwd: process.cwd(),
+    shell: true,
+    stdio: "ignore",
+  });
+
+  t.after(() => {
+    stopProcessTree(server);
+  });
+
+  await waitForServer(appUrl);
+
+  const browser = await chromium.launch();
+  t.after(async () => {
+    await browser.close();
+  });
+
+  const page = await browser.newPage();
+  const pageErrors = [];
+  const apiHeaders = {
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Methods": "DELETE,GET,OPTIONS,POST,PUT",
+    "Access-Control-Allow-Origin": "*",
+  };
+  page.on("pageerror", (error) => pageErrors.push(error));
+  await page.route("http://127.0.0.1:8021/api/**", (route) => route.abort());
+  await page.route("http://127.0.0.1:8021/api/runner/logs", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({
+        logs: [
+          {
+            id: "log-new-ready",
+            run_id: "run-new",
+            queue_item_id: "queue-new",
+            target_name: "allthingsroleplay",
+            level: "info",
+            message: "Fields filled and ready for manual review.",
+            details: {},
+            created_at: "2026-06-18T21:30:00.000Z",
+          },
+          {
+            id: "log-new-open",
+            run_id: "run-new",
+            queue_item_id: "queue-new",
+            target_name: "allthingsroleplay",
+            level: "info",
+            message: "Opening allthingsroleplay.",
+            details: {},
+            created_at: "2026-06-18T21:29:00.000Z",
+          },
+          {
+            id: "log-old-warning",
+            run_id: "run-old",
+            queue_item_id: "queue-old",
+            target_name: "jcinktinder",
+            level: "warning",
+            message: "Needs manual review.",
+            details: {},
+            created_at: "2026-06-18T20:00:00.000Z",
+          },
+        ],
+      }),
+    }),
+  );
+  await page.route("http://127.0.0.1:8021/api/runner/status", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({ running: false, pid: null, plan_path: "", command: [] }),
+    }),
+  );
+  await page.route("http://127.0.0.1:8021/api/queue", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({ queue: [] }),
+    }),
+  );
+  await page.route("http://127.0.0.1:8021/api/advertisements", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({ advertisements: [] }),
+    }),
+  );
+  await page.route("http://127.0.0.1:8021/api/templates", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({ templates: [] }),
+    }),
+  );
+
+  await page.goto(appUrl);
+  await page.getByRole("button", { name: "Runner Logs" }).click();
+  await page.getByRole("heading", { name: "Runner logs", level: 1 }).waitFor();
+  await page.getByRole("button", { name: /Latest run run-new/ }).waitFor();
+  await page.getByText("Fields filled and ready for manual review.").waitFor();
+  assert.equal(await page.getByRole("button", { name: /Run run-old/ }).count(), 0);
+
+  await page.getByRole("button", { name: "Show all history" }).click();
+  await page.getByRole("button", { name: /Run run-old/ }).waitFor();
+  assert.equal(await page.getByText("Needs manual review.").count(), 0);
+  await page.getByRole("button", { name: /Run run-old/ }).click();
+  await page.getByText("Needs manual review.").waitFor();
+  assert.match((await page.getByRole("button", { name: /Run run-old/ }).textContent()) ?? "", /1 warning/);
+  assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
+});

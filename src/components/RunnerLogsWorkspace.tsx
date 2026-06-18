@@ -1,7 +1,13 @@
-import { Activity, History, RefreshCw, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { Activity, ChevronDown, ChevronRight, History, RefreshCw, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { formatDate } from "../domain/format";
-import { displayLogTarget, latestRunnerRunId, runnerLogsOutsideQueue, visibleRunnerLogs } from "../domain/runnerLogs";
+import {
+  displayLogTarget,
+  latestRunnerRunId,
+  runnerLogRunGroups,
+  runnerLogsOutsideQueue,
+  visibleRunnerLogs,
+} from "../domain/runnerLogs";
 import { RunnerLog, RunnerStatus, SubmissionQueueItem } from "../domain/types";
 
 type RunnerLogsWorkspaceProps = {
@@ -20,10 +26,39 @@ export function RunnerLogsWorkspace({
   onRefreshRunnerStatus,
 }: RunnerLogsWorkspaceProps) {
   const [showLogHistory, setShowLogHistory] = useState(false);
+  const [openRunIds, setOpenRunIds] = useState<Set<string>>(new Set());
   const latestRunId = latestRunnerRunId(runnerLogs);
-  const scopedLogs = visibleRunnerLogs(runnerLogs, showLogHistory);
+  const scopedLogs = useMemo(() => visibleRunnerLogs(runnerLogs, showLogHistory), [runnerLogs, showLogHistory]);
+  const runGroups = useMemo(() => runnerLogRunGroups(scopedLogs), [scopedLogs]);
   const outsideQueueLogs = runnerLogsOutsideQueue(activeQueue, scopedLogs);
   const logScopeLabel = showLogHistory ? "All history" : latestRunId ? `Latest run ${latestRunId}` : "Latest logs";
+
+  useEffect(() => {
+    if (!runGroups.length) {
+      setOpenRunIds((current) => (current.size ? new Set() : current));
+      return;
+    }
+
+    setOpenRunIds((current) => {
+      if (current.size > 0 && runGroups.some((group) => current.has(group.id))) {
+        return current;
+      }
+
+      return new Set([runGroups[0].id]);
+    });
+  }, [runGroups]);
+
+  function toggleRunGroup(groupId: string) {
+    setOpenRunIds((current) => {
+      const next = new Set(current);
+      if (next.has(groupId)) {
+        next.delete(groupId);
+      } else {
+        next.add(groupId);
+      }
+      return next;
+    });
+  }
 
   return (
     <section className="submission-queue-panel queue-workspace" aria-label="Runner logs">
@@ -58,15 +93,51 @@ export function RunnerLogsWorkspace({
       </div>
 
       {scopedLogs.length ? (
-        <div className="queue-log-list">
-          {scopedLogs.map((log) => (
-            <article className={`queue-log queue-log-${log.level}`} key={log.id}>
-              <strong>{log.message}</strong>
-              <span>
-                {displayLogTarget(log, activeQueue)} - {formatDate(log.createdAt)}
-              </span>
-            </article>
-          ))}
+        <div className="runner-log-run-list">
+          {runGroups.map((group, index) => {
+            const isOpen = openRunIds.has(group.id);
+            const groupTitle = group.runId ? `Run ${group.runId}` : "Untracked runner logs";
+            const statusSummary = [
+              `${group.logs.length} entr${group.logs.length === 1 ? "y" : "ies"}`,
+              group.errorCount ? `${group.errorCount} failed` : "",
+              group.warningCount ? `${group.warningCount} warning${group.warningCount === 1 ? "" : "s"}` : "",
+            ]
+              .filter(Boolean)
+              .join(" · ");
+
+            return (
+              <article className="runner-log-run" key={group.id}>
+                <button
+                  aria-expanded={isOpen}
+                  className="runner-log-run-summary"
+                  type="button"
+                  onClick={() => toggleRunGroup(group.id)}
+                >
+                  {isOpen ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+                  <span className="runner-log-run-title">
+                    <strong>{index === 0 && latestRunId === group.runId ? `Latest run ${group.runId}` : groupTitle}</strong>
+                    <span>{group.targetNames.length ? group.targetNames.join(", ") : "No target recorded"}</span>
+                  </span>
+                  <span className="runner-log-run-meta">
+                    <span>{statusSummary}</span>
+                    <span>{formatDate(group.latestAt)}</span>
+                  </span>
+                </button>
+                {isOpen ? (
+                  <div className="queue-log-list" aria-label={`${groupTitle} entries`}>
+                    {group.logs.map((log) => (
+                      <article className={`queue-log queue-log-${log.level}`} key={log.id}>
+                        <strong>{log.message}</strong>
+                        <span>
+                          {displayLogTarget(log, activeQueue)} - {formatDate(log.createdAt)}
+                        </span>
+                      </article>
+                    ))}
+                  </div>
+                ) : null}
+              </article>
+            );
+          })}
           {outsideQueueLogs.length ? (
             <p className="queue-empty">
               {outsideQueueLogs.length} log entry{outsideQueueLogs.length === 1 ? "" : "ies"} belong to another saved submission.
