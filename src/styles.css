@@ -306,6 +306,34 @@ h2 {
   align-items: start;
 }
 
+.editor-template-panel {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.editor-template-panel .panel-heading {
+  margin-bottom: 8px;
+}
+
+.editor-template-panel .panel-heading h2 {
+  margin-bottom: 3px;
+}
+
+.editor-template-panel .template-library {
+  margin-top: 0;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.editor-template-panel .template-card-main {
+  min-height: 122px;
+}
+
+.editor-template-panel .template-preview {
+  max-height: 3.2rem;
+}
+
 .type-picker {
   padding: 4px;
   border: 1px solid var(--line);
@@ -1288,6 +1316,7 @@ pre {
   .tag-grid,
   .tumblr-composer-header,
   .tumblr-tag-grid,
+  .editor-template-panel .template-library,
   .template-library {
     grid-template-columns: 1fr;
   }

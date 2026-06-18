@@ -11,12 +11,11 @@ import {
   ListOrdered,
   Save,
   Strikethrough,
-  Trash2,
   Unlink,
 } from "lucide-react";
 import { FormEvent, useEffect } from "react";
-import { formatDate } from "../domain/format";
 import { SavedTemplate } from "../domain/types";
+import { TemplateLibrary } from "./TemplateLibrary";
 
 type TemplateDraft = {
   name: string;
@@ -195,37 +194,12 @@ export function TemplatesWorkspace({
         </button>
       </form>
 
-      <div className="template-library" aria-label="Template library">
-        {templates.length ? (
-          templates.map((template) => (
-            <article className="template-card" key={template.id}>
-              <button className="template-card-main" type="button" onClick={() => onApplyTemplate(template)}>
-                <strong>{template.name}</strong>
-                <span>
-                  Click to apply - {formatDate(template.updatedAt)}
-                </span>
-                <div
-                  className="template-preview"
-                  dangerouslySetInnerHTML={{ __html: template.content || "<p>No reusable content saved yet.</p>" }}
-                />
-              </button>
-              <div className="template-card-actions">
-                <button
-                  className="icon-button"
-                  type="button"
-                  aria-label="Delete template"
-                  title="Delete template"
-                  onClick={() => onDeleteTemplate(template.id)}
-                >
-                  <Trash2 size={18} />
-                </button>
-              </div>
-            </article>
-          ))
-        ) : (
-          <p className="queue-empty">Save a template, then apply it to any new submission.</p>
-        )}
-      </div>
+      <TemplateLibrary
+        emptyText="Save a template, then apply it to any new submission."
+        templates={templates}
+        onApplyTemplate={onApplyTemplate}
+        onDeleteTemplate={onDeleteTemplate}
+      />
     </section>
   );
 }

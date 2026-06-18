@@ -2,7 +2,8 @@ import { Editor, EditorContent } from "@tiptap/react";
 import { ImagePlus, Plus, Send, Tags, Video } from "lucide-react";
 import { ChangeEvent, FormEvent, ReactNode } from "react";
 import { postTypes } from "../domain/constants";
-import { Advertisement, PostType, TumblrSubmitTarget } from "../domain/types";
+import { Advertisement, PostType, SavedTemplate, TumblrSubmitTarget } from "../domain/types";
+import { TemplateLibrary } from "./TemplateLibrary";
 
 type ToolbarButton = {
   label: string;
@@ -21,11 +22,13 @@ type EditorWorkspaceProps = {
   submissionComplete: boolean;
   submitTargetStatus: string;
   targetOptions: TumblrSubmitTarget[];
+  templates: SavedTemplate[];
   toolbarButtons: ToolbarButton[];
   validation: string[];
   onAddCustomTag: (event: FormEvent) => void;
   onAddSubmitTarget: (event: FormEvent) => void;
   onImageUpload: (event: ChangeEvent<HTMLInputElement>) => void;
+  onApplyTemplate: (template: SavedTemplate) => void;
   onQueueTargets: (targets: TumblrSubmitTarget[]) => void;
   onSelectSubmitTarget: (targetId: string) => void;
   onToggleTag: (tag: string) => void;
@@ -46,10 +49,12 @@ export function EditorWorkspace({
   submissionComplete,
   submitTargetStatus,
   targetOptions,
+  templates,
   toolbarButtons,
   validation,
   onAddCustomTag,
   onAddSubmitTarget,
+  onApplyTemplate,
   onImageUpload,
   onQueueTargets,
   onSelectSubmitTarget,
@@ -124,6 +129,20 @@ export function EditorWorkspace({
             {submitTargetStatus ? <p>{submitTargetStatus}</p> : null}
           </form>
         </div>
+
+        <section className="editor-template-panel" aria-label="Editor saved templates">
+          <div className="panel-heading">
+            <div>
+              <h2>Media library</h2>
+              <p className="field-hint">Apply saved templates into the body under the image.</p>
+            </div>
+          </div>
+          <TemplateLibrary
+            emptyText="Save a template, then it will appear here for quick reuse."
+            templates={templates}
+            onApplyTemplate={onApplyTemplate}
+          />
+        </section>
 
         {submissionComplete ? (
           <div className="tumblr-submit-shell">
