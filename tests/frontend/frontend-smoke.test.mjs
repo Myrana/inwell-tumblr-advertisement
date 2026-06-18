@@ -120,9 +120,11 @@ test("custom blog submission flow does not blank the editor", { timeout: 40000 }
   const targetSelect = page.locator('label:has-text("Target Tumblr blog") select');
   const addBlogInput = page.locator('label:has-text("Add Tumblr submit URL") input');
   const forumInput = page.getByLabel("Forum link");
+  const savedNameInput = page.getByLabel("Saved submission name");
 
   await addBlogInput.fill("https://another-rp.tumblr.com/submit");
   await page.getByRole("button", { name: "Add blog" }).click();
+  assert.equal(await savedNameInput.inputValue(), "Custom target ad");
   await targetSelect.selectOption("another-rp");
   assert.equal(await forumInput.inputValue(), "https://forum.example");
   await page.getByRole("button", { name: "New" }).click();
@@ -130,11 +132,17 @@ test("custom blog submission flow does not blank the editor", { timeout: 40000 }
   await page.getByRole("heading", { name: "Untitled saved submission" }).waitFor();
   assert.equal(await targetSelect.inputValue(), "");
   assert.equal(await forumInput.inputValue(), "");
+  assert.equal(await savedNameInput.inputValue(), "");
   await targetSelect.selectOption("another-rp");
+  assert.equal(await savedNameInput.inputValue(), "another-rp");
   assert.equal(await forumInput.inputValue(), "https://forum.example");
+  await savedNameInput.fill("");
+  await addBlogInput.fill("https://blank-name.tumblr.com/submit");
+  await page.getByRole("button", { name: "Add blog" }).click();
+  assert.equal(await savedNameInput.inputValue(), "blank-name");
   await forumInput.fill("https://forum.example/updated");
   const persistedTargets = await page.evaluate(() => JSON.parse(localStorage.getItem("inwell-tumblr-submit-targets") ?? "[]"));
-  assert.equal(persistedTargets.find((target) => target.id === "another-rp")?.forumUrl, "https://forum.example/updated");
+  assert.equal(persistedTargets.find((target) => target.id === "blank-name")?.forumUrl, "https://forum.example/updated");
   await page.getByRole("heading", { name: "Media library" }).waitFor();
   await page.getByRole("button", { name: /Editor quick template/ }).click();
   await page.locator(".tumblr-rich-editor strong", { hasText: "Quick saved copy" }).waitFor();
