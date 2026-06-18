@@ -1079,6 +1079,61 @@ pre {
   gap: 8px;
 }
 
+.runner-log-run-list {
+  display: grid;
+  gap: 10px;
+}
+
+.runner-log-run {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.runner-log-run-summary {
+  width: 100%;
+  padding: 12px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  background: #f8fafb;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.runner-log-run-summary:hover,
+.runner-log-run-summary:focus-visible {
+  background: #eef4f6;
+}
+
+.runner-log-run-title,
+.runner-log-run-meta {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.runner-log-run-title span,
+.runner-log-run-meta span {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.runner-log-run-meta {
+  justify-items: end;
+  text-align: right;
+}
+
+.runner-log-run .queue-log-list {
+  padding: 10px;
+}
+
 .queue-item-log-list {
   display: grid;
   gap: 6px;
