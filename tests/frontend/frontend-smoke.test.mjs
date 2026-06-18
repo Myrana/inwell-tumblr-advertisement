@@ -114,6 +114,15 @@ test("custom blog submission flow does not blank the editor", { timeout: 40000 }
 
   await page.getByRole("heading", { name: "Untitled saved submission" }).waitFor();
   assert.equal(await targetSelect.inputValue(), "another-rp");
+  assert.equal(await page.getByText("Import this blog's tags from a screenshot").count(), 0);
+  assert.equal(await page.getByLabel("jcink site").count(), 0);
+  await page.getByPlaceholder("custom tag").fill("manual test tag");
+  await page.getByRole("button", { name: "Add custom tag" }).click();
+  assert.equal(await page.getByLabel("manual test tag").isChecked(), true);
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.getByText("Saved. Start a new submission or keep editing this one.").waitFor();
+  await page.getByRole("button", { name: "Keep editing" }).click();
+  assert.equal(await page.getByText("Saved. Start a new submission or keep editing this one.").count(), 0);
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
   assert.match((await page.locator("main").textContent()) ?? "", /Advertisement workspace/);
 });
@@ -188,7 +197,7 @@ test("templates can be saved and applied from their own workspace", { timeout: 4
   await page.getByRole("button", { name: "Save template" }).click();
   await page.getByText("Saved Reusable premium ad.").waitFor();
   await page.locator(".template-preview strong", { hasText: "Template bold copy" }).waitFor();
-  await page.getByRole("button", { name: "Apply Reusable premium ad" }).click();
+  await page.getByRole("button", { name: /Reusable premium ad/ }).click();
 
   await page.getByRole("heading", { name: "All Things Roleplay" }).waitFor();
   assert.match((await page.locator(".tumblr-rich-editor").textContent()) ?? "", /Template bold copy/);

@@ -14,8 +14,6 @@ export const blogs = defaultSubmitTargets.map((target) => target.id);
 
 export const defaultTagProfiles: Record<string, string[]> = {};
 
-export const defaultSelectedTags = ["jcink site", "premium jcink", "semi-private site", "supernatural rpg", "1 year"];
-
 export const postTypes: { value: PostType; label: string }[] = [
   { value: "text", label: "Text" },
   { value: "photo", label: "Photo" },

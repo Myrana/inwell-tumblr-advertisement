@@ -200,6 +200,31 @@ h2 {
   flex-wrap: wrap;
 }
 
+.topbar-action-stack {
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+}
+
+.save-next-step {
+  max-width: 520px;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafb;
+}
+
+.save-next-step span {
+  color: #315f6c;
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
 .workspace-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 360px;
@@ -718,72 +743,11 @@ textarea:focus {
   margin-top: 12px;
 }
 
-.tag-import-panel {
-  margin-top: 14px;
-  padding: 12px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #fff;
-}
-
-.tag-import-copy {
-  display: grid;
-  gap: 4px;
-  color: #444;
-}
-
-.tag-import-copy span,
-.tag-import-actions span,
-.tag-import-status {
+.manual-tag-empty {
+  margin: 12px 0 0;
   color: var(--muted);
   font-size: 0.84rem;
-}
-
-.tag-import-grid {
-  margin-top: 12px;
-  display: grid;
-  grid-template-columns: minmax(150px, 180px) minmax(120px, 160px) minmax(0, 1fr);
-  gap: 12px;
-  align-items: start;
-}
-
-.tag-import-grid textarea {
-  min-height: 110px;
-}
-
-.tag-import-preview {
-  min-width: 0;
-  display: grid;
-  gap: 6px;
-}
-
-.tag-import-preview img {
-  width: 100%;
-  aspect-ratio: 4 / 3;
-  display: block;
-  object-fit: cover;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: #f4f4f4;
-}
-
-.tag-import-preview span {
-  color: var(--muted);
-  font-size: 0.78rem;
-  overflow-wrap: anywhere;
-}
-
-.tag-import-actions {
-  margin-top: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.tag-import-status {
-  margin: 8px 0 0;
+  font-weight: 700;
 }
 
 .tumblr-tag-check {
@@ -1155,34 +1119,49 @@ pre {
   min-height: 150px;
 }
 
-.template-list {
+.template-library {
   margin-top: 16px;
   display: grid;
-  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
 }
 
-.template-row {
+.template-card {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 12px;
-  padding: 12px;
+  grid-template-rows: minmax(0, 1fr) auto;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fff;
+  overflow: hidden;
 }
 
-.template-row strong,
-.template-row span {
+.template-card-main {
+  width: 100%;
+  min-height: 168px;
+  padding: 12px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.template-card-main:hover {
+  background: #f8fafb;
+}
+
+.template-card-main strong,
+.template-card-main span {
   display: block;
 }
 
-.template-row span,
+.template-card-main span,
 .template-preview {
   color: var(--muted);
   font-size: 0.84rem;
 }
 
-.template-row span {
+.template-card-main span {
   margin-top: 3px;
 }
 
@@ -1205,10 +1184,14 @@ pre {
   color: #2e8fa3;
 }
 
-.template-row-actions {
+.template-card-actions {
+  padding: 8px;
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 8px;
+  border-top: 1px solid var(--line);
+  background: #fbfbfb;
 }
 
 .draft-row {
@@ -1284,8 +1267,7 @@ pre {
   .tag-grid,
   .tumblr-composer-header,
   .tumblr-tag-grid,
-  .tag-import-grid,
-  .template-row {
+  .template-library {
     grid-template-columns: 1fr;
   }
 
@@ -1305,8 +1287,13 @@ pre {
   }
 
   .topbar-actions,
+  .topbar-action-stack,
   .custom-tag-form {
     width: 100%;
+  }
+
+  .topbar-action-stack {
+    justify-items: stretch;
   }
 
   .topbar-actions > button {

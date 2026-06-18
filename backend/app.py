@@ -3,9 +3,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
-import tempfile
 import uuid
-from base64 import b64decode
 from datetime import date, datetime, timezone
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -14,7 +12,6 @@ from typing import Any, Protocol
 from urllib.parse import urlparse
 
 import psycopg
-from PIL import Image, ImageEnhance, ImageOps
 from psycopg.rows import dict_row
 
 
@@ -31,75 +28,6 @@ RUNNER_PLAN_PATH = REPO_ROOT / "tumblr-runner-plan.json"
 RUNNER_PROCESS: subprocess.Popen[Any] | None = None
 RUNNER_LAST_COMMAND: list[str] = []
 RUNNER_LAST_RUN_ID = ""
-TAG_WORDS = {
-    "advertisement",
-    "animated",
-    "animal",
-    "app",
-    "based",
-    "boards",
-    "celeb",
-    "character",
-    "city",
-    "fantasy",
-    "futuristic",
-    "genre",
-    "harry",
-    "historical",
-    "invisionfree",
-    "jcink",
-    "multi",
-    "other",
-    "potter",
-    "premium",
-    "profile",
-    "public",
-    "real",
-    "request",
-    "resource",
-    "rpg",
-    "school",
-    "scifi",
-    "semi",
-    "shipper",
-    "short",
-    "site",
-    "staff",
-    "supernatural",
-    "zifboards",
-}
-KNOWN_TAGS = [
-    "invisionfree/zifboards site",
-    "jcink site",
-    "premium jcink",
-    "site buzz",
-    "advertisement",
-    "character request",
-    "staff request",
-    "semi-private site",
-    "public site",
-    "short app",
-    "shipper app",
-    "profile app",
-    "band celeb rpg",
-    "city town rpg",
-    "historical rpg",
-    "school rpg",
-    "other real life rpg",
-    "futuristic postapoc rpg",
-    "harry potter rpg",
-    "supernatural rpg",
-    "other fantasy rpg",
-    "other scifi rpg",
-    "based on rpg",
-    "multi genre rpg",
-    "animal rpg",
-    "animated rpg",
-    "resource site",
-    "6 months",
-    "1 year",
-    "3 years",
-]
 
 SEED_TEMPLATES = [
     {
@@ -757,114 +685,6 @@ def start_runner(payload: dict[str, Any]) -> dict[str, Any]:
     return runner_status()
 
 
-def ocr_tags_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
-    data_url = str(payload.get("imageDataUrl") or "")
-    image_bytes, suffix = image_bytes_from_data_url(data_url)
-    temp_path = Path(tempfile.gettempdir()) / f"inwell-tag-ocr-{uuid.uuid4().hex}{suffix}"
-
-    try:
-        temp_path.write_bytes(image_bytes)
-        preprocess_ocr_image(temp_path)
-        completed = subprocess.run(
-            ["tesseract", str(temp_path), "stdout", "--psm", "6"],
-            capture_output=True,
-            check=False,
-            text=True,
-            timeout=30,
-        )
-    except FileNotFoundError:
-        return {
-            "available": False,
-            "text": "",
-            "tags": [],
-            "message": "Tesseract OCR is not installed or not on PATH. Paste the tags manually or install Tesseract.",
-        }
-    except (subprocess.SubprocessError, OSError) as error:
-        return {
-            "available": True,
-            "text": "",
-            "tags": [],
-            "message": f"OCR failed: {error}",
-        }
-    finally:
-        temp_path.unlink(missing_ok=True)
-
-    text = completed.stdout.strip()
-    tags = parse_ocr_tags(text)
-    message = "Tags detected from screenshot." if tags else "OCR ran but did not find tag text. Paste the tags manually."
-    if completed.returncode != 0 and not text:
-        message = completed.stderr.strip() or message
-
-    return {
-        "available": True,
-        "text": text,
-        "tags": tags,
-        "message": message,
-    }
-
-
-def image_bytes_from_data_url(data_url: str) -> tuple[bytes, str]:
-    if not data_url.startswith("data:image/") or "," not in data_url:
-        raise ValueError("imageDataUrl must be an image data URL")
-
-    header, encoded = data_url.split(",", 1)
-    suffix = ".png"
-    if "image/jpeg" in header:
-        suffix = ".jpg"
-    elif "image/webp" in header:
-        suffix = ".webp"
-    elif "image/gif" in header:
-        suffix = ".gif"
-
-    if ";base64" not in header:
-        raise ValueError("imageDataUrl must be base64 encoded")
-
-    return b64decode(encoded), suffix
-
-
-def preprocess_ocr_image(path: Path) -> None:
-    image = Image.open(path).convert("L")
-    image = ImageOps.autocontrast(image)
-    image = ImageEnhance.Contrast(image).enhance(3)
-    image = image.resize((image.width * 4, image.height * 4), Image.Resampling.LANCZOS)
-    image = image.point(lambda pixel: 0 if pixel < 180 else 255)
-    image.save(path)
-
-
-def parse_ocr_tags(text: str) -> list[str]:
-    normalized = " ".join(text.lower().replace("\r", "\n").replace("|", "\n").split())
-    known_matches = [tag for tag in KNOWN_TAGS if ocr_contains_tag(normalized, tag)]
-    if known_matches:
-        return known_matches
-
-    cleaned = text.replace("\r", "\n").replace("|", "\n")
-    cleaned = cleaned.replace("()", "\n").replace("( )", "\n").replace("c)", "\n").replace("o)", "\n")
-    candidates: list[str] = []
-    for raw_line in cleaned.splitlines():
-        line = " ".join(raw_line.replace("[", " ").replace("]", " ").split()).lower()
-        line = line.strip(":-*•()co ")
-        if line.startswith(("x ", "v ")):
-            line = line[2:].strip()
-        if not line or line == "tags":
-            continue
-        if any(word in line for word in TAG_WORDS):
-            candidates.append(line)
-    return list(dict.fromkeys(candidates))
-
-
-def ocr_contains_tag(text: str, tag: str) -> bool:
-    compact_text = text.replace(" ", "")
-    compact_tag = tag.replace(" ", "")
-    if compact_tag in compact_text:
-        return True
-
-    if tag == "invisionfree/zifboards site":
-        return "invisionfree/zif" in text or "zifooards" in text
-    if tag == "other scifi rpg":
-        return "other scfi" in text or "other scifi" in text
-    return False
-
-
 def powershell_quote(value: str) -> str:
     return "'" + value.replace("'", "''") + "'"
 
@@ -913,13 +733,6 @@ class Handler(BaseHTTPRequestHandler):
         if collection == "runner/start":
             try:
                 self.respond({"runner": start_runner(self.read_json())}, HTTPStatus.CREATED)
-            except ValueError as error:
-                self.respond({"error": str(error)}, HTTPStatus.BAD_REQUEST)
-            return
-
-        if collection == "tags/ocr":
-            try:
-                self.respond({"ocr": ocr_tags_from_payload(self.read_json())})
             except ValueError as error:
                 self.respond({"error": str(error)}, HTTPStatus.BAD_REQUEST)
             return

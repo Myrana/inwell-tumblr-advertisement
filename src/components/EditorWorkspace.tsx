@@ -17,12 +17,7 @@ type EditorWorkspaceProps = {
   checklistTags: string[];
   customTag: string;
   editor: Editor | null;
-  importImageDataUrl: string;
-  importImageName: string;
-  importStatus: string;
-  importText: string;
   newSubmitUrl: string;
-  parsedImportTagCount: number;
   submissionComplete: boolean;
   submitTargetStatus: string;
   targetOptions: TumblrSubmitTarget[];
@@ -31,15 +26,11 @@ type EditorWorkspaceProps = {
   onAddCustomTag: (event: FormEvent) => void;
   onAddSubmitTarget: (event: FormEvent) => void;
   onImageUpload: (event: ChangeEvent<HTMLInputElement>) => void;
-  onMergeActiveBlogTags: () => void;
   onQueueTargets: (targets: TumblrSubmitTarget[]) => void;
-  onReplaceActiveBlogTags: () => void;
   onSelectSubmitTarget: (targetId: string) => void;
-  onTagScreenshotUpload: (event: ChangeEvent<HTMLInputElement>) => void;
   onToggleTag: (tag: string) => void;
   onUpdateActiveAd: (patch: Partial<Advertisement>) => void;
   onUpdateCustomTag: (value: string) => void;
-  onUpdateImportText: (value: string) => void;
   onUpdateNewSubmitUrl: (value: string) => void;
   onVideoUpload: (event: ChangeEvent<HTMLInputElement>) => void;
 };
@@ -50,12 +41,7 @@ export function EditorWorkspace({
   checklistTags,
   customTag,
   editor,
-  importImageDataUrl,
-  importImageName,
-  importStatus,
-  importText,
   newSubmitUrl,
-  parsedImportTagCount,
   submissionComplete,
   submitTargetStatus,
   targetOptions,
@@ -64,15 +50,11 @@ export function EditorWorkspace({
   onAddCustomTag,
   onAddSubmitTarget,
   onImageUpload,
-  onMergeActiveBlogTags,
   onQueueTargets,
-  onReplaceActiveBlogTags,
   onSelectSubmitTarget,
-  onTagScreenshotUpload,
   onToggleTag,
   onUpdateActiveAd,
   onUpdateCustomTag,
-  onUpdateImportText,
   onUpdateNewSubmitUrl,
   onVideoUpload,
 }: EditorWorkspaceProps) {
@@ -242,51 +224,18 @@ export function EditorWorkspace({
                 </form>
               </div>
 
-              <div className="tag-import-panel">
-                <div className="tag-import-copy">
-                  <strong>Import this blog's tags from a screenshot</strong>
-                  <span>Upload the Tumblr tag form image, then review the detected or pasted tag text.</span>
+              {checklistTags.length ? (
+                <div className="tumblr-tag-grid">
+                  {checklistTags.map((tag) => (
+                    <label className="tumblr-tag-check" key={tag}>
+                      <input type="checkbox" checked={activeAd.tags.includes(tag)} onChange={() => onToggleTag(tag)} />
+                      {tag}
+                    </label>
+                  ))}
                 </div>
-                <div className="tag-import-grid">
-                  <label className="tumblr-file-button">
-                    Upload tag screenshot
-                    <input type="file" accept="image/*" onChange={onTagScreenshotUpload} />
-                  </label>
-                  {importImageDataUrl ? (
-                    <div className="tag-import-preview">
-                      <img src={importImageDataUrl} alt="" />
-                      <span>{importImageName}</span>
-                    </div>
-                  ) : null}
-                  <label>
-                    Tags found in screenshot
-                    <textarea
-                      value={importText}
-                      onChange={(event) => onUpdateImportText(event.target.value)}
-                      placeholder={"Paste one tag per line, or comma-separated tags, after uploading the screenshot."}
-                    />
-                  </label>
-                </div>
-                <div className="tag-import-actions">
-                  <span>{parsedImportTagCount} tags ready</span>
-                  <button className="secondary" type="button" onClick={onMergeActiveBlogTags}>
-                    Merge into blog
-                  </button>
-                  <button className="secondary" type="button" onClick={onReplaceActiveBlogTags}>
-                    Replace blog tags
-                  </button>
-                </div>
-                {importStatus ? <p className="tag-import-status">{importStatus}</p> : null}
-              </div>
-
-              <div className="tumblr-tag-grid">
-                {checklistTags.map((tag) => (
-                  <label className="tumblr-tag-check" key={tag}>
-                    <input type="checkbox" checked={activeAd.tags.includes(tag)} onChange={() => onToggleTag(tag)} />
-                    {tag}
-                  </label>
-                ))}
-              </div>
+              ) : (
+                <p className="manual-tag-empty">Add tags manually with the custom tag box.</p>
+              )}
             </div>
 
             <div className="tumblr-submit-footer">
