@@ -1,7 +1,6 @@
-import { Activity, Clock, Copy, History, List, Play, Plus, Send, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { Clock, Copy, List, Play, Plus, Send } from "lucide-react";
 import { formatDate, formatEasternDate, formatSubmissionStatus, isoToDateTimeLocal } from "../domain/format";
-import { displayLogTarget, latestRunnerRunId, queueLogGroups, runnerLogsOutsideQueue, visibleRunnerLogs } from "../domain/runnerLogs";
+import { queueLogGroups, visibleRunnerLogs } from "../domain/runnerLogs";
 import {
   RunnerLog,
   RunnerSettings,
@@ -20,7 +19,6 @@ type QueueWorkspaceProps = {
   runnerLogs: RunnerLog[];
   targetOptions: TumblrSubmitTarget[];
   onClearCompleted: () => void;
-  onClearRunnerLogs: () => void;
   onCopyRunnerPlan: () => void;
   onQueueTargets: (targets: TumblrSubmitTarget[]) => void;
   onRefreshRunnerStatus: () => void;
@@ -39,7 +37,6 @@ export function QueueWorkspace({
   runnerLogs,
   targetOptions,
   onClearCompleted,
-  onClearRunnerLogs,
   onCopyRunnerPlan,
   onQueueTargets,
   onRefreshRunnerStatus,
@@ -48,16 +45,12 @@ export function QueueWorkspace({
   onUpdateQueueSchedule,
   onUpdateQueueItem,
 }: QueueWorkspaceProps) {
-  const [showLogHistory, setShowLogHistory] = useState(false);
   const statusCounts = activeQueue.reduce<Record<SubmissionStatus, number>>(
     (counts, item) => ({ ...counts, [item.status]: counts[item.status] + 1 }),
     { queued: 0, scheduled: 0, running: 0, posted: 0, "needs-review": 0, failed: 0 },
   );
-  const latestRunId = latestRunnerRunId(runnerLogs);
-  const scopedLogs = visibleRunnerLogs(runnerLogs, showLogHistory);
+  const scopedLogs = visibleRunnerLogs(runnerLogs, false);
   const logGroups = queueLogGroups(activeQueue, scopedLogs);
-  const outsideQueueLogs = runnerLogsOutsideQueue(activeQueue, scopedLogs);
-  const logScopeLabel = showLogHistory ? "All history" : latestRunId ? `Latest run ${latestRunId}` : "Latest logs";
 
   return (
     <section className="submission-queue-panel queue-workspace" aria-label="Tumblr submission queue">
@@ -211,42 +204,6 @@ export function QueueWorkspace({
           <p className="queue-empty">Queue one or more Tumblr blogs, then run the automation step.</p>
         )}
       </div>
-      <section className="queue-log-panel" aria-label="Runner logs">
-        <div className="panel-heading">
-          <div>
-            <h2>Runner logs</h2>
-            <span className="queue-log-scope">{logScopeLabel}</span>
-          </div>
-          <Activity size={18} />
-        </div>
-        <div className="queue-actions queue-log-actions">
-          <button className="secondary" type="button" onClick={() => setShowLogHistory((current) => !current)}>
-            <History size={18} />
-            {showLogHistory ? "Show latest run" : "Show all history"}
-          </button>
-          <button className="secondary" type="button" onClick={onClearRunnerLogs} disabled={!runnerLogs.length}>
-            <Trash2 size={18} />
-            Clear logs
-          </button>
-        </div>
-        {scopedLogs.length ? (
-          <div className="queue-log-list">
-            {scopedLogs.slice(0, 18).map((log) => (
-              <article className={`queue-log queue-log-${log.level}`} key={log.id}>
-                <strong>{log.message}</strong>
-                <span>
-                  {displayLogTarget(log, activeQueue)} - {formatDate(log.createdAt)}
-                </span>
-              </article>
-            ))}
-            {outsideQueueLogs.length ? (
-              <p className="queue-empty">{outsideQueueLogs.length} log entry{outsideQueueLogs.length === 1 ? "" : "ies"} belong to another saved submission.</p>
-            ) : null}
-          </div>
-        ) : (
-          <p className="queue-empty">No runner logs yet.</p>
-        )}
-      </section>
     </section>
   );
 }
