@@ -67,6 +67,12 @@ export type RunnerSettings = {
   submit: boolean;
 };
 
+export type QueueScheduleSettings = {
+  enabled: boolean;
+  dailyTime: string;
+  timezone: "America/New_York";
+};
+
 export type RunnerStatus = {
   running: boolean;
   pid: number | null;

@@ -1074,6 +1074,17 @@ pre {
   margin-bottom: 10px;
 }
 
+.queue-daily-panel {
+  margin-bottom: 12px;
+}
+
+.queue-schedule-summary {
+  margin: 10px 0 0;
+  color: var(--ink);
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
 .queue-log-list {
   display: grid;
   gap: 8px;

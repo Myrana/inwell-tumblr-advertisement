@@ -242,6 +242,13 @@ test("templates can be saved and applied from their own workspace", { timeout: 4
   await page.getByRole("heading", { name: "Saved submissions", level: 1 }).waitFor();
   await page.getByRole("button", { name: "Queue" }).click();
   await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
+  await page.getByLabel("Run this queue daily").check();
+  await page.getByLabel("Daily run time").fill("09:30");
+  await page.getByText("Daily automation is on.").waitFor();
+  await page.getByText("Next queued local run:").waitFor();
+  const persistedSchedule = await page.evaluate(() => JSON.parse(localStorage.getItem("inwell-queue-schedule-settings") ?? "{}"));
+  assert.equal(persistedSchedule.enabled, true);
+  assert.equal(persistedSchedule.dailyTime, "09:30");
   await page.getByRole("button", { name: "Runner Logs" }).click();
   await page.getByRole("heading", { name: "Runner logs", level: 1 }).waitFor();
   await page.getByText("No runner logs yet.").waitFor();

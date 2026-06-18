@@ -1,7 +1,9 @@
 import { Clock, Copy, List, Play, Plus, Send } from "lucide-react";
 import { formatDate, formatEasternDate, formatSubmissionStatus, isoToDateTimeLocal } from "../domain/format";
 import { queueLogGroups, runnerLogExplanation, visibleRunnerLogs } from "../domain/runnerLogs";
+import { formatEasternRun, nextDailyRunAt, scheduleSummary } from "../domain/schedule";
 import {
+  QueueScheduleSettings,
   RunnerLog,
   RunnerSettings,
   RunnerStatus,
@@ -14,6 +16,7 @@ type QueueWorkspaceProps = {
   activeQueue: SubmissionQueueItem[];
   activeSubmitTarget: TumblrSubmitTarget;
   queueStatus: string;
+  queueScheduleSettings: QueueScheduleSettings;
   runnerSettings: RunnerSettings;
   runnerState: RunnerStatus | null;
   runnerLogs: RunnerLog[];
@@ -21,6 +24,7 @@ type QueueWorkspaceProps = {
   onClearCompleted: () => void;
   onCopyRunnerPlan: () => void;
   onQueueTargets: (targets: TumblrSubmitTarget[]) => void;
+  onQueueScheduleSettingsChange: (patch: Partial<QueueScheduleSettings>) => void;
   onRefreshRunnerStatus: () => void;
   onRunnerSettingsChange: (patch: Partial<RunnerSettings>) => void;
   onStartRunner: () => void;
@@ -32,6 +36,7 @@ export function QueueWorkspace({
   activeQueue,
   activeSubmitTarget,
   queueStatus,
+  queueScheduleSettings,
   runnerSettings,
   runnerState,
   runnerLogs,
@@ -39,6 +44,7 @@ export function QueueWorkspace({
   onClearCompleted,
   onCopyRunnerPlan,
   onQueueTargets,
+  onQueueScheduleSettingsChange,
   onRefreshRunnerStatus,
   onRunnerSettingsChange,
   onStartRunner,
@@ -51,6 +57,7 @@ export function QueueWorkspace({
   );
   const scopedLogs = visibleRunnerLogs(runnerLogs, false);
   const logGroups = queueLogGroups(activeQueue, scopedLogs);
+  const nextRunAt = queueScheduleSettings.enabled ? nextDailyRunAt(queueScheduleSettings) : "";
 
   function queueItemExplanation(item: SubmissionQueueItem) {
     const logs = logGroups.find((group) => group.item.id === item.id)?.logs ?? [];
@@ -71,6 +78,32 @@ export function QueueWorkspace({
             <strong>{count}</strong>
           </div>
         ))}
+      </div>
+      <div className="runner-control-panel queue-daily-panel" aria-label="Daily automation schedule">
+        <div className="field-grid three">
+          <label className="runner-submit-toggle">
+            <input
+              checked={queueScheduleSettings.enabled}
+              type="checkbox"
+              onChange={(event) => onQueueScheduleSettingsChange({ enabled: event.target.checked })}
+            />
+            Run this queue daily
+          </label>
+          <label>
+            Daily run time
+            <input
+              type="time"
+              value={queueScheduleSettings.dailyTime}
+              onChange={(event) => onQueueScheduleSettingsChange({ dailyTime: event.target.value })}
+            />
+          </label>
+          <label>
+            Timezone
+            <input readOnly value="America/New_York" />
+          </label>
+        </div>
+        <p className="queue-schedule-summary">{scheduleSummary(queueScheduleSettings)}</p>
+        {nextRunAt ? <p className="queue-empty">Next queued local run: {formatEasternRun(nextRunAt)} ET</p> : null}
       </div>
       <div className="runner-control-panel" aria-label="Local Tumblr runner controls">
         <div className="field-grid three">

@@ -1,4 +1,5 @@
 import {
+  queueScheduleSettingsStorageKey,
   runnerSettingsStorageKey,
   storageKey,
   submissionQueueStorageKey,
@@ -11,7 +12,7 @@ import { loadSubmissionQueue } from "./queue";
 import { loadSubmitTargets } from "./submitTargets";
 import { loadTagProfiles } from "./tags";
 import { normalizeTemplate } from "./templates";
-import { RunnerSettings, SavedTemplate, StoredState } from "./types";
+import { QueueScheduleSettings, RunnerSettings, SavedTemplate, StoredState } from "./types";
 
 export { loadSubmissionQueue, loadSubmitTargets, loadTagProfiles };
 
@@ -45,6 +46,21 @@ export function loadRunnerSettings(): RunnerSettings {
   }
 }
 
+export function loadQueueScheduleSettings(): QueueScheduleSettings {
+  try {
+    const raw = localStorage.getItem(queueScheduleSettingsStorageKey);
+    const parsed = raw ? (JSON.parse(raw) as Partial<QueueScheduleSettings>) : {};
+    const dailyTime = typeof parsed.dailyTime === "string" && /^\d{2}:\d{2}$/.test(parsed.dailyTime) ? parsed.dailyTime : "09:00";
+    return {
+      enabled: Boolean(parsed.enabled),
+      dailyTime,
+      timezone: "America/New_York",
+    };
+  } catch {
+    return { enabled: false, dailyTime: "09:00", timezone: "America/New_York" };
+  }
+}
+
 export function loadTemplates(): SavedTemplate[] {
   try {
     const raw = localStorage.getItem(templateStorageKey);
@@ -73,6 +89,10 @@ export function saveTagProfiles(value: unknown) {
 
 export function saveRunnerSettings(value: unknown) {
   localStorage.setItem(runnerSettingsStorageKey, JSON.stringify(value));
+}
+
+export function saveQueueScheduleSettings(value: unknown) {
+  localStorage.setItem(queueScheduleSettingsStorageKey, JSON.stringify(value));
 }
 
 export function saveTemplates(value: unknown) {

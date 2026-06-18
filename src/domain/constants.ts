@@ -6,6 +6,7 @@ export const storageKey = "inwell-ad-assistant-state";
 export const tagProfileStorageKey = "inwell-blog-tag-profiles";
 export const submitTargetStorageKey = "inwell-tumblr-submit-targets";
 export const submissionQueueStorageKey = "inwell-tumblr-submission-queue";
+export const queueScheduleSettingsStorageKey = "inwell-queue-schedule-settings";
 export const runnerSettingsStorageKey = "inwell-tumblr-runner-settings";
 export const templateStorageKey = "inkwell-saved-templates";
 export const apiBaseUrl = configuredApiBaseUrl || (import.meta.env.DEV ? "http://127.0.0.1:8021/api" : "/api");
