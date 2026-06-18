@@ -100,7 +100,9 @@ export function toApiQueueItem(item: SubmissionQueueItem): ApiQueueItem {
 export function fromApiRunnerLog(log: ApiRunnerLog): RunnerLog {
   return {
     id: log.id,
+    runId: log.run_id ?? "",
     queueItemId: log.queue_item_id,
+    targetName: log.target_name ?? "",
     level: log.level,
     message: log.message,
     details: log.details ?? {},
@@ -128,4 +130,8 @@ export async function removeQueueItem(id: string) {
 export async function loadRunnerLogs() {
   const response = await apiRequest<{ logs: ApiRunnerLog[] }>("/runner/logs");
   return response.logs.map(fromApiRunnerLog);
+}
+
+export async function clearRunnerLogs() {
+  await apiRequest("/runner/logs", { method: "DELETE" });
 }

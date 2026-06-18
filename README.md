@@ -110,7 +110,7 @@ npm.cmd run api
 
 ### Database schema versions
 
-The API keeps a `schema_migrations` table in PostgreSQL. `backend/app.py` records the current baseline as `0001_initial_schema` during startup after the required tables are present.
+The API keeps a `schema_migrations` table in PostgreSQL. `backend/app.py` records the current baseline as `0003_runner_log_runs` during startup after the required tables and additive migrations are present.
 
 For future database changes:
 

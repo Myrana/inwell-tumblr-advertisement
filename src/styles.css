@@ -1048,9 +1048,32 @@ pre {
   border-top: 1px solid var(--line);
 }
 
+.queue-log-scope {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.queue-log-actions {
+  margin-bottom: 10px;
+}
+
 .queue-log-list {
   display: grid;
   gap: 8px;
+}
+
+.queue-item-log-list {
+  display: grid;
+  gap: 6px;
+}
+
+.queue-item-log-list .queue-log {
+  padding: 8px;
+  background: #f8fafb;
 }
 
 .queue-log {
@@ -1069,6 +1092,7 @@ pre {
 
 .queue-log-error {
   border-left-color: var(--coral);
+  background: #fff7f5;
 }
 
 .queue-log strong {

@@ -24,6 +24,7 @@ export function parseArgs(argv) {
     submit: false,
     slowMo: 0,
     apiBaseUrl: "",
+    runId: "",
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -46,6 +47,8 @@ export function parseArgs(argv) {
       options.slowMo = Number(argv[++index] ?? "0") || 0;
     } else if (arg === "--api-base") {
       options.apiBaseUrl = String(argv[++index] ?? "").replace(/\/$/, "");
+    } else if (arg === "--run-id") {
+      options.runId = String(argv[++index] ?? "");
     } else if (!arg.startsWith("--") && !options.planPath) {
       options.planPath = arg;
     } else {

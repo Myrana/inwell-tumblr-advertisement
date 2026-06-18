@@ -71,11 +71,14 @@ export type RunnerStatus = {
   pid: number | null;
   plan_path: string;
   command: string[];
+  run_id?: string;
 };
 
 export type RunnerLog = {
   id: string;
+  runId: string;
   queueItemId: string;
+  targetName: string;
   level: "info" | "warning" | "error";
   message: string;
   details: Record<string, unknown>;
@@ -136,7 +139,9 @@ export type ApiQueueItem = {
 
 export type ApiRunnerLog = {
   id: string;
+  run_id?: string;
   queue_item_id: string;
+  target_name?: string;
   level: "info" | "warning" | "error";
   message: string;
   details?: Record<string, unknown>;

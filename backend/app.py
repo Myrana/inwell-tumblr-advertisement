@@ -25,11 +25,12 @@ DEFAULT_TIMEZONE = "America/New_York"
 DEFAULT_PGHOST = "192.168.1.3"
 DEFAULT_PGDATABASE = "inwell_tumblr_advertisement"
 DEFAULT_PGUSER = "postgres"
-CURRENT_SCHEMA_VERSION = "0002_queue_logs"
+CURRENT_SCHEMA_VERSION = "0003_runner_log_runs"
 REPO_ROOT = Path(__file__).resolve().parent.parent
 RUNNER_PLAN_PATH = REPO_ROOT / "tumblr-runner-plan.json"
 RUNNER_PROCESS: subprocess.Popen[Any] | None = None
 RUNNER_LAST_COMMAND: list[str] = []
+RUNNER_LAST_RUN_ID = ""
 TAG_WORDS = {
     "advertisement",
     "animated",
@@ -225,7 +226,9 @@ def initialize(connection: ConnectionLike) -> None:
         """
         CREATE TABLE IF NOT EXISTS runner_logs (
             id TEXT PRIMARY KEY,
+            run_id TEXT NOT NULL DEFAULT '',
             queue_item_id TEXT NOT NULL,
+            target_name TEXT NOT NULL DEFAULT '',
             level TEXT NOT NULL DEFAULT 'info',
             message TEXT NOT NULL,
             details JSONB NOT NULL DEFAULT '{}'::jsonb,
@@ -233,6 +236,8 @@ def initialize(connection: ConnectionLike) -> None:
         )
         """
     )
+    connection.execute("ALTER TABLE runner_logs ADD COLUMN IF NOT EXISTS run_id TEXT NOT NULL DEFAULT ''")
+    connection.execute("ALTER TABLE runner_logs ADD COLUMN IF NOT EXISTS target_name TEXT NOT NULL DEFAULT ''")
     seed_templates(connection)
     record_schema_version(connection, CURRENT_SCHEMA_VERSION)
 
@@ -345,6 +350,8 @@ def row_to_queue_item(row: Any) -> dict[str, Any]:
 
 def row_to_runner_log(row: Any) -> dict[str, Any]:
     data = row_to_dict(row)
+    data["run_id"] = str(data.get("run_id") or "")
+    data["target_name"] = str(data.get("target_name") or "")
     details = data.get("details")
     if isinstance(details, str):
         try:
@@ -603,7 +610,9 @@ def runner_log_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
 
     return {
         "id": str(payload.get("id") or f"log-{uuid.uuid4().hex}").strip(),
+        "run_id": str(payload.get("run_id", "")).strip(),
         "queue_item_id": str(payload.get("queue_item_id", "")).strip(),
+        "target_name": str(payload.get("target_name", "")).strip(),
         "level": level,
         "message": str(payload.get("message", "")).strip(),
         "details": details,
@@ -619,14 +628,21 @@ def record_runner_log(connection: ConnectionLike, payload: dict[str, Any]) -> di
     if not log["message"]:
         raise ValueError("message is required")
 
+    if not log["target_name"]:
+        existing = connection.execute("SELECT * FROM submission_queue WHERE id = %s", (log["queue_item_id"],)).fetchone()
+        if existing:
+            log["target_name"] = str(row_to_queue_item(existing).get("target_name") or "")
+
     connection.execute(
         """
-        INSERT INTO runner_logs (id, queue_item_id, level, message, details, created_at)
-        VALUES (%s, %s, %s, %s, %s::jsonb, %s)
+        INSERT INTO runner_logs (id, run_id, queue_item_id, target_name, level, message, details, created_at)
+        VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb, %s)
         """,
         (
             log["id"],
+            log["run_id"],
             log["queue_item_id"],
+            log["target_name"],
             log["level"],
             log["message"],
             json.dumps(log["details"]),
@@ -665,36 +681,6 @@ def touch_queue_item_status(
     upsert_queue_item(connection, data)
 
 
-def mark_runner_items_started(items: list[Any]) -> None:
-    try:
-        with connect() as connection:
-            now = utc_now()
-            for item in items:
-                if not isinstance(item, dict) or not item.get("id"):
-                    continue
-                persisted = upsert_queue_item(
-                    connection,
-                    {
-                        **item,
-                        "status": "running",
-                        "last_run_at": now.isoformat(),
-                        "notes": "Runner launched this queue item.",
-                    },
-                )
-                record_runner_log(
-                    connection,
-                    {
-                        "queue_item_id": persisted["id"],
-                        "level": "info",
-                        "status": "running",
-                        "message": "Runner launched this queue item.",
-                        "created_at": now.isoformat(),
-                    },
-                )
-    except Exception as error:
-        print(f"[api] Could not persist runner start state: {error}")
-
-
 def runner_status() -> dict[str, Any]:
     running = RUNNER_PROCESS is not None and RUNNER_PROCESS.poll() is None
     return {
@@ -702,11 +688,12 @@ def runner_status() -> dict[str, Any]:
         "pid": RUNNER_PROCESS.pid if RUNNER_PROCESS is not None else None,
         "plan_path": str(RUNNER_PLAN_PATH),
         "command": RUNNER_LAST_COMMAND,
+        "run_id": RUNNER_LAST_RUN_ID,
     }
 
 
 def start_runner(payload: dict[str, Any]) -> dict[str, Any]:
-    global RUNNER_LAST_COMMAND, RUNNER_PROCESS
+    global RUNNER_LAST_COMMAND, RUNNER_LAST_RUN_ID, RUNNER_PROCESS
 
     items = payload.get("items")
     if not isinstance(items, list) or not items:
@@ -715,11 +702,12 @@ def start_runner(payload: dict[str, Any]) -> dict[str, Any]:
     if RUNNER_PROCESS is not None and RUNNER_PROCESS.poll() is None:
         raise ValueError("runner is already running")
 
-    mark_runner_items_started(items)
+    run_id = str(payload.get("runId") or f"run-{uuid.uuid4().hex}").strip()
 
     plan = {
         "version": 1,
         "workflow": "tumblr-submission-queue",
+        "runId": run_id,
         "generatedAt": utc_now().isoformat(),
         "items": items,
     }
@@ -742,6 +730,8 @@ def start_runner(payload: dict[str, Any]) -> dict[str, Any]:
         str(slow_mo),
         "--api-base",
         "http://127.0.0.1:8021/api",
+        "--run-id",
+        run_id,
     ]
     if media_dir:
         runner_args.extend(["--media-dir", media_dir])
@@ -762,6 +752,7 @@ def start_runner(payload: dict[str, Any]) -> dict[str, Any]:
         creationflags = 0
 
     RUNNER_LAST_COMMAND = runner_args
+    RUNNER_LAST_RUN_ID = run_id
     RUNNER_PROCESS = subprocess.Popen(command, cwd=REPO_ROOT, creationflags=creationflags)
     return runner_status()
 
@@ -907,7 +898,7 @@ class Handler(BaseHTTPRequestHandler):
                 return
 
             if collection == "runner/logs" and item_id is None:
-                rows = connection.execute("SELECT * FROM runner_logs ORDER BY created_at DESC LIMIT 100").fetchall()
+                rows = connection.execute("SELECT * FROM runner_logs ORDER BY created_at DESC LIMIT 150").fetchall()
                 self.respond({"logs": [row_to_runner_log(row) for row in rows]})
                 return
 
@@ -955,6 +946,12 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_DELETE(self) -> None:
         collection, item_id = self.route()
+        if collection == "runner/logs" and item_id is None:
+            with connect() as connection:
+                connection.execute("DELETE FROM runner_logs")
+            self.respond({"deleted": "runner_logs"})
+            return
+
         if item_id is None or collection not in {"advertisements", "templates", "queue"}:
             self.send_error(HTTPStatus.NOT_FOUND)
             return
