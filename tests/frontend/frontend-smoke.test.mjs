@@ -301,7 +301,7 @@ test("runner logs are grouped by expandable queue run", { timeout: 40000 }, asyn
             queue_item_id: "queue-new",
             target_name: "allthingsroleplay",
             level: "info",
-            message: "Fields filled and ready for manual review.",
+            message: "Submit button clicked.",
             details: {},
             created_at: "2026-06-18T21:30:00.000Z",
           },
@@ -372,10 +372,11 @@ test("runner logs are grouped by expandable queue run", { timeout: 40000 }, asyn
   await page.getByRole("button", { name: "Runner Logs" }).click();
   await page.getByRole("heading", { name: "Runner logs", level: 1 }).waitFor();
   await page.getByRole("button", { name: /Latest run run-new/ }).waitFor();
-  assert.equal(await page.locator(".queue-log strong", { hasText: "Fields filled and ready for manual review." }).count(), 2);
+  assert.equal(await page.locator(".queue-log strong", { hasText: "Fields filled and ready for manual review." }).count(), 1);
   await page.getByLabel("Run run-new target summaries").getByText("allthingsroleplay").waitFor();
   await page.getByLabel("Run run-new target summaries").getByText("jcinktinder").waitFor();
-  assert.equal(await page.getByLabel("Run run-new target summaries").getByText("Ready for manual review").count(), 2);
+  await page.getByLabel("Run run-new target summaries").getByText("Submitted").waitFor();
+  assert.equal(await page.getByLabel("Run run-new target summaries").getByText("Ready for manual review").count(), 1);
   assert.equal(await page.getByRole("button", { name: /Run run-old/ }).count(), 0);
 
   await page.getByRole("button", { name: "Show all history" }).click();
@@ -532,6 +533,12 @@ test("running the queue sends a run id and shows failure explanations", { timeou
   assert.equal(startPayload.items[0].id, "queue-run-allthingsroleplay");
   await page.getByText("Why this failed").waitFor();
   await page.getByText("The Playwright browser or tab closed before the runner finished.").waitFor();
+  assert.equal(await page.getByRole("button", { name: "Running" }).count(), 0);
+  assert.equal(await page.getByRole("button", { name: "Needs review" }).count(), 0);
+  await page.getByText("Manual override").click();
+  await page.getByRole("button", { name: "Requeue" }).waitFor();
+  await page.getByRole("button", { name: "Mark posted" }).waitFor();
+  await page.getByRole("button", { name: "Mark failed" }).waitFor();
   await page.getByRole("button", { name: "Runner Logs" }).click();
   await page.getByRole("button", { name: /Latest run run-visible/ }).waitFor();
   await page.getByText("Why this run failed").waitFor();

@@ -183,7 +183,7 @@ async function runQueueItem(context, item, options) {
     await reportRunnerEvent(
       options,
       item,
-      clicked ? "posted" : "needs-review",
+      clicked ? "submitted" : "needs-review",
       clicked ? "Submit button clicked." : "No submit button found.",
       clicked ? "info" : "warning",
     );

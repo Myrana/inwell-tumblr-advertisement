@@ -40,7 +40,7 @@ export type TumblrSubmitTarget = {
   forumUrl: string;
 };
 
-export type SubmissionStatus = "queued" | "scheduled" | "running" | "posted" | "needs-review" | "failed";
+export type SubmissionStatus = "queued" | "scheduled" | "running" | "submitted" | "posted" | "needs-review" | "failed";
 
 export type SubmissionQueueItem = {
   id: string;

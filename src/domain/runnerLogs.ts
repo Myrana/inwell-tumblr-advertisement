@@ -20,7 +20,7 @@ export type RunnerLogRunGroup = {
 export type RunnerLogTargetSummary = {
   id: string;
   name: string;
-  status: "ready" | "failed" | "needs-review" | "running";
+  status: "ready" | "submitted" | "failed" | "needs-review" | "running";
   latestAt: string;
   explanation: string;
 };
@@ -109,15 +109,16 @@ export function runnerLogTargetSummaries(logs: RunnerLog[]): RunnerLogTargetSumm
   return Array.from(byTarget.entries()).map(([target, targetLogs]) => {
     const failedLog = targetLogs.find((log) => log.level === "error");
     const warningLog = targetLogs.find((log) => log.level === "warning");
+    const submittedLog = targetLogs.find((log) => /submit button clicked|submitted/i.test(log.message));
     const readyLog = targetLogs.find((log) => /ready for manual review/i.test(log.message));
     const runningLog = targetLogs.find((log) => /opening|launched|filled/i.test(log.message));
-    const selectedLog = failedLog ?? warningLog ?? readyLog ?? runningLog ?? targetLogs[0];
+    const selectedLog = failedLog ?? warningLog ?? submittedLog ?? readyLog ?? runningLog ?? targetLogs[0];
     const explanation = failedLog || warningLog ? runnerLogExplanation(selectedLog) : "";
 
     return {
       id: target,
       name: target,
-      status: failedLog ? "failed" : warningLog ? "needs-review" : readyLog ? "ready" : "running",
+      status: failedLog ? "failed" : warningLog ? "needs-review" : submittedLog ? "submitted" : readyLog ? "ready" : "running",
       latestAt: targetLogs[0]?.createdAt ?? "",
       explanation,
     };

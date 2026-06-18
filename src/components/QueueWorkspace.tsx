@@ -49,7 +49,7 @@ export function QueueWorkspace({
 }: QueueWorkspaceProps) {
   const statusCounts = activeQueue.reduce<Record<SubmissionStatus, number>>(
     (counts, item) => ({ ...counts, [item.status]: counts[item.status] + 1 }),
-    { queued: 0, scheduled: 0, running: 0, posted: 0, "needs-review": 0, failed: 0 },
+    { queued: 0, scheduled: 0, running: 0, submitted: 0, posted: 0, "needs-review": 0, failed: 0 },
   );
   const scopedLogs = visibleRunnerLogs(runnerLogs, false);
   const logGroups = queueLogGroups(activeQueue, scopedLogs);
@@ -171,45 +171,39 @@ export function QueueWorkspace({
                   {item.submitUrl}
                 </a>
               </div>
-              <div className="queue-item-actions">
-                <button
-                  className="secondary"
-                  type="button"
-                  onClick={() => onUpdateQueueItem(item.id, "running", "Runner started this target.")}
-                >
-                  Running
-                </button>
-                <button
-                  className="secondary"
-                  type="button"
-                  onClick={() =>
-                    onUpdateQueueItem(item.id, "needs-review", "Tumblr requires login, captcha, media upload, or form review.")
-                  }
-                >
-                  Needs review
-                </button>
-                <button
-                  className="secondary"
-                  type="button"
-                  onClick={() => onUpdateQueueItem(item.id, "posted", "Marked posted after Tumblr accepted the form.")}
-                >
-                  Posted
-                </button>
-                <button
-                  className="secondary"
-                  type="button"
-                  onClick={() => onUpdateQueueItem(item.id, "failed", "Marked failed for runner retry or review.")}
-                >
-                  Failed
-                </button>
-              </div>
-              <p>{item.notes}</p>
+              {item.status === "failed" || item.status === "needs-review" ? null : <p>{item.notes}</p>}
               {item.status === "failed" || item.status === "needs-review" ? (
                 <div className={`queue-item-explanation ${item.status === "failed" ? "failed" : "warning"}`} role="status">
-                  <strong>{item.status === "failed" ? "Why this failed" : "Why this needs review"}</strong>
+                  <strong>{item.status === "failed" ? "Why this failed" : "Needs review because"}</strong>
                   <span>{queueItemExplanation(item)}</span>
                 </div>
               ) : null}
+              <details className="queue-item-overrides">
+                <summary>Manual override</summary>
+                <div className="queue-item-actions">
+                  <button
+                    className="secondary"
+                    type="button"
+                    onClick={() => onUpdateQueueItem(item.id, "queued", "Requeued for the next automation run.")}
+                  >
+                    Requeue
+                  </button>
+                  <button
+                    className="secondary"
+                    type="button"
+                    onClick={() => onUpdateQueueItem(item.id, "posted", "Marked posted after Tumblr accepted the form.")}
+                  >
+                    Mark posted
+                  </button>
+                  <button
+                    className="secondary"
+                    type="button"
+                    onClick={() => onUpdateQueueItem(item.id, "failed", "Marked failed for runner retry or review.")}
+                  >
+                    Mark failed
+                  </button>
+                </div>
+              </details>
               {logGroups.find((group) => group.item.id === item.id)?.logs.length ? (
                 <div className="queue-item-log-list" aria-label={`Runner logs for ${item.targetName}`}>
                   {logGroups

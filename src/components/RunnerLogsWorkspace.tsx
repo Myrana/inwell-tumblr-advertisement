@@ -179,6 +179,9 @@ function targetSummaryLabel(status: string) {
   if (status === "needs-review") {
     return "Needs review";
   }
+  if (status === "submitted") {
+    return "Submitted";
+  }
   if (status === "ready") {
     return "Ready for manual review";
   }
