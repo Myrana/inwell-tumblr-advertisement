@@ -8,6 +8,7 @@ import {
   appearsLoggedInToTumblr,
   frameCandidateScore,
   fieldsForItem,
+  loginWaitMessage,
   loadRunnerPlan,
   materializeDataUrl,
   parseArgs,
@@ -69,11 +70,11 @@ async function waitForTumblrLogin(context, options) {
     return;
   }
 
-  console.log("[login] Log into Tumblr in the browser, wait for the dashboard to settle, then press Enter here.");
-  await new Promise((resolve) => {
-    process.stdin.resume();
-    process.stdin.once("data", resolve);
-  });
+  console.log(loginWaitMessage(300));
+  const ready = await waitForTumblrSession(page, 300000);
+  if (!ready) {
+    console.log("[login] Tumblr session was not detected before the timeout; continuing to the queue for review.");
+  }
   await page.close().catch(() => undefined);
 }
 
@@ -87,6 +88,19 @@ async function tumblrSessionReady(page) {
     }
 
     await page.waitForTimeout(500).catch(() => undefined);
+  }
+
+  return false;
+}
+
+async function waitForTumblrSession(page, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (await tumblrSessionReady(page)) {
+      return true;
+    }
+
+    await page.waitForTimeout(1000).catch(() => undefined);
   }
 
   return false;

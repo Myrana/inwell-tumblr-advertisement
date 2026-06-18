@@ -134,6 +134,10 @@ export function reviewPagesOpenMessage(readyReviewCount) {
   return `[runner] ${readyReviewCount} queued page${readyReviewCount === 1 ? " is" : "s are"} open for review. Submit or review in the browser, then close ${readyReviewCount === 1 ? "that browser tab" : "those browser tabs"} when done.`;
 }
 
+export function loginWaitMessage(timeoutSeconds) {
+  return `[login] Log into Tumblr in the browser if needed. The runner will continue automatically when Tumblr is ready, or after ${timeoutSeconds} seconds.`;
+}
+
 export function appearsLoggedInToTumblr(text, url = "") {
   const haystack = `${url}\n${text}`;
   return (
