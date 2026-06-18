@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import mimetypes
 import os
 import subprocess
 import uuid
@@ -24,6 +25,7 @@ DEFAULT_PGDATABASE = "inwell_tumblr_advertisement"
 DEFAULT_PGUSER = "postgres"
 CURRENT_SCHEMA_VERSION = "0003_runner_log_runs"
 REPO_ROOT = Path(__file__).resolve().parent.parent
+DIST_ROOT = REPO_ROOT / "dist"
 RUNNER_PLAN_PATH = REPO_ROOT / "tumblr-runner-plan.json"
 RUNNER_PROCESS: subprocess.Popen[Any] | None = None
 RUNNER_LAST_COMMAND: list[str] = []
@@ -90,6 +92,11 @@ def connect() -> psycopg.Connection[Any]:
 
     initialize(connection)
     return connection
+
+
+def initialize_database() -> None:
+    with connect():
+        pass
 
 
 def initialize(connection: ConnectionLike) -> None:
@@ -659,7 +666,7 @@ def start_runner(payload: dict[str, Any]) -> dict[str, Any]:
         "--slow-mo",
         str(slow_mo),
         "--api-base",
-        "http://127.0.0.1:8021/api",
+        os.environ.get("RUNNER_API_BASE_URL", f"http://127.0.0.1:{os.environ.get('PORT', '8021')}/api"),
         "--run-id",
         run_id,
     ]
@@ -699,6 +706,10 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         collection, item_id = self.route()
+        if collection is None and item_id is None:
+            self.serve_static()
+            return
+
         if collection == "runner/status" and item_id is None:
             self.respond({"runner": runner_status()})
             return
@@ -725,6 +736,32 @@ class Handler(BaseHTTPRequestHandler):
                 return
 
         self.send_error(HTTPStatus.NOT_FOUND)
+
+    def serve_static(self) -> None:
+        parsed_path = urlparse(self.path).path
+        requested_path = parsed_path.lstrip("/") or "index.html"
+        candidate = (DIST_ROOT / requested_path).resolve()
+        dist_root = DIST_ROOT.resolve()
+
+        try:
+            candidate.relative_to(dist_root)
+        except ValueError:
+            candidate = DIST_ROOT / "index.html"
+
+        if not candidate.is_file():
+            candidate = DIST_ROOT / "index.html"
+
+        if not candidate.is_file():
+            self.send_error(HTTPStatus.NOT_FOUND)
+            return
+
+        body = candidate.read_bytes()
+        content_type = mimetypes.guess_type(candidate.name)[0] or "application/octet-stream"
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
 
     def do_POST(self) -> None:
         collection, item_id = self.route()
@@ -837,9 +874,12 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
 
 
-def run(port: int = 8021) -> None:
-    server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
-    print(f"Inwell API listening on http://127.0.0.1:{port}")
+def run(port: int | None = None, host: str | None = None) -> None:
+    port = port or int(os.environ.get("PORT", "8021"))
+    host = host or os.environ.get("HOST", "127.0.0.1")
+    initialize_database()
+    server = ThreadingHTTPServer((host, port), Handler)
+    print(f"Inwell web service listening on http://{host}:{port}")
     server.serve_forever()
 
 

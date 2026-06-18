@@ -14,6 +14,7 @@ from app import (
     database_settings,
     initialize,
     record_runner_log,
+    run,
     start_runner,
     upsert_advertisement,
     upsert_queue_item,
@@ -427,6 +428,70 @@ class PersistenceTests(unittest.TestCase):
             app.RUNNER_PROCESS = old_process
             app.RUNNER_LAST_COMMAND = old_command
             app.RUNNER_PLAN_PATH = old_plan
+
+    def test_start_runner_uses_runtime_port_for_api_callback(self) -> None:
+        temp_plan = Path("backend-test-runner-plan.json")
+        process = Mock()
+        process.pid = 123
+        process.poll.return_value = None
+        old_process = app.RUNNER_PROCESS
+        old_command = app.RUNNER_LAST_COMMAND
+        old_plan = app.RUNNER_PLAN_PATH
+        old_port = os.environ.get("PORT")
+        old_runner_api_base = os.environ.get("RUNNER_API_BASE_URL")
+        app.RUNNER_PROCESS = None
+        app.RUNNER_LAST_COMMAND = []
+        app.RUNNER_PLAN_PATH = temp_plan
+        os.environ["PORT"] = "9000"
+        os.environ.pop("RUNNER_API_BASE_URL", None)
+
+        try:
+            with patch("app.subprocess.Popen", return_value=process):
+                result = start_runner({"items": [{"id": "queue-1", "runnerPayload": "{}"}]})
+
+            api_base_index = result["command"].index("--api-base") + 1
+            self.assertEqual(result["command"][api_base_index], "http://127.0.0.1:9000/api")
+        finally:
+            if temp_plan.exists():
+                temp_plan.unlink()
+            app.RUNNER_PROCESS = old_process
+            app.RUNNER_LAST_COMMAND = old_command
+            app.RUNNER_PLAN_PATH = old_plan
+            if old_port is None:
+                os.environ.pop("PORT", None)
+            else:
+                os.environ["PORT"] = old_port
+            if old_runner_api_base is None:
+                os.environ.pop("RUNNER_API_BASE_URL", None)
+            else:
+                os.environ["RUNNER_API_BASE_URL"] = old_runner_api_base
+
+    def test_run_honors_host_and_port_environment(self) -> None:
+        old_host = os.environ.get("HOST")
+        old_port = os.environ.get("PORT")
+        os.environ["HOST"] = "0.0.0.0"
+        os.environ["PORT"] = "9001"
+        server = Mock()
+        try:
+            with (
+                patch("app.initialize_database") as initialize_database,
+                patch("app.ThreadingHTTPServer", return_value=server) as server_factory,
+            ):
+                run()
+
+            initialize_database.assert_called_once()
+            server_factory.assert_called_once()
+            self.assertEqual(server_factory.call_args.args[0], ("0.0.0.0", 9001))
+            server.serve_forever.assert_called_once()
+        finally:
+            if old_host is None:
+                os.environ.pop("HOST", None)
+            else:
+                os.environ["HOST"] = old_host
+            if old_port is None:
+                os.environ.pop("PORT", None)
+            else:
+                os.environ["PORT"] = old_port
 
     def test_start_runner_rejects_empty_queue(self) -> None:
         with self.assertRaises(ValueError):

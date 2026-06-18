@@ -108,6 +108,17 @@ npm.cmd run api
 
 `DATABASE_URL` can be used instead of the individual `PG*` variables. Passwords and connection strings should stay in your local environment, not in source control.
 
+## Railway Docker Deployment
+
+The repository includes a production `Dockerfile` for Railway. It builds the
+Vite frontend, runs the Python web service as a non-root `inwell` user, binds
+to Railway's `PORT`, and serves the app and API from one web service.
+
+Attach a Railway PostgreSQL database to the web service so Railway provides
+`DATABASE_URL`. On startup, the web service connects through `DATABASE_URL` and
+initializes the schema tables and `schema_migrations` record before accepting
+traffic.
+
 ### Database schema versions
 
 The API keeps a `schema_migrations` table in PostgreSQL. `backend/app.py` records the current baseline as `0003_runner_log_runs` during startup after the required tables and additive migrations are present.
