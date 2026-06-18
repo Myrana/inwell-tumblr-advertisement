@@ -4,6 +4,7 @@ import {
   appearsLoggedInToTumblr,
   dataUrlToBuffer,
   fieldsForItem,
+  fillRichTextEditorInDocument,
   frameCandidateScore,
   htmlToPlainText,
   loginWaitMessage,
@@ -82,6 +83,91 @@ test("fieldsForItem includes the saved option name as a title hint", () => {
   });
 
   assert.equal(fields.title, "Saved title");
+});
+
+test("fillRichTextEditorInDocument clears and blurs editor selection after fill", () => {
+  const originalWindow = globalThis.window;
+  const originalDocument = globalThis.document;
+  const originalInputEvent = globalThis.InputEvent;
+  const originalEvent = globalThis.Event;
+  const events = [];
+  const calls = {
+    addRange: 0,
+    blur: 0,
+    collapse: 0,
+    focus: 0,
+    removeAllRanges: 0,
+    selectNodeContents: 0,
+  };
+  const editable = {
+    innerHTML: "",
+    textContent: "",
+    focus() {
+      calls.focus += 1;
+    },
+    blur() {
+      calls.blur += 1;
+    },
+    dispatchEvent(event) {
+      events.push(event.type);
+    },
+  };
+
+  globalThis.InputEvent = class {
+    constructor(type) {
+      this.type = type;
+    }
+  };
+  globalThis.Event = class {
+    constructor(type) {
+      this.type = type;
+    }
+  };
+  globalThis.window = {
+    getSelection: () => ({
+      addRange: () => {
+        calls.addRange += 1;
+      },
+      removeAllRanges: () => {
+        calls.removeAllRanges += 1;
+      },
+    }),
+  };
+  globalThis.document = {
+    activeElement: editable,
+    body: {},
+    designMode: "off",
+    querySelector: (selector) => (selector === "[contenteditable='true']" ? editable : null),
+    createRange: () => ({
+      collapse: (toStart) => {
+        if (toStart === false) {
+          calls.collapse += 1;
+        }
+      },
+      selectNodeContents: (node) => {
+        if (node === editable) {
+          calls.selectNodeContents += 1;
+        }
+      },
+    }),
+  };
+
+  try {
+    assert.equal(fillRichTextEditorInDocument({ value: "<p>Body</p>", isHtml: true }), true);
+    assert.equal(editable.innerHTML, "<p>Body</p>");
+    assert.deepEqual(events, ["input", "change"]);
+    assert.equal(calls.focus, 1);
+    assert.equal(calls.selectNodeContents, 1);
+    assert.equal(calls.collapse, 1);
+    assert.equal(calls.addRange, 1);
+    assert.ok(calls.removeAllRanges >= 3);
+    assert.ok(calls.blur >= 1);
+  } finally {
+    globalThis.window = originalWindow;
+    globalThis.document = originalDocument;
+    globalThis.InputEvent = originalInputEvent;
+    globalThis.Event = originalEvent;
+  }
 });
 
 test("manual action detection catches login and captcha states", () => {

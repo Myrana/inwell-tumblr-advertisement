@@ -8,6 +8,7 @@ import {
   appearsLoggedInToTumblr,
   frameCandidateScore,
   fieldsForItem,
+  fillRichTextEditorInDocument,
   loginWaitMessage,
   loadRunnerPlan,
   materializeDataUrl,
@@ -802,28 +803,7 @@ async function fillTextFields(page, fields) {
 async function fillRichTextFrame(page, value, isHtml = false) {
   for (const frame of page.frames()) {
     const filled = await frame
-      .evaluate(({ value, isHtml }) => {
-        const body = document.body;
-        const editable =
-          document.querySelector("[contenteditable='true']") ||
-          (document.designMode === "on" ? body : null) ||
-          (body?.id === "tinymce" ? body : null) ||
-          (body?.className && String(body.className).toLowerCase().includes("tinymce") ? body : null);
-
-        if (!editable) {
-          return false;
-        }
-
-        editable.focus();
-        if (isHtml) {
-          editable.innerHTML = value;
-        } else {
-          editable.textContent = value;
-        }
-        editable.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: isHtml ? editable.textContent : value }));
-        editable.dispatchEvent(new Event("change", { bubbles: true }));
-        return true;
-      }, { value, isHtml })
+      .evaluate(fillRichTextEditorInDocument, { value, isHtml })
       .catch(() => false);
 
     if (filled) {
@@ -868,6 +848,7 @@ async function fillTitle(page, fields) {
 async function fillEditable(locator, value) {
   const filled = await locator.fill(value).then(() => true).catch(() => false);
   if (filled) {
+    await clearLocatorSelection(locator);
     return true;
   }
 
@@ -876,7 +857,28 @@ async function fillEditable(locator, value) {
   if (selected) {
     await locator.press("Backspace").catch(() => undefined);
   }
-  return locator.pressSequentially(value, { delay: 1 }).then(() => true).catch(() => false);
+  const typed = await locator.pressSequentially(value, { delay: 1 }).then(() => true).catch(() => false);
+  if (typed) {
+    await clearLocatorSelection(locator);
+  }
+  return typed;
+}
+
+async function clearLocatorSelection(locator) {
+  await locator
+    .evaluate((element) => {
+      const selection = window.getSelection?.();
+      selection?.removeAllRanges();
+      if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
+        const end = element.value.length;
+        element.setSelectionRange(end, end);
+      }
+      if (typeof element.blur === "function") {
+        element.blur();
+      }
+      selection?.removeAllRanges();
+    })
+    .catch(() => undefined);
 }
 
 async function fillTags(page, tags) {

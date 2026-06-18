@@ -259,3 +259,48 @@ export function fieldsForItem(item) {
     tags: Array.isArray(advertisement.tags) ? advertisement.tags.map(String) : [],
   };
 }
+
+export function fillRichTextEditorInDocument({ value, isHtml = false }) {
+  const clearSelection = () => {
+    const selection = window.getSelection?.();
+    selection?.removeAllRanges();
+  };
+  const settleSelectionAtEnd = (editable) => {
+    clearSelection();
+    const selection = window.getSelection?.();
+    const range = document.createRange();
+    range.selectNodeContents(editable);
+    range.collapse(false);
+    selection?.addRange(range);
+    clearSelection();
+    if (typeof editable.blur === "function") {
+      editable.blur();
+    }
+    const activeElement = document.activeElement;
+    if (activeElement && typeof activeElement.blur === "function") {
+      activeElement.blur();
+    }
+  };
+  const body = document.body;
+  const editable =
+    document.querySelector("[contenteditable='true']") ||
+    (document.designMode === "on" ? body : null) ||
+    (body?.id === "tinymce" ? body : null) ||
+    (body?.className && String(body.className).toLowerCase().includes("tinymce") ? body : null);
+
+  if (!editable) {
+    return false;
+  }
+
+  clearSelection();
+  editable.focus();
+  if (isHtml) {
+    editable.innerHTML = value;
+  } else {
+    editable.textContent = value;
+  }
+  editable.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: isHtml ? editable.textContent : value }));
+  editable.dispatchEvent(new Event("change", { bubbles: true }));
+  settleSelectionAtEnd(editable);
+  return true;
+}
