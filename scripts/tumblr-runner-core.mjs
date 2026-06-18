@@ -23,6 +23,7 @@ export function parseArgs(argv) {
     noPause: false,
     submit: false,
     slowMo: 0,
+    apiBaseUrl: "",
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -43,6 +44,8 @@ export function parseArgs(argv) {
       options.submit = true;
     } else if (arg === "--slow-mo") {
       options.slowMo = Number(argv[++index] ?? "0") || 0;
+    } else if (arg === "--api-base") {
+      options.apiBaseUrl = String(argv[++index] ?? "").replace(/\/$/, "");
     } else if (!arg.startsWith("--") && !options.planPath) {
       options.planPath = arg;
     } else {

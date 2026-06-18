@@ -39,7 +39,7 @@ export type TumblrSubmitTarget = {
   submitUrl: string;
 };
 
-export type SubmissionStatus = "queued" | "submitting" | "submitted" | "manual-action" | "failed";
+export type SubmissionStatus = "queued" | "scheduled" | "running" | "posted" | "needs-review" | "failed";
 
 export type SubmissionQueueItem = {
   id: string;
@@ -49,8 +49,13 @@ export type SubmissionQueueItem = {
   submitUrl: string;
   postType: PostType;
   status: SubmissionStatus;
+  scheduledFor: string;
+  timezone: string;
   createdAt: string;
   updatedAt: string;
+  lastRunAt: string;
+  postedAt: string;
+  failedAt: string;
   notes: string;
   runnerPayload: string;
 };
@@ -66,6 +71,15 @@ export type RunnerStatus = {
   pid: number | null;
   plan_path: string;
   command: string[];
+};
+
+export type RunnerLog = {
+  id: string;
+  queueItemId: string;
+  level: "info" | "warning" | "error";
+  message: string;
+  details: Record<string, unknown>;
+  createdAt: string;
 };
 
 export type OcrResult = {
@@ -99,4 +113,32 @@ export type ApiTemplate = {
   forum_url: string;
   tags: string[];
   updated_at: string;
+};
+
+export type ApiQueueItem = {
+  id: string;
+  ad_id: string;
+  target_id: string;
+  target_name: string;
+  submit_url: string;
+  post_type: PostType;
+  status: SubmissionStatus;
+  scheduled_for?: string | null;
+  timezone?: string;
+  created_at: string;
+  updated_at: string;
+  last_run_at?: string | null;
+  posted_at?: string | null;
+  failed_at?: string | null;
+  notes: string;
+  runner_payload: string;
+};
+
+export type ApiRunnerLog = {
+  id: string;
+  queue_item_id: string;
+  level: "info" | "warning" | "error";
+  message: string;
+  details?: Record<string, unknown>;
+  created_at: string;
 };

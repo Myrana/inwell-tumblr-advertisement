@@ -19,10 +19,13 @@ from psycopg.rows import dict_row
 
 
 POST_TYPES = {"text", "photo", "video"}
+QUEUE_STATUSES = {"queued", "scheduled", "running", "posted", "needs-review", "failed"}
+LOG_LEVELS = {"info", "warning", "error"}
+DEFAULT_TIMEZONE = "America/New_York"
 DEFAULT_PGHOST = "192.168.1.3"
 DEFAULT_PGDATABASE = "inwell_tumblr_advertisement"
 DEFAULT_PGUSER = "postgres"
-CURRENT_SCHEMA_VERSION = "0001_initial_schema"
+CURRENT_SCHEMA_VERSION = "0002_queue_logs"
 REPO_ROOT = Path(__file__).resolve().parent.parent
 RUNNER_PLAN_PATH = REPO_ROOT / "tumblr-runner-plan.json"
 RUNNER_PROCESS: subprocess.Popen[Any] | None = None
@@ -196,6 +199,40 @@ def initialize(connection: ConnectionLike) -> None:
         )
         """
     )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS submission_queue (
+            id TEXT PRIMARY KEY,
+            ad_id TEXT NOT NULL,
+            target_id TEXT NOT NULL,
+            target_name TEXT NOT NULL DEFAULT '',
+            submit_url TEXT NOT NULL,
+            post_type TEXT NOT NULL DEFAULT 'photo',
+            status TEXT NOT NULL DEFAULT 'queued',
+            scheduled_for TIMESTAMPTZ,
+            timezone TEXT NOT NULL DEFAULT 'America/New_York',
+            notes TEXT NOT NULL DEFAULT '',
+            runner_payload TEXT NOT NULL DEFAULT '',
+            created_at TIMESTAMPTZ NOT NULL,
+            updated_at TIMESTAMPTZ NOT NULL,
+            last_run_at TIMESTAMPTZ,
+            posted_at TIMESTAMPTZ,
+            failed_at TIMESTAMPTZ
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS runner_logs (
+            id TEXT PRIMARY KEY,
+            queue_item_id TEXT NOT NULL,
+            level TEXT NOT NULL DEFAULT 'info',
+            message TEXT NOT NULL,
+            details JSONB NOT NULL DEFAULT '{}'::jsonb,
+            created_at TIMESTAMPTZ NOT NULL
+        )
+        """
+    )
     seed_templates(connection)
     record_schema_version(connection, CURRENT_SCHEMA_VERSION)
 
@@ -263,6 +300,22 @@ def normalize_datetime(value: Any) -> Any:
     return value
 
 
+def parse_optional_datetime(value: Any) -> datetime | None:
+    if isinstance(value, datetime):
+        return value
+    if not value:
+        return None
+    if isinstance(value, str):
+        raw = value.strip()
+        if not raw:
+            return None
+        try:
+            return datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+    return None
+
+
 def row_to_dict(row: Any) -> dict[str, Any]:
     return {key: normalize_datetime(value) for key, value in dict(row).items()}
 
@@ -278,6 +331,30 @@ def row_to_advertisement(row: Any) -> dict[str, Any]:
 def row_to_template(row: Any) -> dict[str, Any]:
     data = row_to_dict(row)
     data["tags"] = parse_tags(data["tags"])
+    return data
+
+
+def row_to_queue_item(row: Any) -> dict[str, Any]:
+    data = row_to_dict(row)
+    if data.get("post_type") not in POST_TYPES:
+        data["post_type"] = "photo"
+    if data.get("status") not in QUEUE_STATUSES:
+        data["status"] = "queued"
+    return data
+
+
+def row_to_runner_log(row: Any) -> dict[str, Any]:
+    data = row_to_dict(row)
+    details = data.get("details")
+    if isinstance(details, str):
+        try:
+            data["details"] = json.loads(details)
+        except json.JSONDecodeError:
+            data["details"] = {}
+    elif not isinstance(details, dict):
+        data["details"] = {}
+    if data.get("level") not in LOG_LEVELS:
+        data["level"] = "info"
     return data
 
 
@@ -310,6 +387,48 @@ def template_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "content": str(payload.get("content", "")),
         "forum_url": str(payload.get("forum_url", "")).strip(),
         "tags": parse_tags(payload.get("tags", [])),
+    }
+
+
+def normalize_queue_status(value: Any) -> str:
+    status = str(value or "queued").strip().lower()
+    if status == "submitting":
+        return "running"
+    if status == "submitted":
+        return "posted"
+    if status == "manual-action":
+        return "needs-review"
+    return status if status in QUEUE_STATUSES else "queued"
+
+
+def payload_field(payload: dict[str, Any], snake_name: str, camel_name: str, default: Any = "") -> Any:
+    if snake_name in payload:
+        return payload.get(snake_name, default)
+    return payload.get(camel_name, default)
+
+
+def queue_item_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    post_type = str(payload_field(payload, "post_type", "postType", "photo")).strip().lower()
+    if post_type not in POST_TYPES:
+        post_type = "photo"
+
+    return {
+        "id": str(payload.get("id", "")).strip(),
+        "ad_id": str(payload_field(payload, "ad_id", "adId")).strip(),
+        "target_id": str(payload_field(payload, "target_id", "targetId")).strip(),
+        "target_name": str(payload_field(payload, "target_name", "targetName")).strip(),
+        "submit_url": str(payload_field(payload, "submit_url", "submitUrl")).strip(),
+        "post_type": post_type,
+        "status": normalize_queue_status(payload.get("status")),
+        "scheduled_for": parse_optional_datetime(payload_field(payload, "scheduled_for", "scheduledFor")),
+        "timezone": str(payload_field(payload, "timezone", "timezone", DEFAULT_TIMEZONE) or DEFAULT_TIMEZONE).strip() or DEFAULT_TIMEZONE,
+        "notes": str(payload.get("notes", "")),
+        "runner_payload": str(payload_field(payload, "runner_payload", "runnerPayload")),
+        "created_at": parse_optional_datetime(payload_field(payload, "created_at", "createdAt")),
+        "updated_at": parse_optional_datetime(payload_field(payload, "updated_at", "updatedAt")),
+        "last_run_at": parse_optional_datetime(payload_field(payload, "last_run_at", "lastRunAt")),
+        "posted_at": parse_optional_datetime(payload_field(payload, "posted_at", "postedAt")),
+        "failed_at": parse_optional_datetime(payload_field(payload, "failed_at", "failedAt")),
     }
 
 
@@ -409,6 +528,173 @@ def upsert_template(connection: ConnectionLike, payload: dict[str, Any]) -> dict
     return row_to_template(row)
 
 
+def upsert_queue_item(connection: ConnectionLike, payload: dict[str, Any]) -> dict[str, Any]:
+    queue_item = queue_item_from_payload(payload)
+    if not queue_item["id"]:
+        raise ValueError("id is required")
+    if not queue_item["ad_id"]:
+        raise ValueError("ad_id is required")
+    if not queue_item["target_id"]:
+        raise ValueError("target_id is required")
+    if not queue_item["submit_url"]:
+        raise ValueError("submit_url is required")
+
+    now = utc_now()
+    existing = connection.execute("SELECT created_at FROM submission_queue WHERE id = %s", (queue_item["id"],)).fetchone()
+    created_at = queue_item["created_at"] or (existing["created_at"] if existing else now)
+    updated_at = queue_item["updated_at"] or now
+
+    connection.execute(
+        """
+        INSERT INTO submission_queue (
+            id, ad_id, target_id, target_name, submit_url, post_type, status,
+            scheduled_for, timezone, notes, runner_payload, created_at, updated_at,
+            last_run_at, posted_at, failed_at
+        )
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        ON CONFLICT(id) DO UPDATE SET
+            ad_id = excluded.ad_id,
+            target_id = excluded.target_id,
+            target_name = excluded.target_name,
+            submit_url = excluded.submit_url,
+            post_type = excluded.post_type,
+            status = excluded.status,
+            scheduled_for = excluded.scheduled_for,
+            timezone = excluded.timezone,
+            notes = excluded.notes,
+            runner_payload = excluded.runner_payload,
+            updated_at = excluded.updated_at,
+            last_run_at = excluded.last_run_at,
+            posted_at = excluded.posted_at,
+            failed_at = excluded.failed_at
+        """,
+        (
+            queue_item["id"],
+            queue_item["ad_id"],
+            queue_item["target_id"],
+            queue_item["target_name"],
+            queue_item["submit_url"],
+            queue_item["post_type"],
+            queue_item["status"],
+            queue_item["scheduled_for"],
+            queue_item["timezone"],
+            queue_item["notes"],
+            queue_item["runner_payload"],
+            created_at,
+            updated_at,
+            queue_item["last_run_at"],
+            queue_item["posted_at"],
+            queue_item["failed_at"],
+        ),
+    )
+
+    row = connection.execute("SELECT * FROM submission_queue WHERE id = %s", (queue_item["id"],)).fetchone()
+    return row_to_queue_item(row)
+
+
+def runner_log_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    level = str(payload.get("level", "info")).strip().lower()
+    if level not in LOG_LEVELS:
+        level = "info"
+
+    details = payload.get("details", {})
+    if not isinstance(details, dict):
+        details = {"value": str(details)}
+
+    return {
+        "id": str(payload.get("id") or f"log-{uuid.uuid4().hex}").strip(),
+        "queue_item_id": str(payload.get("queue_item_id", "")).strip(),
+        "level": level,
+        "message": str(payload.get("message", "")).strip(),
+        "details": details,
+        "created_at": parse_optional_datetime(payload.get("created_at")) or utc_now(),
+        "status": normalize_queue_status(payload.get("status")) if payload.get("status") else "",
+    }
+
+
+def record_runner_log(connection: ConnectionLike, payload: dict[str, Any]) -> dict[str, Any]:
+    log = runner_log_from_payload(payload)
+    if not log["queue_item_id"]:
+        raise ValueError("queue_item_id is required")
+    if not log["message"]:
+        raise ValueError("message is required")
+
+    connection.execute(
+        """
+        INSERT INTO runner_logs (id, queue_item_id, level, message, details, created_at)
+        VALUES (%s, %s, %s, %s, %s::jsonb, %s)
+        """,
+        (
+            log["id"],
+            log["queue_item_id"],
+            log["level"],
+            log["message"],
+            json.dumps(log["details"]),
+            log["created_at"],
+        ),
+    )
+
+    if log["status"]:
+        touch_queue_item_status(connection, log["queue_item_id"], log["status"], log["message"], log["created_at"])
+
+    row = connection.execute("SELECT * FROM runner_logs WHERE id = %s", (log["id"],)).fetchone()
+    return row_to_runner_log(row)
+
+
+def touch_queue_item_status(
+    connection: ConnectionLike,
+    queue_item_id: str,
+    status: str,
+    notes: str,
+    timestamp: datetime,
+) -> None:
+    existing = connection.execute("SELECT * FROM submission_queue WHERE id = %s", (queue_item_id,)).fetchone()
+    if not existing:
+        return
+
+    data = row_to_queue_item(existing)
+    data["status"] = status
+    data["notes"] = notes
+    data["updated_at"] = timestamp
+    if status == "running":
+        data["last_run_at"] = timestamp
+    elif status == "posted":
+        data["posted_at"] = timestamp
+    elif status == "failed":
+        data["failed_at"] = timestamp
+    upsert_queue_item(connection, data)
+
+
+def mark_runner_items_started(items: list[Any]) -> None:
+    try:
+        with connect() as connection:
+            now = utc_now()
+            for item in items:
+                if not isinstance(item, dict) or not item.get("id"):
+                    continue
+                persisted = upsert_queue_item(
+                    connection,
+                    {
+                        **item,
+                        "status": "running",
+                        "last_run_at": now.isoformat(),
+                        "notes": "Runner launched this queue item.",
+                    },
+                )
+                record_runner_log(
+                    connection,
+                    {
+                        "queue_item_id": persisted["id"],
+                        "level": "info",
+                        "status": "running",
+                        "message": "Runner launched this queue item.",
+                        "created_at": now.isoformat(),
+                    },
+                )
+    except Exception as error:
+        print(f"[api] Could not persist runner start state: {error}")
+
+
 def runner_status() -> dict[str, Any]:
     running = RUNNER_PROCESS is not None and RUNNER_PROCESS.poll() is None
     return {
@@ -428,6 +714,8 @@ def start_runner(payload: dict[str, Any]) -> dict[str, Any]:
 
     if RUNNER_PROCESS is not None and RUNNER_PROCESS.poll() is None:
         raise ValueError("runner is already running")
+
+    mark_runner_items_started(items)
 
     plan = {
         "version": 1,
@@ -452,6 +740,8 @@ def start_runner(payload: dict[str, Any]) -> dict[str, Any]:
         "--login-first",
         "--slow-mo",
         str(slow_mo),
+        "--api-base",
+        "http://127.0.0.1:8021/api",
     ]
     if media_dir:
         runner_args.extend(["--media-dir", media_dir])
@@ -611,6 +901,16 @@ class Handler(BaseHTTPRequestHandler):
                 self.respond({"templates": [row_to_template(row) for row in rows]})
                 return
 
+            if collection == "queue" and item_id is None:
+                rows = connection.execute("SELECT * FROM submission_queue ORDER BY updated_at DESC").fetchall()
+                self.respond({"queue": [row_to_queue_item(row) for row in rows]})
+                return
+
+            if collection == "runner/logs" and item_id is None:
+                rows = connection.execute("SELECT * FROM runner_logs ORDER BY created_at DESC LIMIT 100").fetchall()
+                self.respond({"logs": [row_to_runner_log(row) for row in rows]})
+                return
+
         self.send_error(HTTPStatus.NOT_FOUND)
 
     def do_POST(self) -> None:
@@ -633,6 +933,14 @@ class Handler(BaseHTTPRequestHandler):
                 self.respond({"error": str(error)}, HTTPStatus.BAD_REQUEST)
             return
 
+        if collection == "runner/logs":
+            try:
+                with connect() as connection:
+                    self.respond({"log": record_runner_log(connection, self.read_json())}, HTTPStatus.CREATED)
+            except ValueError as error:
+                self.respond({"error": str(error)}, HTTPStatus.BAD_REQUEST)
+            return
+
         self.save_resource(collection, self.read_json(), HTTPStatus.CREATED)
 
     def do_PUT(self) -> None:
@@ -647,11 +955,11 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_DELETE(self) -> None:
         collection, item_id = self.route()
-        if item_id is None or collection not in {"advertisements", "templates"}:
+        if item_id is None or collection not in {"advertisements", "templates", "queue"}:
             self.send_error(HTTPStatus.NOT_FOUND)
             return
 
-        table = "advertisements" if collection == "advertisements" else "templates"
+        table = {"advertisements": "advertisements", "templates": "templates", "queue": "submission_queue"}[collection]
         with connect() as connection:
             connection.execute(f"DELETE FROM {table} WHERE id = %s", (item_id,))
 
@@ -673,6 +981,11 @@ class Handler(BaseHTTPRequestHandler):
                 if collection == "templates":
                     item = upsert_template(connection, payload)
                     self.respond({"template": item}, status)
+                    return
+
+                if collection == "queue":
+                    item = upsert_queue_item(connection, payload)
+                    self.respond({"queue_item": item}, status)
                     return
         except ValueError as error:
             self.respond({"error": str(error)}, HTTPStatus.BAD_REQUEST)

@@ -26,11 +26,22 @@ test("parseArgs accepts a plan and safety defaults", () => {
 });
 
 test("parseArgs supports same-session login before queue execution", () => {
-  const options = parseArgs(["--plan", "queue.json", "--login-first", "--media-dir", "media", "--slow-mo", "125"]);
+  const options = parseArgs([
+    "--plan",
+    "queue.json",
+    "--login-first",
+    "--media-dir",
+    "media",
+    "--slow-mo",
+    "125",
+    "--api-base",
+    "http://127.0.0.1:8021/api/",
+  ]);
   assert.equal(options.planPath, "queue.json");
   assert.equal(options.loginFirst, true);
   assert.equal(options.mediaDir, "media");
   assert.equal(options.slowMo, 125);
+  assert.equal(options.apiBaseUrl, "http://127.0.0.1:8021/api");
 });
 
 test("normalizeRunnerPlan decodes queue item runner payload", () => {

@@ -18,11 +18,23 @@ import { SavedSubmissionsView } from "./components/SavedSubmissionsView";
 import { TemplatesWorkspace } from "./components/TemplatesWorkspace";
 import { WorkspaceTopbar } from "./components/WorkspaceTopbar";
 
-import { apiRequest, loadBackendTemplates, removeAdvertisement, removeTemplate, saveAdvertisement, saveTemplate } from "./domain/api";
+import {
+  apiRequest,
+  loadBackendQueue,
+  loadBackendTemplates,
+  loadRunnerLogs,
+  removeAdvertisement,
+  removeQueueItem,
+  removeTemplate,
+  saveAdvertisement,
+  saveQueueItem,
+  saveTemplate,
+} from "./domain/api";
 import { composerContentFor, emptyAd, fromApiAdvertisement, normalizeStoredState } from "./domain/ads";
 import { defaultTagProfiles, postTypes } from "./domain/constants";
 import { buildPreparedPost, validateAdvertisement } from "./domain/post";
 import { createQueueItem as createSubmissionQueueItem } from "./domain/queue";
+import { dateTimeLocalToIso } from "./domain/format";
 import {
   loadRunnerSettings,
   loadStoredState,
@@ -44,6 +56,7 @@ import {
   Advertisement,
   ApiAdvertisement,
   OcrResult,
+  RunnerLog,
   RunnerSettings,
   RunnerStatus,
   SavedTemplate,
@@ -74,6 +87,7 @@ function App() {
   const [queueStatus, setQueueStatus] = useState("");
   const [runnerSettings, setRunnerSettings] = useState<RunnerSettings>(() => loadRunnerSettings());
   const [runnerState, setRunnerState] = useState<RunnerStatus | null>(null);
+  const [runnerLogs, setRunnerLogs] = useState<RunnerLog[]>([]);
   const [activeView, setActiveView] = useState<WorkspaceView>("editor");
 
   const activeAd = useMemo(() => {
@@ -172,9 +186,11 @@ function App() {
 
     async function loadBackendState() {
       try {
-        const [advertisementResponse, backendTemplates] = await Promise.all([
+        const [advertisementResponse, backendTemplates, backendQueue, backendLogs] = await Promise.all([
           apiRequest<{ advertisements: ApiAdvertisement[] }>("/advertisements"),
           loadBackendTemplates(),
+          loadBackendQueue(),
+          loadRunnerLogs(),
         ]);
 
         if (cancelled) {
@@ -189,6 +205,10 @@ function App() {
 
         setStored(nextStored);
         setTemplates(backendTemplates);
+        if (backendQueue.length) {
+          setSubmissionQueue(backendQueue);
+        }
+        setRunnerLogs(backendLogs);
         setApiAvailable(true);
       } catch {
         if (!cancelled) {
@@ -214,6 +234,15 @@ function App() {
     void saveTemplate(template)
       .then((saved) => {
         setTemplates((current) => current.map((item) => (item.id === saved.id ? saved : item)));
+        setApiAvailable(true);
+      })
+      .catch(() => setApiAvailable(false));
+  }
+
+  function syncQueueItem(item: SubmissionQueueItem) {
+    void saveQueueItem(item)
+      .then((saved) => {
+        setSubmissionQueue((current) => current.map((queueItem) => (queueItem.id === saved.id ? saved : queueItem)));
         setApiAvailable(true);
       })
       .catch(() => setApiAvailable(false));
@@ -397,37 +426,83 @@ function App() {
       );
       return [...nextItems, ...withoutExisting];
     });
+    nextItems.forEach(syncQueueItem);
     setQueueStatus(`Queued ${nextItems.length} target${nextItems.length === 1 ? "" : "s"} for the local runner.`);
   }
 
   function updateQueueItem(id: string, status: SubmissionStatus, notes: string) {
+    let nextItem: SubmissionQueueItem | null = null;
+    const timestamp = new Date().toISOString();
     setSubmissionQueue((current) =>
-      current.map((item) =>
-        item.id === id
-          ? {
-              ...item,
-              status,
-              notes,
-              updatedAt: new Date().toISOString(),
-            }
-          : item,
-      ),
+      current.map((item) => {
+        if (item.id !== id) {
+          return item;
+        }
+
+        nextItem = {
+          ...item,
+          status,
+          notes,
+          updatedAt: timestamp,
+          lastRunAt: status === "running" ? timestamp : item.lastRunAt,
+          postedAt: status === "posted" ? timestamp : item.postedAt,
+          failedAt: status === "failed" ? timestamp : item.failedAt,
+        };
+        return nextItem;
+      }),
     );
+
+    if (nextItem) {
+      syncQueueItem(nextItem);
+    }
+  }
+
+  function updateQueueSchedule(id: string, value: string) {
+    let nextItem: SubmissionQueueItem | null = null;
+    const scheduledFor = dateTimeLocalToIso(value);
+    const timestamp = new Date().toISOString();
+    setSubmissionQueue((current) =>
+      current.map((item) => {
+        if (item.id !== id) {
+          return item;
+        }
+
+        nextItem = {
+          ...item,
+          scheduledFor,
+          status: scheduledFor ? "scheduled" : "queued",
+          notes: scheduledFor ? "Scheduled for automatic posting." : "Ready for local browser runner.",
+          updatedAt: timestamp,
+        };
+        return nextItem;
+      }),
+    );
+
+    if (nextItem) {
+      syncQueueItem(nextItem);
+    }
   }
 
   function clearCompletedQueueItems() {
-    setSubmissionQueue((current) =>
-      current.filter((item) => item.adId !== activeAd.id || !["submitted", "failed"].includes(item.status)),
-    );
-    setQueueStatus("Cleared submitted and failed entries for this saved submission.");
+    const removable = submissionQueue.filter((item) => item.adId === activeAd.id && ["posted", "failed"].includes(item.status));
+    setSubmissionQueue((current) => current.filter((item) => item.adId !== activeAd.id || !["posted", "failed"].includes(item.status)));
+    removable.forEach((item) => {
+      void removeQueueItem(item.id).catch(() => setApiAvailable(false));
+    });
+    setQueueStatus("Cleared posted and failed entries for this saved submission.");
+  }
+
+  function runnableQueueItems() {
+    return activeQueue.filter((item) => item.status !== "posted" && item.status !== "running");
   }
 
   function buildRunnerPlan() {
+    const items = runnableQueueItems();
     return {
       version: 1,
       workflow: "tumblr-submission-queue",
       generatedAt: new Date().toISOString(),
-      items: activeQueue,
+      items,
     };
   }
 
@@ -442,14 +517,16 @@ function App() {
     link.click();
     URL.revokeObjectURL(url);
     setQueueStatus(
-      `Downloaded and copied runner plan for ${activeQueue.length} queued target${activeQueue.length === 1 ? "" : "s"}.`,
+      `Downloaded and copied runner plan for ${buildRunnerPlan().items.length} runnable target${buildRunnerPlan().items.length === 1 ? "" : "s"}.`,
     );
   }
 
   async function refreshRunnerStatus() {
     try {
       const response = await apiRequest<{ runner: RunnerStatus }>("/runner/status");
+      const logs = await loadRunnerLogs();
       setRunnerState(response.runner);
+      setRunnerLogs(logs);
       setApiAvailable(true);
       setQueueStatus(response.runner.running ? `Runner is open in process ${response.runner.pid}.` : "Runner is not running.");
     } catch {
@@ -459,7 +536,8 @@ function App() {
   }
 
   async function startRunner() {
-    if (!activeQueue.length) {
+    const items = runnableQueueItems();
+    if (!items.length) {
       setQueueStatus("Queue at least one target before starting the runner.");
       return;
     }
@@ -469,10 +547,11 @@ function App() {
         method: "POST",
         body: JSON.stringify({
           ...runnerSettings,
-          items: activeQueue,
+          items,
         }),
       });
       setRunnerState(response.runner);
+      setRunnerLogs(await loadRunnerLogs());
       setApiAvailable(true);
       setQueueStatus(`Runner launched in a visible PowerShell window. Plan: ${response.runner.plan_path}`);
     } catch {
@@ -716,6 +795,7 @@ function App() {
             queueStatus={queueStatus}
             runnerSettings={runnerSettings}
             runnerState={runnerState}
+            runnerLogs={runnerLogs}
             targetOptions={targetOptions}
             onClearCompleted={clearCompletedQueueItems}
             onCopyRunnerPlan={copyRunnerPlan}
@@ -723,6 +803,7 @@ function App() {
             onRefreshRunnerStatus={refreshRunnerStatus}
             onRunnerSettingsChange={(patch) => setRunnerSettings((current) => ({ ...current, ...patch }))}
             onStartRunner={startRunner}
+            onUpdateQueueSchedule={updateQueueSchedule}
             onUpdateQueueItem={updateQueueItem}
           />
         ) : null}

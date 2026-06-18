@@ -35,9 +35,15 @@ async function main() {
 
     const reviewPages = [];
     for (const item of plan.items) {
-      const result = await runQueueItem(context, item, options);
-      if (result?.readyForReview && result.page) {
-        reviewPages.push(result.page);
+      try {
+        const result = await runQueueItem(context, item, options);
+        if (result?.readyForReview && result.page) {
+          reviewPages.push(result.page);
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.log(`[runner:error] ${item.targetName}: ${message}`);
+        await reportRunnerEvent(options, item, "failed", `Runner failed: ${message}`, "error", { error: message });
       }
     }
 
@@ -110,12 +116,20 @@ async function runQueueItem(context, item, options) {
   const page = await context.newPage();
   const fields = fieldsForItem(item);
   console.log(`\n[runner] Opening ${item.targetName}: ${item.submitUrl}`);
+  await reportRunnerEvent(options, item, "running", `Opening ${item.targetName}.`, "info", { submitUrl: item.submitUrl });
   await page.goto(item.submitUrl, { waitUntil: "domcontentloaded", timeout: 60000 });
   await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => undefined);
   await waitForSubmitForm(page, item);
 
   if (await pageNeedsManualAction(page)) {
     console.log(`[manual-action] ${item.targetName}: login, captcha, terms, or changed form detected.`);
+    await reportRunnerEvent(
+      options,
+      item,
+      "needs-review",
+      "Login, captcha, terms, or changed form detected before fill.",
+      "warning",
+    );
     await pauseForOperator(page, options);
     return { readyForReview: false };
   }
@@ -128,6 +142,7 @@ async function runQueueItem(context, item, options) {
     const operatorSelected = await waitForOperatorPostTypeSelection(page, item, options);
     if (!operatorSelected) {
       console.log(`[manual-action] ${item.targetName}: could not switch post type to ${item.postType}; stopping before fill.`);
+      await reportRunnerEvent(options, item, "needs-review", `Could not switch post type to ${item.postType}.`, "warning");
       await pauseForOperator(page, options);
       return { readyForReview: false };
     }
@@ -143,9 +158,16 @@ async function runQueueItem(context, item, options) {
   console.log(
     `[runner] Fill summary: text=${textFilled ? "filled" : "not found"}, tags=${tagsFilled ? "filled" : "not found"}, media=${mediaUploaded ? "uploaded" : "not uploaded"}, terms=${termsAccepted ? "accepted" : "not found"}.`,
   );
+  await reportRunnerEvent(options, item, "running", "Fields filled where possible.", "info", {
+    textFilled,
+    tagsFilled,
+    mediaUploaded,
+    termsAccepted,
+  });
 
   if (await pageNeedsManualAction(page)) {
     console.log(`[manual-action] ${item.targetName}: page requires review before submit.`);
+    await reportRunnerEvent(options, item, "needs-review", "Page requires review before submit.", "warning");
     if (shouldDeferReadyReview(options)) {
       return { readyForReview: true, page };
     }
@@ -157,8 +179,16 @@ async function runQueueItem(context, item, options) {
   if (options.submit) {
     const clicked = await clickSubmit(target);
     console.log(clicked ? `[submitted] ${item.targetName}: submit button clicked.` : `[manual-action] ${item.targetName}: no submit button found.`);
+    await reportRunnerEvent(
+      options,
+      item,
+      clicked ? "posted" : "needs-review",
+      clicked ? "Submit button clicked." : "No submit button found.",
+      clicked ? "info" : "warning",
+    );
   } else {
     console.log(`[ready] ${item.targetName}: fields filled where possible. Review the page, then submit manually or rerun with --submit.`);
+    await reportRunnerEvent(options, item, "needs-review", "Fields filled and ready for manual review.", "info");
     if (shouldDeferReadyReview(options)) {
       return { readyForReview: true, page };
     }
@@ -167,6 +197,26 @@ async function runQueueItem(context, item, options) {
   }
 
   return { readyForReview: false };
+}
+
+async function reportRunnerEvent(options, item, status, message, level = "info", details = {}) {
+  if (!options.apiBaseUrl || !item?.id) {
+    return;
+  }
+
+  await fetch(`${options.apiBaseUrl}/runner/logs`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      queue_item_id: item.id,
+      level,
+      status,
+      message,
+      details,
+    }),
+  }).catch((error) => {
+    console.log(`[runner] Could not write queue log: ${error instanceof Error ? error.message : String(error)}`);
+  });
 }
 
 async function pageNeedsManualAction(page) {
