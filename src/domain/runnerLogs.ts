@@ -11,9 +11,18 @@ export type RunnerLogRunGroup = {
   logs: RunnerLog[];
   latestAt: string;
   targetNames: string[];
+  targetSummaries: RunnerLogTargetSummary[];
   warningCount: number;
   errorCount: number;
   failureExplanations: string[];
+};
+
+export type RunnerLogTargetSummary = {
+  id: string;
+  name: string;
+  status: "ready" | "failed" | "needs-review" | "running";
+  latestAt: string;
+  explanation: string;
 };
 
 export function latestRunnerRunId(logs: RunnerLog[]) {
@@ -68,6 +77,7 @@ export function runnerLogRunGroups(logs: RunnerLog[]): RunnerLogRunGroup[] {
       if (explanation && !existing.failureExplanations.includes(explanation)) {
         existing.failureExplanations.push(explanation);
       }
+      existing.targetSummaries = runnerLogTargetSummaries(existing.logs);
       return;
     }
 
@@ -78,6 +88,7 @@ export function runnerLogRunGroups(logs: RunnerLog[]): RunnerLogRunGroup[] {
       logs: [log],
       latestAt: log.createdAt,
       targetNames: targetName ? [targetName] : [],
+      targetSummaries: runnerLogTargetSummaries([log]),
       warningCount: log.level === "warning" ? 1 : 0,
       errorCount: log.level === "error" ? 1 : 0,
       failureExplanations: explanation ? [explanation] : [],
@@ -85,6 +96,32 @@ export function runnerLogRunGroups(logs: RunnerLog[]): RunnerLogRunGroup[] {
   });
 
   return Array.from(groups.values());
+}
+
+export function runnerLogTargetSummaries(logs: RunnerLog[]): RunnerLogTargetSummary[] {
+  const byTarget = new Map<string, RunnerLog[]>();
+
+  logs.forEach((log) => {
+    const key = log.targetName || log.queueItemId || "Queue item";
+    byTarget.set(key, [...(byTarget.get(key) ?? []), log]);
+  });
+
+  return Array.from(byTarget.entries()).map(([target, targetLogs]) => {
+    const failedLog = targetLogs.find((log) => log.level === "error");
+    const warningLog = targetLogs.find((log) => log.level === "warning");
+    const readyLog = targetLogs.find((log) => /ready for manual review/i.test(log.message));
+    const runningLog = targetLogs.find((log) => /opening|launched|filled/i.test(log.message));
+    const selectedLog = failedLog ?? warningLog ?? readyLog ?? runningLog ?? targetLogs[0];
+    const explanation = failedLog || warningLog ? runnerLogExplanation(selectedLog) : "";
+
+    return {
+      id: target,
+      name: target,
+      status: failedLog ? "failed" : warningLog ? "needs-review" : readyLog ? "ready" : "running",
+      latestAt: targetLogs[0]?.createdAt ?? "",
+      explanation,
+    };
+  });
 }
 
 export function runnerLogExplanation(log: RunnerLog) {
