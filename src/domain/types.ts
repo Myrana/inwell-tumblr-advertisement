@@ -37,6 +37,7 @@ export type TumblrSubmitTarget = {
   id: string;
   name: string;
   submitUrl: string;
+  forumUrl: string;
 };
 
 export type SubmissionStatus = "queued" | "scheduled" | "running" | "posted" | "needs-review" | "failed";

@@ -106,14 +106,22 @@ test("custom blog submission flow does not blank the editor", { timeout: 40000 }
 
   const targetSelect = page.locator('label:has-text("Target Tumblr blog") select');
   const addBlogInput = page.locator('label:has-text("Add Tumblr submit URL") input');
+  const forumInput = page.getByLabel("Forum link");
 
   await addBlogInput.fill("https://another-rp.tumblr.com/submit");
   await page.getByRole("button", { name: "Add blog" }).click();
   await targetSelect.selectOption("another-rp");
+  assert.equal(await forumInput.inputValue(), "https://forum.example");
   await page.getByRole("button", { name: "New" }).click();
 
   await page.getByRole("heading", { name: "Untitled saved submission" }).waitFor();
-  assert.equal(await targetSelect.inputValue(), "another-rp");
+  assert.equal(await targetSelect.inputValue(), "");
+  assert.equal(await forumInput.inputValue(), "");
+  await targetSelect.selectOption("another-rp");
+  assert.equal(await forumInput.inputValue(), "https://forum.example");
+  await forumInput.fill("https://forum.example/updated");
+  const persistedTargets = await page.evaluate(() => JSON.parse(localStorage.getItem("inwell-tumblr-submit-targets") ?? "[]"));
+  assert.equal(persistedTargets.find((target) => target.id === "another-rp")?.forumUrl, "https://forum.example/updated");
   assert.equal(await page.getByText("Import this blog's tags from a screenshot").count(), 0);
   assert.equal(await page.getByLabel("jcink site").count(), 0);
   await page.getByPlaceholder("custom tag").fill("manual test tag");

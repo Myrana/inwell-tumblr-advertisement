@@ -50,7 +50,13 @@ import {
   saveTagProfiles,
   saveTemplates,
 } from "./domain/storage";
-import { fallbackTarget, submitTargetFromUrl, uniqueSubmitTargets } from "./domain/submitTargets";
+import {
+  fallbackTarget,
+  submitTargetFromUrl,
+  uniqueSubmitTargets,
+  upsertSubmitTarget,
+  upsertSubmitTargetForumUrl,
+} from "./domain/submitTargets";
 import { normalizeTag, uniqueTags } from "./domain/tags";
 import { applyTemplateToAdvertisement, normalizeTemplate, templateFromAdvertisement } from "./domain/templates";
 import {
@@ -318,20 +324,25 @@ function App() {
   function selectSubmitTarget(targetId: string) {
     const target = targetOptions.find((item) => item.id === targetId) ?? fallbackTarget(targetId);
     activeDestinationBlogRef.current = target.id;
-    setSubmitTargetStatus(`Selected ${target.name}. Tumblr submit page: ${target.submitUrl}`);
-    updateActiveAd({ destinationBlog: target.id });
+    setSubmitTargetStatus(
+      target.submitUrl ? `Selected ${target.name}. Tumblr submit page: ${target.submitUrl}` : "No Tumblr blog selected.",
+    );
+    updateActiveAd({
+      destinationBlog: target.id,
+      forumUrl: target.id ? target.forumUrl || activeAd.forumUrl : "",
+    });
   }
 
   function addSubmitTarget(event: FormEvent) {
     event.preventDefault();
-    const target = submitTargetFromUrl(newSubmitUrl);
+    const target = submitTargetFromUrl(newSubmitUrl, activeAd.forumUrl);
 
     if (!target) {
       setSubmitTargetStatus("Enter a Tumblr submit URL, like https://allthingsroleplay.tumblr.com/submit.");
       return;
     }
 
-    setSubmitTargets((current) => uniqueSubmitTargets([...current, target]));
+    setSubmitTargets((current) => upsertSubmitTarget(current, target));
     setTagProfiles((current) => ({
       ...current,
       [target.id]: current[target.id] ?? [],
@@ -340,6 +351,16 @@ function App() {
     updateActiveAd({ destinationBlog: target.id });
     setNewSubmitUrl("");
     setSubmitTargetStatus(`Added ${target.name}. Open ${target.submitUrl} when you are ready to paste the post into Tumblr.`);
+  }
+
+  function updateForumUrl(value: string) {
+    updateActiveAd({ forumUrl: value });
+
+    if (!activeAd.destinationBlog) {
+      return;
+    }
+
+    setSubmitTargets((current) => upsertSubmitTargetForumUrl(current, activeAd.destinationBlog, value));
   }
 
   function toggleTag(tag: string) {
@@ -367,8 +388,8 @@ function App() {
   }
 
   function createDraft() {
-    const targetId = activeDestinationBlogRef.current || activeAd.destinationBlog || activeSubmitTarget.id;
-    const next = emptyAd(targetId);
+    const next = emptyAd();
+    activeDestinationBlogRef.current = "";
     setValidation([]);
     setGeneratedPost("");
     setSaveStatus("");
@@ -727,6 +748,7 @@ function App() {
             onToggleTag={toggleTag}
             onUpdateActiveAd={updateActiveAd}
             onUpdateCustomTag={setCustomTag}
+            onUpdateForumUrl={updateForumUrl}
             onUpdateNewSubmitUrl={setNewSubmitUrl}
             onVideoUpload={handleVideoUpload}
           />

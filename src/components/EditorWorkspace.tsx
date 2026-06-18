@@ -31,6 +31,7 @@ type EditorWorkspaceProps = {
   onToggleTag: (tag: string) => void;
   onUpdateActiveAd: (patch: Partial<Advertisement>) => void;
   onUpdateCustomTag: (value: string) => void;
+  onUpdateForumUrl: (value: string) => void;
   onUpdateNewSubmitUrl: (value: string) => void;
   onVideoUpload: (event: ChangeEvent<HTMLInputElement>) => void;
 };
@@ -55,6 +56,7 @@ export function EditorWorkspace({
   onToggleTag,
   onUpdateActiveAd,
   onUpdateCustomTag,
+  onUpdateForumUrl,
   onUpdateNewSubmitUrl,
   onVideoUpload,
 }: EditorWorkspaceProps) {
@@ -62,7 +64,14 @@ export function EditorWorkspace({
     <div className="workspace-grid editor-only">
       <section className="editor-surface" id="editor" aria-label="Advertisement editor">
         <div className="setup-panel">
-          <div className="field-grid three">
+          <div className="setup-panel-heading">
+            <div>
+              <h2>Submission details</h2>
+              <p>Name the draft, choose a Tumblr blog, and keep that blog's forum link ready for queueing.</p>
+            </div>
+          </div>
+
+          <div className="field-grid three editor-detail-grid">
             <label>
               Saved submission name
               <input
@@ -76,46 +85,45 @@ export function EditorWorkspace({
             <label>
               Target Tumblr blog
               <select value={activeAd.destinationBlog} onChange={(event) => onSelectSubmitTarget(event.target.value)}>
+                <option value="">No blog selected</option>
                 {targetOptions.length ? (
                   targetOptions.map((target) => (
                     <option key={target.id} value={target.id}>
                       {target.name}
                     </option>
                   ))
-                ) : (
-                  <option value="">Add a Tumblr blog</option>
-                )}
+                ) : null}
               </select>
-              <span className="field-hint">{activeSubmitTarget.submitUrl}</span>
+              <span className="field-hint">{activeSubmitTarget.submitUrl || "Add or choose a Tumblr submit URL before queueing."}</span>
             </label>
 
             <label>
               Forum link
               <input
                 value={activeAd.forumUrl}
-                onChange={(event) => onUpdateActiveAd({ forumUrl: event.target.value })}
+                onChange={(event) => onUpdateForumUrl(event.target.value)}
                 placeholder="https://your-forum.jcink.net"
               />
-              <span className="field-hint">Included in the queued Tumblr submission package.</span>
+              <span className="field-hint">Saved with the selected Tumblr blog and included in the queue package.</span>
             </label>
           </div>
-        </div>
 
-        <form className="submit-target-manager" onSubmit={onAddSubmitTarget}>
-          <label>
-            Add Tumblr submit URL
-            <input
-              value={newSubmitUrl}
-              onChange={(event) => onUpdateNewSubmitUrl(event.target.value)}
-              placeholder="https://allthingsroleplay.tumblr.com/submit"
-            />
-          </label>
-          <button className="secondary" type="submit">
-            <Plus size={18} />
-            Add blog
-          </button>
-          {submitTargetStatus ? <p>{submitTargetStatus}</p> : null}
-        </form>
+          <form className="submit-target-manager" onSubmit={onAddSubmitTarget}>
+            <label>
+              Add Tumblr submit URL
+              <input
+                value={newSubmitUrl}
+                onChange={(event) => onUpdateNewSubmitUrl(event.target.value)}
+                placeholder="https://allthingsroleplay.tumblr.com/submit"
+              />
+            </label>
+            <button className="secondary" type="submit">
+              <Plus size={18} />
+              Add blog
+            </button>
+            {submitTargetStatus ? <p>{submitTargetStatus}</p> : null}
+          </form>
+        </div>
 
         {submissionComplete ? (
           <div className="tumblr-submit-shell">
@@ -141,7 +149,7 @@ export function EditorWorkspace({
                   </select>
                 </label>
                 <div className="tumblr-blog-id">
-                  <span>{activeSubmitTarget.name}</span>
+                  <span>{activeSubmitTarget.id ? activeSubmitTarget.name : "No blog selected"}</span>
                   <div className="tumblr-blog-avatar">I</div>
                 </div>
               </div>
@@ -214,7 +222,7 @@ export function EditorWorkspace({
               <div className="tag-toolbar">
                 <div>
                   <Tags size={18} />
-                  <strong>Tags for {activeSubmitTarget.name}:</strong>
+                  <strong>{activeSubmitTarget.id ? `Tags for ${activeSubmitTarget.name}:` : "Tags:"}</strong>
                 </div>
                 <form onSubmit={onAddCustomTag} className="custom-tag-form">
                   <input value={customTag} onChange={(event) => onUpdateCustomTag(event.target.value)} placeholder="custom tag" />
