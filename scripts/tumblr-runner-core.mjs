@@ -105,6 +105,22 @@ export function normalizePostType(value) {
   return value === "text" || value === "video" ? value : "photo";
 }
 
+export function postTypeCandidateIndex(candidates, optionValue) {
+  const requested = normalizePostType(optionValue);
+  const normalized = candidates.map((candidate, index) => ({
+    index,
+    selected: Boolean(candidate.selected),
+    text: String(candidate.text ?? "").replace(/\s+/g, " ").trim().toLowerCase(),
+    visible: Boolean(candidate.visible),
+  }));
+
+  return (
+    normalized.find((candidate) => candidate.visible && !candidate.selected && candidate.text === requested)?.index ??
+    normalized.find((candidate) => candidate.visible && candidate.text === requested)?.index ??
+    -1
+  );
+}
+
 export function shouldPauseForManualAction(text, url = "") {
   const haystack = `${url}\n${text}`;
   return manualActionPatterns.some((pattern) => pattern.test(haystack));

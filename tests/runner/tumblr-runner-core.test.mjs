@@ -8,6 +8,7 @@ import {
   htmlToPlainText,
   normalizeRunnerPlan,
   parseArgs,
+  postTypeCandidateIndex,
   reviewPagesOpenMessage,
   shouldDeferReadyReview,
   shouldPauseForManualAction,
@@ -84,6 +85,17 @@ test("ready queue pages defer review until the full queue is processed", () => {
   assert.equal(shouldDeferReadyReview({ submit: true, headless: false, noPause: false }), false);
   assert.equal(shouldDeferReadyReview({ submit: false, headless: true, noPause: false }), false);
   assert.equal(shouldDeferReadyReview({ submit: false, headless: false, noPause: true }), false);
+});
+
+test("postTypeCandidateIndex prefers the visible unselected requested post type", () => {
+  const candidates = [
+    { text: "Text", visible: true, selected: true },
+    { text: "Text", visible: true, selected: false },
+    { text: "Photo", visible: false, selected: false },
+    { text: "Photo", visible: true, selected: false },
+  ];
+
+  assert.equal(postTypeCandidateIndex(candidates, "photo"), 3);
 });
 
 test("review page message keeps browser review controlled by the operator", () => {

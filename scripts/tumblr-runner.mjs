@@ -11,6 +11,7 @@ import {
   loadRunnerPlan,
   materializeDataUrl,
   parseArgs,
+  postTypeCandidateIndex,
   reviewPagesOpenMessage,
   shouldDeferReadyReview,
   shouldPauseForManualAction,
@@ -459,6 +460,11 @@ async function clickElementByExactText(target, pattern) {
 
 async function choosePostTypeFromTumblrOptions(page, optionValue) {
   for (const target of await pageTargets(page)) {
+    const selectedFromVisibleOption = await choosePostTypeFromVisibleTumblrOption(page, target, optionValue);
+    if (selectedFromVisibleOption) {
+      return true;
+    }
+
     const clicked = await target
       .evaluate((value) => {
         const textMatches = (node) => (node.textContent || "").replace(/\s+/g, " ").trim().toLowerCase() === value;
@@ -493,6 +499,60 @@ async function choosePostTypeFromTumblrOptions(page, optionValue) {
   }
 
   return false;
+}
+
+async function choosePostTypeFromVisibleTumblrOption(page, target, optionValue) {
+  const opened = await clickElementByExactText(target, /^(Text|Photo|Video)$/i);
+  if (!opened) {
+    return false;
+  }
+
+  await page.waitForTimeout(500).catch(() => undefined);
+  const candidates = await target
+    .evaluate(() =>
+      Array.from(document.querySelectorAll(".option, li, [role='option'], button, a, div, span")).map((node) => {
+        const rect = node.getBoundingClientRect();
+        const className = typeof node.className === "string" ? node.className : "";
+        return {
+          className,
+          selected: /\bselected\b/i.test(className) || node.getAttribute("aria-selected") === "true",
+          text: (node.textContent || "").replace(/\s+/g, " ").trim(),
+          visible: rect.width > 0 && rect.height > 0,
+        };
+      }),
+    )
+    .catch(() => []);
+
+  const candidateIndex = postTypeCandidateIndex(candidates, optionValue);
+  if (candidateIndex < 0) {
+    return false;
+  }
+
+  const clicked = await target
+    .evaluate((index) => {
+      const nodes = Array.from(document.querySelectorAll(".option, li, [role='option'], button, a, div, span"));
+      const node = nodes[index];
+      if (!node) {
+        return false;
+      }
+
+      const clickTarget = node.closest(".option, li, [role='option'], button, a") || node;
+      const eventOptions = { bubbles: true, cancelable: true, view: window };
+      clickTarget.dispatchEvent(new PointerEvent("pointerdown", eventOptions));
+      clickTarget.dispatchEvent(new MouseEvent("mousedown", eventOptions));
+      clickTarget.dispatchEvent(new PointerEvent("pointerup", eventOptions));
+      clickTarget.dispatchEvent(new MouseEvent("mouseup", eventOptions));
+      clickTarget.dispatchEvent(new MouseEvent("click", eventOptions));
+      return true;
+    }, candidateIndex)
+    .catch(() => false);
+
+  if (!clicked) {
+    return false;
+  }
+
+  await page.waitForTimeout(1000).catch(() => undefined);
+  return postTypeSelected(page, optionValue);
 }
 
 async function choosePostTypeByCoordinates(page, optionValue) {
