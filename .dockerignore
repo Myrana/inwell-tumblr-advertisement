@@ -1,0 +1,12 @@
+.git
+.verlyn
+.tumblr-runner-profile
+__pycache__
+*.pyc
+backend/tests
+dist
+node_modules
+npm-debug.log
+playwright-report
+test-results
+tumblr-runner-plan.json
