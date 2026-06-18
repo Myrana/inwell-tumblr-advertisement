@@ -382,6 +382,38 @@ class PersistenceTests(unittest.TestCase):
         self.assertEqual(self.connection.submission_queue["queue-log-1"]["status"], "posted")
         self.assertIsNotNone(self.connection.submission_queue["queue-log-1"]["posted_at"])
 
+    def test_runner_log_fills_missing_run_and_target_from_active_runner_and_queue(self) -> None:
+        old_run_id = app.RUNNER_LAST_RUN_ID
+        app.RUNNER_LAST_RUN_ID = "run-active"
+        upsert_queue_item(
+            self.connection,
+            {
+                "id": "queue-log-2",
+                "ad_id": "ad-1",
+                "target_id": "target-2",
+                "target_name": "jcinktinder",
+                "submit_url": "https://jcinktinder.tumblr.com/submit",
+                "runner_payload": "{}",
+            },
+        )
+
+        try:
+            log = record_runner_log(
+                self.connection,
+                {
+                    "queue_item_id": "queue-log-2",
+                    "level": "warning",
+                    "status": "needs-review",
+                    "message": "Could not switch post type to photo.",
+                },
+            )
+        finally:
+            app.RUNNER_LAST_RUN_ID = old_run_id
+
+        self.assertEqual(log["run_id"], "run-active")
+        self.assertEqual(log["target_name"], "jcinktinder")
+        self.assertEqual(self.connection.submission_queue["queue-log-2"]["status"], "needs-review")
+
     def test_start_runner_writes_plan_and_launches_known_command(self) -> None:
         temp_plan = Path("backend-test-runner-plan.json")
         process = Mock()

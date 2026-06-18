@@ -13,6 +13,7 @@ export type RunnerLogRunGroup = {
   targetNames: string[];
   warningCount: number;
   errorCount: number;
+  failureExplanations: string[];
 };
 
 export function latestRunnerRunId(logs: RunnerLog[]) {
@@ -63,9 +64,14 @@ export function runnerLogRunGroups(logs: RunnerLog[]): RunnerLogRunGroup[] {
       }
       existing.warningCount += log.level === "warning" ? 1 : 0;
       existing.errorCount += log.level === "error" ? 1 : 0;
+      const explanation = runnerLogExplanation(log);
+      if (explanation && !existing.failureExplanations.includes(explanation)) {
+        existing.failureExplanations.push(explanation);
+      }
       return;
     }
 
+    const explanation = runnerLogExplanation(log);
     groups.set(groupId, {
       id: groupId,
       runId: log.runId,
@@ -74,8 +80,39 @@ export function runnerLogRunGroups(logs: RunnerLog[]): RunnerLogRunGroup[] {
       targetNames: targetName ? [targetName] : [],
       warningCount: log.level === "warning" ? 1 : 0,
       errorCount: log.level === "error" ? 1 : 0,
+      failureExplanations: explanation ? [explanation] : [],
     });
   });
 
   return Array.from(groups.values());
+}
+
+export function runnerLogExplanation(log: RunnerLog) {
+  if (log.level !== "error" && log.level !== "warning") {
+    return "";
+  }
+
+  const detailExplanation = stringDetail(log.details, "explanation") || stringDetail(log.details, "error");
+  const message = detailExplanation || log.message;
+  const normalized = message.toLowerCase();
+
+  if (normalized.includes("captcha") || normalized.includes("login") || normalized.includes("log in")) {
+    return "Tumblr asked for login, captcha, terms, or another manual checkpoint.";
+  }
+  if (normalized.includes("post type") || normalized.includes("photo")) {
+    return "Tumblr did not expose the expected photo post controls.";
+  }
+  if (normalized.includes("browser") || normalized.includes("target page") || normalized.includes("new tab")) {
+    return "The Playwright browser or tab closed before the runner finished.";
+  }
+  if (normalized.includes("submit button")) {
+    return "The runner could not find a submit button after filling the form.";
+  }
+
+  return message || "The runner needs manual review before this item can continue.";
+}
+
+function stringDetail(details: Record<string, unknown>, key: string) {
+  const value = details[key];
+  return typeof value === "string" ? value.trim() : "";
 }

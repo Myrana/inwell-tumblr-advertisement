@@ -103,10 +103,10 @@ export function RunnerLogsWorkspace({
               group.warningCount ? `${group.warningCount} warning${group.warningCount === 1 ? "" : "s"}` : "",
             ]
               .filter(Boolean)
-              .join(" · ");
+              .join(" - ");
 
             return (
-              <article className="runner-log-run" key={group.id}>
+              <article className={`runner-log-run ${group.errorCount ? "runner-log-run-failed" : ""}`} key={group.id}>
                 <button
                   aria-expanded={isOpen}
                   className="runner-log-run-summary"
@@ -119,12 +119,22 @@ export function RunnerLogsWorkspace({
                     <span>{group.targetNames.length ? group.targetNames.join(", ") : "No target recorded"}</span>
                   </span>
                   <span className="runner-log-run-meta">
+                    {group.errorCount ? <strong className="runner-run-status failed">Failed</strong> : null}
+                    {!group.errorCount && group.warningCount ? <strong className="runner-run-status warning">Needs review</strong> : null}
                     <span>{statusSummary}</span>
                     <span>{formatDate(group.latestAt)}</span>
                   </span>
                 </button>
                 {isOpen ? (
                   <div className="queue-log-list" aria-label={`${groupTitle} entries`}>
+                    {group.failureExplanations.length ? (
+                      <div className="runner-failure-summary" role="status">
+                        <strong>{group.errorCount ? "Why this run failed" : "Why this run needs review"}</strong>
+                        {group.failureExplanations.map((explanation) => (
+                          <span key={explanation}>{explanation}</span>
+                        ))}
+                      </div>
+                    ) : null}
                     {group.logs.map((log) => (
                       <article className={`queue-log queue-log-${log.level}`} key={log.id}>
                         <strong>{log.message}</strong>

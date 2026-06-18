@@ -571,6 +571,8 @@ def record_runner_log(connection: ConnectionLike, payload: dict[str, Any]) -> di
         raise ValueError("queue_item_id is required")
     if not log["message"]:
         raise ValueError("message is required")
+    if not log["run_id"]:
+        log["run_id"] = RUNNER_LAST_RUN_ID
 
     if not log["target_name"]:
         existing = connection.execute("SELECT * FROM submission_queue WHERE id = %s", (log["queue_item_id"],)).fetchone()
@@ -778,7 +780,23 @@ class Handler(BaseHTTPRequestHandler):
 
         if collection == "runner/start":
             try:
-                self.respond({"runner": start_runner(self.read_json())}, HTTPStatus.CREATED)
+                payload = self.read_json()
+                runner = start_runner(payload)
+                with connect() as connection:
+                    for item in payload.get("items", []):
+                        if not isinstance(item, dict):
+                            continue
+                        record_runner_log(
+                            connection,
+                            {
+                                "run_id": runner.get("run_id", ""),
+                                "queue_item_id": item.get("id", ""),
+                                "target_name": payload_field(item, "target_name", "targetName"),
+                                "status": "running",
+                                "message": "Runner launched this queue item.",
+                            },
+                        )
+                self.respond({"runner": runner}, HTTPStatus.CREATED)
             except ValueError as error:
                 self.respond({"error": str(error)}, HTTPStatus.BAD_REQUEST)
             return

@@ -353,9 +353,160 @@ test("runner logs are grouped by expandable queue run", { timeout: 40000 }, asyn
 
   await page.getByRole("button", { name: "Show all history" }).click();
   await page.getByRole("button", { name: /Run run-old/ }).waitFor();
-  assert.equal(await page.getByText("Needs manual review.").count(), 0);
+  assert.equal(await page.locator(".queue-log strong", { hasText: "Needs manual review." }).count(), 0);
   await page.getByRole("button", { name: /Run run-old/ }).click();
-  await page.getByText("Needs manual review.").waitFor();
+  await page.locator(".queue-log strong", { hasText: "Needs manual review." }).waitFor();
   assert.match((await page.getByRole("button", { name: /Run run-old/ }).textContent()) ?? "", /1 warning/);
+  assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
+});
+
+test("running the queue sends a run id and shows failure explanations", { timeout: 40000 }, async (t) => {
+  const server = spawn("npx vite --host 127.0.0.1 --port 8123 --strictPort", {
+    cwd: process.cwd(),
+    shell: true,
+    stdio: "ignore",
+  });
+
+  t.after(() => {
+    stopProcessTree(server);
+  });
+
+  await waitForServer(appUrl);
+
+  const browser = await chromium.launch();
+  t.after(async () => {
+    await browser.close();
+  });
+
+  const page = await browser.newPage();
+  const pageErrors = [];
+  let startPayload = null;
+  const apiHeaders = {
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Methods": "DELETE,GET,OPTIONS,POST,PUT",
+    "Access-Control-Allow-Origin": "*",
+  };
+  const queueItem = {
+    id: "queue-run-allthingsroleplay",
+    ad_id: "ad-run",
+    target_id: "allthingsroleplay",
+    target_name: "allthingsroleplay",
+    submit_url: "https://allthingsroleplay.tumblr.com/submit",
+    post_type: "photo",
+    status: "failed",
+    scheduled_for: null,
+    timezone: "America/New_York",
+    created_at: "2026-06-18T21:00:00.000Z",
+    updated_at: "2026-06-18T21:00:00.000Z",
+    last_run_at: null,
+    posted_at: null,
+    failed_at: "2026-06-18T21:04:00.000Z",
+    notes: "Runner failed: browserContext.newPage: Target page, context or browser has been closed",
+    runner_payload: JSON.stringify({ fields: { body: "Queue body" } }),
+  };
+
+  page.on("pageerror", (error) => pageErrors.push(error));
+  await page.route("http://127.0.0.1:8021/api/**", (route) => route.abort());
+  await page.route("http://127.0.0.1:8021/api/runner/start", async (route) => {
+    startPayload = route.request().postDataJSON();
+    await route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({ runner: { running: true, pid: 222, plan_path: "plan.json", command: [], run_id: startPayload.runId } }),
+    });
+  });
+  await page.route("http://127.0.0.1:8021/api/runner/logs", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({
+        logs: [
+          {
+            id: "log-failure",
+            run_id: "run-visible",
+            queue_item_id: "queue-run-allthingsroleplay",
+            target_name: "allthingsroleplay",
+            level: "error",
+            message: "Runner failed: browserContext.newPage: Target page, context or browser has been closed",
+            details: { error: "browserContext.newPage: Target page, context or browser has been closed" },
+            created_at: "2026-06-18T21:04:00.000Z",
+          },
+        ],
+      }),
+    }),
+  );
+  await page.route("http://127.0.0.1:8021/api/runner/status", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({ runner: { running: false, pid: null, plan_path: "", command: [], run_id: "" } }),
+    }),
+  );
+  await page.route("http://127.0.0.1:8021/api/queue", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({ queue: [queueItem] }),
+    }),
+  );
+  await page.route("http://127.0.0.1:8021/api/advertisements", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({ advertisements: [] }),
+    }),
+  );
+  await page.route("http://127.0.0.1:8021/api/templates", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({ templates: [] }),
+    }),
+  );
+
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      "inwell-ad-assistant-state",
+      JSON.stringify({
+        activeAdId: "ad-run",
+        ads: [
+          {
+            id: "ad-run",
+            postType: "photo",
+            title: "Run queue ad",
+            content: "<p>Queue body</p>",
+            destinationBlog: "allthingsroleplay",
+            forumUrl: "https://forum.example",
+            tags: [],
+            imageCaption: "",
+            imageName: "sample-forum-ad.png",
+            imageDataUrl: "/sample-forum-ad.png",
+            videoUrl: "",
+            videoName: "",
+            status: "draft",
+            updatedAt: "2026-06-18T21:00:00.000Z",
+          },
+        ],
+      }),
+    );
+    localStorage.setItem(
+      "inwell-tumblr-submit-targets",
+      JSON.stringify([
+        { id: "allthingsroleplay", name: "allthingsroleplay", submitUrl: "https://allthingsroleplay.tumblr.com/submit" },
+      ]),
+    );
+  });
+
+  await page.goto(appUrl);
+  await page.getByLabel("Workspace views").getByRole("button", { name: "Queue", exact: true }).click();
+  await page.getByRole("button", { name: "Run queue" }).click();
+  await page.waitForTimeout(250);
+  assert.match(startPayload?.runId ?? "", /^run-/);
+  assert.equal(startPayload.items[0].id, "queue-run-allthingsroleplay");
+  await page.getByText("Why this failed").waitFor();
+  await page.getByText("The Playwright browser or tab closed before the runner finished.").waitFor();
+  await page.getByRole("button", { name: "Runner Logs" }).click();
+  await page.getByRole("button", { name: /Latest run run-visible/ }).waitFor();
+  await page.getByText("Why this run failed").waitFor();
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
 });
