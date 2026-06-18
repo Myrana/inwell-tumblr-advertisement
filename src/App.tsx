@@ -330,6 +330,7 @@ function App() {
     updateActiveAd({
       destinationBlog: target.id,
       forumUrl: target.id ? target.forumUrl || activeAd.forumUrl : "",
+      title: target.id && !activeAd.title.trim() ? target.name : activeAd.title,
     });
   }
 
@@ -348,7 +349,10 @@ function App() {
       [target.id]: current[target.id] ?? [],
     }));
     activeDestinationBlogRef.current = target.id;
-    updateActiveAd({ destinationBlog: target.id });
+    updateActiveAd({
+      destinationBlog: target.id,
+      title: !activeAd.title.trim() ? target.name : activeAd.title,
+    });
     setNewSubmitUrl("");
     setSubmitTargetStatus(`Added ${target.name}. Open ${target.submitUrl} when you are ready to paste the post into Tumblr.`);
   }
