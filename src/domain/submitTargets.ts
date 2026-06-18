@@ -20,7 +20,7 @@ export function normalizeSubmitUrl(value: string) {
   }
 }
 
-export function submitTargetFromUrl(value: string): TumblrSubmitTarget | null {
+export function submitTargetFromUrl(value: string, forumUrl = ""): TumblrSubmitTarget | null {
   const submitUrl = normalizeSubmitUrl(value);
   if (!submitUrl) {
     return null;
@@ -30,7 +30,7 @@ export function submitTargetFromUrl(value: string): TumblrSubmitTarget | null {
   const blogName = hostname.replace(/\.tumblr\.com$/i, "");
   const id = blogName.toLowerCase();
 
-  return { id, name: blogName, submitUrl };
+  return { id, name: blogName, submitUrl, forumUrl: forumUrl.trim() };
 }
 
 export function fallbackTarget(id: string): TumblrSubmitTarget {
@@ -40,6 +40,7 @@ export function fallbackTarget(id: string): TumblrSubmitTarget {
       id: "",
       name: "Add a Tumblr blog",
       submitUrl: "",
+      forumUrl: "",
     };
   }
 
@@ -47,23 +48,59 @@ export function fallbackTarget(id: string): TumblrSubmitTarget {
     id: targetId,
     name: targetId,
     submitUrl: `https://${targetId}.tumblr.com/submit`,
+    forumUrl: "",
   };
 }
 
 export function uniqueSubmitTargets(targets: TumblrSubmitTarget[]) {
-  const seen = new Set<string>();
-  return targets.filter((target) => {
+  const seen = new Map<string, TumblrSubmitTarget>();
+
+  targets.forEach((target) => {
     if (!target.id || seen.has(target.id)) {
-      return false;
+      return;
     }
 
     if (removedSeedTargetIds.has(target.id)) {
-      return false;
+      return;
     }
 
-    seen.add(target.id);
-    return true;
+    seen.set(target.id, target);
   });
+
+  return Array.from(seen.values());
+}
+
+export function upsertSubmitTarget(targets: TumblrSubmitTarget[], nextTarget: TumblrSubmitTarget) {
+  const hasExisting = targets.some((target) => target.id === nextTarget.id);
+
+  if (!hasExisting) {
+    return uniqueSubmitTargets([...targets, nextTarget]);
+  }
+
+  return uniqueSubmitTargets(
+    targets.map((target) =>
+      target.id === nextTarget.id
+        ? {
+            ...target,
+            name: nextTarget.name || target.name,
+            submitUrl: nextTarget.submitUrl || target.submitUrl,
+            forumUrl: nextTarget.forumUrl || target.forumUrl,
+          }
+        : target,
+    ),
+  );
+}
+
+export function upsertSubmitTargetForumUrl(targets: TumblrSubmitTarget[], targetId: string, forumUrl: string) {
+  const normalizedTargetId = targetId.trim();
+
+  if (!normalizedTargetId) {
+    return targets;
+  }
+
+  return uniqueSubmitTargets(
+    targets.map((target) => (target.id === normalizedTargetId ? { ...target, forumUrl: forumUrl.trim() } : target)),
+  );
 }
 
 export function loadSubmitTargets() {
@@ -80,7 +117,8 @@ export function loadSubmitTargets() {
             const submitUrl = normalizeSubmitUrl(target.submitUrl ?? "");
             const id = (target.id ?? "").trim().toLowerCase();
             const name = (target.name ?? id).trim();
-            return submitUrl && id ? { id, name: name || id, submitUrl } : null;
+            const forumUrl = (target.forumUrl ?? "").trim();
+            return submitUrl && id ? { id, name: name || id, submitUrl, forumUrl } : null;
           })
           .filter((target): target is TumblrSubmitTarget => Boolean(target))
       : [];
