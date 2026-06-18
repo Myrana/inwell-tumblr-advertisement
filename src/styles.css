@@ -55,7 +55,6 @@ button {
 .brand,
 .account-strip,
 .nav-list button,
-.metric-panel,
 .tag-toolbar,
 .panel-heading,
 .draft-row,
@@ -79,8 +78,7 @@ button {
 }
 
 .brand span,
-.account-strip,
-.metric-panel p {
+.account-strip {
   color: #b9c5ce;
 }
 
@@ -123,30 +121,6 @@ button {
 .nav-list button.active,
 .nav-list button:hover {
   background: rgba(255, 255, 255, 0.1);
-}
-
-.metric-panel {
-  margin-top: auto;
-  align-items: stretch;
-  gap: 8px;
-}
-
-.metric-panel div {
-  flex: 1;
-  padding: 12px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.metric-panel span {
-  display: block;
-  font-size: 1.2rem;
-  font-weight: 800;
-}
-
-.metric-panel p {
-  margin: 4px 0 0;
-  font-size: 0.76rem;
 }
 
 .workspace {

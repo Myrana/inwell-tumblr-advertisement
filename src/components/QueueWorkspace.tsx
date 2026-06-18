@@ -1,5 +1,5 @@
-import { Clock, Copy, List, Play, Plus, Send } from "lucide-react";
-import { formatDate, formatEasternDate, formatSubmissionStatus, isoToDateTimeLocal } from "../domain/format";
+import { List, Play, Plus, Send } from "lucide-react";
+import { formatDate, formatSubmissionStatus } from "../domain/format";
 import { queueLogGroups, runnerLogExplanation, visibleRunnerLogs } from "../domain/runnerLogs";
 import { formatEasternRun, nextDailyRunAt, scheduleSummary } from "../domain/schedule";
 import {
@@ -22,13 +22,11 @@ type QueueWorkspaceProps = {
   runnerLogs: RunnerLog[];
   targetOptions: TumblrSubmitTarget[];
   onClearCompleted: () => void;
-  onCopyRunnerPlan: () => void;
   onQueueTargets: (targets: TumblrSubmitTarget[]) => void;
   onQueueScheduleSettingsChange: (patch: Partial<QueueScheduleSettings>) => void;
   onRefreshRunnerStatus: () => void;
   onRunnerSettingsChange: (patch: Partial<RunnerSettings>) => void;
   onStartRunner: () => void;
-  onUpdateQueueSchedule: (id: string, value: string) => void;
   onUpdateQueueItem: (id: string, status: SubmissionStatus, notes: string) => void;
 };
 
@@ -42,13 +40,11 @@ export function QueueWorkspace({
   runnerLogs,
   targetOptions,
   onClearCompleted,
-  onCopyRunnerPlan,
   onQueueTargets,
   onQueueScheduleSettingsChange,
   onRefreshRunnerStatus,
   onRunnerSettingsChange,
   onStartRunner,
-  onUpdateQueueSchedule,
   onUpdateQueueItem,
 }: QueueWorkspaceProps) {
   const statusCounts = activeQueue.reduce<Record<SubmissionStatus, number>>(
@@ -159,10 +155,6 @@ export function QueueWorkspace({
           <List size={18} />
           Queue all targets
         </button>
-        <button className="secondary" type="button" onClick={onCopyRunnerPlan} disabled={!activeQueue.length}>
-          <Copy size={18} />
-          Export automation plan
-        </button>
         <button className="secondary" type="button" onClick={onClearCompleted}>
           Clear completed
         </button>
@@ -175,22 +167,10 @@ export function QueueWorkspace({
               <div>
                 <strong>{item.targetName}</strong>
                 <span>{item.postType} - {formatSubmissionStatus(item.status)} - {formatDate(item.updatedAt)}</span>
-                <span>
-                  <Clock size={14} />
-                  {item.scheduledFor ? `Scheduled ${formatEasternDate(item.scheduledFor)} ET` : "Not scheduled"}
-                </span>
                 <a href={item.submitUrl} target="_blank" rel="noreferrer">
                   {item.submitUrl}
                 </a>
               </div>
-              <label className="queue-schedule-field">
-                Schedule in Eastern time
-                <input
-                  type="datetime-local"
-                  value={isoToDateTimeLocal(item.scheduledFor)}
-                  onChange={(event) => onUpdateQueueSchedule(item.id, event.target.value)}
-                />
-              </label>
               <div className="queue-item-actions">
                 <button
                   className="secondary"

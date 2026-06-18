@@ -221,15 +221,6 @@ export function EditorWorkspace({
                 <button type="button" title="Image" aria-label="Image" onClick={() => editor?.chain().focus().run()}>
                   <ImagePlus size={16} />
                 </button>
-                <button
-                  type="button"
-                  title="Queue current"
-                  aria-label="Queue current"
-                  onClick={() => onQueueTargets([activeSubmitTarget])}
-                  disabled={!activeSubmitTarget.submitUrl}
-                >
-                  <Send size={16} />
-                </button>
               </div>
 
               <section className="tumblr-body-field" aria-label="Tumblr post content">

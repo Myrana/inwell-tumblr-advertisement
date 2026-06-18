@@ -36,7 +36,6 @@ import { composerContentFor, emptyAd, fromApiAdvertisement, normalizeStoredState
 import { defaultTagProfiles, postTypes } from "./domain/constants";
 import { buildPreparedPost, validateAdvertisement } from "./domain/post";
 import { createQueueItem as createSubmissionQueueItem } from "./domain/queue";
-import { dateTimeLocalToIso } from "./domain/format";
 import {
   loadQueueScheduleSettings,
   loadRunnerSettings,
@@ -111,7 +110,6 @@ function App() {
     [activeSubmitTarget, submitTargets],
   );
 
-  const selectedTagCount = activeAd.tags.length;
   const activeQueue = submissionQueue.filter((item) => item.adId === activeAd.id);
   const activeDestinationBlogRef = useRef(activeAd.destinationBlog);
   const activeBlogTags = tagProfiles[activeAd.destinationBlog] ?? defaultTagProfiles[activeAd.destinationBlog] ?? [];
@@ -508,32 +506,6 @@ function App() {
     }
   }
 
-  function updateQueueSchedule(id: string, value: string) {
-    let nextItem: SubmissionQueueItem | null = null;
-    const scheduledFor = dateTimeLocalToIso(value);
-    const timestamp = new Date().toISOString();
-    setSubmissionQueue((current) =>
-      current.map((item) => {
-        if (item.id !== id) {
-          return item;
-        }
-
-        nextItem = {
-          ...item,
-          scheduledFor,
-          status: scheduledFor ? "scheduled" : "queued",
-          notes: scheduledFor ? "Scheduled for automatic posting." : "Ready for local browser runner.",
-          updatedAt: timestamp,
-        };
-        return nextItem;
-      }),
-    );
-
-    if (nextItem) {
-      syncQueueItem(nextItem);
-    }
-  }
-
   function clearCompletedQueueItems() {
     const removable = submissionQueue.filter((item) => item.adId === activeAd.id && ["posted", "failed"].includes(item.status));
     setSubmissionQueue((current) => current.filter((item) => item.adId !== activeAd.id || !["posted", "failed"].includes(item.status)));
@@ -545,31 +517,6 @@ function App() {
 
   function runnableQueueItems() {
     return activeQueue.filter((item) => item.status !== "posted" && item.status !== "running");
-  }
-
-  function buildRunnerPlan() {
-    const items = runnableQueueItems();
-    return {
-      version: 1,
-      workflow: "tumblr-submission-queue",
-      generatedAt: new Date().toISOString(),
-      items,
-    };
-  }
-
-  function copyRunnerPlan() {
-    const plan = JSON.stringify(buildRunnerPlan(), null, 2);
-    navigator.clipboard.writeText(plan);
-    const blob = new Blob([plan], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "tumblr-runner-plan.json";
-    link.click();
-    URL.revokeObjectURL(url);
-    setQueueStatus(
-      `Downloaded and copied runner plan for ${buildRunnerPlan().items.length} runnable target${buildRunnerPlan().items.length === 1 ? "" : "s"}.`,
-    );
   }
 
   async function refreshRunnerStatus(options: { quiet?: boolean } = {}) {
@@ -724,10 +671,6 @@ function App() {
     <main className="app-shell">
       <AppSidebar
         activeView={activeView}
-        apiAvailable={apiAvailable}
-        savedCount={stored.ads.length}
-        selectedTagCount={selectedTagCount}
-        templateCount={templates.length}
         onViewChange={setActiveView}
       />
 
@@ -782,13 +725,11 @@ function App() {
             runnerLogs={runnerLogs}
             targetOptions={targetOptions}
             onClearCompleted={clearCompletedQueueItems}
-            onCopyRunnerPlan={copyRunnerPlan}
             onQueueTargets={queueTargets}
             onQueueScheduleSettingsChange={(patch) => setQueueScheduleSettings((current) => ({ ...current, ...patch }))}
             onRefreshRunnerStatus={refreshRunnerStatus}
             onRunnerSettingsChange={(patch) => setRunnerSettings((current) => ({ ...current, ...patch }))}
             onStartRunner={startRunner}
-            onUpdateQueueSchedule={updateQueueSchedule}
             onUpdateQueueItem={updateQueueItem}
           />
         ) : null}
