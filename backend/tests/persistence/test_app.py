@@ -10,7 +10,17 @@ from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).parents[2]))
 import app
-from app import database_settings, initialize, ocr_tags_from_payload, parse_ocr_tags, start_runner, upsert_advertisement, upsert_template
+from app import (
+    database_settings,
+    initialize,
+    ocr_tags_from_payload,
+    parse_ocr_tags,
+    record_runner_log,
+    start_runner,
+    upsert_advertisement,
+    upsert_queue_item,
+    upsert_template,
+)
 
 
 class FakeCursor:
@@ -27,7 +37,9 @@ class FakeCursor:
 class FakePostgresConnection:
     def __init__(self) -> None:
         self.advertisements: dict[str, dict[str, Any]] = {}
+        self.runner_logs: dict[str, dict[str, Any]] = {}
         self.schema_migrations: dict[str, dict[str, Any]] = {}
+        self.submission_queue: dict[str, dict[str, Any]] = {}
         self.templates: dict[str, dict[str, Any]] = {}
 
     def execute(self, query: str, params: tuple[Any, ...] | None = None) -> FakeCursor:
@@ -114,6 +126,62 @@ class FakePostgresConnection:
         if normalized.startswith("delete from templates"):
             self.templates.pop(str(params[0]), None)
             return FakeCursor()
+
+        if normalized.startswith("select created_at from submission_queue"):
+            row = self.submission_queue.get(str(params[0]))
+            return FakeCursor([{"created_at": row["created_at"]}] if row else [])
+
+        if normalized.startswith("select * from submission_queue where id"):
+            row = self.submission_queue.get(str(params[0]))
+            return FakeCursor([row] if row else [])
+
+        if normalized.startswith("select * from submission_queue order by"):
+            return FakeCursor(sorted(self.submission_queue.values(), key=lambda row: row["updated_at"], reverse=True))
+
+        if normalized.startswith("insert into submission_queue"):
+            row = {
+                "id": params[0],
+                "ad_id": params[1],
+                "target_id": params[2],
+                "target_name": params[3],
+                "submit_url": params[4],
+                "post_type": params[5],
+                "status": params[6],
+                "scheduled_for": params[7],
+                "timezone": params[8],
+                "notes": params[9],
+                "runner_payload": params[10],
+                "created_at": params[11],
+                "updated_at": params[12],
+                "last_run_at": params[13],
+                "posted_at": params[14],
+                "failed_at": params[15],
+            }
+            self.submission_queue[str(params[0])] = row
+            return FakeCursor()
+
+        if normalized.startswith("delete from submission_queue"):
+            self.submission_queue.pop(str(params[0]), None)
+            return FakeCursor()
+
+        if normalized.startswith("insert into runner_logs"):
+            row = {
+                "id": params[0],
+                "queue_item_id": params[1],
+                "level": params[2],
+                "message": params[3],
+                "details": json.loads(params[4]),
+                "created_at": params[5],
+            }
+            self.runner_logs[str(params[0])] = row
+            return FakeCursor()
+
+        if normalized.startswith("select * from runner_logs where id"):
+            row = self.runner_logs.get(str(params[0]))
+            return FakeCursor([row] if row else [])
+
+        if normalized.startswith("select * from runner_logs order by"):
+            return FakeCursor(sorted(self.runner_logs.values(), key=lambda row: row["created_at"], reverse=True))
 
         raise AssertionError(f"Unexpected query: {query}")
 
@@ -243,6 +311,58 @@ class PersistenceTests(unittest.TestCase):
         self.assertEqual(saved["name"], "Custom template")
         self.assertEqual(saved["tags"], ["#custom"])
 
+    def test_queue_item_upsert_round_trips_schedule_and_status(self) -> None:
+        saved = upsert_queue_item(
+            self.connection,
+            {
+                "id": "queue-1",
+                "adId": "ad-1",
+                "targetId": "allthingsroleplay",
+                "targetName": "allthingsroleplay",
+                "submitUrl": "https://allthingsroleplay.tumblr.com/submit",
+                "postType": "photo",
+                "status": "scheduled",
+                "scheduledFor": "2026-06-18T14:30:00+00:00",
+                "timezone": "America/New_York",
+                "notes": "Scheduled for posting.",
+                "runnerPayload": "{}",
+            },
+        )
+
+        self.assertEqual(saved["id"], "queue-1")
+        self.assertEqual(saved["ad_id"], "ad-1")
+        self.assertEqual(saved["status"], "scheduled")
+        self.assertEqual(saved["post_type"], "photo")
+        self.assertIn("2026-06-18T14:30:00", saved["scheduled_for"])
+
+    def test_runner_log_updates_queue_status(self) -> None:
+        upsert_queue_item(
+            self.connection,
+            {
+                "id": "queue-log-1",
+                "ad_id": "ad-1",
+                "target_id": "target-1",
+                "submit_url": "https://example.tumblr.com/submit",
+                "runner_payload": "{}",
+            },
+        )
+
+        log = record_runner_log(
+            self.connection,
+            {
+                "queue_item_id": "queue-log-1",
+                "level": "info",
+                "status": "posted",
+                "message": "Submit button clicked.",
+                "details": {"submit": True},
+            },
+        )
+
+        self.assertEqual(log["message"], "Submit button clicked.")
+        self.assertEqual(log["details"], {"submit": True})
+        self.assertEqual(self.connection.submission_queue["queue-log-1"]["status"], "posted")
+        self.assertIsNotNone(self.connection.submission_queue["queue-log-1"]["posted_at"])
+
     def test_start_runner_writes_plan_and_launches_known_command(self) -> None:
         temp_plan = Path("backend-test-runner-plan.json")
         process = Mock()
@@ -269,6 +389,7 @@ class PersistenceTests(unittest.TestCase):
             self.assertTrue(result["running"])
             self.assertEqual(result["pid"], 123)
             self.assertIn("--login-first", result["command"])
+            self.assertIn("--api-base", result["command"])
             self.assertIn("--media-dir", result["command"])
             self.assertIn("--submit", result["command"])
             self.assertEqual(json.loads(temp_plan.read_text(encoding="utf-8"))["items"][0]["id"], "queue-1")

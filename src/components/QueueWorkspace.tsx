@@ -1,6 +1,7 @@
-import { Copy, List, Play, Plus, Send } from "lucide-react";
-import { formatDate } from "../domain/format";
+import { Activity, Clock, Copy, List, Play, Plus, Send } from "lucide-react";
+import { formatDate, formatEasternDate, formatSubmissionStatus, isoToDateTimeLocal } from "../domain/format";
 import {
+  RunnerLog,
   RunnerSettings,
   RunnerStatus,
   SubmissionQueueItem,
@@ -14,6 +15,7 @@ type QueueWorkspaceProps = {
   queueStatus: string;
   runnerSettings: RunnerSettings;
   runnerState: RunnerStatus | null;
+  runnerLogs: RunnerLog[];
   targetOptions: TumblrSubmitTarget[];
   onClearCompleted: () => void;
   onCopyRunnerPlan: () => void;
@@ -21,6 +23,7 @@ type QueueWorkspaceProps = {
   onRefreshRunnerStatus: () => void;
   onRunnerSettingsChange: (patch: Partial<RunnerSettings>) => void;
   onStartRunner: () => void;
+  onUpdateQueueSchedule: (id: string, value: string) => void;
   onUpdateQueueItem: (id: string, status: SubmissionStatus, notes: string) => void;
 };
 
@@ -30,6 +33,7 @@ export function QueueWorkspace({
   queueStatus,
   runnerSettings,
   runnerState,
+  runnerLogs,
   targetOptions,
   onClearCompleted,
   onCopyRunnerPlan,
@@ -37,13 +41,28 @@ export function QueueWorkspace({
   onRefreshRunnerStatus,
   onRunnerSettingsChange,
   onStartRunner,
+  onUpdateQueueSchedule,
   onUpdateQueueItem,
 }: QueueWorkspaceProps) {
+  const statusCounts = activeQueue.reduce<Record<SubmissionStatus, number>>(
+    (counts, item) => ({ ...counts, [item.status]: counts[item.status] + 1 }),
+    { queued: 0, scheduled: 0, running: 0, posted: 0, "needs-review": 0, failed: 0 },
+  );
+  const recentLogs = runnerLogs.slice(0, 12);
+
   return (
     <section className="submission-queue-panel queue-workspace" aria-label="Tumblr submission queue">
       <div className="panel-heading">
         <h2>Submission queue</h2>
         <Send size={18} />
+      </div>
+      <div className="queue-monitor-grid" aria-label="Queue monitoring summary">
+        {Object.entries(statusCounts).map(([status, count]) => (
+          <div className="queue-monitor-stat" key={status}>
+            <span>{formatSubmissionStatus(status as SubmissionStatus)}</span>
+            <strong>{count}</strong>
+          </div>
+        ))}
       </div>
       <div className="runner-control-panel" aria-label="Local Tumblr runner controls">
         <div className="field-grid three">
@@ -114,34 +133,46 @@ export function QueueWorkspace({
             <article className="queue-item" key={item.id}>
               <div>
                 <strong>{item.targetName}</strong>
-                <span>{item.postType} - {item.status} - {formatDate(item.updatedAt)}</span>
+                <span>{item.postType} - {formatSubmissionStatus(item.status)} - {formatDate(item.updatedAt)}</span>
+                <span>
+                  <Clock size={14} />
+                  {item.scheduledFor ? `Scheduled ${formatEasternDate(item.scheduledFor)} ET` : "Not scheduled"}
+                </span>
                 <a href={item.submitUrl} target="_blank" rel="noreferrer">
                   {item.submitUrl}
                 </a>
               </div>
+              <label className="queue-schedule-field">
+                Schedule in Eastern time
+                <input
+                  type="datetime-local"
+                  value={isoToDateTimeLocal(item.scheduledFor)}
+                  onChange={(event) => onUpdateQueueSchedule(item.id, event.target.value)}
+                />
+              </label>
               <div className="queue-item-actions">
                 <button
                   className="secondary"
                   type="button"
-                  onClick={() => onUpdateQueueItem(item.id, "submitting", "Runner started this target.")}
+                  onClick={() => onUpdateQueueItem(item.id, "running", "Runner started this target.")}
                 >
-                  Runner started
+                  Running
                 </button>
                 <button
                   className="secondary"
                   type="button"
                   onClick={() =>
-                    onUpdateQueueItem(item.id, "manual-action", "Tumblr requires login, captcha, media upload, or form review.")
+                    onUpdateQueueItem(item.id, "needs-review", "Tumblr requires login, captcha, media upload, or form review.")
                   }
                 >
-                  Needs action
+                  Needs review
                 </button>
                 <button
                   className="secondary"
                   type="button"
-                  onClick={() => onUpdateQueueItem(item.id, "submitted", "Marked submitted after Tumblr accepted the form.")}
+                  onClick={() => onUpdateQueueItem(item.id, "posted", "Marked posted after Tumblr accepted the form.")}
                 >
-                  Submitted
+                  Posted
                 </button>
                 <button
                   className="secondary"
@@ -158,6 +189,24 @@ export function QueueWorkspace({
           <p className="queue-empty">Queue one or more Tumblr blogs, then run the automation step.</p>
         )}
       </div>
+      <section className="queue-log-panel" aria-label="Runner logs">
+        <div className="panel-heading">
+          <h2>Runner logs</h2>
+          <Activity size={18} />
+        </div>
+        {recentLogs.length ? (
+          <div className="queue-log-list">
+            {recentLogs.map((log) => (
+              <article className={`queue-log queue-log-${log.level}`} key={log.id}>
+                <strong>{log.message}</strong>
+                <span>{formatDate(log.createdAt)}</span>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <p className="queue-empty">No runner logs yet.</p>
+        )}
+      </section>
     </section>
   );
 }

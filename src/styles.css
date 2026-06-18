@@ -962,6 +962,35 @@ pre {
   font-weight: 800;
 }
 
+.queue-monitor-grid {
+  margin-bottom: 12px;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.queue-monitor-stat {
+  min-height: 64px;
+  padding: 10px;
+  display: grid;
+  align-content: center;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafb;
+}
+
+.queue-monitor-stat span,
+.queue-log span {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.queue-monitor-stat strong {
+  font-size: 1.35rem;
+}
+
 .queue-status,
 .queue-empty,
 .queue-item p {
@@ -993,7 +1022,10 @@ pre {
 }
 
 .queue-item span {
+  display: flex;
   margin-top: 3px;
+  align-items: center;
+  gap: 5px;
   color: var(--muted);
   font-size: 0.82rem;
 }
@@ -1003,6 +1035,43 @@ pre {
   color: #315f6c;
   font-size: 0.82rem;
   font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.queue-schedule-field {
+  max-width: 320px;
+}
+
+.queue-log-panel {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.queue-log-list {
+  display: grid;
+  gap: 8px;
+}
+
+.queue-log {
+  padding: 10px;
+  display: grid;
+  gap: 3px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--cyan);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.queue-log-warning {
+  border-left-color: var(--amber);
+}
+
+.queue-log-error {
+  border-left-color: var(--coral);
+}
+
+.queue-log strong {
   overflow-wrap: anywhere;
 }
 
@@ -1186,6 +1255,7 @@ pre {
 
   .field-grid.two,
   .field-grid.three,
+  .queue-monitor-grid,
   .submit-target-manager,
   .tag-grid,
   .tumblr-composer-header,

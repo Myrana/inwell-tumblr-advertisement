@@ -2,18 +2,14 @@ import { submissionQueueStorageKey } from "./constants";
 import { Advertisement, SubmissionQueueItem, SubmissionStatus, TumblrSubmitTarget } from "./types";
 import { composerContentFor } from "./ads";
 
+export const defaultScheduleTimezone = "America/New_York";
+
 export function normalizeQueueItem(value: Partial<SubmissionQueueItem> | null | undefined): SubmissionQueueItem | null {
   if (!value?.id || !value.adId || !value.targetId || !value.submitUrl) {
     return null;
   }
 
-  const status: SubmissionStatus =
-    value.status === "submitting" ||
-    value.status === "submitted" ||
-    value.status === "manual-action" ||
-    value.status === "failed"
-      ? value.status
-      : "queued";
+  const status = normalizeSubmissionStatus(value.status);
 
   return {
     id: value.id,
@@ -23,11 +19,24 @@ export function normalizeQueueItem(value: Partial<SubmissionQueueItem> | null | 
     submitUrl: value.submitUrl,
     postType: value.postType === "text" || value.postType === "video" ? value.postType : "photo",
     status,
+    scheduledFor: value.scheduledFor || "",
+    timezone: value.timezone || defaultScheduleTimezone,
     createdAt: value.createdAt || new Date().toISOString(),
     updatedAt: value.updatedAt || new Date().toISOString(),
+    lastRunAt: value.lastRunAt || "",
+    postedAt: value.postedAt || "",
+    failedAt: value.failedAt || "",
     notes: value.notes || "",
     runnerPayload: value.runnerPayload || "",
   };
+}
+
+export function normalizeSubmissionStatus(value: unknown): SubmissionStatus {
+  if (value === "submitting" || value === "running") return "running";
+  if (value === "submitted" || value === "posted") return "posted";
+  if (value === "manual-action" || value === "needs-review") return "needs-review";
+  if (value === "scheduled" || value === "failed") return value;
+  return "queued";
 }
 
 export function loadSubmissionQueue() {
@@ -93,8 +102,13 @@ export function createQueueItem(advertisement: Advertisement, target: TumblrSubm
     submitUrl: target.submitUrl,
     postType: advertisement.postType,
     status: "queued",
+    scheduledFor: "",
+    timezone: defaultScheduleTimezone,
     createdAt: timestamp,
     updatedAt: timestamp,
+    lastRunAt: "",
+    postedAt: "",
+    failedAt: "",
     notes: "Ready for local browser runner.",
     runnerPayload: buildRunnerPayload(advertisement, target, postPackage),
   };
