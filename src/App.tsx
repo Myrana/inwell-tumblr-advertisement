@@ -14,6 +14,7 @@ import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "re
 import { AppSidebar } from "./components/AppSidebar";
 import { EditorWorkspace } from "./components/EditorWorkspace";
 import { QueueWorkspace } from "./components/QueueWorkspace";
+import { RunnerLogsWorkspace } from "./components/RunnerLogsWorkspace";
 import { SavedSubmissionsView } from "./components/SavedSubmissionsView";
 import { TemplatesWorkspace } from "./components/TemplatesWorkspace";
 import { WorkspaceTopbar } from "./components/WorkspaceTopbar";
@@ -232,7 +233,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (activeView !== "queue" || !runnerState?.running) {
+    if (!["queue", "logs"].includes(activeView) || !runnerState?.running) {
       return;
     }
 
@@ -655,6 +656,7 @@ function App() {
     saved: { eyebrow: "Saved submission library", title: "Saved submissions" },
     templates: { eyebrow: "Reusable copy library", title: "Saved templates" },
     queue: { eyebrow: "Tumblr automation", title: "Submission queue" },
+    logs: { eyebrow: "Tumblr automation", title: "Runner logs" },
   };
   const toolbarButtons = [
     {
@@ -769,7 +771,6 @@ function App() {
             runnerLogs={runnerLogs}
             targetOptions={targetOptions}
             onClearCompleted={clearCompletedQueueItems}
-            onClearRunnerLogs={clearRunnerLogHistory}
             onCopyRunnerPlan={copyRunnerPlan}
             onQueueTargets={queueTargets}
             onRefreshRunnerStatus={refreshRunnerStatus}
@@ -777,6 +778,15 @@ function App() {
             onStartRunner={startRunner}
             onUpdateQueueSchedule={updateQueueSchedule}
             onUpdateQueueItem={updateQueueItem}
+          />
+        ) : null}
+        {activeView === "logs" ? (
+          <RunnerLogsWorkspace
+            activeQueue={activeQueue}
+            runnerLogs={runnerLogs}
+            runnerState={runnerState}
+            onClearRunnerLogs={clearRunnerLogHistory}
+            onRefreshRunnerStatus={refreshRunnerStatus}
           />
         ) : null}
 

@@ -1,6 +1,6 @@
 export type Status = "draft" | "ready" | "submitted";
 export type PostType = "text" | "photo" | "video";
-export type WorkspaceView = "editor" | "saved" | "templates" | "queue";
+export type WorkspaceView = "editor" | "saved" | "templates" | "queue" | "logs";
 
 export type Advertisement = {
   id: string;

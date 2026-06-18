@@ -242,5 +242,8 @@ test("templates can be saved and applied from their own workspace", { timeout: 4
   await page.getByRole("heading", { name: "Saved submissions", level: 1 }).waitFor();
   await page.getByRole("button", { name: "Queue" }).click();
   await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
+  await page.getByRole("button", { name: "Runner Logs" }).click();
+  await page.getByRole("heading", { name: "Runner logs", level: 1 }).waitFor();
+  await page.getByText("No runner logs yet.").waitFor();
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
 });
