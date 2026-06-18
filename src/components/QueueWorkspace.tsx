@@ -1,6 +1,6 @@
 import { Clock, Copy, List, Play, Plus, Send } from "lucide-react";
 import { formatDate, formatEasternDate, formatSubmissionStatus, isoToDateTimeLocal } from "../domain/format";
-import { queueLogGroups, visibleRunnerLogs } from "../domain/runnerLogs";
+import { queueLogGroups, runnerLogExplanation, visibleRunnerLogs } from "../domain/runnerLogs";
 import {
   RunnerLog,
   RunnerSettings,
@@ -51,6 +51,12 @@ export function QueueWorkspace({
   );
   const scopedLogs = visibleRunnerLogs(runnerLogs, false);
   const logGroups = queueLogGroups(activeQueue, scopedLogs);
+
+  function queueItemExplanation(item: SubmissionQueueItem) {
+    const logs = logGroups.find((group) => group.item.id === item.id)?.logs ?? [];
+    const reviewLog = logs.find((log) => log.level === "error") ?? logs.find((log) => log.level === "warning");
+    return reviewLog ? runnerLogExplanation(reviewLog) || reviewLog.message : item.notes;
+  }
 
   return (
     <section className="submission-queue-panel queue-workspace" aria-label="Tumblr submission queue">
@@ -185,6 +191,12 @@ export function QueueWorkspace({
                 </button>
               </div>
               <p>{item.notes}</p>
+              {item.status === "failed" || item.status === "needs-review" ? (
+                <div className={`queue-item-explanation ${item.status === "failed" ? "failed" : "warning"}`} role="status">
+                  <strong>{item.status === "failed" ? "Why this failed" : "Why this needs review"}</strong>
+                  <span>{queueItemExplanation(item)}</span>
+                </div>
+              ) : null}
               {logGroups.find((group) => group.item.id === item.id)?.logs.length ? (
                 <div className="queue-item-log-list" aria-label={`Runner logs for ${item.targetName}`}>
                   {logGroups

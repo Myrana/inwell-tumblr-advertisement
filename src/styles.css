@@ -1091,6 +1091,10 @@ pre {
   overflow: hidden;
 }
 
+.runner-log-run-failed {
+  border-color: #f3b2a4;
+}
+
 .runner-log-run-summary {
   width: 100%;
   padding: 12px;
@@ -1128,6 +1132,51 @@ pre {
 .runner-log-run-meta {
   justify-items: end;
   text-align: right;
+}
+
+.runner-run-status {
+  width: max-content;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+}
+
+.runner-run-status.failed {
+  background: #fff0ed;
+  color: #9f351f;
+}
+
+.runner-run-status.warning {
+  background: #fff8df;
+  color: #7b5b00;
+}
+
+.runner-failure-summary,
+.queue-item-explanation {
+  padding: 10px;
+  display: grid;
+  gap: 4px;
+  border: 1px solid #f3b2a4;
+  border-left: 4px solid var(--coral);
+  border-radius: 8px;
+  background: #fff7f5;
+}
+
+.queue-item-explanation {
+  margin: 8px 0 0;
+}
+
+.queue-item-explanation.warning {
+  border-color: #f0d68b;
+  border-left-color: var(--amber);
+  background: #fffaf0;
+}
+
+.runner-failure-summary span,
+.queue-item-explanation span {
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-weight: 700;
 }
 
 .runner-log-run .queue-log-list {

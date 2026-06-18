@@ -594,10 +594,12 @@ function App() {
     }
 
     try {
+      const runId = `run-${crypto.randomUUID()}`;
       const response = await apiRequest<{ runner: RunnerStatus }>("/runner/start", {
         method: "POST",
         body: JSON.stringify({
           ...runnerSettings,
+          runId,
           items,
         }),
       });
