@@ -19,6 +19,7 @@ export function formatStatus(value: Status) {
 
 export function formatSubmissionStatus(value: SubmissionStatus) {
   if (value === "needs-review") return "Needs review";
+  if (value === "submitted") return "Submitted";
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 

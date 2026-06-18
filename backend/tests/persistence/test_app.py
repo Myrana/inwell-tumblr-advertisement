@@ -369,7 +369,7 @@ class PersistenceTests(unittest.TestCase):
                 "queue_item_id": "queue-log-1",
                 "run_id": "run-test",
                 "level": "info",
-                "status": "posted",
+                "status": "submitted",
                 "message": "Submit button clicked.",
                 "details": {"submit": True},
             },
@@ -379,8 +379,8 @@ class PersistenceTests(unittest.TestCase):
         self.assertEqual(log["run_id"], "run-test")
         self.assertEqual(log["target_name"], "allthingsroleplay")
         self.assertEqual(log["details"], {"submit": True})
-        self.assertEqual(self.connection.submission_queue["queue-log-1"]["status"], "posted")
-        self.assertIsNotNone(self.connection.submission_queue["queue-log-1"]["posted_at"])
+        self.assertEqual(self.connection.submission_queue["queue-log-1"]["status"], "submitted")
+        self.assertIsNone(self.connection.submission_queue["queue-log-1"]["posted_at"])
 
     def test_runner_log_fills_missing_run_and_target_from_active_runner_and_queue(self) -> None:
         old_run_id = app.RUNNER_LAST_RUN_ID

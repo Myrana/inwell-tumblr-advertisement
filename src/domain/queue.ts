@@ -33,7 +33,8 @@ export function normalizeQueueItem(value: Partial<SubmissionQueueItem> | null | 
 
 export function normalizeSubmissionStatus(value: unknown): SubmissionStatus {
   if (value === "submitting" || value === "running") return "running";
-  if (value === "submitted" || value === "posted") return "posted";
+  if (value === "submitted") return "submitted";
+  if (value === "posted") return "posted";
   if (value === "manual-action" || value === "needs-review") return "needs-review";
   if (value === "scheduled" || value === "failed") return value;
   return "queued";

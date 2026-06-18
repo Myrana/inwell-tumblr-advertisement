@@ -493,9 +493,9 @@ function App() {
           status,
           notes,
           updatedAt: timestamp,
-          lastRunAt: status === "running" ? timestamp : item.lastRunAt,
-          postedAt: status === "posted" ? timestamp : item.postedAt,
-          failedAt: status === "failed" ? timestamp : item.failedAt,
+          lastRunAt: status === "running" ? timestamp : status === "queued" ? "" : item.lastRunAt,
+          postedAt: status === "posted" ? timestamp : status === "queued" ? "" : item.postedAt,
+          failedAt: status === "failed" ? timestamp : status === "queued" ? "" : item.failedAt,
         };
         return nextItem;
       }),
@@ -507,16 +507,17 @@ function App() {
   }
 
   function clearCompletedQueueItems() {
-    const removable = submissionQueue.filter((item) => item.adId === activeAd.id && ["posted", "failed"].includes(item.status));
-    setSubmissionQueue((current) => current.filter((item) => item.adId !== activeAd.id || !["posted", "failed"].includes(item.status)));
+    const completedStatuses: SubmissionStatus[] = ["submitted", "posted", "failed"];
+    const removable = submissionQueue.filter((item) => item.adId === activeAd.id && completedStatuses.includes(item.status));
+    setSubmissionQueue((current) => current.filter((item) => item.adId !== activeAd.id || !completedStatuses.includes(item.status)));
     removable.forEach((item) => {
       void removeQueueItem(item.id).catch(() => setApiAvailable(false));
     });
-    setQueueStatus("Cleared posted and failed entries for this saved submission.");
+    setQueueStatus("Cleared submitted, posted, and failed entries for this saved submission.");
   }
 
   function runnableQueueItems() {
-    return activeQueue.filter((item) => item.status !== "posted" && item.status !== "running");
+    return activeQueue.filter((item) => !["submitted", "posted", "running"].includes(item.status));
   }
 
   async function refreshRunnerStatus(options: { quiet?: boolean } = {}) {

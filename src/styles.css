@@ -1025,8 +1025,19 @@ pre {
   overflow-wrap: anywhere;
 }
 
-.queue-schedule-field {
-  max-width: 320px;
+.queue-item-overrides {
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.queue-item-overrides summary {
+  width: fit-content;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.queue-item-overrides .queue-item-actions {
+  margin-top: 8px;
 }
 
 .queue-log-panel {
@@ -1203,6 +1214,11 @@ pre {
 
 .runner-target-summary-ready {
   border-left-color: var(--cyan);
+}
+
+.runner-target-summary-submitted {
+  border-left-color: var(--green);
+  background: #f3faf6;
 }
 
 .runner-log-run .queue-log-list {

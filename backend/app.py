@@ -17,7 +17,7 @@ from psycopg.rows import dict_row
 
 
 POST_TYPES = {"text", "photo", "video"}
-QUEUE_STATUSES = {"queued", "scheduled", "running", "posted", "needs-review", "failed"}
+QUEUE_STATUSES = {"queued", "scheduled", "running", "submitted", "posted", "needs-review", "failed"}
 LOG_LEVELS = {"info", "warning", "error"}
 DEFAULT_TIMEZONE = "America/New_York"
 DEFAULT_PGHOST = "192.168.1.3"
@@ -346,7 +346,7 @@ def normalize_queue_status(value: Any) -> str:
     if status == "submitting":
         return "running"
     if status == "submitted":
-        return "posted"
+        return "submitted"
     if status == "manual-action":
         return "needs-review"
     return status if status in QUEUE_STATUSES else "queued"
