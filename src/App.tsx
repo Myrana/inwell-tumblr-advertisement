@@ -48,7 +48,7 @@ import {
   registerInkwellUser,
 } from "./domain/api";
 import { composerContentFor, emptyAd, fromApiAdvertisement, normalizeStoredState } from "./domain/ads";
-import { defaultQueueName, defaultTagProfiles, postTypes } from "./domain/constants";
+import { defaultTagProfiles, postTypes } from "./domain/constants";
 import { buildPreparedPost, validateAdvertisement } from "./domain/post";
 import { createQueueItem as createSubmissionQueueItem, queueIdFromName, uniqueQueueDefinitions } from "./domain/queue";
 import {
@@ -125,7 +125,7 @@ function App() {
   const [validation, setValidation] = useState<string[]>([]);
   const [queueStatus, setQueueStatus] = useState("");
   const [queueNameDraft, setQueueNameDraft] = useState("");
-  const [selectedQueueName, setSelectedQueueName] = useState(defaultQueueName);
+  const [selectedQueueName, setSelectedQueueName] = useState("");
   const [queueScheduleSettings, setQueueScheduleSettings] = useState<QueueScheduleSettings>(() => loadQueueScheduleSettings());
   const [runnerSettings, setRunnerSettings] = useState<RunnerSettings>(() => loadRunnerSettings());
   const [runnerState, setRunnerState] = useState<RunnerStatus | null>(null);
@@ -151,7 +151,7 @@ function App() {
   );
 
   const queueOptions = useMemo(() => uniqueQueueDefinitions(queueDefinitions, submissionQueue), [queueDefinitions, submissionQueue]);
-  const activeQueueName = queueOptions.some((queue) => queue.name === selectedQueueName) ? selectedQueueName : queueOptions[0]?.name ?? defaultQueueName;
+  const activeQueueName = queueOptions.some((queue) => queue.name === selectedQueueName) ? selectedQueueName : queueOptions[0]?.name ?? "";
   const activeQueue = submissionQueue.filter((item) => item.queueName === activeQueueName);
   const activeDestinationBlogRef = useRef(activeAd.destinationBlog);
   const activeBlogTags = tagProfiles[activeAd.destinationBlog] ?? defaultTagProfiles[activeAd.destinationBlog] ?? [];
@@ -632,6 +632,12 @@ function App() {
   }
 
   function queueTargets(targets: TumblrSubmitTarget[]) {
+    if (!activeQueueName) {
+      setQueueStatus("Create a queue before adding submissions.");
+      setActiveView("queue-settings");
+      return;
+    }
+
     const missing = validateAd();
     if (missing.length) {
       return;
@@ -646,6 +652,43 @@ function App() {
     });
     nextItems.forEach(syncQueueItem);
     setQueueStatus(`Queued ${nextItems.length} target${nextItems.length === 1 ? "" : "s"} in ${activeQueueName}.`);
+  }
+
+  function renameQueueDefinition(currentName: string, nextNameValue: string) {
+    const nextName = nextNameValue.trim();
+    if (!nextName) {
+      setQueueStatus("Enter a queue name first.");
+      return;
+    }
+    if (nextName === currentName) {
+      return;
+    }
+    if (queueOptions.some((queue) => queue.name.toLowerCase() === nextName.toLowerCase() && queue.name !== currentName)) {
+      setQueueStatus(`${nextName} already exists.`);
+      return;
+    }
+
+    const renamedQueue = { id: queueIdFromName(nextName), name: nextName };
+    setQueueDefinitions((current) =>
+      uniqueQueueDefinitions(
+        current.map((queue) => (queue.name === currentName ? renamedQueue : queue)),
+        submissionQueue.map((item) => (item.queueName === currentName ? { ...item, queueName: nextName } : item)),
+      ),
+    );
+    setSubmissionQueue((current) =>
+      current.map((item) => {
+        if (item.queueName !== currentName) {
+          return item;
+        }
+        const renamedItem = { ...item, queueName: nextName, updatedAt: new Date().toISOString() };
+        syncQueueItem(renamedItem);
+        return renamedItem;
+      }),
+    );
+    if (selectedQueueName === currentName) {
+      setSelectedQueueName(nextName);
+    }
+    setQueueStatus(`Renamed ${currentName} to ${nextName}.`);
   }
 
   function updateQueueItem(id: string, status: SubmissionStatus, notes: string) {
@@ -1129,9 +1172,11 @@ function App() {
             activeQueueName={activeQueueName}
             queueNameDraft={queueNameDraft}
             queueOptions={queueOptions}
+            queueStatus={queueStatus}
             submissionQueue={submissionQueue}
             onCreateQueue={createQueueDefinition}
             onQueueNameDraftChange={setQueueNameDraft}
+            onRenameQueue={renameQueueDefinition}
             onSelectQueue={(queueName) => {
               setSelectedQueueName(queueName);
               setActiveView("queue");

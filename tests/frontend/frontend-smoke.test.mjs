@@ -426,12 +426,12 @@ test("templates can be saved and applied from their own workspace", { timeout: 4
   await page.getByRole("heading", { name: "Content library", level: 1 }).waitFor();
   await page.getByRole("button", { name: "Edit" }).click();
   await page.getByRole("heading", { name: "All Things Roleplay" }).waitFor();
-  await page.getByRole("button", { name: "Queue", exact: true }).click();
-  await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
-  assert.equal(await page.getByRole("button", { name: "Export automation plan" }).count(), 0);
-  assert.equal(await page.getByLabel("Schedule in Eastern time").count(), 0);
+  assert.equal(await page.getByLabel("Workspace views").getByRole("button", { name: "Queue", exact: true }).count(), 0);
   await page.getByRole("button", { name: "Queues", exact: true }).click();
   await page.getByRole("heading", { name: "Queues", level: 1 }).waitFor();
+  assert.equal(await page.getByText("Default queue").count(), 0);
+  assert.equal(await page.getByRole("button", { name: "Export automation plan" }).count(), 0);
+  assert.equal(await page.getByLabel("Schedule in Eastern time").count(), 0);
   await page.getByLabel("New queue name").fill("Want ads");
   await page.getByRole("button", { name: "Add queue" }).click();
   await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
@@ -451,17 +451,23 @@ test("templates can be saved and applied from their own workspace", { timeout: 4
   await page.getByRole("button", { name: "Queues", exact: true }).click();
   const wantAdsRow = page.locator(".queue-management-row", { hasText: "Want ads" });
   await wantAdsRow.getByText("1 item - 0 complete").waitFor();
+  await wantAdsRow.getByLabel("Queue name").fill("Site ads");
+  await wantAdsRow.getByRole("button", { name: "Save name" }).click();
+  await page.getByText("Renamed Want ads to Site ads.").waitFor();
+  const siteAdsRow = page.locator(".queue-management-row", { hasText: "Site ads" });
+  await siteAdsRow.getByText("1 item - 0 complete").waitFor();
   assert.equal(await wantAdsRow.getByRole("button", { name: "Clear queue" }).count(), 0);
-  await wantAdsRow.getByRole("button", { name: "Open queue" }).click();
+  await siteAdsRow.getByRole("button", { name: "Open queue" }).click();
   await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
-  assert.equal(await page.getByLabel("Active queue").inputValue(), "Want ads");
+  assert.equal(await page.getByLabel("Active queue").inputValue(), "Site ads");
   await page.getByRole("button", { name: "Edit submission" }).click();
   await page.getByRole("heading", { name: "All Things Roleplay" }).waitFor();
-  await page.getByRole("button", { name: "Queue", exact: true }).click();
+  await page.getByRole("button", { name: "Queues", exact: true }).click();
+  await siteAdsRow.getByRole("button", { name: "Open queue" }).click();
   await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
   await page.getByRole("button", { name: "Clear queue" }).click();
   await page.getByRole("button", { name: "Queues", exact: true }).click();
-  await wantAdsRow.getByText("0 items - 0 complete").waitFor();
+  await siteAdsRow.getByText("0 items - 0 complete").waitFor();
   await page.getByRole("button", { name: "Runner Logs" }).click();
   await page.getByRole("heading", { name: "Runner logs", level: 1 }).waitFor();
   await page.getByText("No runner logs yet.").waitFor();
@@ -546,7 +552,8 @@ test("shared app settings load from and save to the backend", { timeout: 40000 }
   });
 
   await page.goto(appUrl);
-  await page.getByLabel("Workspace views").getByRole("button", { name: "Queue", exact: true }).click();
+  await page.getByLabel("Workspace views").getByRole("button", { name: "Queues", exact: true }).click();
+  await page.locator(".queue-management-row", { hasText: "Backend queue" }).getByRole("button", { name: "Open queue" }).click();
   await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
   assert.equal(await page.getByLabel("Active queue").inputValue(), "Backend queue");
   assert.equal(await page.getByLabel("Media folder").inputValue(), "C:/backend-media");
@@ -675,9 +682,7 @@ test("tumblr accounts can be saved and selected for queue runs", { timeout: 4000
   await connectedAccountRow.getByRole("button", { name: "Check saved login" }).waitFor();
   await page.getByRole("button", { name: "Create submission" }).click();
   await page.getByRole("heading", { name: "Untitled submission" }).waitFor();
-  await page.getByRole("button", { name: "Queue", exact: true }).click();
-  await page.getByLabel("Tumblr account").selectOption("snowleopardx");
-  assert.equal(await page.getByLabel("Tumblr account").inputValue(), "snowleopardx");
+  assert.equal(await page.getByLabel("Workspace views").getByRole("button", { name: "Queue", exact: true }).count(), 0);
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
 });
 
@@ -1244,7 +1249,8 @@ test("running the queue sends a run id and shows failure explanations", { timeou
   });
 
   await page.goto(appUrl);
-  await page.getByLabel("Workspace views").getByRole("button", { name: "Queue", exact: true }).click();
+  await page.getByLabel("Workspace views").getByRole("button", { name: "Queues", exact: true }).click();
+  await page.locator(".queue-management-row", { hasText: "Default queue" }).getByRole("button", { name: "Open queue" }).click();
   await page.getByRole("button", { name: "Run queue" }).click();
   await page.waitForTimeout(250);
   assert.match(startPayload?.runId ?? "", /^run-/);

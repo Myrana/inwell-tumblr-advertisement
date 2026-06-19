@@ -30,10 +30,6 @@ export function uniqueQueueDefinitions(definitions: QueueDefinition[], items: Su
     byName.set(normalized.name.toLowerCase(), normalized);
   });
 
-  if (!byName.size) {
-    byName.set(defaultQueueName.toLowerCase(), { id: queueIdFromName(defaultQueueName), name: defaultQueueName });
-  }
-
   return Array.from(byName.values()).sort((left, right) => left.name.localeCompare(right.name));
 }
 

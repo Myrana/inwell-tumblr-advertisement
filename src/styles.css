@@ -1144,12 +1144,25 @@ pre {
   background: #f3faf8;
 }
 
-.queue-management-row > button:first-child {
+.queue-management-summary {
   flex: 1;
   min-width: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.queue-management-summary > button:first-child {
+  padding: 0;
   border: 0;
   background: transparent;
   text-align: left;
+}
+
+.queue-rename-form {
+  display: grid;
+  grid-template-columns: minmax(180px, 320px) auto;
+  align-items: end;
+  gap: 8px;
 }
 
 .queue-management-row strong,
