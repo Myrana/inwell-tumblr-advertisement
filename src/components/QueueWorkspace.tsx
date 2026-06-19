@@ -261,14 +261,14 @@ export function QueueWorkspace({
             <div className="queue-actions">
               <button className="primary" type="button" onClick={onStartRunner} disabled={!activeQueue.length}>
                 <Play size={18} />
-                Run queue
+                Run locally
               </button>
               <button className="secondary" type="button" onClick={onRefreshRunnerStatus}>
                 Refresh runner status
               </button>
               <button className="secondary" type="button" onClick={onShowLocalRunnerCommand} disabled={!activeQueue.length}>
                 <Terminal size={18} />
-                Local runner command
+                Show local command
               </button>
               {runnerState ? (
                 <span className="runner-state">

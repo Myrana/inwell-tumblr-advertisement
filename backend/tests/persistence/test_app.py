@@ -36,6 +36,7 @@ from app import (
     check_browserbase_tumblr_login,
     create_browserbase_tumblr_login,
     get_app_settings,
+    local_runner_command,
     local_runner_plan,
     local_runner_token_valid,
     remote_tumblr_login_launch,
@@ -1465,6 +1466,18 @@ class PersistenceTests(unittest.TestCase):
         self.assertEqual(plan["items"][0]["id"], "local-queue-1")
         self.assertEqual(plan["items"][0]["targetName"], "inkwell-test")
         self.assertIn("Local body", plan["items"][0]["runnerPayload"])
+
+    def test_local_runner_command_uses_watch_mode_without_token_placeholder(self) -> None:
+        result = local_runner_command("https://example.test/api", "workspace-local", "Local queue")
+
+        self.assertIn("tumblr:runner:local", result["command"])
+        self.assertIn("--api-base 'https://example.test/api'", result["command"])
+        self.assertIn("--workspace-id 'workspace-local'", result["command"])
+        self.assertIn("--queue 'Local queue'", result["command"])
+        self.assertIn("--watch", result["command"])
+        self.assertIn("--no-pause", result["command"])
+        self.assertIn("--submit", result["command"])
+        self.assertNotIn("<paste", result["command"])
 
     def test_start_runner_writes_plan_and_launches_known_command(self) -> None:
         temp_plan = Path("backend-test-runner-plan.json")

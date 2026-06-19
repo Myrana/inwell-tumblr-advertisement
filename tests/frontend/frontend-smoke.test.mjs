@@ -474,7 +474,7 @@ test("templates can be saved and applied from their own workspace", { timeout: 4
   assert.equal(await page.getByLabel("Active queue").inputValue(), "Want ads");
   await page.getByRole("button", { name: "Toggle queue actions section" }).click();
   await page.getByRole("button", { name: "Queue all targets" }).waitFor();
-  await page.getByRole("button", { name: "Run queue" }).waitFor();
+  await page.getByRole("button", { name: "Run locally" }).waitFor();
   await page.getByRole("button", { name: "Toggle schedule section" }).click();
   await page.getByLabel("Run this queue daily").check();
   await page.getByLabel("Daily run time").fill("09:30");
@@ -1129,7 +1129,7 @@ test("runner logs are grouped by expandable queue run", { timeout: 40000 }, asyn
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
 });
 
-test("running the queue sends a run id and shows failure explanations", { timeout: 40000 }, async (t) => {
+test("running the queue prepares the local runner and shows failure explanations", { timeout: 40000 }, async (t) => {
   const server = spawn("npx vite --host 127.0.0.1 --port 8123 --strictPort", {
     cwd: process.cwd(),
     shell: true,
@@ -1149,8 +1149,7 @@ test("running the queue sends a run id and shows failure explanations", { timeou
 
   const page = await browser.newPage();
   const pageErrors = [];
-  let startPayload = null;
-  let runnerStartShouldFail = true;
+  let localCommandRequested = false;
   const apiHeaders = {
     "Access-Control-Allow-Headers": "Content-Type",
     "Access-Control-Allow-Methods": "DELETE,GET,OPTIONS,POST,PUT",
@@ -1201,31 +1200,18 @@ test("running the queue sends a run id and shows failure explanations", { timeou
       }),
     }),
   );
-  await page.route("http://127.0.0.1:8021/api/runner/start", async (route) => {
-    startPayload = route.request().postDataJSON();
-    if (runnerStartShouldFail) {
-      await route.fulfill({
-        contentType: "application/json",
-        headers: apiHeaders,
-        status: 400,
-        body: JSON.stringify({
-          error: "Tumblr login helper needs a visible browser on your local desktop. Railway cannot show that browser.",
-        }),
-      });
-      return;
-    }
+  await page.route("http://127.0.0.1:8021/api/runner/local-command?**", async (route) => {
+    localCommandRequested = true;
     await route.fulfill({
       contentType: "application/json",
       headers: apiHeaders,
       body: JSON.stringify({
-        runner: {
-          running: true,
-          pid: 222,
-          plan_path: "plan.json",
-          command: [],
-          run_id: startPayload.runId,
-          browser_provider: "browserbase",
-          live_url: "https://browserbase.com/live/session-run",
+        localRunner: {
+          command:
+            "npm.cmd run tumblr:runner:local -- --api-base 'https://inkwell-production-f037.up.railway.app/api' --workspace-id 'workspace-test' --queue 'Default queue' --user-data-dir .tumblr-runner-profile-local --watch --no-pause --submit",
+          tokenConfigured: true,
+          tokenEnv: "INWELL_LOCAL_RUNNER_TOKEN",
+          message: "Run this on your Windows computer from the repo checkout. Keep INWELL_LOCAL_RUNNER_TOKEN set locally and in Railway.",
         },
       }),
     });
@@ -1292,6 +1278,14 @@ test("running the queue sends a run id and shows failure explanations", { timeou
       window.__openedUrls.push(String(url));
       return null;
     };
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        writeText: async (value) => {
+          window.__copiedText = String(value);
+        },
+      },
+    });
     localStorage.setItem(
       "inwell-ad-assistant-state",
       JSON.stringify({
@@ -1328,19 +1322,14 @@ test("running the queue sends a run id and shows failure explanations", { timeou
   await page.getByLabel("Workspace views").getByRole("button", { name: "Queues", exact: true }).click();
   await page.locator(".queue-management-row", { hasText: "Default queue" }).getByRole("button", { name: "Open queue" }).click();
   await page.getByRole("button", { name: "Toggle queue actions section" }).click();
-  await page.getByRole("button", { name: "Run queue" }).click();
-  await page
-    .getByText("Could not launch runner. Tumblr login helper needs a visible browser on your local desktop. Railway cannot show that browser.")
-    .waitFor();
-  assert.match(startPayload?.runId ?? "", /^run-/);
-  runnerStartShouldFail = false;
-  startPayload = null;
-  await page.getByRole("button", { name: "Run queue" }).click();
-  await page.waitForTimeout(250);
-  assert.match(startPayload?.runId ?? "", /^run-/);
-  assert.equal(startPayload.items[0].id, "queue-run-allthingsroleplay");
-  await page.getByText("Runner launched in Browserbase. Review queued pages in the live browser window.").waitFor();
-  assert.deepEqual(await page.evaluate(() => window.__openedUrls), ["https://browserbase.com/live/session-run"]);
+  await page.getByRole("button", { name: "Run locally" }).click();
+  await page.getByText("Local runner command copied.").waitFor();
+  assert.equal(localCommandRequested, true);
+  const copiedText = await page.evaluate(() => window.__copiedText);
+  assert.match(copiedText, /tumblr:runner:local/);
+  assert.match(copiedText, /--watch/);
+  assert.match(copiedText, /--no-pause/);
+  assert.deepEqual(await page.evaluate(() => window.__openedUrls), []);
   await page.getByText("Why this failed").waitFor();
   await page.getByText("The Playwright browser or tab closed before the runner finished.").waitFor();
   assert.equal(await page.getByRole("button", { name: "Running" }).count(), 0);
