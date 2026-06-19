@@ -13,12 +13,12 @@ import {
   isReusableBrowserbasePage,
   loginWaitMessage,
   loadRunnerPlan,
+  manualActionReason,
   materializeDataUrl,
   parseArgs,
   postTypeCandidateIndex,
   reviewPagesOpenMessage,
   shouldDeferReadyReview,
-  shouldPauseForManualAction,
 } from "./tumblr-runner-core.mjs";
 
 async function main() {
@@ -152,9 +152,17 @@ async function runQueueItem(context, item, options) {
   await reportRunnerEvent(options, item, "running", `Opening ${item.targetName}.`, "info", { submitUrl: item.submitUrl });
   await page.goto(item.submitUrl, { waitUntil: "domcontentloaded", timeout: 60000 });
   await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => undefined);
+  const initialBlocker = await handleTumblrManualBlocker(page, item, options);
+  if (initialBlocker) {
+    return manualBlockerReviewResult(page, options);
+  }
   await waitForSubmitForm(page, item);
   if (await handleTumblrRateLimit(page, item, options)) {
     return rateLimitReviewResult(page, options);
+  }
+  const formBlocker = await handleTumblrManualBlocker(page, item, options);
+  if (formBlocker) {
+    return manualBlockerReviewResult(page, options);
   }
 
   if (await pageNeedsManualAction(page)) {
@@ -273,14 +281,53 @@ async function reportRunnerEvent(options, item, status, message, level = "info",
 }
 
 async function pageNeedsManualAction(page) {
+  return Boolean(await pageManualActionReason(page));
+}
+
+async function pageManualActionReason(page) {
+  const pageTitle = await page.title().catch(() => "");
+  const topReason = manualActionReason(pageTitle, page.url());
+  if (topReason) {
+    return { message: topReason, url: page.url(), sample: pageTitle };
+  }
+
   for (const frame of page.frames()) {
     const text = await frame.locator("body").innerText({ timeout: 5000 }).catch(() => "");
-    if (shouldPauseForManualAction(text, frame.url())) {
-      return true;
+    const reason = manualActionReason(text, frame.url());
+    if (reason) {
+      return {
+        message: reason,
+        url: frame.url(),
+        sample: text.replace(/\s+/g, " ").trim().slice(0, 240),
+      };
     }
   }
 
-  return false;
+  return null;
+}
+
+async function handleTumblrManualBlocker(page, item, options) {
+  const blocker = await pageManualActionReason(page);
+  if (!blocker) {
+    return false;
+  }
+
+  console.log(`[manual-action] ${item.targetName}: ${blocker.message}`);
+  await reportRunnerEvent(options, item, "needs-review", blocker.message, "warning", {
+    explanation: blocker.message,
+    url: blocker.url,
+    sample: blocker.sample,
+  });
+  return true;
+}
+
+async function manualBlockerReviewResult(page, options) {
+  if (shouldDeferReadyReview(options)) {
+    return { readyForReview: true, page };
+  }
+
+  await pauseForOperator(page, options);
+  return { readyForReview: false };
 }
 
 async function handleTumblrRateLimit(page, item, options) {

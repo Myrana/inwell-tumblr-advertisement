@@ -10,6 +10,7 @@ import {
   htmlToPlainText,
   isReusableBrowserbasePage,
   loginWaitMessage,
+  manualActionReason,
   normalizeRunnerPlan,
   parseArgs,
   postTypeCandidateIndex,
@@ -183,6 +184,7 @@ test("manual action detection catches login and captcha states", () => {
   assert.equal(shouldPauseForManualAction("Complete this captcha"), true);
   assert.equal(shouldPauseForManualAction("Request denied"), true);
   assert.equal(shouldPauseForManualAction("Public submit form"), false);
+  assert.match(manualActionReason("Request denied"), /denied this request/);
 });
 
 test("Tumblr rate-limit detection catches Tumblr rate-limit pages only", () => {
