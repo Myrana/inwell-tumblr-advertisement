@@ -25,7 +25,12 @@ RUN addgroup --system inwell \
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends nodejs npm \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY --from=web-build /app/dist ./dist
+COPY --from=web-build /app/node_modules ./node_modules
 COPY backend ./backend
 COPY scripts ./scripts
 COPY package.json package-lock.json ./
