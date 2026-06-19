@@ -968,62 +968,48 @@ function App() {
     }
   }
 
-  async function startRunner() {
+  async function copyTextToClipboard(value: string) {
+    if (!navigator.clipboard?.writeText) {
+      return false;
+    }
+
+    await navigator.clipboard.writeText(value);
+    return true;
+  }
+
+  async function prepareLocalRunnerCommand(options: { copy?: boolean } = {}) {
     const items = runnableQueueItems();
     if (!items.length) {
       setQueueStatus("Queue at least one target before starting the runner.");
       return;
     }
-    if (!runnerSettings.tumblrAccountId) {
-      setQueueStatus("Select a Tumblr account session before starting the runner.");
-      setActiveView("accounts");
-      return;
-    }
 
     try {
-      const runId = `run-${crypto.randomUUID()}`;
-      const response = await apiRequest<{ runner: RunnerStatus }>("/runner/start", {
-        method: "POST",
-        body: JSON.stringify({
-          ...runnerSettings,
-          runId,
-          items,
-        }),
-      });
-      setRunnerState(response.runner);
+      const localRunner = await loadLocalRunnerCommand(activeQueueName);
       const [logs, backendQueue] = await Promise.all([loadRunnerLogs(), loadBackendQueue()]);
       setRunnerLogs(logs);
       setSubmissionQueue(backendQueue);
       setApiAvailable(true);
-      if (response.runner.live_url) {
-        window.open(response.runner.live_url, "_blank", "noopener,noreferrer");
-      }
-      setQueueStatus(
-        response.runner.browser_provider === "browserbase"
-          ? "Runner launched in Browserbase. Review queued pages in the live browser window."
-          : `Runner launched in a visible PowerShell window. Plan: ${response.runner.plan_path}`,
-      );
+      const copied = options.copy ? await copyTextToClipboard(localRunner.command).catch(() => false) : false;
+      const tokenWarning = localRunner.tokenConfigured ? "" : "Railway is missing INWELL_LOCAL_RUNNER_TOKEN. ";
+      const copyMessage = copied ? "Local runner command copied. " : "";
+      setQueueStatus(`${copyMessage}${localRunner.message} ${tokenWarning}Command: ${localRunner.command}`);
     } catch (error) {
       setApiAvailable(false);
       const message =
         error instanceof ApiError
           ? error.message
-          : "Start the Python API before launching the runner from the app.";
-      setQueueStatus(`Could not launch runner. ${message}`);
+          : "Could not prepare the local runner command.";
+      setQueueStatus(`Could not prepare local runner command. ${message}`);
     }
   }
 
+  async function startRunner() {
+    await prepareLocalRunnerCommand({ copy: true });
+  }
+
   async function showLocalRunnerCommand() {
-    try {
-      const localRunner = await loadLocalRunnerCommand(activeQueueName);
-      setApiAvailable(true);
-      setQueueStatus(
-        `${localRunner.message} ${localRunner.tokenConfigured ? "" : "Railway is missing INWELL_LOCAL_RUNNER_TOKEN. "}Command: ${localRunner.command}`,
-      );
-    } catch (error) {
-      const message = error instanceof ApiError ? error.message : "Could not prepare the local runner command.";
-      setQueueStatus(`Could not prepare local runner command. ${message}`);
-    }
+    await prepareLocalRunnerCommand();
   }
 
   async function clearRunnerLogHistory() {

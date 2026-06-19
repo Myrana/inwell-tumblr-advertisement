@@ -14,6 +14,9 @@ function parseLocalArgs(argv) {
     mediaDir: "",
     slowMo: "500",
     submit: false,
+    watch: false,
+    noPause: false,
+    intervalSeconds: 15,
     limit: "",
   };
 
@@ -37,6 +40,12 @@ function parseLocalArgs(argv) {
       options.limit = String(argv[++index] ?? "");
     } else if (arg === "--submit") {
       options.submit = true;
+    } else if (arg === "--watch") {
+      options.watch = true;
+    } else if (arg === "--no-pause") {
+      options.noPause = true;
+    } else if (arg === "--interval-seconds") {
+      options.intervalSeconds = Math.max(1, Number(argv[++index] ?? "15") || 15);
     } else {
       throw new Error(`Unknown local runner argument: ${arg}`);
     }
@@ -55,8 +64,7 @@ function parseLocalArgs(argv) {
   return options;
 }
 
-async function main() {
-  const options = parseLocalArgs(process.argv.slice(2));
+async function fetchRunnerPlan(options) {
   const url = new URL(`${options.apiBaseUrl}/runner/local-plan`);
   url.searchParams.set("workspaceId", options.workspaceId);
   url.searchParams.set("queueName", options.queueName);
@@ -73,9 +81,13 @@ async function main() {
   }
 
   const { plan } = await response.json();
+  return plan;
+}
+
+async function runPlan(options, plan) {
   if (!plan?.items?.length) {
     console.log(`[local-runner] No runnable items in ${options.queueName}.`);
-    return;
+    return 0;
   }
 
   const planPath = path.join(os.tmpdir(), `inwell-local-runner-${plan.runId}.json`);
@@ -104,10 +116,32 @@ async function main() {
   if (options.submit) {
     runnerArgs.push("--submit");
   }
+  if (options.noPause) {
+    runnerArgs.push("--no-pause");
+  }
 
   const child = spawn(process.execPath, runnerArgs, { stdio: "inherit" });
   const code = await new Promise((resolve) => child.on("close", resolve));
-  process.exitCode = Number(code) || 0;
+  return Number(code) || 0;
+}
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function main() {
+  const options = parseLocalArgs(process.argv.slice(2));
+
+  do {
+    const plan = await fetchRunnerPlan(options);
+    const code = await runPlan(options, plan);
+    if (!options.watch) {
+      process.exitCode = code;
+      return;
+    }
+
+    await wait(options.intervalSeconds * 1000);
+  } while (options.watch);
 }
 
 main().catch((error) => {

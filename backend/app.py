@@ -2000,21 +2000,19 @@ def local_runner_plan(connection: ConnectionLike, workspace_id: str, queue_name:
 
 
 def local_runner_command(api_base_url: str, workspace_id: str, queue_name: str) -> dict[str, Any]:
-    token_placeholder = "<paste INWELL_LOCAL_RUNNER_TOKEN>"
     queue_arg = queue_name or "Default queue"
     command = (
-        f"$env:INWELL_LOCAL_RUNNER_TOKEN={powershell_quote(token_placeholder)}; "
         f"npm.cmd run tumblr:runner:local -- --api-base {powershell_quote(api_base_url)} "
         f"--workspace-id {powershell_quote(workspace_id)} "
         f"--queue {powershell_quote(queue_arg)} "
-        "--user-data-dir .tumblr-runner-profile-local --submit"
+        "--user-data-dir .tumblr-runner-profile-local --watch --no-pause --submit"
     )
     return {
         "command": command,
         "tokenConfigured": local_runner_token_configured(),
         "tokenEnv": LOCAL_RUNNER_TOKEN_ENV,
         "message": (
-            "Run this on your Windows computer from the repo checkout. Set the same INWELL_LOCAL_RUNNER_TOKEN locally and in Railway."
+            "Run this on your Windows computer from the repo checkout. Keep INWELL_LOCAL_RUNNER_TOKEN set locally and in Railway."
         ),
     }
 
