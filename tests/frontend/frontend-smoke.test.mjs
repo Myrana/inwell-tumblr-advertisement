@@ -1217,7 +1217,17 @@ test("running the queue sends a run id and shows failure explanations", { timeou
     await route.fulfill({
       contentType: "application/json",
       headers: apiHeaders,
-      body: JSON.stringify({ runner: { running: true, pid: 222, plan_path: "plan.json", command: [], run_id: startPayload.runId } }),
+      body: JSON.stringify({
+        runner: {
+          running: true,
+          pid: 222,
+          plan_path: "plan.json",
+          command: [],
+          run_id: startPayload.runId,
+          browser_provider: "browserbase",
+          live_url: "https://browserbase.com/live/session-run",
+        },
+      }),
     });
   });
   await page.route("http://127.0.0.1:8021/api/runner/logs", (route) =>
@@ -1277,6 +1287,11 @@ test("running the queue sends a run id and shows failure explanations", { timeou
   );
 
   await page.addInitScript(() => {
+    window.__openedUrls = [];
+    window.open = (url) => {
+      window.__openedUrls.push(String(url));
+      return null;
+    };
     localStorage.setItem(
       "inwell-ad-assistant-state",
       JSON.stringify({
@@ -1324,6 +1339,8 @@ test("running the queue sends a run id and shows failure explanations", { timeou
   await page.waitForTimeout(250);
   assert.match(startPayload?.runId ?? "", /^run-/);
   assert.equal(startPayload.items[0].id, "queue-run-allthingsroleplay");
+  await page.getByText("Runner launched in Browserbase. Review queued pages in the live browser window.").waitFor();
+  assert.deepEqual(await page.evaluate(() => window.__openedUrls), ["https://browserbase.com/live/session-run"]);
   await page.getByText("Why this failed").waitFor();
   await page.getByText("The Playwright browser or tab closed before the runner finished.").waitFor();
   assert.equal(await page.getByRole("button", { name: "Running" }).count(), 0);

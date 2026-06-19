@@ -54,6 +54,17 @@ class FakeCursor:
         return self.rows
 
 
+class ConnectionContext:
+    def __init__(self, connection: Any) -> None:
+        self.connection = connection
+
+    def __enter__(self) -> Any:
+        return self.connection
+
+    def __exit__(self, exc_type: Any, exc: Any, traceback: Any) -> bool:
+        return False
+
+
 class FakePostgresConnection:
     def __init__(self) -> None:
         self.advertisements: dict[str, dict[str, Any]] = {}
@@ -1489,6 +1500,75 @@ class PersistenceTests(unittest.TestCase):
                 os.environ.pop("RUNNER_API_BASE_URL", None)
             else:
                 os.environ["RUNNER_API_BASE_URL"] = old_runner_api_base
+
+    def test_start_runner_uses_browserbase_without_visible_local_browser(self) -> None:
+        temp_plan = Path("backend-test-runner-plan.json")
+        process = Mock()
+        process.pid = 456
+        process.poll.return_value = None
+        old_process = app.RUNNER_PROCESS
+        old_command = app.RUNNER_LAST_COMMAND
+        old_plan = app.RUNNER_PLAN_PATH
+        old_provider = app.RUNNER_LAST_BROWSER_PROVIDER
+        old_live_url = app.RUNNER_LAST_LIVE_URL
+        app.RUNNER_PROCESS = None
+        app.RUNNER_LAST_COMMAND = []
+        app.RUNNER_PLAN_PATH = temp_plan
+        app.RUNNER_LAST_BROWSER_PROVIDER = "local"
+        app.RUNNER_LAST_LIVE_URL = ""
+        upsert_tumblr_account(
+            self.connection,
+            {
+                "displayName": "Snow",
+                "blogName": "snowleopardx",
+                "workspace_id": "workspace-test",
+                "status": "connected",
+                "browserbaseContextId": "ctx-saved",
+            },
+        )
+
+        try:
+            with (
+                patch("app.connect", return_value=ConnectionContext(self.connection)),
+                patch("app.visible_tumblr_helper_supported", return_value=False),
+                patch(
+                    "app.create_browserbase_session",
+                    return_value={
+                        "id": "session-run",
+                        "connectUrl": "wss://connect.browserbase.com/session-run",
+                        "expiresAt": "2026-06-19T05:00:00Z",
+                    },
+                ) as create_session,
+                patch("app.browserbase_live_view_url", return_value="https://browserbase.com/live/session-run"),
+                patch("app.subprocess.Popen", return_value=process) as popen,
+            ):
+                result = start_runner(
+                    {
+                        "workspace_id": "workspace-test",
+                        "items": [{"id": "queue-1", "runnerPayload": "{}"}],
+                        "remoteBrowserProvider": "browserbase",
+                        "tumblrAccountId": "snowleopardx",
+                    }
+                )
+
+            self.assertTrue(result["running"])
+            self.assertEqual(result["browser_provider"], "browserbase")
+            self.assertEqual(result["live_url"], "https://browserbase.com/live/session-run")
+            self.assertIn("--browserbase-cdp-url", result["command"])
+            self.assertIn("wss://connect.browserbase.com/session-run", result["command"])
+            self.assertIn("--browserbase-live-url", result["command"])
+            create_session.assert_called_once_with("ctx-saved", "snowleopardx", "workspace-test")
+            launched_command = popen.call_args.args[0]
+            self.assertEqual(launched_command[0], "npm.cmd" if os.name == "nt" else "npm")
+            self.assertEqual(self.connection.tumblr_accounts["snowleopardx"]["browserbase_session_id"], "session-run")
+        finally:
+            if temp_plan.exists():
+                temp_plan.unlink()
+            app.RUNNER_PROCESS = old_process
+            app.RUNNER_LAST_COMMAND = old_command
+            app.RUNNER_PLAN_PATH = old_plan
+            app.RUNNER_LAST_BROWSER_PROVIDER = old_provider
+            app.RUNNER_LAST_LIVE_URL = old_live_url
 
     def test_run_honors_host_and_port_environment(self) -> None:
         old_host = os.environ.get("HOST")

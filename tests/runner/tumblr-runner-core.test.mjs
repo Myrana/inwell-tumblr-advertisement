@@ -39,6 +39,10 @@ test("parseArgs supports same-session login before queue execution", () => {
     "http://127.0.0.1:8021/api/",
     "--run-id",
     "run-123",
+    "--browserbase-cdp-url",
+    "wss://connect.browserbase.com/session-123",
+    "--browserbase-live-url",
+    "https://browserbase.com/live/session-123",
   ]);
   assert.equal(options.planPath, "queue.json");
   assert.equal(options.loginFirst, true);
@@ -46,6 +50,8 @@ test("parseArgs supports same-session login before queue execution", () => {
   assert.equal(options.slowMo, 125);
   assert.equal(options.apiBaseUrl, "http://127.0.0.1:8021/api");
   assert.equal(options.runId, "run-123");
+  assert.equal(options.browserbaseCdpUrl, "wss://connect.browserbase.com/session-123");
+  assert.equal(options.browserbaseLiveUrl, "https://browserbase.com/live/session-123");
 });
 
 test("normalizeRunnerPlan decodes queue item runner payload", () => {

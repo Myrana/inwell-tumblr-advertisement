@@ -25,6 +25,8 @@ export function parseArgs(argv) {
     slowMo: 0,
     apiBaseUrl: "",
     runId: "",
+    browserbaseCdpUrl: "",
+    browserbaseLiveUrl: "",
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -49,6 +51,10 @@ export function parseArgs(argv) {
       options.apiBaseUrl = String(argv[++index] ?? "").replace(/\/$/, "");
     } else if (arg === "--run-id") {
       options.runId = String(argv[++index] ?? "");
+    } else if (arg === "--browserbase-cdp-url") {
+      options.browserbaseCdpUrl = String(argv[++index] ?? "");
+    } else if (arg === "--browserbase-live-url") {
+      options.browserbaseLiveUrl = String(argv[++index] ?? "");
     } else if (!arg.startsWith("--") && !options.planPath) {
       options.planPath = arg;
     } else {

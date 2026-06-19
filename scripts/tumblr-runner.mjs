@@ -22,22 +22,17 @@ import {
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   const plan = await loadRunnerPlan(options.planPath);
-  await fs.mkdir(options.userDataDir, { recursive: true });
-
-  const context = await chromium.launchPersistentContext(options.userDataDir, {
-    headless: options.headless,
-    slowMo: options.slowMo,
-  });
+  const runnerBrowser = await openRunnerBrowser(options);
 
   try {
     if (options.loginFirst) {
-      await waitForTumblrLogin(context, options);
+      await waitForTumblrLogin(runnerBrowser.context, options);
     }
 
     const reviewPages = [];
     for (const item of plan.items) {
       try {
-        const result = await runQueueItem(context, item, options);
+        const result = await runQueueItem(runnerBrowser.context, item, options);
         if (result?.readyForReview && result.page) {
           reviewPages.push(result.page);
         }
@@ -52,8 +47,37 @@ async function main() {
       await waitForQueueReviewPages(options, reviewPages);
     }
   } finally {
-    await context.close();
+    await runnerBrowser.close();
   }
+}
+
+async function openRunnerBrowser(options) {
+  if (options.browserbaseCdpUrl) {
+    console.log("[runner] Connecting to Browserbase queue session.");
+    if (options.browserbaseLiveUrl) {
+      console.log(`[runner] Browserbase live view: ${options.browserbaseLiveUrl}`);
+    }
+    const browser = await chromium.connectOverCDP(options.browserbaseCdpUrl);
+    const context = browser.contexts()[0] ?? (await browser.newContext());
+    return {
+      context,
+      close: async () => {
+        await browser.close().catch(() => undefined);
+      },
+    };
+  }
+
+  await fs.mkdir(options.userDataDir, { recursive: true });
+  const context = await chromium.launchPersistentContext(options.userDataDir, {
+    headless: options.headless,
+    slowMo: options.slowMo,
+  });
+  return {
+    context,
+    close: async () => {
+      await context.close().catch(() => undefined);
+    },
+  };
 }
 
 async function waitForTumblrLogin(context, options) {
@@ -1056,6 +1080,14 @@ async function clickSubmit(page) {
 }
 
 async function pauseForOperator(page, options) {
+  if (options.browserbaseCdpUrl) {
+    console.log("[runner] Browserbase page remains open for review. Close the live-view tab page when done.");
+    while (!page.isClosed()) {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+    return;
+  }
+
   if (options.headless || options.noPause) {
     await page.close().catch(() => undefined);
     return;
@@ -1075,7 +1107,11 @@ async function waitForQueueReviewPages(options, reviewPages) {
     return;
   }
 
-  console.log(reviewPagesOpenMessage(reviewPages.length));
+  if (options.browserbaseCdpUrl) {
+    console.log(`[runner] ${reviewPages.length} Browserbase review page${reviewPages.length === 1 ? " is" : "s are"} open. Close review tabs when done.`);
+  } else {
+    console.log(reviewPagesOpenMessage(reviewPages.length));
+  }
   while (reviewPages.some((page) => !page.isClosed())) {
     await new Promise((resolve) => setTimeout(resolve, 1000));
   }

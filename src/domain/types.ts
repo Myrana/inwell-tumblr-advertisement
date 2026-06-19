@@ -128,6 +128,8 @@ export type RunnerStatus = {
   plan_path: string;
   command: string[];
   run_id?: string;
+  browser_provider?: string;
+  live_url?: string;
 };
 
 export type RunnerLog = {
