@@ -1934,6 +1934,10 @@ html[data-theme="dark"] textarea::placeholder {
   color: #7f929f;
 }
 
+html[data-theme="dark"] label {
+  color: #c4d0d8;
+}
+
 html[data-theme="dark"] .secondary,
 html[data-theme="dark"] .icon-button,
 html[data-theme="dark"] .tumblr-file-button {
@@ -1987,6 +1991,22 @@ html[data-theme="dark"] .draft-row.selected,
 html[data-theme="dark"] .tag-check.selected {
   border-color: #4da0b0;
   background: #12252b;
+}
+
+html[data-theme="dark"] .account-session-note {
+  background: #101923;
+  border-color: #324858;
+  color: var(--ink);
+}
+
+html[data-theme="dark"] .account-session-note strong,
+html[data-theme="dark"] .account-session-summary strong {
+  color: var(--ink);
+}
+
+html[data-theme="dark"] .account-session-note span,
+html[data-theme="dark"] .account-session-summary > span:not(.account-status-pill) {
+  color: var(--muted);
 }
 
 html[data-theme="dark"] .queue-item-explanation,
