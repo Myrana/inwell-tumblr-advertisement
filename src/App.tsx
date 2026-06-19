@@ -79,7 +79,7 @@ import {
 } from "./domain/submitTargets";
 import { normalizeTag, uniqueTags } from "./domain/tags";
 import { applyTemplateToAdvertisement, normalizeTemplate, templateFromAdvertisement } from "./domain/templates";
-import { normalizeTumblrAccount, tumblrAccountId, upsertTumblrAccount } from "./domain/tumblrAccounts";
+import { fromApiTumblrAccount, normalizeTumblrAccount, tumblrAccountId, upsertTumblrAccount } from "./domain/tumblrAccounts";
 import {
   Advertisement,
   AppSettings,
@@ -755,17 +755,19 @@ function App() {
     setRunnerSettings((current) => ({ ...current, tumblrAccountId: id }));
 
     try {
-      const response = await launchTumblrLogin(id);
+      const response = await launchTumblrLogin(id, runnerSettings.slowMo);
       const note =
         response.login.mode === "remote"
           ? response.login.message
           : "Login helper launched. Complete Tumblr login in the visible browser.";
-      const checking: TumblrAccount = {
-        ...account,
-        status: "checking",
-        lastCheckedAt: new Date().toISOString(),
-        notes: note,
-      };
+      const checking: TumblrAccount = response.login.mode === "remote" && response.login.account
+        ? fromApiTumblrAccount(response.login.account)
+        : {
+            ...account,
+            status: "checking",
+            lastCheckedAt: new Date().toISOString(),
+            notes: note,
+          };
       setTumblrAccounts((current) => upsertTumblrAccount(current, checking));
       setApiAvailable(true);
       if (response.login.mode === "remote") {

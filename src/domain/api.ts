@@ -225,7 +225,17 @@ export async function removeTumblrAccount(id: string) {
 
 export type TumblrLoginResponse =
   | { login: { mode: "local"; pid: number; command: string[]; message: string } }
-  | { login: { mode: "remote"; provider: string; launchUrl: string; message: string } };
+  | {
+      login: {
+        mode: "remote";
+        provider: string;
+        launchUrl: string;
+        message: string;
+        sessionId?: string;
+        contextId?: string;
+        account?: ApiTumblrAccount;
+      };
+    };
 
 export async function launchTumblrLogin(accountId: string, slowMo = 250) {
   return apiRequest<TumblrLoginResponse>("/tumblr/login", {

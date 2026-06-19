@@ -86,14 +86,16 @@ export function TumblrAccountsWorkspace({
             <option value="custom">Custom live browser URL</option>
           </select>
         </label>
-        <label>
-          Live browser URL
-          <input
-            value={runnerSettings.remoteBrowserLaunchUrl}
-            onChange={(event) => onRunnerSettingsChange({ remoteBrowserLaunchUrl: event.target.value })}
-            placeholder="https://provider.example/live/session"
-          />
-        </label>
+        {runnerSettings.remoteBrowserProvider === "custom" || runnerSettings.remoteBrowserProvider === "browserless" ? (
+          <label>
+            Live browser URL
+            <input
+              value={runnerSettings.remoteBrowserLaunchUrl}
+              onChange={(event) => onRunnerSettingsChange({ remoteBrowserLaunchUrl: event.target.value })}
+              placeholder="https://provider.example/live/session"
+            />
+          </label>
+        ) : null}
       </div>
 
       {status ? <p className="queue-status">{status}</p> : null}

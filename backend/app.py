@@ -16,6 +16,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Protocol
 from urllib.parse import urlparse
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 
 import psycopg
 from psycopg.rows import dict_row
@@ -28,7 +30,7 @@ DEFAULT_TIMEZONE = "America/New_York"
 DEFAULT_PGHOST = "192.168.1.3"
 DEFAULT_PGDATABASE = "inwell_tumblr_advertisement"
 DEFAULT_PGUSER = "postgres"
-CURRENT_SCHEMA_VERSION = "0010_remote_tumblr_login_settings"
+CURRENT_SCHEMA_VERSION = "0011_browserbase_connect"
 SESSION_COOKIE_NAME = "inwell_session"
 SESSION_DAYS = 14
 AUTH_LOCK_WINDOW_MINUTES = 15
@@ -37,6 +39,7 @@ AUTH_LOGIN_CLIENT_FAILURE_LIMIT = 25
 AUTH_REGISTER_CLIENT_ATTEMPT_LIMIT = 8
 REMOTE_BROWSER_PROVIDERS = {"none", "browserbase", "browserless", "custom"}
 REMOTE_BROWSER_ACTIVE_PROVIDERS = {"browserbase", "browserless", "custom"}
+BROWSERBASE_API_URL = "https://api.browserbase.com/v1"
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DIST_ROOT = REPO_ROOT / "dist"
 RUNNER_PLAN_PATH = REPO_ROOT / "tumblr-runner-plan.json"
@@ -253,6 +256,10 @@ def initialize(connection: ConnectionLike) -> None:
             last_checked_at TIMESTAMPTZ,
             last_login_at TIMESTAMPTZ,
             notes TEXT NOT NULL DEFAULT '',
+            browserbase_context_id TEXT NOT NULL DEFAULT '',
+            browserbase_session_id TEXT NOT NULL DEFAULT '',
+            browserbase_live_url TEXT NOT NULL DEFAULT '',
+            browserbase_session_expires_at TIMESTAMPTZ,
             created_at TIMESTAMPTZ NOT NULL,
             updated_at TIMESTAMPTZ NOT NULL
         )
@@ -383,6 +390,10 @@ def initialize(connection: ConnectionLike) -> None:
     )
     connection.execute("ALTER TABLE runner_logs ADD COLUMN IF NOT EXISTS run_id TEXT NOT NULL DEFAULT ''")
     connection.execute("ALTER TABLE runner_logs ADD COLUMN IF NOT EXISTS target_name TEXT NOT NULL DEFAULT ''")
+    connection.execute("ALTER TABLE tumblr_accounts ADD COLUMN IF NOT EXISTS browserbase_context_id TEXT NOT NULL DEFAULT ''")
+    connection.execute("ALTER TABLE tumblr_accounts ADD COLUMN IF NOT EXISTS browserbase_session_id TEXT NOT NULL DEFAULT ''")
+    connection.execute("ALTER TABLE tumblr_accounts ADD COLUMN IF NOT EXISTS browserbase_live_url TEXT NOT NULL DEFAULT ''")
+    connection.execute("ALTER TABLE tumblr_accounts ADD COLUMN IF NOT EXISTS browserbase_session_expires_at TIMESTAMPTZ")
     for table in ("advertisements", "templates", "submission_queue", "tumblr_accounts", "runner_logs"):
         connection.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS workspace_id TEXT NOT NULL DEFAULT 'default'")
     for table in (
@@ -1044,6 +1055,9 @@ def row_to_tumblr_account(row: Any) -> dict[str, Any]:
     data["user_data_dir"] = str(data.get("user_data_dir") or "")
     data["status"] = normalize_tumblr_account_status(data.get("status"))
     data["notes"] = str(data.get("notes") or "")
+    data["browserbase_context_id"] = str(data.get("browserbase_context_id") or "")
+    data["browserbase_session_id"] = str(data.get("browserbase_session_id") or "")
+    data["browserbase_live_url"] = str(data.get("browserbase_live_url") or "")
     return data
 
 
@@ -1176,6 +1190,11 @@ def normalize_queue_definition(value: Any) -> dict[str, str] | None:
     return {"id": setting_id, "name": name}
 
 
+def environment_remote_browser_provider() -> str:
+    provider = os.environ.get("REMOTE_BROWSER_PROVIDER", "").strip().lower()
+    return provider if provider in REMOTE_BROWSER_ACTIVE_PROVIDERS else "none"
+
+
 def normalize_runner_settings(value: Any) -> dict[str, Any]:
     data = value if isinstance(value, dict) else {}
     try:
@@ -1264,6 +1283,12 @@ def tumblr_account_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "last_checked_at": parse_optional_datetime(payload.get("lastCheckedAt") or payload.get("last_checked_at")),
         "last_login_at": parse_optional_datetime(payload.get("lastLoginAt") or payload.get("last_login_at")),
         "notes": str(payload.get("notes") or ""),
+        "browserbase_context_id": str(payload.get("browserbaseContextId") or payload.get("browserbase_context_id") or "").strip(),
+        "browserbase_session_id": str(payload.get("browserbaseSessionId") or payload.get("browserbase_session_id") or "").strip(),
+        "browserbase_live_url": str(payload.get("browserbaseLiveUrl") or payload.get("browserbase_live_url") or "").strip(),
+        "browserbase_session_expires_at": parse_optional_datetime(
+            payload.get("browserbaseSessionExpiresAt") or payload.get("browserbase_session_expires_at")
+        ),
     }
 
 
@@ -1287,6 +1312,9 @@ def get_app_settings(connection: ConnectionLike, workspace_id: str = "default") 
 
     runner_row = connection.execute("SELECT * FROM runner_settings WHERE id = %s AND workspace_id = %s", ("default", workspace_id)).fetchone()
     schedule_row = connection.execute("SELECT * FROM queue_schedule_settings WHERE id = %s AND workspace_id = %s", ("default", workspace_id)).fetchone()
+    remote_browser_provider = runner_row["remote_browser_provider"] if runner_row else "none"
+    if remote_browser_provider == "none":
+        remote_browser_provider = environment_remote_browser_provider()
 
     return {
         "submitTargets": submit_targets,
@@ -1298,7 +1326,7 @@ def get_app_settings(connection: ConnectionLike, workspace_id: str = "default") 
                 "slowMo": runner_row["slow_mo"] if runner_row else 500,
                 "submit": runner_row["submit"] if runner_row else False,
                 "tumblrAccountId": runner_row["tumblr_account_id"] if runner_row else "",
-                "remoteBrowserProvider": runner_row["remote_browser_provider"] if runner_row else "none",
+                "remoteBrowserProvider": remote_browser_provider,
                 "remoteBrowserLaunchUrl": runner_row["remote_browser_launch_url"] if runner_row else "",
             }
         ),
@@ -1472,9 +1500,10 @@ def upsert_tumblr_account(connection: ConnectionLike, payload: dict[str, Any]) -
         """
         INSERT INTO tumblr_accounts (
             id, workspace_id, display_name, blog_name, user_data_dir, status, last_checked_at,
-            last_login_at, notes, created_at, updated_at
+            last_login_at, notes, browserbase_context_id, browserbase_session_id, browserbase_live_url,
+            browserbase_session_expires_at, created_at, updated_at
         )
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT(id) DO UPDATE SET
             workspace_id = excluded.workspace_id,
             display_name = excluded.display_name,
@@ -1484,6 +1513,10 @@ def upsert_tumblr_account(connection: ConnectionLike, payload: dict[str, Any]) -
             last_checked_at = excluded.last_checked_at,
             last_login_at = excluded.last_login_at,
             notes = excluded.notes,
+            browserbase_context_id = excluded.browserbase_context_id,
+            browserbase_session_id = excluded.browserbase_session_id,
+            browserbase_live_url = excluded.browserbase_live_url,
+            browserbase_session_expires_at = excluded.browserbase_session_expires_at,
             updated_at = excluded.updated_at
         """,
         (
@@ -1496,6 +1529,10 @@ def upsert_tumblr_account(connection: ConnectionLike, payload: dict[str, Any]) -
             account["last_checked_at"],
             account["last_login_at"],
             account["notes"],
+            account["browserbase_context_id"],
+            account["browserbase_session_id"],
+            account["browserbase_live_url"],
+            account["browserbase_session_expires_at"],
             created_at,
             now,
         ),
@@ -1980,8 +2017,131 @@ def unsupported_tumblr_helper_message() -> str:
     return "Tumblr login helper needs a visible browser on your local desktop. Railway cannot show that browser."
 
 
+def browserbase_credentials() -> tuple[str, str]:
+    api_key = os.environ.get("BROWSERBASE_API_KEY", "").strip()
+    project_id = os.environ.get("BROWSERBASE_PROJECT_ID", "").strip()
+    if not api_key:
+        raise ValueError("BROWSERBASE_API_KEY is not configured for the web service.")
+    if not project_id:
+        raise ValueError("BROWSERBASE_PROJECT_ID is not configured for the web service.")
+    return api_key, project_id
+
+
+def browserbase_request(method: str, path: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
+    api_key, _project_id = browserbase_credentials()
+    body = json.dumps(payload or {}).encode("utf-8") if payload is not None else None
+    request = Request(
+        f"{BROWSERBASE_API_URL}{path}",
+        data=body,
+        method=method,
+        headers={
+            "Content-Type": "application/json",
+            "X-BB-API-Key": api_key,
+        },
+    )
+
+    try:
+        with urlopen(request, timeout=20) as response:
+            raw = response.read().decode("utf-8")
+    except HTTPError as error:
+        raw_error = error.read().decode("utf-8", errors="replace")
+        message = f"Browserbase request failed with HTTP {error.code}."
+        try:
+            error_payload = json.loads(raw_error)
+            detail = error_payload.get("message") or error_payload.get("error")
+            if detail:
+                message = f"Browserbase request failed: {detail}"
+        except json.JSONDecodeError:
+            if raw_error:
+                message = f"Browserbase request failed with HTTP {error.code}."
+        raise ValueError(message) from error
+    except URLError as error:
+        raise ValueError("Could not reach Browserbase. Check Railway networking and Browserbase environment variables.") from error
+
+    try:
+        return json.loads(raw) if raw else {}
+    except json.JSONDecodeError as error:
+        raise ValueError("Browserbase returned an invalid response.") from error
+
+
+def create_browserbase_context() -> str:
+    _api_key, project_id = browserbase_credentials()
+    response = browserbase_request("POST", "/contexts", {"projectId": project_id})
+    context_id = str(response.get("id") or "").strip()
+    if not context_id:
+        raise ValueError("Browserbase did not return a context id.")
+    return context_id
+
+
+def create_browserbase_session(context_id: str, account_id: str, workspace_id: str) -> dict[str, Any]:
+    _api_key, project_id = browserbase_credentials()
+    payload = {
+        "projectId": project_id,
+        "browserSettings": {
+            "context": {
+                "id": context_id,
+                "persist": True,
+            }
+        },
+        "userMetadata": {
+            "app": "inkwell",
+            "tumblrAccountId": account_id,
+            "workspaceId": workspace_id,
+        },
+    }
+    response = browserbase_request("POST", "/sessions", payload)
+    session_id = str(response.get("id") or "").strip()
+    if not session_id:
+        raise ValueError("Browserbase did not return a session id.")
+    return response
+
+
+def browserbase_live_view_url(session_id: str) -> str:
+    response = browserbase_request("GET", f"/sessions/{session_id}/debug")
+    live_url = str(response.get("debuggerFullscreenUrl") or response.get("debuggerUrl") or "").strip()
+    if not live_url:
+        raise ValueError("Browserbase did not return a Live View URL.")
+    return live_url
+
+
+def create_browserbase_tumblr_login(connection: ConnectionLike, account_data: dict[str, Any], workspace_id: str) -> dict[str, Any]:
+    account_id = str(account_data["id"])
+    context_id = str(account_data.get("browserbase_context_id") or "").strip() or create_browserbase_context()
+    session = create_browserbase_session(context_id, account_id, workspace_id)
+    session_id = str(session["id"])
+    live_url = browserbase_live_view_url(session_id)
+    message = "Browserbase login session is ready. Complete Tumblr login in the opened browser."
+
+    updated = upsert_tumblr_account(
+        connection,
+        {
+            **account_data,
+            "workspace_id": workspace_id,
+            "status": "checking",
+            "notes": message,
+            "last_checked_at": utc_now(),
+            "browserbase_context_id": context_id,
+            "browserbase_session_id": session_id,
+            "browserbase_live_url": live_url,
+            "browserbase_session_expires_at": session.get("expiresAt"),
+        },
+    )
+
+    return {
+        "mode": "remote",
+        "provider": "browserbase",
+        "sessionId": session_id,
+        "contextId": context_id,
+        "launchUrl": live_url,
+        "message": message,
+        "account": updated,
+    }
+
+
 def remote_tumblr_login_launch(settings: dict[str, Any]) -> dict[str, str] | None:
     provider = str(settings.get("remoteBrowserProvider") or "none").strip().lower()
+    if provider == "browserbase":
+        return None
     if provider not in REMOTE_BROWSER_ACTIVE_PROVIDERS:
         return None
 
@@ -2214,6 +2374,9 @@ class Handler(BaseHTTPRequestHandler):
                         raise ValueError("Tumblr account not found")
                     account_data = row_to_tumblr_account(account)
                     runner_settings = get_app_settings(connection, workspace_id)["runnerSettings"]
+                    if runner_settings["remoteBrowserProvider"] == "browserbase":
+                        self.respond({"login": create_browserbase_tumblr_login(connection, account_data, workspace_id)}, HTTPStatus.CREATED)
+                        return
                     remote_launch = remote_tumblr_login_launch(runner_settings)
                     if remote_launch:
                         update_tumblr_account_status(

@@ -33,6 +33,8 @@ from app import (
     upsert_queue_item,
     upsert_template,
     upsert_tumblr_account,
+    create_browserbase_tumblr_login,
+    get_app_settings,
     remote_tumblr_login_launch,
     unsupported_tumblr_helper_message,
     verify_password,
@@ -338,8 +340,12 @@ class FakePostgresConnection:
                 "last_checked_at": params[6],
                 "last_login_at": params[7],
                 "notes": params[8],
-                "created_at": params[9],
-                "updated_at": params[10],
+                "browserbase_context_id": params[9],
+                "browserbase_session_id": params[10],
+                "browserbase_live_url": params[11],
+                "browserbase_session_expires_at": params[12],
+                "created_at": params[13],
+                "updated_at": params[14],
             }
             self.tumblr_accounts[str(params[0])] = row
             return FakeCursor()
@@ -907,11 +913,21 @@ class PersistenceTests(unittest.TestCase):
         self.assertEqual(saved["runnerSettings"]["remoteBrowserLaunchUrl"], "")
         self.assertEqual(saved["queueScheduleSettings"]["dailyTime"], "09:00")
 
+    def test_app_settings_uses_browserbase_env_as_default_provider(self) -> None:
+        upsert_app_settings(self.connection, {"runnerSettings": {"remoteBrowserProvider": "none"}}, audit=False)
+
+        with patch.dict(os.environ, {"REMOTE_BROWSER_PROVIDER": "browserbase"}, clear=True):
+            settings = get_app_settings(self.connection)
+
+        self.assertEqual(settings["runnerSettings"]["remoteBrowserProvider"], "browserbase")
+
     def test_remote_tumblr_login_launch_requires_configured_url(self) -> None:
         self.assertIsNone(remote_tumblr_login_launch({"remoteBrowserProvider": "none"}))
 
+        self.assertIsNone(remote_tumblr_login_launch({"remoteBrowserProvider": "browserbase"}))
+
         with self.assertRaisesRegex(ValueError, "no live browser URL"):
-            remote_tumblr_login_launch({"remoteBrowserProvider": "browserbase"})
+            remote_tumblr_login_launch({"remoteBrowserProvider": "custom"})
 
         with self.assertRaisesRegex(ValueError, "must start"):
             remote_tumblr_login_launch({"remoteBrowserProvider": "custom", "remoteBrowserLaunchUrl": "browser.example/live"})
@@ -968,6 +984,63 @@ class PersistenceTests(unittest.TestCase):
         self.assertEqual(saved["status"], "connected")
         self.assertIn(".tumblr-sessions", saved["user_data_dir"])
         self.assertEqual(self.connection.tumblr_accounts["snowleopardx"]["notes"], "Logged in through Playwright.")
+
+    def test_tumblr_account_upsert_tracks_browserbase_metadata(self) -> None:
+        saved = upsert_tumblr_account(
+            self.connection,
+            {
+                "displayName": "Myrana Tumblr",
+                "blogName": "snowleopardx",
+                "browserbaseContextId": "ctx-123",
+                "browserbaseSessionId": "session-123",
+                "browserbaseLiveUrl": "https://browserbase.com/session/live",
+                "browserbaseSessionExpiresAt": "2026-06-19T05:00:00Z",
+            },
+        )
+
+        self.assertEqual(saved["browserbase_context_id"], "ctx-123")
+        self.assertEqual(saved["browserbase_session_id"], "session-123")
+        self.assertEqual(saved["browserbase_live_url"], "https://browserbase.com/session/live")
+        self.assertIsNotNone(saved["browserbase_session_expires_at"])
+
+    def test_create_browserbase_tumblr_login_creates_context_session_and_live_view(self) -> None:
+        account = upsert_tumblr_account(
+            self.connection,
+            {"displayName": "Snow", "blogName": "snowleopardx", "workspace_id": "workspace-test"},
+        )
+
+        def fake_browserbase_request(method: str, path: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
+            if method == "POST" and path == "/contexts":
+                self.assertEqual(payload["projectId"], "project-test")
+                return {"id": "ctx-new"}
+            if method == "POST" and path == "/sessions":
+                self.assertEqual(payload["projectId"], "project-test")
+                self.assertEqual(payload["browserSettings"]["context"], {"id": "ctx-new", "persist": True})
+                self.assertEqual(payload["userMetadata"]["tumblrAccountId"], "snowleopardx")
+                return {"id": "session-new", "expiresAt": "2026-06-19T05:00:00Z"}
+            if method == "GET" and path == "/sessions/session-new/debug":
+                return {"debuggerFullscreenUrl": "https://browserbase.com/live/session-new"}
+            raise AssertionError(f"Unexpected Browserbase call: {method} {path}")
+
+        with patch.dict(os.environ, {"BROWSERBASE_API_KEY": "key-test", "BROWSERBASE_PROJECT_ID": "project-test"}, clear=True):
+            with patch("app.browserbase_request", side_effect=fake_browserbase_request):
+                login = create_browserbase_tumblr_login(self.connection, account, "workspace-test")
+
+        self.assertEqual(login["provider"], "browserbase")
+        self.assertEqual(login["sessionId"], "session-new")
+        self.assertEqual(login["contextId"], "ctx-new")
+        self.assertEqual(login["launchUrl"], "https://browserbase.com/live/session-new")
+        stored = self.connection.tumblr_accounts["snowleopardx"]
+        self.assertEqual(stored["browserbase_context_id"], "ctx-new")
+        self.assertEqual(stored["browserbase_session_id"], "session-new")
+        self.assertEqual(stored["status"], "checking")
+
+    def test_create_browserbase_tumblr_login_requires_env(self) -> None:
+        account = upsert_tumblr_account(self.connection, {"displayName": "Snow", "blogName": "snowleopardx"})
+
+        with patch.dict(os.environ, {}, clear=True):
+            with self.assertRaisesRegex(ValueError, "BROWSERBASE_API_KEY"):
+                create_browserbase_tumblr_login(self.connection, account, "default")
 
     def test_visible_tumblr_helper_requires_desktop_display_on_non_windows(self) -> None:
         with patch("app.os.name", "posix"), patch.dict(os.environ, {}, clear=True):

@@ -100,6 +100,10 @@ export type TumblrAccount = {
   lastCheckedAt: string;
   lastLoginAt: string;
   notes: string;
+  browserbaseContextId: string;
+  browserbaseSessionId: string;
+  browserbaseLiveUrl: string;
+  browserbaseSessionExpiresAt: string;
   updatedAt: string;
 };
 
@@ -192,6 +196,10 @@ export type ApiTumblrAccount = {
   last_checked_at?: string | null;
   last_login_at?: string | null;
   notes: string;
+  browserbase_context_id?: string;
+  browserbase_session_id?: string;
+  browserbase_live_url?: string;
+  browserbase_session_expires_at?: string | null;
   updated_at: string;
 };
 
