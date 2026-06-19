@@ -949,6 +949,67 @@ pre {
   font-weight: 800;
 }
 
+.queue-selector-panel,
+.queue-management-form {
+  margin-bottom: 12px;
+  padding: 12px;
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafb;
+}
+
+.queue-selector-panel label {
+  max-width: 420px;
+}
+
+.queue-management-form {
+  grid-template-columns: minmax(220px, 1fr) auto;
+  align-items: end;
+}
+
+.queue-management-list {
+  display: grid;
+  gap: 10px;
+}
+
+.queue-management-row {
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.queue-management-row.selected {
+  border-color: #2d8a9d;
+  background: #f3faf8;
+}
+
+.queue-management-row > button:first-child {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+}
+
+.queue-management-row strong,
+.queue-management-row span {
+  display: block;
+}
+
+.queue-management-row span {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
 .queue-monitor-grid {
   margin-bottom: 12px;
   display: grid;
@@ -1451,12 +1512,14 @@ pre {
   }
 
   .topbar,
-  .media-row {
+  .media-row,
+  .queue-management-row {
     flex-direction: column;
   }
 
   .field-grid.two,
   .field-grid.three,
+  .queue-management-form,
   .queue-monitor-grid,
   .submit-target-manager,
   .tag-grid,

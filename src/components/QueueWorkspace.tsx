@@ -3,6 +3,7 @@ import { formatDate, formatSubmissionStatus } from "../domain/format";
 import { queueLogGroups, runnerLogExplanation, visibleRunnerLogs } from "../domain/runnerLogs";
 import { formatEasternRun, nextDailyRunAt, scheduleSummary } from "../domain/schedule";
 import {
+  QueueDefinition,
   QueueScheduleSettings,
   RunnerLog,
   RunnerSettings,
@@ -15,14 +16,16 @@ import {
 type QueueWorkspaceProps = {
   activeQueue: SubmissionQueueItem[];
   activeSubmitTarget: TumblrSubmitTarget;
+  activeQueueName: string;
+  queueOptions: QueueDefinition[];
   queueStatus: string;
   queueScheduleSettings: QueueScheduleSettings;
   runnerSettings: RunnerSettings;
   runnerState: RunnerStatus | null;
   runnerLogs: RunnerLog[];
   targetOptions: TumblrSubmitTarget[];
-  onClearCompleted: () => void;
   onQueueTargets: (targets: TumblrSubmitTarget[]) => void;
+  onSelectQueue: (queueName: string) => void;
   onQueueScheduleSettingsChange: (patch: Partial<QueueScheduleSettings>) => void;
   onRefreshRunnerStatus: () => void;
   onRunnerSettingsChange: (patch: Partial<RunnerSettings>) => void;
@@ -33,14 +36,16 @@ type QueueWorkspaceProps = {
 export function QueueWorkspace({
   activeQueue,
   activeSubmitTarget,
+  activeQueueName,
+  queueOptions,
   queueStatus,
   queueScheduleSettings,
   runnerSettings,
   runnerState,
   runnerLogs,
   targetOptions,
-  onClearCompleted,
   onQueueTargets,
+  onSelectQueue,
   onQueueScheduleSettingsChange,
   onRefreshRunnerStatus,
   onRunnerSettingsChange,
@@ -66,6 +71,18 @@ export function QueueWorkspace({
       <div className="panel-heading">
         <h2>Submission queue</h2>
         <Send size={18} />
+      </div>
+      <div className="queue-selector-panel" aria-label="Queue selector">
+        <label>
+          Active queue
+          <select value={activeQueueName} onChange={(event) => onSelectQueue(event.target.value)}>
+            {queueOptions.map((queue) => (
+              <option key={queue.id} value={queue.name}>
+                {queue.name}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
       <div className="queue-monitor-grid" aria-label="Queue monitoring summary">
         {Object.entries(statusCounts).map(([status, count]) => (
@@ -155,9 +172,6 @@ export function QueueWorkspace({
           <List size={18} />
           Queue all targets
         </button>
-        <button className="secondary" type="button" onClick={onClearCompleted}>
-          Clear completed
-        </button>
       </div>
       {queueStatus ? <p className="queue-status">{queueStatus}</p> : null}
       <div className="queue-list">
@@ -220,7 +234,7 @@ export function QueueWorkspace({
             </article>
           ))
         ) : (
-          <p className="queue-empty">Queue one or more Tumblr blogs, then run the automation step.</p>
+          <p className="queue-empty">Queue one or more Tumblr blogs into {activeQueueName}, then run the automation step.</p>
         )}
       </div>
     </section>

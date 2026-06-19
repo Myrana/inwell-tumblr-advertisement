@@ -242,11 +242,19 @@ test("templates can be saved and applied from their own workspace", { timeout: 4
 
   await page.getByRole("button", { name: "Saved Submissions" }).click();
   await page.getByRole("heading", { name: "Saved submissions", level: 1 }).waitFor();
-  await page.getByRole("button", { name: "Queue" }).click();
+  await page.getByRole("button", { name: "Queue", exact: true }).click();
   await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
   assert.equal(await page.getByRole("button", { name: "Export automation plan" }).count(), 0);
   assert.equal(await page.getByLabel("Schedule in Eastern time").count(), 0);
+  await page.getByRole("button", { name: "Queues", exact: true }).click();
+  await page.getByRole("heading", { name: "Queues", level: 1 }).waitFor();
+  await page.getByLabel("New queue name").fill("Want ads");
+  await page.getByRole("button", { name: "Add queue" }).click();
+  await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
+  assert.equal(await page.getByLabel("Active queue").inputValue(), "Want ads");
   await page.getByRole("button", { name: "Queue current" }).waitFor();
+  await page.getByRole("button", { name: "Queue current" }).click();
+  await page.getByText("Queued 1 target in Want ads.").waitFor();
   await page.getByRole("button", { name: "Queue all targets" }).waitFor();
   await page.getByRole("button", { name: "Run queue" }).waitFor();
   await page.getByLabel("Run this queue daily").check();
@@ -256,6 +264,11 @@ test("templates can be saved and applied from their own workspace", { timeout: 4
   const persistedSchedule = await page.evaluate(() => JSON.parse(localStorage.getItem("inwell-queue-schedule-settings") ?? "{}"));
   assert.equal(persistedSchedule.enabled, true);
   assert.equal(persistedSchedule.dailyTime, "09:30");
+  await page.getByRole("button", { name: "Queues", exact: true }).click();
+  const wantAdsRow = page.locator(".queue-management-row", { hasText: "Want ads" });
+  await wantAdsRow.getByText("1 item - 0 complete").waitFor();
+  await wantAdsRow.getByRole("button", { name: "Clear queue" }).click();
+  await wantAdsRow.getByText("0 items - 0 complete").waitFor();
   await page.getByRole("button", { name: "Runner Logs" }).click();
   await page.getByRole("heading", { name: "Runner logs", level: 1 }).waitFor();
   await page.getByText("No runner logs yet.").waitFor();

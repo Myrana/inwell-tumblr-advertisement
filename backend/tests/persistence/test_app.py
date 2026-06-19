@@ -144,18 +144,19 @@ class FakePostgresConnection:
                 "ad_id": params[1],
                 "target_id": params[2],
                 "target_name": params[3],
-                "submit_url": params[4],
-                "post_type": params[5],
-                "status": params[6],
-                "scheduled_for": params[7],
-                "timezone": params[8],
-                "notes": params[9],
-                "runner_payload": params[10],
-                "created_at": params[11],
-                "updated_at": params[12],
-                "last_run_at": params[13],
-                "posted_at": params[14],
-                "failed_at": params[15],
+                "queue_name": params[4],
+                "submit_url": params[5],
+                "post_type": params[6],
+                "status": params[7],
+                "scheduled_for": params[8],
+                "timezone": params[9],
+                "notes": params[10],
+                "runner_payload": params[11],
+                "created_at": params[12],
+                "updated_at": params[13],
+                "last_run_at": params[14],
+                "posted_at": params[15],
+                "failed_at": params[16],
             }
             self.submission_queue[str(params[0])] = row
             return FakeCursor()
@@ -334,6 +335,7 @@ class PersistenceTests(unittest.TestCase):
                 "adId": "ad-1",
                 "targetId": "allthingsroleplay",
                 "targetName": "allthingsroleplay",
+                "queueName": "Daily adverts",
                 "submitUrl": "https://allthingsroleplay.tumblr.com/submit",
                 "postType": "photo",
                 "status": "scheduled",
@@ -346,6 +348,7 @@ class PersistenceTests(unittest.TestCase):
 
         self.assertEqual(saved["id"], "queue-1")
         self.assertEqual(saved["ad_id"], "ad-1")
+        self.assertEqual(saved["queue_name"], "Daily adverts")
         self.assertEqual(saved["status"], "scheduled")
         self.assertEqual(saved["post_type"], "photo")
         self.assertIn("2026-06-18T14:30:00", saved["scheduled_for"])

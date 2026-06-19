@@ -1,4 +1,5 @@
 import {
+  queueDefinitionsStorageKey,
   queueScheduleSettingsStorageKey,
   runnerSettingsStorageKey,
   storageKey,
@@ -8,13 +9,26 @@ import {
   templateStorageKey,
 } from "./constants";
 import { emptyAd, normalizeStoredState } from "./ads";
-import { loadSubmissionQueue } from "./queue";
+import { loadSubmissionQueue, normalizeQueueDefinition, uniqueQueueDefinitions } from "./queue";
 import { loadSubmitTargets } from "./submitTargets";
 import { loadTagProfiles } from "./tags";
 import { normalizeTemplate } from "./templates";
-import { QueueScheduleSettings, RunnerSettings, SavedTemplate, StoredState } from "./types";
+import { QueueDefinition, QueueScheduleSettings, RunnerSettings, SavedTemplate, StoredState } from "./types";
 
 export { loadSubmissionQueue, loadSubmitTargets, loadTagProfiles };
+
+export function loadQueueDefinitions(): QueueDefinition[] {
+  try {
+    const raw = localStorage.getItem(queueDefinitionsStorageKey);
+    const parsed = raw ? (JSON.parse(raw) as Partial<QueueDefinition>[]) : [];
+    const definitions = Array.isArray(parsed)
+      ? (parsed.map((definition) => normalizeQueueDefinition(definition)).filter(Boolean) as QueueDefinition[])
+      : [];
+    return uniqueQueueDefinitions(definitions);
+  } catch {
+    return uniqueQueueDefinitions([]);
+  }
+}
 
 export function loadStoredState(): StoredState {
   const fallback = emptyAd();
@@ -81,6 +95,10 @@ export function saveSubmitTargets(value: unknown) {
 
 export function saveSubmissionQueue(value: unknown) {
   localStorage.setItem(submissionQueueStorageKey, JSON.stringify(value));
+}
+
+export function saveQueueDefinitions(value: unknown) {
+  localStorage.setItem(queueDefinitionsStorageKey, JSON.stringify(value));
 }
 
 export function saveTagProfiles(value: unknown) {

@@ -1,4 +1,4 @@
-import { Activity, Archive, ClipboardCheck, FileText, Send } from "lucide-react";
+import { Activity, Archive, ClipboardCheck, FileText, ListChecks, Send } from "lucide-react";
 import { WorkspaceView } from "../domain/types";
 
 type AppSidebarProps = {
@@ -40,6 +40,10 @@ export function AppSidebar({
         <button className={activeView === "queue" ? "active" : ""} type="button" onClick={() => onViewChange("queue")}>
           <Send size={18} />
           Queue
+        </button>
+        <button className={activeView === "queue-settings" ? "active" : ""} type="button" onClick={() => onViewChange("queue-settings")}>
+          <ListChecks size={18} />
+          Queues
         </button>
         <button className={activeView === "logs" ? "active" : ""} type="button" onClick={() => onViewChange("logs")}>
           <Activity size={18} />
