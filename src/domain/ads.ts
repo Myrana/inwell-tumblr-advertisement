@@ -2,6 +2,8 @@ import { blogs } from "./constants";
 import { Advertisement, ApiAdvertisement, StoredState } from "./types";
 
 const removedSeedTargetIds = new Set(["inwell-ads", "jcink-directory", "roleplay-finder"]);
+const starterImageName = "sample-forum-ad.png";
+const starterImageDataUrl = "/sample-forum-ad.png";
 
 function createId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -20,8 +22,8 @@ export const emptyAd = (destinationBlog = blogs[0] ?? ""): Advertisement => ({
   forumUrl: "",
   tags: [],
   imageCaption: "",
-  imageName: "sample-forum-ad.png",
-  imageDataUrl: "/sample-forum-ad.png",
+  imageName: starterImageName,
+  imageDataUrl: starterImageDataUrl,
   videoUrl: "",
   videoName: "",
   status: "draft",
@@ -96,6 +98,22 @@ export function toApiAdvertisement(advertisement: Advertisement): ApiAdvertiseme
 
 export function composerContentFor(advertisement: Advertisement) {
   return advertisement.imageCaption || advertisement.content;
+}
+
+export function hasLibraryContent(advertisement: Advertisement) {
+  return Boolean(
+    advertisement.title.trim() ||
+      htmlToPlainText(composerContentFor(advertisement)) ||
+      advertisement.destinationBlog.trim() ||
+      advertisement.forumUrl.trim() ||
+      advertisement.tags.length ||
+      advertisement.postType !== "photo" ||
+      advertisement.imageName.trim() !== starterImageName ||
+      advertisement.imageDataUrl.trim() !== starterImageDataUrl ||
+      advertisement.videoUrl.trim() ||
+      advertisement.videoName.trim() ||
+      advertisement.status !== "draft",
+  );
 }
 
 export function htmlToPlainText(value: string) {
