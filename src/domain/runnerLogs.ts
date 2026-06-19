@@ -146,6 +146,9 @@ export function runnerLogExplanation(log: RunnerLog) {
   if (normalized.includes("browser") || normalized.includes("target page") || normalized.includes("new tab")) {
     return "The Playwright browser or tab closed before the runner finished.";
   }
+  if (normalized.includes("submit button") && normalized.includes("disabled")) {
+    return "Tumblr kept the submit button disabled after the runner filled the form. Review the page for missing required fields or Tumblr-side validation.";
+  }
   if (normalized.includes("submit button")) {
     return "The runner could not find a submit button after filling the form.";
   }
