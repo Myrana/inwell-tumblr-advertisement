@@ -213,14 +213,15 @@ async function runQueueItem(context, item, options) {
   }
 
   if (options.submit) {
-    const clicked = await clickSubmit(target);
-    console.log(clicked ? `[submitted] ${item.targetName}: submit button clicked.` : `[manual-action] ${item.targetName}: no submit button found.`);
+    const submitResult = await clickSubmit(target);
+    const submitted = submitResult.status === "clicked";
+    console.log(submitted ? `[submitted] ${item.targetName}: submit button clicked.` : `[manual-action] ${item.targetName}: ${submitResult.message}`);
     await reportRunnerEvent(
       options,
       item,
-      clicked ? "submitted" : "needs-review",
-      clicked ? "Submit button clicked." : "No submit button found.",
-      clicked ? "info" : "warning",
+      submitted ? "submitted" : "needs-review",
+      submitResult.message,
+      submitted ? "info" : "warning",
     );
   } else {
     console.log(`[ready] ${item.targetName}: fields filled where possible. Review the page, then submit manually or rerun with --submit.`);
@@ -1139,11 +1140,14 @@ async function clickSubmit(page) {
   for (const name of [/submit/i, /send/i, /post/i]) {
     const button = page.getByRole("button", { name }).first();
     if (await button.isVisible({ timeout: 1000 }).catch(() => false)) {
-      await button.click();
-      return true;
+      if (!(await button.isEnabled({ timeout: 1000 }).catch(() => false))) {
+        return { status: "disabled", message: "Submit button is disabled after filling the form." };
+      }
+      await button.click({ timeout: 5000 });
+      return { status: "clicked", message: "Submit button clicked." };
     }
   }
-  return false;
+  return { status: "missing", message: "No submit button found." };
 }
 
 async function pauseForOperator(page, options) {
