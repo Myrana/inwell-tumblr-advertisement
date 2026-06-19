@@ -144,6 +144,10 @@ export function postTypeCandidateIndex(candidates, optionValue) {
   );
 }
 
+export function tumblrPostSelectOptionSelector(value) {
+  return `#post_select [data-option-value="${normalizePostType(value)}"]`;
+}
+
 export function shouldPauseForManualAction(text, url = "") {
   return Boolean(manualActionReason(text, url));
 }

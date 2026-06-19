@@ -18,6 +18,7 @@ import {
   shouldDeferReadyReview,
   shouldPauseForManualAction,
   summarizeFrames,
+  tumblrPostSelectOptionSelector,
 } from "../../scripts/tumblr-runner-core.mjs";
 
 test("parseArgs accepts a plan and safety defaults", () => {
@@ -233,6 +234,11 @@ test("postTypeCandidateIndex prefers the visible unselected requested post type"
   ];
 
   assert.equal(postTypeCandidateIndex(candidates, "photo"), 3);
+});
+
+test("tumblrPostSelectOptionSelector targets Tumblr legacy post type options", () => {
+  assert.equal(tumblrPostSelectOptionSelector("photo"), '#post_select [data-option-value="photo"]');
+  assert.equal(tumblrPostSelectOptionSelector("unknown"), '#post_select [data-option-value="photo"]');
 });
 
 test("review page message keeps browser review controlled by the operator", () => {
