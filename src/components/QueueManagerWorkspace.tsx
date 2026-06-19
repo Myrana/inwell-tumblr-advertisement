@@ -1,5 +1,5 @@
 import { FormEvent } from "react";
-import { ListChecks, Plus } from "lucide-react";
+import { ListChecks, Plus, Trash2 } from "lucide-react";
 import { QueueDefinition, SubmissionQueueItem } from "../domain/types";
 
 type QueueManagerWorkspaceProps = {
@@ -9,6 +9,7 @@ type QueueManagerWorkspaceProps = {
   queueStatus: string;
   submissionQueue: SubmissionQueueItem[];
   onCreateQueue: (event: FormEvent) => void;
+  onDeleteQueue: (queueName: string) => void;
   onQueueNameDraftChange: (value: string) => void;
   onRenameQueue: (currentName: string, nextName: string) => void;
   onSelectQueue: (queueName: string) => void;
@@ -23,6 +24,7 @@ export function QueueManagerWorkspace({
   queueStatus,
   submissionQueue,
   onCreateQueue,
+  onDeleteQueue,
   onQueueNameDraftChange,
   onRenameQueue,
   onSelectQueue,
@@ -86,6 +88,10 @@ export function QueueManagerWorkspace({
                 <button className="secondary" type="button" onClick={() => onSelectQueue(queue.name)}>
                   <ListChecks size={16} />
                   Open queue
+                </button>
+                <button className="secondary" type="button" onClick={() => onDeleteQueue(queue.name)}>
+                  <Trash2 size={16} />
+                  Delete queue
                 </button>
               </div>
             </article>

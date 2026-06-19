@@ -691,6 +691,22 @@ function App() {
     setQueueStatus(`Renamed ${currentName} to ${nextName}.`);
   }
 
+  function deleteQueueDefinition(queueName: string) {
+    const removableItems = submissionQueue.filter((item) => item.queueName === queueName);
+    const remainingDefinitions = queueDefinitions.filter((queue) => queue.name !== queueName);
+    const remainingItems = submissionQueue.filter((item) => item.queueName !== queueName);
+    const nextOptions = uniqueQueueDefinitions(remainingDefinitions, remainingItems);
+    const nextSelectedQueue = selectedQueueName === queueName ? nextOptions[0]?.name ?? "" : selectedQueueName;
+
+    setQueueDefinitions(remainingDefinitions);
+    setSubmissionQueue(remainingItems);
+    setSelectedQueueName(nextSelectedQueue);
+    removableItems.forEach((item) => {
+      void removeQueueItem(item.id).catch(() => setApiAvailable(false));
+    });
+    setQueueStatus(`Deleted ${queueName}.`);
+  }
+
   function updateQueueItem(id: string, status: SubmissionStatus, notes: string) {
     let nextItem: SubmissionQueueItem | null = null;
     const timestamp = new Date().toISOString();
@@ -1175,6 +1191,7 @@ function App() {
             queueStatus={queueStatus}
             submissionQueue={submissionQueue}
             onCreateQueue={createQueueDefinition}
+            onDeleteQueue={deleteQueueDefinition}
             onQueueNameDraftChange={setQueueNameDraft}
             onRenameQueue={renameQueueDefinition}
             onSelectQueue={(queueName) => {
