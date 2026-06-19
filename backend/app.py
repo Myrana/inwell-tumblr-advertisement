@@ -28,13 +28,15 @@ DEFAULT_TIMEZONE = "America/New_York"
 DEFAULT_PGHOST = "192.168.1.3"
 DEFAULT_PGDATABASE = "inwell_tumblr_advertisement"
 DEFAULT_PGUSER = "postgres"
-CURRENT_SCHEMA_VERSION = "0009_auth_attempt_locks"
+CURRENT_SCHEMA_VERSION = "0010_remote_tumblr_login_settings"
 SESSION_COOKIE_NAME = "inwell_session"
 SESSION_DAYS = 14
 AUTH_LOCK_WINDOW_MINUTES = 15
 AUTH_LOGIN_EMAIL_FAILURE_LIMIT = 5
 AUTH_LOGIN_CLIENT_FAILURE_LIMIT = 25
 AUTH_REGISTER_CLIENT_ATTEMPT_LIMIT = 8
+REMOTE_BROWSER_PROVIDERS = {"none", "browserbase", "browserless", "custom"}
+REMOTE_BROWSER_ACTIVE_PROVIDERS = {"browserbase", "browserless", "custom"}
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DIST_ROOT = REPO_ROOT / "dist"
 RUNNER_PLAN_PATH = REPO_ROOT / "tumblr-runner-plan.json"
@@ -347,6 +349,8 @@ def initialize(connection: ConnectionLike) -> None:
             slow_mo INTEGER NOT NULL DEFAULT 500,
             submit BOOLEAN NOT NULL DEFAULT FALSE,
             tumblr_account_id TEXT NOT NULL DEFAULT '',
+            remote_browser_provider TEXT NOT NULL DEFAULT 'none',
+            remote_browser_launch_url TEXT NOT NULL DEFAULT '',
             updated_at TIMESTAMPTZ NOT NULL
         )
         """
@@ -397,6 +401,8 @@ def initialize(connection: ConnectionLike) -> None:
     connection.execute("ALTER TABLE submission_queue ADD COLUMN IF NOT EXISTS queue_name TEXT NOT NULL DEFAULT 'Default queue'")
     connection.execute("ALTER TABLE submission_queue ADD COLUMN IF NOT EXISTS tumblr_account_id TEXT NOT NULL DEFAULT ''")
     connection.execute("ALTER TABLE runner_settings ADD COLUMN IF NOT EXISTS tumblr_account_id TEXT NOT NULL DEFAULT ''")
+    connection.execute("ALTER TABLE runner_settings ADD COLUMN IF NOT EXISTS remote_browser_provider TEXT NOT NULL DEFAULT 'none'")
+    connection.execute("ALTER TABLE runner_settings ADD COLUMN IF NOT EXISTS remote_browser_launch_url TEXT NOT NULL DEFAULT ''")
     connection.execute("CREATE INDEX IF NOT EXISTS idx_advertisement_tags_tag ON advertisement_tags(tag)")
     connection.execute("CREATE INDEX IF NOT EXISTS idx_template_tags_tag ON template_tags(tag)")
     connection.execute("CREATE INDEX IF NOT EXISTS idx_runner_log_details_key ON runner_log_details(detail_key)")
@@ -1176,12 +1182,17 @@ def normalize_runner_settings(value: Any) -> dict[str, Any]:
         slow_mo = int(data.get("slowMo", 500))
     except (TypeError, ValueError):
         slow_mo = 500
+    provider = str(data.get("remoteBrowserProvider") or data.get("remote_browser_provider") or "none").strip().lower()
+    if provider not in REMOTE_BROWSER_PROVIDERS:
+        provider = "none"
 
     return {
         "mediaDir": str(data.get("mediaDir") or ""),
         "slowMo": max(0, min(slow_mo, 5000)),
         "submit": bool(data.get("submit")),
         "tumblrAccountId": str(data.get("tumblrAccountId") or data.get("tumblr_account_id") or "").strip(),
+        "remoteBrowserProvider": provider,
+        "remoteBrowserLaunchUrl": str(data.get("remoteBrowserLaunchUrl") or data.get("remote_browser_launch_url") or "").strip(),
     }
 
 
@@ -1287,6 +1298,8 @@ def get_app_settings(connection: ConnectionLike, workspace_id: str = "default") 
                 "slowMo": runner_row["slow_mo"] if runner_row else 500,
                 "submit": runner_row["submit"] if runner_row else False,
                 "tumblrAccountId": runner_row["tumblr_account_id"] if runner_row else "",
+                "remoteBrowserProvider": runner_row["remote_browser_provider"] if runner_row else "none",
+                "remoteBrowserLaunchUrl": runner_row["remote_browser_launch_url"] if runner_row else "",
             }
         ),
         "queueScheduleSettings": normalize_queue_schedule_settings(
@@ -1393,13 +1406,18 @@ def upsert_app_settings(connection: ConnectionLike, payload: dict[str, Any], aud
     runner_settings = settings["runnerSettings"]
     connection.execute(
         """
-        INSERT INTO runner_settings (id, workspace_id, media_dir, slow_mo, submit, tumblr_account_id, updated_at)
-        VALUES (%s, %s, %s, %s, %s, %s, %s)
+        INSERT INTO runner_settings (
+            id, workspace_id, media_dir, slow_mo, submit, tumblr_account_id,
+            remote_browser_provider, remote_browser_launch_url, updated_at
+        )
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT(id) DO UPDATE SET
             media_dir = excluded.media_dir,
             slow_mo = excluded.slow_mo,
             submit = excluded.submit,
             tumblr_account_id = excluded.tumblr_account_id,
+            remote_browser_provider = excluded.remote_browser_provider,
+            remote_browser_launch_url = excluded.remote_browser_launch_url,
             updated_at = excluded.updated_at
         """,
         (
@@ -1409,11 +1427,13 @@ def upsert_app_settings(connection: ConnectionLike, payload: dict[str, Any], aud
             runner_settings["slowMo"],
             runner_settings["submit"],
             runner_settings["tumblrAccountId"],
+            runner_settings["remoteBrowserProvider"],
+            runner_settings["remoteBrowserLaunchUrl"],
             now,
         ),
     )
     if audit:
-        for field_name in ("mediaDir", "slowMo", "submit", "tumblrAccountId"):
+        for field_name in ("mediaDir", "slowMo", "submit", "tumblrAccountId", "remoteBrowserProvider", "remoteBrowserLaunchUrl"):
             record_settings_audit(connection, "runner_settings", "upsert", "default", field_name, "", runner_settings[field_name], workspace_id)
 
     schedule_settings = settings["queueScheduleSettings"]
@@ -1960,6 +1980,27 @@ def unsupported_tumblr_helper_message() -> str:
     return "Tumblr login helper needs a visible browser on your local desktop. Railway cannot show that browser."
 
 
+def remote_tumblr_login_launch(settings: dict[str, Any]) -> dict[str, str] | None:
+    provider = str(settings.get("remoteBrowserProvider") or "none").strip().lower()
+    if provider not in REMOTE_BROWSER_ACTIVE_PROVIDERS:
+        return None
+
+    launch_url = str(settings.get("remoteBrowserLaunchUrl") or "").strip()
+    if not launch_url:
+        raise ValueError(
+            "Remote Tumblr login is selected, but no live browser URL is configured. Add the provider launch URL on Tumblr Accounts."
+        )
+    if not launch_url.startswith(("https://", "http://")):
+        raise ValueError("Remote browser launch URL must start with http:// or https://.")
+
+    return {
+        "mode": "remote",
+        "provider": provider,
+        "launchUrl": launch_url,
+        "message": "Remote browser login session is ready. Complete Tumblr login in the opened browser.",
+    }
+
+
 def powershell_quote(value: str) -> str:
     return "'" + value.replace("'", "''") + "'"
 
@@ -2172,6 +2213,18 @@ class Handler(BaseHTTPRequestHandler):
                     if not account:
                         raise ValueError("Tumblr account not found")
                     account_data = row_to_tumblr_account(account)
+                    runner_settings = get_app_settings(connection, workspace_id)["runnerSettings"]
+                    remote_launch = remote_tumblr_login_launch(runner_settings)
+                    if remote_launch:
+                        update_tumblr_account_status(
+                            connection,
+                            account_id,
+                            "checking",
+                            remote_launch["message"],
+                            utc_now(),
+                        )
+                        self.respond({"login": remote_launch}, HTTPStatus.CREATED)
+                        return
                 if not visible_tumblr_helper_supported():
                     raise ValueError(unsupported_tumblr_helper_message())
                 runner_args = [
@@ -2205,7 +2258,17 @@ class Handler(BaseHTTPRequestHandler):
                         "Login helper launched. Complete Tumblr login in the visible browser.",
                         utc_now(),
                     )
-                self.respond({"login": {"pid": process.pid, "command": runner_args}}, HTTPStatus.CREATED)
+                self.respond(
+                    {
+                        "login": {
+                            "mode": "local",
+                            "pid": process.pid,
+                            "command": runner_args,
+                            "message": f"Login helper opened in process {process.pid}. Finish Tumblr login in that browser.",
+                        }
+                    },
+                    HTTPStatus.CREATED,
+                )
             except (OSError, ValueError) as error:
                 message = unsupported_tumblr_helper_message() if isinstance(error, OSError) else str(error)
                 self.respond({"error": message}, HTTPStatus.BAD_REQUEST)

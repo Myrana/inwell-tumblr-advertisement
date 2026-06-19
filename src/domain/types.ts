@@ -78,11 +78,15 @@ export type SubmissionQueueItem = {
   runnerPayload: string;
 };
 
+export type RemoteBrowserProvider = "none" | "browserbase" | "browserless" | "custom";
+
 export type RunnerSettings = {
   mediaDir: string;
   slowMo: number;
   submit: boolean;
   tumblrAccountId: string;
+  remoteBrowserProvider: RemoteBrowserProvider;
+  remoteBrowserLaunchUrl: string;
 };
 
 export type TumblrAccountStatus = "connected" | "needs-login" | "expired" | "checking";

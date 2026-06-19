@@ -15,7 +15,7 @@ import { loadSubmitTargets } from "./submitTargets";
 import { loadTagProfiles } from "./tags";
 import { normalizeTemplate } from "./templates";
 import { normalizeTumblrAccount } from "./tumblrAccounts";
-import { QueueDefinition, QueueScheduleSettings, RunnerSettings, SavedTemplate, StoredState, TumblrAccount } from "./types";
+import { QueueDefinition, QueueScheduleSettings, RemoteBrowserProvider, RunnerSettings, SavedTemplate, StoredState, TumblrAccount } from "./types";
 
 export { loadSubmissionQueue, loadSubmitTargets, loadTagProfiles };
 
@@ -52,15 +52,33 @@ export function loadRunnerSettings(): RunnerSettings {
   try {
     const raw = localStorage.getItem(runnerSettingsStorageKey);
     const parsed = raw ? (JSON.parse(raw) as Partial<RunnerSettings>) : {};
+    const provider = normalizeRemoteBrowserProvider(parsed.remoteBrowserProvider);
     return {
       mediaDir: typeof parsed.mediaDir === "string" ? parsed.mediaDir : "",
       slowMo: typeof parsed.slowMo === "number" ? parsed.slowMo : 500,
       submit: Boolean(parsed.submit),
       tumblrAccountId: typeof parsed.tumblrAccountId === "string" ? parsed.tumblrAccountId : "",
+      remoteBrowserProvider: provider,
+      remoteBrowserLaunchUrl: typeof parsed.remoteBrowserLaunchUrl === "string" ? parsed.remoteBrowserLaunchUrl : "",
     };
   } catch {
-    return { mediaDir: "", slowMo: 500, submit: false, tumblrAccountId: "" };
+    return defaultRunnerSettings();
   }
+}
+
+function defaultRunnerSettings(): RunnerSettings {
+  return {
+    mediaDir: "",
+    slowMo: 500,
+    submit: false,
+    tumblrAccountId: "",
+    remoteBrowserProvider: "none",
+    remoteBrowserLaunchUrl: "",
+  };
+}
+
+function normalizeRemoteBrowserProvider(value: unknown): RemoteBrowserProvider {
+  return value === "browserbase" || value === "browserless" || value === "custom" ? value : "none";
 }
 
 export function loadTumblrAccounts(): TumblrAccount[] {

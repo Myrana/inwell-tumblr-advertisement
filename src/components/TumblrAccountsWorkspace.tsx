@@ -1,11 +1,12 @@
 import { FormEvent } from "react";
 import { LogIn, RefreshCw, ShieldCheck, Trash2, UserPlus } from "lucide-react";
 import { formatDate } from "../domain/format";
-import { TumblrAccount } from "../domain/types";
+import { RunnerSettings, TumblrAccount } from "../domain/types";
 
 type TumblrAccountsWorkspaceProps = {
   accounts: TumblrAccount[];
   draft: { displayName: string; blogName: string };
+  runnerSettings: RunnerSettings;
   status: string;
   selectedAccountId: string;
   onCreateAccount: (event: FormEvent) => void;
@@ -13,12 +14,13 @@ type TumblrAccountsWorkspaceProps = {
   onDraftChange: (patch: Partial<{ displayName: string; blogName: string }>) => void;
   onLaunchLogin: (id: string) => void;
   onMarkConnected: (id: string) => void;
+  onRunnerSettingsChange: (patch: Partial<RunnerSettings>) => void;
   onSelectAccount: (id: string) => void;
 };
 
 function accountStatusLabel(account: TumblrAccount) {
   if (account.status === "connected") return "Connected";
-  if (account.status === "checking") return "Login helper open";
+  if (account.status === "checking") return "Connection pending";
   if (account.status === "expired") return "Expired";
   return "Needs login";
 }
@@ -26,6 +28,7 @@ function accountStatusLabel(account: TumblrAccount) {
 export function TumblrAccountsWorkspace({
   accounts,
   draft,
+  runnerSettings,
   status,
   selectedAccountId,
   onCreateAccount,
@@ -33,6 +36,7 @@ export function TumblrAccountsWorkspace({
   onDraftChange,
   onLaunchLogin,
   onMarkConnected,
+  onRunnerSettingsChange,
   onSelectAccount,
 }: TumblrAccountsWorkspaceProps) {
   return (
@@ -64,6 +68,33 @@ export function TumblrAccountsWorkspace({
           Add account
         </button>
       </form>
+
+      <div className="queue-management-form">
+        <label>
+          Browser provider
+          <select
+            value={runnerSettings.remoteBrowserProvider}
+            onChange={(event) =>
+              onRunnerSettingsChange({
+                remoteBrowserProvider: event.target.value as RunnerSettings["remoteBrowserProvider"],
+              })
+            }
+          >
+            <option value="none">Local desktop</option>
+            <option value="browserbase">Browserbase</option>
+            <option value="browserless">Browserless</option>
+            <option value="custom">Custom live browser URL</option>
+          </select>
+        </label>
+        <label>
+          Live browser URL
+          <input
+            value={runnerSettings.remoteBrowserLaunchUrl}
+            onChange={(event) => onRunnerSettingsChange({ remoteBrowserLaunchUrl: event.target.value })}
+            placeholder="https://provider.example/live/session"
+          />
+        </label>
+      </div>
 
       {status ? <p className="queue-status">{status}</p> : null}
 
@@ -101,7 +132,7 @@ export function TumblrAccountsWorkspace({
             </article>
           ))
         ) : (
-          <p className="queue-empty">Add a Tumblr account, launch the login helper, then select it before running a queue.</p>
+          <p className="queue-empty">Add a Tumblr account, connect a browser session, then select it before running a queue.</p>
         )}
       </div>
     </section>
