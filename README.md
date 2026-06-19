@@ -1,6 +1,6 @@
-# Inwell Tumblr Advertisement Assistant
+# Inkwell Tumblr Advertisement Assistant
 
-Inwell Tumblr Advertisement Assistant is a React and TypeScript MVP for creating, saving, reusing, validating, and preparing Tumblr forum advertisement posts.
+Inkwell Tumblr Advertisement Assistant is a React and TypeScript MVP for creating, saving, reusing, validating, and preparing Tumblr forum advertisement posts.
 
 ## Local Development
 
