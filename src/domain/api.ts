@@ -231,6 +231,7 @@ export type TumblrLoginResponse =
         provider: string;
         launchUrl: string;
         message: string;
+        loggedIn?: boolean;
         sessionId?: string;
         contextId?: string;
         account?: ApiTumblrAccount;
@@ -241,5 +242,12 @@ export async function launchTumblrLogin(accountId: string, slowMo = 250) {
   return apiRequest<TumblrLoginResponse>("/tumblr/login", {
     method: "POST",
     body: JSON.stringify({ accountId, slowMo }),
+  });
+}
+
+export async function checkTumblrLogin(accountId: string) {
+  return apiRequest<TumblrLoginResponse>("/tumblr/login-check", {
+    method: "POST",
+    body: JSON.stringify({ accountId }),
   });
 }

@@ -802,6 +802,10 @@ test("tumblr account connect opens Browserbase live view without manual URL", { 
             last_checked_at: null,
             last_login_at: null,
             notes: "Connect a browser session before queue runs.",
+            browserbase_context_id: "ctx-saved",
+            browserbase_session_id: "",
+            browserbase_live_url: "",
+            browserbase_session_expires_at: null,
             updated_at: "2026-06-19T01:00:00.000Z",
           },
         ],
@@ -839,6 +843,38 @@ test("tumblr account connect opens Browserbase live view without manual URL", { 
       }),
     }),
   );
+  await page.route("http://127.0.0.1:8021/api/tumblr/login-check", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({
+        login: {
+          mode: "remote",
+          provider: "browserbase",
+          loggedIn: true,
+          sessionId: "session-check",
+          contextId: "ctx-saved",
+          launchUrl: "",
+          message: "Saved Tumblr login is active. This account is ready for queue runs.",
+          account: {
+            id: "snowleopardx",
+            display_name: "Snow",
+            blog_name: "snowleopardx",
+            user_data_dir: "/app/.tumblr-sessions/snowleopardx",
+            status: "connected",
+            last_checked_at: "2026-06-19T01:04:00.000Z",
+            last_login_at: "2026-06-19T01:04:00.000Z",
+            notes: "Saved Tumblr login is active. This account is ready for queue runs.",
+            browserbase_context_id: "ctx-saved",
+            browserbase_session_id: "session-check",
+            browserbase_live_url: "https://browserbase.com/live/session-check",
+            browserbase_session_expires_at: "2026-06-19T01:20:00.000Z",
+            updated_at: "2026-06-19T01:04:00.000Z",
+          },
+        },
+      }),
+    }),
+  );
 
   await page.goto(appUrl);
   await page.evaluate(() => {
@@ -852,6 +888,10 @@ test("tumblr account connect opens Browserbase live view without manual URL", { 
   await page.getByRole("heading", { name: "Tumblr accounts", level: 1 }).waitFor();
   await page.getByLabel("Browser provider").selectOption("browserbase");
   assert.equal(await page.getByRole("textbox", { name: "Live browser URL" }).count(), 0);
+  await page.getByRole("button", { name: "Check saved login" }).click();
+  await page.locator("p.queue-status").filter({ hasText: "Saved Tumblr login is active." }).waitFor();
+  assert.equal(await page.evaluate(() => window.__openedRemoteUrl), "");
+
   await page.getByRole("button", { name: "Connect", exact: true }).click();
   await page.locator("p.queue-status").filter({ hasText: "Browserbase login session is ready." }).waitFor();
 

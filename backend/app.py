@@ -12,6 +12,7 @@ import socket
 import ssl
 import subprocess
 import struct
+import time
 import uuid
 from datetime import date, datetime, timedelta, timezone
 from http import HTTPStatus
@@ -44,6 +45,7 @@ REMOTE_BROWSER_PROVIDERS = {"none", "browserbase", "browserless", "custom"}
 REMOTE_BROWSER_ACTIVE_PROVIDERS = {"browserbase", "browserless", "custom"}
 BROWSERBASE_API_URL = "https://api.browserbase.com/v1"
 TUMBLR_LOGIN_URL = "https://www.tumblr.com/login"
+TUMBLR_DASHBOARD_URL = "https://www.tumblr.com/dashboard"
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DIST_ROOT = REPO_ROOT / "dist"
 RUNNER_PLAN_PATH = REPO_ROOT / "tumblr-runner-plan.json"
@@ -2231,7 +2233,7 @@ def cdp_command(connection: socket.socket, command_id: int, method: str, params:
         return response
 
 
-def browserbase_navigate_session(connect_url: str, url: str = TUMBLR_LOGIN_URL) -> None:
+def browserbase_open_page_session(connect_url: str) -> tuple[socket.socket, str]:
     if not connect_url.strip():
         raise ValueError("Browserbase did not return a CDP connection URL.")
     connection = websocket_open(connect_url)
@@ -2249,9 +2251,53 @@ def browserbase_navigate_session(connect_url: str, url: str = TUMBLR_LOGIN_URL) 
         session_id = str(attached.get("result", {}).get("sessionId") or "")
         if not session_id:
             raise ValueError("Browserbase CDP did not attach to the page target.")
+        return connection, session_id
+    except Exception:
+        connection.close()
+        raise
+
+
+def browserbase_navigate_session(connect_url: str, url: str = TUMBLR_LOGIN_URL) -> None:
+    connection, session_id = browserbase_open_page_session(connect_url)
+    try:
         cdp_command(connection, 4, "Page.navigate", {"url": url}, session_id=session_id)
     finally:
         connection.close()
+
+
+def browserbase_page_state(connect_url: str, url: str) -> dict[str, str]:
+    connection, session_id = browserbase_open_page_session(connect_url)
+    try:
+        cdp_command(connection, 4, "Page.navigate", {"url": url}, session_id=session_id)
+        time.sleep(2)
+        response = cdp_command(
+            connection,
+            5,
+            "Runtime.evaluate",
+            {
+                "expression": "JSON.stringify({url: location.href, text: document.body ? document.body.innerText : ''})",
+                "returnByValue": True,
+            },
+            session_id=session_id,
+        )
+    finally:
+        connection.close()
+    value = response.get("result", {}).get("result", {}).get("value", "")
+    try:
+        parsed = json.loads(str(value))
+    except json.JSONDecodeError:
+        parsed = {}
+    return {"url": str(parsed.get("url") or ""), "text": str(parsed.get("text") or "")}
+
+
+def tumblr_page_appears_logged_in(page_state: dict[str, str]) -> bool:
+    url = page_state.get("url", "").lower()
+    text = page_state.get("text", "").lower()
+    if "/login" in url or "log in to continue" in text:
+        return False
+    if "tumblr.com/dashboard" in url and any(marker in text for marker in ("dashboard", "following", "for you", "activity", "account")):
+        return True
+    return False
 
 
 def create_browserbase_tumblr_login(connection: ConnectionLike, account_data: dict[str, Any], workspace_id: str) -> dict[str, Any]:
@@ -2284,6 +2330,53 @@ def create_browserbase_tumblr_login(connection: ConnectionLike, account_data: di
         "sessionId": session_id,
         "contextId": context_id,
         "launchUrl": live_url,
+        "message": message,
+        "account": updated,
+    }
+
+
+def check_browserbase_tumblr_login(connection: ConnectionLike, account_data: dict[str, Any], workspace_id: str) -> dict[str, Any]:
+    account_id = str(account_data["id"])
+    context_id = str(account_data.get("browserbase_context_id") or "").strip()
+    if not context_id:
+        raise ValueError("Connect this Tumblr account once before checking saved login.")
+
+    session = create_browserbase_session(context_id, account_id, workspace_id)
+    session_id = str(session["id"])
+    connect_url = str(session.get("connectUrl") or "")
+    page_state = browserbase_page_state(connect_url, TUMBLR_DASHBOARD_URL)
+    live_url = browserbase_live_view_url(session_id)
+    logged_in = tumblr_page_appears_logged_in(page_state)
+    message = (
+        "Saved Tumblr login is active. This account is ready for queue runs."
+        if logged_in
+        else "Saved Tumblr login was not active. Complete Tumblr login in the opened Browserbase session."
+    )
+    now = utc_now()
+
+    updated = upsert_tumblr_account(
+        connection,
+        {
+            **account_data,
+            "workspace_id": workspace_id,
+            "status": "connected" if logged_in else "needs-login",
+            "notes": message,
+            "last_checked_at": now,
+            "last_login_at": now if logged_in else account_data.get("last_login_at"),
+            "browserbase_context_id": context_id,
+            "browserbase_session_id": session_id,
+            "browserbase_live_url": live_url,
+            "browserbase_session_expires_at": session.get("expiresAt"),
+        },
+    )
+
+    return {
+        "mode": "remote",
+        "provider": "browserbase",
+        "loggedIn": logged_in,
+        "sessionId": session_id,
+        "contextId": context_id,
+        "launchUrl": "" if logged_in else live_url,
         "message": message,
         "account": updated,
     }
@@ -2512,7 +2605,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.respond({"error": str(error)}, HTTPStatus.BAD_REQUEST)
             return
 
-        if collection == "tumblr/login":
+        if collection in {"tumblr/login", "tumblr/login-check"}:
             try:
                 payload = self.read_json()
                 payload["workspace_id"] = workspace_id
@@ -2524,6 +2617,9 @@ class Handler(BaseHTTPRequestHandler):
                     if not account:
                         raise ValueError("Tumblr account not found")
                     account_data = row_to_tumblr_account(account)
+                    if collection == "tumblr/login-check":
+                        self.respond({"login": check_browserbase_tumblr_login(connection, account_data, workspace_id)}, HTTPStatus.CREATED)
+                        return
                     runner_settings = get_app_settings(connection, workspace_id)["runnerSettings"]
                     if runner_settings["remoteBrowserProvider"] == "browserbase":
                         self.respond({"login": create_browserbase_tumblr_login(connection, account_data, workspace_id)}, HTTPStatus.CREATED)
@@ -2701,7 +2797,7 @@ class Handler(BaseHTTPRequestHandler):
             return f"{parts[1]}/{parts[2]}", None
         if len(parts) == 3 and parts[0] == "api" and parts[1] == "runner":
             return f"{parts[1]}/{parts[2]}", None
-        if len(parts) == 3 and parts[0] == "api" and parts[1] == "tumblr" and parts[2] in {"accounts", "login"}:
+        if len(parts) == 3 and parts[0] == "api" and parts[1] == "tumblr" and parts[2] in {"accounts", "login", "login-check"}:
             return f"{parts[1]}/{parts[2]}", None
         if len(parts) == 4 and parts[0] == "api" and parts[1] == "tumblr" and parts[2] == "accounts":
             return f"{parts[1]}/{parts[2]}", parts[3]

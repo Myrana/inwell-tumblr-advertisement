@@ -25,6 +25,7 @@ import { WorkspaceTopbar } from "./components/WorkspaceTopbar";
 import {
   ApiError,
   apiRequest,
+  checkTumblrLogin,
   clearRunnerLogs,
   loadBackendAppSettings,
   loadBackendQueue,
@@ -783,6 +784,41 @@ function App() {
     }
   }
 
+  async function checkTumblrAccountLogin(id: string) {
+    const account = tumblrAccounts.find((item) => item.id === id);
+    if (!account) {
+      setAccountStatus("Select or create a Tumblr account first.");
+      return;
+    }
+
+    setRunnerSettings((current) => ({ ...current, tumblrAccountId: id }));
+    setAccountStatus(`Checking saved Tumblr login for ${account.displayName}...`);
+
+    try {
+      const response = await checkTumblrLogin(id);
+      const fallbackStatus: TumblrAccount["status"] =
+        response.login.mode === "remote" && response.login.loggedIn ? "connected" : "needs-login";
+      const checked = response.login.mode === "remote" && response.login.account
+        ? fromApiTumblrAccount(response.login.account)
+        : {
+            ...account,
+            status: fallbackStatus,
+            lastCheckedAt: new Date().toISOString(),
+            notes: response.login.message,
+          };
+      setTumblrAccounts((current) => upsertTumblrAccount(current, checked));
+      setApiAvailable(true);
+      if (response.login.mode === "remote" && response.login.launchUrl) {
+        window.open(response.login.launchUrl, "_blank", "noopener,noreferrer");
+      }
+      setAccountStatus(response.login.message);
+    } catch (error) {
+      setApiAvailable(false);
+      const message = error instanceof ApiError ? error.message : "Could not check saved Tumblr login. Start the Python API and try again.";
+      setAccountStatus(message);
+    }
+  }
+
   function markTumblrAccountConnected(id: string) {
     const account = tumblrAccounts.find((item) => item.id === id);
     if (!account) {
@@ -1096,6 +1132,7 @@ function App() {
             onCreateAccount={createTumblrAccount}
             onDeleteAccount={deleteTumblrAccount}
             onDraftChange={(patch) => setAccountDraft((current) => ({ ...current, ...patch }))}
+            onCheckLogin={checkTumblrAccountLogin}
             onLaunchLogin={launchTumblrAccountLogin}
             onMarkConnected={markTumblrAccountConnected}
             onRunnerSettingsChange={(patch) => setRunnerSettings((current) => ({ ...current, ...patch }))}
