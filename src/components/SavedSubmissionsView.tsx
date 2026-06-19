@@ -1,4 +1,5 @@
 import { Archive, Link, Trash2 } from "lucide-react";
+import { hasLibraryContent } from "../domain/ads";
 import { formatDate, formatStatus } from "../domain/format";
 import { Advertisement } from "../domain/types";
 
@@ -10,13 +11,21 @@ type SavedSubmissionsViewProps = {
 };
 
 export function SavedSubmissionsView({ activeAdId, ads, onDeleteDraft, onSelectDraft }: SavedSubmissionsViewProps) {
+  const libraryAds = ads.filter(hasLibraryContent);
+
   return (
     <section className="draft-table" aria-label="Content library">
       <div className="panel-heading">
         <h2>Content library</h2>
         <Archive size={18} />
       </div>
-      {ads.map((ad) => (
+      {libraryAds.length ? null : (
+        <div className="library-empty">
+          <strong>No content saved yet</strong>
+          <span>New submissions will appear here after you add details, copy, media, or a target blog.</span>
+        </div>
+      )}
+      {libraryAds.map((ad) => (
         <article className={ad.id === activeAdId ? "draft-row selected" : "draft-row"} key={ad.id}>
           <div className="draft-row-summary">
             <strong>{ad.title || "Untitled submission"}</strong>

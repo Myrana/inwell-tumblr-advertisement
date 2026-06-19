@@ -1610,6 +1610,18 @@ pre {
   border-top: 1px solid var(--line);
 }
 
+.library-empty {
+  padding: 26px 16px;
+  display: grid;
+  gap: 5px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.library-empty strong {
+  color: var(--text);
+}
+
 .draft-row:first-of-type {
   border-top: 0;
 }

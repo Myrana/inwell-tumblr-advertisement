@@ -143,6 +143,12 @@ test("first user can create an Inkwell login before opening the workspace", { ti
   await page.getByLabel("Password").fill("super-secret-password");
   await page.getByRole("button", { name: "Create login" }).click();
   await page.getByRole("button", { name: "Log out" }).waitFor();
+  await page.getByRole("button", { name: "Content Library" }).click();
+  await page.getByRole("heading", { name: "Content library", level: 1 }).waitFor();
+  await page.getByText("No content saved yet").waitFor();
+  assert.equal(await page.getByRole("button", { name: "Edit" }).count(), 0);
+  await page.getByRole("button", { name: "New Submission" }).click();
+  await page.getByRole("heading", { name: "Untitled submission" }).waitFor();
 
   assert.equal(registerPayload?.email, "myrana@example.test");
   assert.equal(registerPayload?.displayName, "Myrana");
