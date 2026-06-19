@@ -142,6 +142,16 @@ export function shouldDeferReadyReview(options) {
   return !options.submit && !options.headless && !options.noPause;
 }
 
+export function isReusableBrowserbasePage(page) {
+  if (!page || typeof page.isClosed !== "function" || page.isClosed()) {
+    return false;
+  }
+  if (typeof page.url !== "function") {
+    return false;
+  }
+  return ["", "about:blank"].includes(page.url());
+}
+
 export function reviewPagesOpenMessage(readyReviewCount) {
   return `[runner] ${readyReviewCount} queued page${readyReviewCount === 1 ? " is" : "s are"} open for review. Submit or review in the browser, then close ${readyReviewCount === 1 ? "that browser tab" : "those browser tabs"} when done.`;
 }

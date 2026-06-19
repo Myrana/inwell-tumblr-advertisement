@@ -9,6 +9,7 @@ import {
   frameCandidateScore,
   fieldsForItem,
   fillRichTextEditorInDocument,
+  isReusableBrowserbasePage,
   loginWaitMessage,
   loadRunnerPlan,
   materializeDataUrl,
@@ -81,7 +82,7 @@ async function openRunnerBrowser(options) {
 }
 
 async function waitForTumblrLogin(context, options) {
-  const page = await context.newPage();
+  const page = await runnerPage(context, options);
   console.log("[login] Opening Tumblr in this runner browser session.");
   await page.goto("https://www.tumblr.com/login?redirect_to=%2Fdashboard", {
     waitUntil: "domcontentloaded",
@@ -138,7 +139,7 @@ async function waitForTumblrSession(page, timeoutMs) {
 }
 
 async function runQueueItem(context, item, options) {
-  const page = await context.newPage();
+  const page = await runnerPage(context, options);
   const fields = fieldsForItem(item);
   console.log(`\n[runner] Opening ${item.targetName}: ${item.submitUrl}`);
   await reportRunnerEvent(options, item, "running", `Opening ${item.targetName}.`, "info", { submitUrl: item.submitUrl });
@@ -222,6 +223,20 @@ async function runQueueItem(context, item, options) {
   }
 
   return { readyForReview: false };
+}
+
+async function runnerPage(context, options) {
+  if (options.browserbaseCdpUrl) {
+    const existing = context.pages().find(isReusableBrowserbasePage);
+    if (existing) {
+      await existing.bringToFront().catch(() => undefined);
+      return existing;
+    }
+  }
+
+  const page = await context.newPage();
+  await page.bringToFront().catch(() => undefined);
+  return page;
 }
 
 async function reportRunnerEvent(options, item, status, message, level = "info", details = {}) {

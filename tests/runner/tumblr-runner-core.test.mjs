@@ -7,6 +7,7 @@ import {
   fillRichTextEditorInDocument,
   frameCandidateScore,
   htmlToPlainText,
+  isReusableBrowserbasePage,
   loginWaitMessage,
   normalizeRunnerPlan,
   parseArgs,
@@ -198,6 +199,14 @@ test("ready queue pages defer review until the full queue is processed", () => {
   assert.equal(shouldDeferReadyReview({ submit: true, headless: false, noPause: false }), false);
   assert.equal(shouldDeferReadyReview({ submit: false, headless: true, noPause: false }), false);
   assert.equal(shouldDeferReadyReview({ submit: false, headless: false, noPause: true }), false);
+});
+
+test("Browserbase page reuse only accepts open blank pages", () => {
+  assert.equal(isReusableBrowserbasePage({ isClosed: () => false, url: () => "about:blank" }), true);
+  assert.equal(isReusableBrowserbasePage({ isClosed: () => false, url: () => "" }), true);
+  assert.equal(isReusableBrowserbasePage({ isClosed: () => false, url: () => "https://example.tumblr.com/submit" }), false);
+  assert.equal(isReusableBrowserbasePage({ isClosed: () => true, url: () => "about:blank" }), false);
+  assert.equal(isReusableBrowserbasePage(null), false);
 });
 
 test("postTypeCandidateIndex prefers the visible unselected requested post type", () => {
