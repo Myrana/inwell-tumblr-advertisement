@@ -11,6 +11,9 @@ export const manualActionPatterns = [
   /recaptcha/i,
   /verify you/i,
   /are you a robot/i,
+  /request denied/i,
+  /permission denied/i,
+  /access denied/i,
 ];
 
 export const tumblrRateLimitPatterns = [

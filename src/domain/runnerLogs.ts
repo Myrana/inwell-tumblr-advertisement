@@ -140,6 +140,9 @@ export function runnerLogExplanation(log: RunnerLog) {
   if (normalized.includes("rate limit")) {
     return "Tumblr rate-limited this submit target. Wait before retrying it.";
   }
+  if (normalized.includes("request denied") || normalized.includes("permission denied") || normalized.includes("access denied")) {
+    return "Tumblr denied this request. Review the live page or retry later with the saved Tumblr session.";
+  }
   if (normalized.includes("post type") || normalized.includes("photo")) {
     return "Tumblr did not expose the expected photo post controls.";
   }
