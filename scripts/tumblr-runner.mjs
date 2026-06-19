@@ -19,6 +19,7 @@ import {
   postTypeCandidateIndex,
   reviewPagesOpenMessage,
   shouldDeferReadyReview,
+  tumblrPostSelectOptionSelector,
 } from "./tumblr-runner-core.mjs";
 
 async function main() {
@@ -73,6 +74,7 @@ async function openRunnerBrowser(options) {
   const context = await chromium.launchPersistentContext(options.userDataDir, {
     headless: options.headless,
     slowMo: options.slowMo,
+    viewport: { width: 1365, height: 1000 },
   });
   return {
     context,
@@ -481,6 +483,12 @@ async function choosePostType(page, postType) {
     }
   }
 
+  const tumblrPostSelectSelected = await choosePostTypeFromTumblrPostSelect(page, optionValue);
+  if (tumblrPostSelectSelected) {
+    console.log(`[runner] Selected ${optionValue} post type from Tumblr post selector.`);
+    return true;
+  }
+
   const clicked = await choosePostTypeFromClassicDropdown(page, optionValue);
   if (clicked) {
     console.log(`[runner] Selected ${optionValue} post type from classic dropdown.`);
@@ -536,6 +544,63 @@ async function waitForOperatorPostTypeSelection(page, item, options) {
     console.log(`[manual-action] Tumblr still does not report ${optionValue} as selected.`);
   }
   return selected;
+}
+
+async function choosePostTypeFromTumblrPostSelect(page, optionValue) {
+  for (const target of await pageTargets(page)) {
+    const postSelect = target.locator("#post_select").first();
+    if (!(await postSelect.count().catch(() => 0))) {
+      continue;
+    }
+
+    if (await postTypeSelected(page, optionValue)) {
+      return true;
+    }
+
+    await postSelect.scrollIntoViewIfNeeded({ timeout: 2000 }).catch(() => undefined);
+    const opened = await target
+      .locator("#post_select .txt, #post_select")
+      .first()
+      .click({ force: true, timeout: 3000 })
+      .then(() => true)
+      .catch(() => false);
+    if (!opened) {
+      continue;
+    }
+
+    await page.waitForTimeout(500).catch(() => undefined);
+    const option = target.locator(tumblrPostSelectOptionSelector(optionValue)).first();
+    if (!(await option.count().catch(() => 0))) {
+      continue;
+    }
+
+    await option.scrollIntoViewIfNeeded({ timeout: 2000 }).catch(() => undefined);
+    const box = await option.boundingBox().catch(() => null);
+    if (box) {
+      await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2).catch(() => undefined);
+    } else {
+      await option.click({ force: true, timeout: 3000 }).catch(() => undefined);
+    }
+
+    if (await waitForPostTypeSelected(page, optionValue, 5000)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+async function waitForPostTypeSelected(page, optionValue, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (await postTypeSelected(page, optionValue)) {
+      return true;
+    }
+
+    await page.waitForTimeout(250).catch(() => undefined);
+  }
+
+  return postTypeSelected(page, optionValue);
 }
 
 async function choosePostTypeFromClassicDropdown(page, optionValue) {
@@ -1161,7 +1226,15 @@ async function uploadMedia(page, item, fields, options) {
 
 async function resolveUploadPath(fields, options) {
   if (fields.imageDataUrl) {
-    return materializeDataUrl(fields.imageDataUrl, fields.imageName, path.join(os.tmpdir(), "inwell-tumblr-runner"));
+    const embeddedPath = await materializeDataUrl(fields.imageDataUrl, fields.imageName, path.join(os.tmpdir(), "inwell-tumblr-runner"));
+    if (embeddedPath) {
+      return embeddedPath;
+    }
+
+    const remotePath = await materializeRemoteMedia(fields.imageDataUrl, fields.imageName, options);
+    if (remotePath) {
+      return remotePath;
+    }
   }
 
   if (!fields.imageName || !options.mediaDir) {
@@ -1170,6 +1243,63 @@ async function resolveUploadPath(fields, options) {
 
   const localPath = path.resolve(options.mediaDir, fields.imageName);
   return existsSync(localPath) ? localPath : null;
+}
+
+async function materializeRemoteMedia(value, preferredName, options) {
+  const mediaUrl = remoteMediaUrl(value, options);
+  if (!mediaUrl) {
+    return null;
+  }
+
+  const response = await fetch(mediaUrl).catch(() => null);
+  if (!response?.ok) {
+    return null;
+  }
+
+  const buffer = Buffer.from(await response.arrayBuffer());
+  const urlPath = new URL(mediaUrl).pathname;
+  const extension = path.extname(urlPath) || extensionForContentType(response.headers.get("content-type"));
+  const fileName = safeMediaFileName(preferredName || `tumblr-upload${extension || ".bin"}`, extension);
+  const directory = path.join(os.tmpdir(), "inwell-tumblr-runner");
+  const targetPath = path.join(directory, fileName);
+  await fs.mkdir(directory, { recursive: true });
+  await fs.writeFile(targetPath, buffer);
+  return targetPath;
+}
+
+function remoteMediaUrl(value, options) {
+  const raw = String(value || "").trim();
+  if (!raw || raw.startsWith("data:")) {
+    return "";
+  }
+
+  if (/^https?:\/\//i.test(raw)) {
+    return raw;
+  }
+
+  if (!raw.startsWith("/") || !options.apiBaseUrl) {
+    return "";
+  }
+
+  const appBaseUrl = options.apiBaseUrl.replace(/\/api$/i, "");
+  return new URL(raw, `${appBaseUrl}/`).toString();
+}
+
+function extensionForContentType(contentType) {
+  const normalized = String(contentType || "").split(";")[0].trim().toLowerCase();
+  if (normalized === "image/jpeg") return ".jpg";
+  if (normalized === "image/png") return ".png";
+  if (normalized === "image/gif") return ".gif";
+  if (normalized === "image/webp") return ".webp";
+  return "";
+}
+
+function safeMediaFileName(fileName, extension) {
+  const safeName = String(fileName || "tumblr-upload").replace(/[^a-z0-9._-]+/gi, "-").replace(/^-+|-+$/g, "");
+  if (extension && !safeName.toLowerCase().endsWith(extension.toLowerCase())) {
+    return `${safeName}${extension}`;
+  }
+  return safeName || `tumblr-upload${extension || ".bin"}`;
 }
 
 async function fillFirstMatchingInput(page, pattern, value) {
