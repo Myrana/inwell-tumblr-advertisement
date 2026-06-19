@@ -1254,15 +1254,14 @@ pre {
 }
 
 .queue-monitor-grid {
-  margin-bottom: 12px;
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 8px;
 }
 
 .queue-monitor-stat {
-  min-height: 64px;
-  padding: 10px;
+  min-height: 58px;
+  padding: 8px;
   display: grid;
   align-content: center;
   gap: 4px;
@@ -1274,12 +1273,12 @@ pre {
 .queue-monitor-stat span,
 .queue-log span {
   color: var(--muted);
-  font-size: 0.76rem;
+  font-size: 0.72rem;
   font-weight: 700;
 }
 
 .queue-monitor-stat strong {
-  font-size: 1.35rem;
+  font-size: 1.25rem;
 }
 
 .queue-status,
@@ -1307,6 +1306,10 @@ pre {
 }
 
 .queue-maintenance-actions {
+  margin-top: 10px;
+}
+
+.queue-workflow-section + .queue-workflow-section {
   margin-top: 10px;
 }
 
