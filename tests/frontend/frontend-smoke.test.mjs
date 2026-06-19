@@ -143,6 +143,7 @@ test("first user can create an Inkwell login before opening the workspace", { ti
   await page.getByLabel("Password").fill("super-secret-password");
   await page.getByRole("button", { name: "Create login" }).click();
   await page.getByRole("button", { name: "Log out" }).waitFor();
+  await page.getByRole("heading", { name: "Tumblr accounts", level: 1 }).waitFor();
   await page.getByRole("button", { name: "Content Library" }).click();
   await page.getByRole("heading", { name: "Content library", level: 1 }).waitFor();
   await page.getByText("No content saved yet").waitFor();
@@ -654,6 +655,8 @@ test("tumblr accounts can be saved and selected for queue runs", { timeout: 4000
 
   await page.getByRole("button", { name: "Mark connected" }).click();
   await page.getByText("Myrana Tumblr is ready for queue runs.").waitFor();
+  await page.getByRole("button", { name: "Create submission" }).click();
+  await page.getByRole("heading", { name: "Untitled submission" }).waitFor();
   await page.getByRole("button", { name: "Queue", exact: true }).click();
   await page.getByLabel("Tumblr account").selectOption("snowleopardx");
   assert.equal(await page.getByLabel("Tumblr account").inputValue(), "snowleopardx");

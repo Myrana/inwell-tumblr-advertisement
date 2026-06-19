@@ -1493,6 +1493,31 @@ pre {
   font-weight: 700;
 }
 
+.account-ready-panel {
+  margin: 14px 0;
+  padding: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border: 1px solid #b8ded4;
+  border-left: 4px solid var(--green);
+  border-radius: 8px;
+  background: #f5fbf8;
+}
+
+.account-ready-panel strong,
+.account-ready-panel span {
+  display: block;
+}
+
+.account-ready-panel span {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
 .template-form {
   display: grid;
   gap: 14px;
@@ -1681,6 +1706,7 @@ pre {
   }
 
   .topbar,
+  .account-ready-panel,
   .media-row,
   .queue-management-row {
     flex-direction: column;

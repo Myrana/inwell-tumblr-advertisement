@@ -131,6 +131,7 @@ function App() {
   const [runnerState, setRunnerState] = useState<RunnerStatus | null>(null);
   const [runnerLogs, setRunnerLogs] = useState<RunnerLog[]>([]);
   const [activeView, setActiveView] = useState<WorkspaceView>("editor");
+  const [accountSetupRouteApplied, setAccountSetupRouteApplied] = useState(false);
 
   const activeAd = useMemo(() => {
     const normalized = normalizeStoredState(stored);
@@ -143,6 +144,10 @@ function App() {
   const targetOptions = useMemo(
     () => uniqueSubmitTargets([...submitTargets, activeSubmitTarget]),
     [activeSubmitTarget, submitTargets],
+  );
+  const hasConnectedTumblrAccount = useMemo(
+    () => tumblrAccounts.some((account) => account.status === "connected"),
+    [tumblrAccounts],
   );
 
   const queueOptions = useMemo(() => uniqueQueueDefinitions(queueDefinitions, submissionQueue), [queueDefinitions, submissionQueue]);
@@ -263,6 +268,22 @@ function App() {
       .then(() => setApiAvailable(true))
       .catch(() => setApiAvailable(false));
   }, [authUser, backendStateLoaded, queueOptions, queueScheduleSettings, runnerSettings, submitTargets, tagProfiles]);
+
+  useEffect(() => {
+    if (!authUser) {
+      setAccountSetupRouteApplied(false);
+      return;
+    }
+
+    if (!backendStateLoaded || accountSetupRouteApplied) {
+      return;
+    }
+
+    if (!hasConnectedTumblrAccount) {
+      setActiveView("accounts");
+    }
+    setAccountSetupRouteApplied(true);
+  }, [accountSetupRouteApplied, authUser, backendStateLoaded, hasConnectedTumblrAccount]);
 
   useEffect(() => {
     activeDestinationBlogRef.current = activeAd.destinationBlog;
@@ -387,6 +408,7 @@ function App() {
       setAuthUser(session.user);
       setBootstrapRequired(false);
       setBackendStateLoaded(false);
+      setAccountSetupRouteApplied(false);
       setLoginStatus("");
     } catch (error) {
       setLoginStatus(authLockMessage(error, "Could not create that login. Use a valid email and a password with at least 8 characters."));
@@ -400,6 +422,7 @@ function App() {
       setAuthUser(session.user);
       setBootstrapRequired(false);
       setBackendStateLoaded(false);
+      setAccountSetupRouteApplied(false);
       setLoginStatus("");
     } catch (error) {
       setLoginStatus(authLockMessage(error, "Email or password was not accepted."));
@@ -1112,6 +1135,7 @@ function App() {
             runnerSettings={runnerSettings}
             selectedAccountId={runnerSettings.tumblrAccountId}
             status={accountStatus}
+            onCreateSubmission={() => setActiveView("editor")}
             onCreateAccount={createTumblrAccount}
             onDeleteAccount={deleteTumblrAccount}
             onDraftChange={(patch) => setAccountDraft((current) => ({ ...current, ...patch }))}
