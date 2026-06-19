@@ -306,7 +306,7 @@ test("custom blog submission flow does not blank the editor", { timeout: 40000 }
   await forumInput.fill("https://forum.example/updated");
   const persistedTargets = await page.evaluate(() => JSON.parse(localStorage.getItem("inwell-tumblr-submit-targets") ?? "[]"));
   assert.equal(persistedTargets.find((target) => target.id === "blank-name")?.forumUrl, "https://forum.example/updated");
-  await page.getByRole("heading", { name: "Media library" }).waitFor();
+  await page.getByText("Saved templates").waitFor();
   await page.getByRole("button", { name: /Editor quick template/ }).click();
   await page.locator(".tumblr-rich-editor strong", { hasText: "Quick saved copy" }).waitFor();
   assert.equal(await page.getByText("Import this blog's tags from a screenshot").count(), 0);
@@ -315,9 +315,9 @@ test("custom blog submission flow does not blank the editor", { timeout: 40000 }
   await page.getByRole("button", { name: "Add custom tag" }).click();
   assert.equal(await page.getByLabel("manual test tag").isChecked(), true);
   await page.getByRole("button", { name: "Save", exact: true }).click();
-  await page.getByText("Saved. Start a new submission or keep editing this one.").waitFor();
-  await page.getByRole("button", { name: "Keep editing" }).click();
-  assert.equal(await page.getByText("Saved. Start a new submission or keep editing this one.").count(), 0);
+  await page.getByText("Saved.").waitFor();
+  assert.equal(await page.getByRole("button", { name: "Keep editing" }).count(), 0);
+  assert.equal(await page.getByRole("button", { name: "Add to queue" }).count() >= 1, true);
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
   assert.match((await page.locator("main").textContent()) ?? "", /Advertisement workspace/);
 });
