@@ -2026,7 +2026,14 @@ def start_runner(payload: dict[str, Any]) -> dict[str, Any]:
     RUNNER_LAST_RUN_ID = run_id
     RUNNER_LAST_BROWSER_PROVIDER = "browserbase" if browserbase_session else "local"
     RUNNER_LAST_LIVE_URL = str(browserbase_session.get("live_url") or "")
-    RUNNER_PROCESS = subprocess.Popen(command, cwd=REPO_ROOT, creationflags=creationflags)
+    try:
+        RUNNER_PROCESS = subprocess.Popen(command, cwd=REPO_ROOT, creationflags=creationflags)
+    except OSError as error:
+        RUNNER_LAST_COMMAND = []
+        RUNNER_LAST_RUN_ID = ""
+        RUNNER_LAST_BROWSER_PROVIDER = "local"
+        RUNNER_LAST_LIVE_URL = ""
+        raise ValueError(f"Could not start the Tumblr runner process: {error.strerror or error}") from error
     return runner_status()
 
 

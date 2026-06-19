@@ -1611,6 +1611,40 @@ class PersistenceTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             start_runner({"items": []})
 
+    def test_start_runner_reports_process_launch_failure(self) -> None:
+        temp_plan = Path("backend-test-runner-plan.json")
+        old_process = app.RUNNER_PROCESS
+        old_command = app.RUNNER_LAST_COMMAND
+        old_plan = app.RUNNER_PLAN_PATH
+        old_run_id = app.RUNNER_LAST_RUN_ID
+        old_provider = app.RUNNER_LAST_BROWSER_PROVIDER
+        old_live_url = app.RUNNER_LAST_LIVE_URL
+        app.RUNNER_PROCESS = None
+        app.RUNNER_LAST_COMMAND = []
+        app.RUNNER_PLAN_PATH = temp_plan
+        app.RUNNER_LAST_RUN_ID = "run-old"
+        app.RUNNER_LAST_BROWSER_PROVIDER = "browserbase"
+        app.RUNNER_LAST_LIVE_URL = "https://browserbase.example/live"
+
+        try:
+            with patch("app.subprocess.Popen", side_effect=FileNotFoundError("node not found")):
+                with self.assertRaisesRegex(ValueError, "Could not start the Tumblr runner process"):
+                    start_runner({"items": [{"id": "queue-1", "runnerPayload": "{}"}]})
+
+            self.assertEqual(app.RUNNER_LAST_COMMAND, [])
+            self.assertEqual(app.RUNNER_LAST_RUN_ID, "")
+            self.assertEqual(app.RUNNER_LAST_BROWSER_PROVIDER, "local")
+            self.assertEqual(app.RUNNER_LAST_LIVE_URL, "")
+        finally:
+            if temp_plan.exists():
+                temp_plan.unlink()
+            app.RUNNER_PROCESS = old_process
+            app.RUNNER_LAST_COMMAND = old_command
+            app.RUNNER_PLAN_PATH = old_plan
+            app.RUNNER_LAST_RUN_ID = old_run_id
+            app.RUNNER_LAST_BROWSER_PROVIDER = old_provider
+            app.RUNNER_LAST_LIVE_URL = old_live_url
+
     def test_start_runner_rejects_unsupported_visible_browser_environment(self) -> None:
         temp_plan = Path("backend-test-runner-plan.json")
         old_process = app.RUNNER_PROCESS
