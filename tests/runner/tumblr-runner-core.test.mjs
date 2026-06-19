@@ -181,6 +181,7 @@ test("fillRichTextEditorInDocument clears and blurs editor selection after fill"
 test("manual action detection catches login and captcha states", () => {
   assert.equal(shouldPauseForManualAction("Please log in to continue"), true);
   assert.equal(shouldPauseForManualAction("Complete this captcha"), true);
+  assert.equal(shouldPauseForManualAction("Request denied"), true);
   assert.equal(shouldPauseForManualAction("Public submit form"), false);
 });
 
