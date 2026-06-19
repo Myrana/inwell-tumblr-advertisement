@@ -659,6 +659,10 @@ test("tumblr accounts can be saved and selected for queue runs", { timeout: 4000
   await connectedAccountRow.locator(".account-status-pill", { hasText: "Connected" }).waitFor();
   assert.equal(await connectedAccountRow.getByRole("button", { name: "Connect", exact: true }).count(), 0);
   assert.equal(await connectedAccountRow.getByRole("button", { name: "Mark connected", exact: true }).count(), 0);
+  assert.doesNotMatch(
+    (await connectedAccountRow.textContent()) ?? "",
+    /\.tumblr-sessions|\/sessions|C:\\sessions|C:\/sessions|userDataDir|user_data_dir/,
+  );
   await connectedAccountRow.getByRole("button", { name: "Check saved login" }).waitFor();
   await page.getByRole("button", { name: "Create submission" }).click();
   await page.getByRole("heading", { name: "Untitled submission" }).waitFor();
