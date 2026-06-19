@@ -1150,6 +1150,7 @@ test("running the queue sends a run id and shows failure explanations", { timeou
   const page = await browser.newPage();
   const pageErrors = [];
   let startPayload = null;
+  let runnerStartShouldFail = true;
   const apiHeaders = {
     "Access-Control-Allow-Headers": "Content-Type",
     "Access-Control-Allow-Methods": "DELETE,GET,OPTIONS,POST,PUT",
@@ -1202,6 +1203,17 @@ test("running the queue sends a run id and shows failure explanations", { timeou
   );
   await page.route("http://127.0.0.1:8021/api/runner/start", async (route) => {
     startPayload = route.request().postDataJSON();
+    if (runnerStartShouldFail) {
+      await route.fulfill({
+        contentType: "application/json",
+        headers: apiHeaders,
+        status: 400,
+        body: JSON.stringify({
+          error: "Tumblr login helper needs a visible browser on your local desktop. Railway cannot show that browser.",
+        }),
+      });
+      return;
+    }
     await route.fulfill({
       contentType: "application/json",
       headers: apiHeaders,
@@ -1301,6 +1313,13 @@ test("running the queue sends a run id and shows failure explanations", { timeou
   await page.getByLabel("Workspace views").getByRole("button", { name: "Queues", exact: true }).click();
   await page.locator(".queue-management-row", { hasText: "Default queue" }).getByRole("button", { name: "Open queue" }).click();
   await page.getByRole("button", { name: "Toggle queue actions section" }).click();
+  await page.getByRole("button", { name: "Run queue" }).click();
+  await page
+    .getByText("Could not launch runner. Tumblr login helper needs a visible browser on your local desktop. Railway cannot show that browser.")
+    .waitFor();
+  assert.match(startPayload?.runId ?? "", /^run-/);
+  runnerStartShouldFail = false;
+  startPayload = null;
   await page.getByRole("button", { name: "Run queue" }).click();
   await page.waitForTimeout(250);
   assert.match(startPayload?.runId ?? "", /^run-/);
