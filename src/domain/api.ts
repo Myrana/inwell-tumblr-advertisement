@@ -10,6 +10,7 @@ import {
   ApiRunnerLog,
   ApiTemplate,
   ApiTumblrAccount,
+  AuthUser,
   RunnerLog,
   SavedTemplate,
   SubmissionQueueItem,
@@ -19,6 +20,7 @@ import {
 export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${apiBaseUrl}${path}`, {
     ...init,
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
       ...init?.headers,
@@ -30,6 +32,34 @@ export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T
   }
 
   return response.json() as Promise<T>;
+}
+
+export type AuthSessionResponse = {
+  authenticated: boolean;
+  user: AuthUser | null;
+  bootstrapRequired: boolean;
+};
+
+export async function loadAuthSession() {
+  return apiRequest<AuthSessionResponse>("/auth/session");
+}
+
+export async function registerInkwellUser(payload: { email: string; password: string; displayName: string; workspaceName: string }) {
+  return apiRequest<AuthSessionResponse>("/auth/register", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function loginInkwellUser(payload: { email: string; password: string }) {
+  return apiRequest<AuthSessionResponse>("/auth/login", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function logoutInkwellUser() {
+  return apiRequest<AuthSessionResponse>("/auth/logout", { method: "POST" });
 }
 
 export async function saveAdvertisement(advertisement: Advertisement) {

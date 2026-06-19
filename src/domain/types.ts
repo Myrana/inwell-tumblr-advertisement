@@ -2,6 +2,16 @@ export type Status = "draft" | "ready" | "submitted";
 export type PostType = "text" | "photo" | "video";
 export type WorkspaceView = "editor" | "saved" | "templates" | "queue" | "queue-settings" | "accounts" | "logs";
 
+export type AuthUser = {
+  id: string;
+  email: string;
+  displayName: string;
+  workspace?: {
+    id: string;
+    name: string;
+  };
+};
+
 export type Advertisement = {
   id: string;
   postType: PostType;
