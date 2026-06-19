@@ -152,9 +152,6 @@ async function runQueueItem(context, item, options) {
   await reportRunnerEvent(options, item, "running", `Opening ${item.targetName}.`, "info", { submitUrl: item.submitUrl });
   await page.goto(item.submitUrl, { waitUntil: "domcontentloaded", timeout: 60000 });
   await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => undefined);
-  if (await handleTumblrRateLimit(page, item, options)) {
-    return rateLimitReviewResult(page, options);
-  }
   await waitForSubmitForm(page, item);
   if (await handleTumblrRateLimit(page, item, options)) {
     return rateLimitReviewResult(page, options);
@@ -331,15 +328,31 @@ async function automationTarget(page) {
 
 async function waitForSubmitForm(page, item) {
   const directSubmitUrl = `https://www.tumblr.com/submit_form/${new URL(item.submitUrl).hostname}`;
-  const ready = await waitForFormControls(page, 15000);
+  const publicPageRateLimited = await pageAppearsRateLimitedByTumblr(page);
+  const ready = publicPageRateLimited ? false : await waitForFormControls(page, 15000);
   if (ready) {
     return true;
   }
 
-  console.log(`[runner] Public submit page did not expose the form yet; opening ${directSubmitUrl}`);
+  console.log(
+    publicPageRateLimited
+      ? `[runner] Public submit page was rate-limited; opening ${directSubmitUrl}`
+      : `[runner] Public submit page did not expose the form yet; opening ${directSubmitUrl}`,
+  );
   await page.goto(directSubmitUrl, { waitUntil: "domcontentloaded", timeout: 60000 }).catch(() => undefined);
   await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => undefined);
   return waitForFormControls(page, 15000);
+}
+
+async function pageAppearsRateLimitedByTumblr(page) {
+  for (const frame of page.frames()) {
+    const text = await frame.locator("body").innerText({ timeout: 5000 }).catch(() => "");
+    if (appearsRateLimitedByTumblr(text, frame.url())) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 async function waitForFormControls(page, timeoutMs) {
