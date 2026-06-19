@@ -1027,7 +1027,6 @@ function App() {
           title={pageTitles[activeView].title}
           saveStatus={saveStatus}
           onCreateDraft={createDraft}
-          onGeneratePost={() => queueTargets([activeSubmitTarget])}
           onSaveDraft={saveDraft}
         />
 

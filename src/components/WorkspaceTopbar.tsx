@@ -1,4 +1,4 @@
-import { Plus, Save, Send } from "lucide-react";
+import { Plus, Save } from "lucide-react";
 
 type WorkspaceTopbarProps = {
   actionsVisible?: boolean;
@@ -6,7 +6,6 @@ type WorkspaceTopbarProps = {
   saveStatus?: string;
   title: string;
   onCreateDraft: () => void;
-  onGeneratePost: () => void;
   onSaveDraft: () => void;
 };
 
@@ -16,7 +15,6 @@ export function WorkspaceTopbar({
   saveStatus = "",
   title,
   onCreateDraft,
-  onGeneratePost,
   onSaveDraft,
 }: WorkspaceTopbarProps) {
   return (
@@ -35,10 +33,6 @@ export function WorkspaceTopbar({
             <button className="secondary" type="button" onClick={onSaveDraft}>
               <Save size={18} />
               Save
-            </button>
-            <button className="primary" type="button" onClick={onGeneratePost}>
-              <Send size={18} />
-              Add to queue
             </button>
           </div>
           {saveStatus ? (
