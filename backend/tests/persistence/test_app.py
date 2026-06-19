@@ -1017,19 +1017,21 @@ class PersistenceTests(unittest.TestCase):
                 self.assertEqual(payload["projectId"], "project-test")
                 self.assertEqual(payload["browserSettings"]["context"], {"id": "ctx-new", "persist": True})
                 self.assertEqual(payload["userMetadata"]["tumblrAccountId"], "snowleopardx")
-                return {"id": "session-new", "expiresAt": "2026-06-19T05:00:00Z"}
+                return {"id": "session-new", "connectUrl": "wss://connect.browserbase.com/session-new", "expiresAt": "2026-06-19T05:00:00Z"}
             if method == "GET" and path == "/sessions/session-new/debug":
                 return {"debuggerFullscreenUrl": "https://browserbase.com/live/session-new"}
             raise AssertionError(f"Unexpected Browserbase call: {method} {path}")
 
         with patch.dict(os.environ, {"BROWSERBASE_API_KEY": "key-test", "BROWSERBASE_PROJECT_ID": "project-test"}, clear=True):
             with patch("app.browserbase_request", side_effect=fake_browserbase_request):
-                login = create_browserbase_tumblr_login(self.connection, account, "workspace-test")
+                with patch("app.browserbase_navigate_session") as navigate_session:
+                    login = create_browserbase_tumblr_login(self.connection, account, "workspace-test")
 
         self.assertEqual(login["provider"], "browserbase")
         self.assertEqual(login["sessionId"], "session-new")
         self.assertEqual(login["contextId"], "ctx-new")
         self.assertEqual(login["launchUrl"], "https://browserbase.com/live/session-new")
+        navigate_session.assert_called_once_with("wss://connect.browserbase.com/session-new", "https://www.tumblr.com/login")
         stored = self.connection.tumblr_accounts["snowleopardx"]
         self.assertEqual(stored["browserbase_context_id"], "ctx-new")
         self.assertEqual(stored["browserbase_session_id"], "session-new")
@@ -1041,6 +1043,41 @@ class PersistenceTests(unittest.TestCase):
         with patch.dict(os.environ, {}, clear=True):
             with self.assertRaisesRegex(ValueError, "BROWSERBASE_API_KEY"):
                 create_browserbase_tumblr_login(self.connection, account, "default")
+
+    def test_browserbase_navigate_session_navigates_existing_page_to_tumblr(self) -> None:
+        connection = Mock()
+        commands: list[tuple[str, dict[str, Any] | None, str]] = []
+
+        def fake_cdp_command(
+            _connection: Any,
+            _command_id: int,
+            method: str,
+            params: dict[str, Any] | None = None,
+            session_id: str = "",
+        ) -> dict[str, Any]:
+            commands.append((method, params, session_id))
+            if method == "Target.getTargets":
+                return {"result": {"targetInfos": [{"type": "page", "targetId": "target-1"}]}}
+            if method == "Target.attachToTarget":
+                return {"result": {"sessionId": "cdp-session-1"}}
+            if method == "Page.navigate":
+                return {"result": {"frameId": "frame-1"}}
+            raise AssertionError(f"Unexpected CDP command: {method}")
+
+        with patch("app.websocket_open", return_value=connection) as websocket_open:
+            with patch("app.cdp_command", side_effect=fake_cdp_command):
+                app.browserbase_navigate_session("wss://connect.browserbase.com/session-new")
+
+        websocket_open.assert_called_once_with("wss://connect.browserbase.com/session-new")
+        self.assertEqual(
+            commands,
+            [
+                ("Target.getTargets", None, ""),
+                ("Target.attachToTarget", {"targetId": "target-1", "flatten": True}, ""),
+                ("Page.navigate", {"url": "https://www.tumblr.com/login"}, "cdp-session-1"),
+            ],
+        )
+        connection.close.assert_called_once()
 
     def test_visible_tumblr_helper_requires_desktop_display_on_non_windows(self) -> None:
         with patch("app.os.name", "posix"), patch.dict(os.environ, {}, clear=True):
