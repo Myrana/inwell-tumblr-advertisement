@@ -150,6 +150,54 @@ test("first user can create an Inkwell login before opening the workspace", { ti
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
 });
 
+test("login lockout shows a wait message", { timeout: 40000 }, async (t) => {
+  const server = spawn("npx vite --host 127.0.0.1 --port 8123 --strictPort", {
+    cwd: process.cwd(),
+    shell: true,
+    stdio: "ignore",
+  });
+
+  t.after(() => {
+    stopProcessTree(server);
+  });
+
+  await waitForServer(appUrl);
+
+  const browser = await chromium.launch();
+  t.after(async () => {
+    await browser.close();
+  });
+
+  const page = await browser.newPage();
+  const pageErrors = [];
+  page.on("pageerror", (error) => pageErrors.push(error));
+  await page.route("http://127.0.0.1:8021/api/**", (route) => route.abort());
+  await page.route("http://127.0.0.1:8021/api/auth/session", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({ authenticated: false, user: null, bootstrapRequired: false }),
+    }),
+  );
+  await page.route("http://127.0.0.1:8021/api/auth/login", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      headers: { ...apiHeaders, "Retry-After": "120" },
+      status: 429,
+      body: JSON.stringify({ error: "Too many failed login attempts. Try again later.", retryAfterSeconds: 120 }),
+    }),
+  );
+
+  await page.goto(appUrl);
+  await page.getByRole("heading", { name: "Log into Inkwell" }).waitFor();
+  await page.getByLabel("Email").fill("myrana@example.test");
+  await page.getByLabel("Password").fill("wrong-password");
+  await page.getByRole("button", { name: "Log in" }).click();
+  await page.getByText("Too many failed login attempts. Try again later. Wait about 2 minutes before trying again.").waitFor();
+
+  assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
+});
+
 test("custom blog submission flow does not blank the editor", { timeout: 40000 }, async (t) => {
   const server = spawn("npx vite --host 127.0.0.1 --port 8123 --strictPort", {
     cwd: process.cwd(),

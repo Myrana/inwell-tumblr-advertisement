@@ -23,6 +23,7 @@ import { TumblrAccountsWorkspace } from "./components/TumblrAccountsWorkspace";
 import { WorkspaceTopbar } from "./components/WorkspaceTopbar";
 
 import {
+  ApiError,
   apiRequest,
   clearRunnerLogs,
   loadBackendAppSettings,
@@ -371,6 +372,14 @@ function App() {
       .catch(() => setApiAvailable(false));
   }
 
+  function authLockMessage(error: unknown, fallback: string) {
+    if (error instanceof ApiError && error.status === 429) {
+      const minutes = error.retryAfterSeconds ? Math.max(1, Math.ceil(error.retryAfterSeconds / 60)) : 15;
+      return `${error.message} Wait about ${minutes} minute${minutes === 1 ? "" : "s"} before trying again.`;
+    }
+    return fallback;
+  }
+
   async function registerInkwell(event: FormEvent) {
     event.preventDefault();
     try {
@@ -379,8 +388,8 @@ function App() {
       setBootstrapRequired(false);
       setBackendStateLoaded(false);
       setLoginStatus("");
-    } catch {
-      setLoginStatus("Could not create that login. Use a valid email and a password with at least 8 characters.");
+    } catch (error) {
+      setLoginStatus(authLockMessage(error, "Could not create that login. Use a valid email and a password with at least 8 characters."));
     }
   }
 
@@ -392,8 +401,8 @@ function App() {
       setBootstrapRequired(false);
       setBackendStateLoaded(false);
       setLoginStatus("");
-    } catch {
-      setLoginStatus("Email or password was not accepted.");
+    } catch (error) {
+      setLoginStatus(authLockMessage(error, "Email or password was not accepted."));
     }
   }
 
