@@ -11,7 +11,6 @@ type QueueManagerWorkspaceProps = {
   onCreateQueue: (event: FormEvent) => void;
   onDeleteQueue: (queueName: string) => void;
   onQueueNameDraftChange: (value: string) => void;
-  onRenameQueue: (currentName: string, nextName: string) => void;
   onSelectQueue: (queueName: string) => void;
 };
 
@@ -26,7 +25,6 @@ export function QueueManagerWorkspace({
   onCreateQueue,
   onDeleteQueue,
   onQueueNameDraftChange,
-  onRenameQueue,
   onSelectQueue,
 }: QueueManagerWorkspaceProps) {
   return (
@@ -67,22 +65,6 @@ export function QueueManagerWorkspace({
                     {items.length} item{items.length === 1 ? "" : "s"} - {completedCount} complete
                   </span>
                 </button>
-                <form
-                  className="queue-rename-form"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    const data = new FormData(event.currentTarget);
-                    onRenameQueue(queue.name, String(data.get("queueName") ?? ""));
-                  }}
-                >
-                  <label>
-                    Queue name
-                    <input name="queueName" defaultValue={queue.name} />
-                  </label>
-                  <button className="secondary" type="submit">
-                    Save name
-                  </button>
-                </form>
               </div>
               <div className="queue-item-actions">
                 <button className="secondary" type="button" onClick={() => onSelectQueue(queue.name)}>

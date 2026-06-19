@@ -1175,6 +1175,7 @@ function App() {
             onClearQueue={clearQueueItems}
             onEditQueueItem={editQueuedSubmission}
             onQueueTargets={queueTargets}
+            onRenameQueue={renameQueueDefinition}
             onSelectQueue={setSelectedQueueName}
             onQueueScheduleSettingsChange={(patch) => setQueueScheduleSettings((current) => ({ ...current, ...patch }))}
             onRefreshRunnerStatus={refreshRunnerStatus}
@@ -1193,7 +1194,6 @@ function App() {
             onCreateQueue={createQueueDefinition}
             onDeleteQueue={deleteQueueDefinition}
             onQueueNameDraftChange={setQueueNameDraft}
-            onRenameQueue={renameQueueDefinition}
             onSelectQueue={(queueName) => {
               setSelectedQueueName(queueName);
               setActiveView("queue");

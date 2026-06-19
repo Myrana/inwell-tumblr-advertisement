@@ -30,6 +30,7 @@ type QueueWorkspaceProps = {
   onClearQueue: (queueName: string, completedOnly: boolean) => void;
   onEditQueueItem: (id: string) => void;
   onQueueTargets: (targets: TumblrSubmitTarget[]) => void;
+  onRenameQueue: (currentName: string, nextName: string) => void;
   onSelectQueue: (queueName: string) => void;
   onQueueScheduleSettingsChange: (patch: Partial<QueueScheduleSettings>) => void;
   onRefreshRunnerStatus: () => void;
@@ -55,6 +56,7 @@ export function QueueWorkspace({
   onClearQueue,
   onEditQueueItem,
   onQueueTargets,
+  onRenameQueue,
   onSelectQueue,
   onQueueScheduleSettingsChange,
   onRefreshRunnerStatus,
@@ -110,7 +112,7 @@ export function QueueWorkspace({
       <section className="workflow-section queue-workflow-section">
         <div className="workflow-section-header">
           {sectionToggle("overview", "Queue overview", `${activeQueueName || "No queue selected"} - ${activeQueue.length} item${activeQueue.length === 1 ? "" : "s"}`)}
-          <span className={activeQueue.length ? "section-state ready" : "section-state optional"}>{activeQueue.length ? "Ready" : "Empty"}</span>
+          <span className={activeQueue.length ? "section-state ready" : "section-state warning"}>{activeQueue.length ? "Ready" : "Empty"}</span>
         </div>
 
         {openSections.overview ? (
@@ -126,6 +128,24 @@ export function QueueWorkspace({
                   ))}
                 </select>
               </label>
+              {activeQueueName ? (
+                <form
+                  className="queue-rename-form"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    const data = new FormData(event.currentTarget);
+                    onRenameQueue(activeQueueName, String(data.get("queueName") ?? ""));
+                  }}
+                >
+                  <label>
+                    Queue name
+                    <input name="queueName" defaultValue={activeQueueName} key={activeQueueName} />
+                  </label>
+                  <button className="secondary" type="submit">
+                    Save name
+                  </button>
+                </form>
+              ) : null}
             </div>
             <div className="queue-monitor-grid" aria-label="Queue monitoring summary">
               {Object.entries(statusCounts).map(([status, count]) => (
@@ -231,7 +251,7 @@ export function QueueWorkspace({
       <section className="workflow-section queue-workflow-section">
         <div className="workflow-section-header">
           {sectionToggle("actions", "Queue actions", activeQueue.length ? "Run, add, or clear queue items" : "Add submissions before running")}
-          <span className={activeQueue.length ? "section-state ready" : "section-state optional"}>{activeQueue.length ? "Ready" : "Empty"}</span>
+          <span className={activeQueue.length ? "section-state ready" : "section-state warning"}>{activeQueue.length ? "Ready" : "Empty"}</span>
         </div>
 
         {openSections.actions ? (
@@ -279,7 +299,7 @@ export function QueueWorkspace({
       <section className="workflow-section queue-workflow-section">
         <div className="workflow-section-header">
           {sectionToggle("submissions", "Queued submissions", `${activeQueue.length} item${activeQueue.length === 1 ? "" : "s"}`)}
-          <span className={activeQueue.length ? "section-state ready" : "section-state optional"}>{activeQueue.length ? "Ready" : "Empty"}</span>
+          <span className={activeQueue.length ? "section-state ready" : "section-state warning"}>{activeQueue.length ? "Ready" : "Empty"}</span>
         </div>
 
         {openSections.submissions ? (
