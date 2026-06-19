@@ -24,7 +24,7 @@ DEFAULT_TIMEZONE = "America/New_York"
 DEFAULT_PGHOST = "192.168.1.3"
 DEFAULT_PGDATABASE = "inwell_tumblr_advertisement"
 DEFAULT_PGUSER = "postgres"
-CURRENT_SCHEMA_VERSION = "0005_app_settings"
+CURRENT_SCHEMA_VERSION = "0006_relational_app_settings"
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DIST_ROOT = REPO_ROOT / "dist"
 RUNNER_PLAN_PATH = REPO_ROOT / "tumblr-runner-plan.json"
@@ -119,7 +119,6 @@ def initialize(connection: ConnectionLike) -> None:
             content TEXT NOT NULL DEFAULT '',
             destination_blog TEXT NOT NULL DEFAULT '',
             forum_url TEXT NOT NULL DEFAULT '',
-            tags JSONB NOT NULL DEFAULT '[]'::jsonb,
             image_caption TEXT NOT NULL DEFAULT '',
             image_name TEXT NOT NULL DEFAULT '',
             image_data_url TEXT NOT NULL DEFAULT '',
@@ -138,7 +137,6 @@ def initialize(connection: ConnectionLike) -> None:
             name TEXT NOT NULL,
             content TEXT NOT NULL DEFAULT '',
             forum_url TEXT NOT NULL DEFAULT '',
-            tags JSONB NOT NULL DEFAULT '[]'::jsonb,
             created_at TIMESTAMPTZ NOT NULL,
             updated_at TIMESTAMPTZ NOT NULL
         )
@@ -158,12 +156,25 @@ def initialize(connection: ConnectionLike) -> None:
             scheduled_for TIMESTAMPTZ,
             timezone TEXT NOT NULL DEFAULT 'America/New_York',
             notes TEXT NOT NULL DEFAULT '',
-            runner_payload TEXT NOT NULL DEFAULT '',
             created_at TIMESTAMPTZ NOT NULL,
             updated_at TIMESTAMPTZ NOT NULL,
             last_run_at TIMESTAMPTZ,
             posted_at TIMESTAMPTZ,
             failed_at TIMESTAMPTZ
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS submission_queue_runner_payload_values (
+            queue_item_id TEXT NOT NULL,
+            payload_path TEXT NOT NULL,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            value_type TEXT NOT NULL,
+            value_text TEXT NOT NULL DEFAULT '',
+            created_at TIMESTAMPTZ NOT NULL,
+            updated_at TIMESTAMPTZ NOT NULL,
+            PRIMARY KEY (queue_item_id, payload_path)
         )
         """
     )
@@ -176,23 +187,136 @@ def initialize(connection: ConnectionLike) -> None:
             target_name TEXT NOT NULL DEFAULT '',
             level TEXT NOT NULL DEFAULT 'info',
             message TEXT NOT NULL,
-            details JSONB NOT NULL DEFAULT '{}'::jsonb,
             created_at TIMESTAMPTZ NOT NULL
         )
         """
     )
     connection.execute(
         """
-        CREATE TABLE IF NOT EXISTS app_settings (
-            key TEXT PRIMARY KEY,
-            value JSONB NOT NULL DEFAULT '{}'::jsonb,
+        CREATE TABLE IF NOT EXISTS advertisement_tags (
+            advertisement_id TEXT NOT NULL,
+            tag TEXT NOT NULL,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            created_at TIMESTAMPTZ NOT NULL,
+            updated_at TIMESTAMPTZ NOT NULL,
+            PRIMARY KEY (advertisement_id, tag)
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS template_tags (
+            template_id TEXT NOT NULL,
+            tag TEXT NOT NULL,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            created_at TIMESTAMPTZ NOT NULL,
+            updated_at TIMESTAMPTZ NOT NULL,
+            PRIMARY KEY (template_id, tag)
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS runner_log_details (
+            log_id TEXT NOT NULL,
+            detail_key TEXT NOT NULL,
+            detail_value TEXT NOT NULL DEFAULT '',
+            created_at TIMESTAMPTZ NOT NULL,
+            PRIMARY KEY (log_id, detail_key)
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS submit_targets (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL DEFAULT '',
+            submit_url TEXT NOT NULL DEFAULT '',
+            forum_url TEXT NOT NULL DEFAULT '',
+            created_at TIMESTAMPTZ NOT NULL,
             updated_at TIMESTAMPTZ NOT NULL
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS queue_definitions (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL DEFAULT '',
+            created_at TIMESTAMPTZ NOT NULL,
+            updated_at TIMESTAMPTZ NOT NULL
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS tag_profile_tags (
+            blog_id TEXT NOT NULL,
+            tag TEXT NOT NULL,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            created_at TIMESTAMPTZ NOT NULL,
+            updated_at TIMESTAMPTZ NOT NULL,
+            PRIMARY KEY (blog_id, tag)
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS runner_settings (
+            id TEXT PRIMARY KEY,
+            media_dir TEXT NOT NULL DEFAULT '',
+            slow_mo INTEGER NOT NULL DEFAULT 500,
+            submit BOOLEAN NOT NULL DEFAULT FALSE,
+            updated_at TIMESTAMPTZ NOT NULL
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS queue_schedule_settings (
+            id TEXT PRIMARY KEY,
+            enabled BOOLEAN NOT NULL DEFAULT FALSE,
+            daily_time TEXT NOT NULL DEFAULT '09:00',
+            timezone TEXT NOT NULL DEFAULT 'America/New_York',
+            updated_at TIMESTAMPTZ NOT NULL
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS settings_audit_events (
+            id TEXT PRIMARY KEY,
+            area TEXT NOT NULL,
+            action TEXT NOT NULL,
+            entity_id TEXT NOT NULL DEFAULT '',
+            field_name TEXT NOT NULL DEFAULT '',
+            old_value TEXT NOT NULL DEFAULT '',
+            new_value TEXT NOT NULL DEFAULT '',
+            created_at TIMESTAMPTZ NOT NULL
         )
         """
     )
     connection.execute("ALTER TABLE runner_logs ADD COLUMN IF NOT EXISTS run_id TEXT NOT NULL DEFAULT ''")
     connection.execute("ALTER TABLE runner_logs ADD COLUMN IF NOT EXISTS target_name TEXT NOT NULL DEFAULT ''")
     connection.execute("ALTER TABLE submission_queue ADD COLUMN IF NOT EXISTS queue_name TEXT NOT NULL DEFAULT 'Default queue'")
+    connection.execute("CREATE INDEX IF NOT EXISTS idx_advertisement_tags_tag ON advertisement_tags(tag)")
+    connection.execute("CREATE INDEX IF NOT EXISTS idx_template_tags_tag ON template_tags(tag)")
+    connection.execute("CREATE INDEX IF NOT EXISTS idx_runner_log_details_key ON runner_log_details(detail_key)")
+    connection.execute("CREATE INDEX IF NOT EXISTS idx_submission_queue_payload_path ON submission_queue_runner_payload_values(payload_path)")
+    connection.execute("CREATE INDEX IF NOT EXISTS idx_submit_targets_name ON submit_targets(name)")
+    connection.execute("CREATE INDEX IF NOT EXISTS idx_queue_definitions_name ON queue_definitions(name)")
+    connection.execute("CREATE INDEX IF NOT EXISTS idx_tag_profile_tags_blog_order ON tag_profile_tags(blog_id, sort_order)")
+    connection.execute("CREATE INDEX IF NOT EXISTS idx_settings_audit_area_created ON settings_audit_events(area, created_at)")
+    migrate_legacy_tag_blobs(connection)
+    migrate_legacy_queue_runner_payloads(connection)
+    migrate_legacy_runner_log_details(connection)
+    if legacy_app_settings_exists(connection):
+        migrate_legacy_app_settings(connection)
+        connection.execute("DROP TABLE IF EXISTS app_settings")
+    connection.execute("ALTER TABLE advertisements DROP COLUMN IF EXISTS tags")
+    connection.execute("ALTER TABLE templates DROP COLUMN IF EXISTS tags")
+    connection.execute("ALTER TABLE submission_queue DROP COLUMN IF EXISTS runner_payload")
+    connection.execute("ALTER TABLE runner_logs DROP COLUMN IF EXISTS details")
     if not has_schema_history:
         seed_templates(connection)
     record_schema_version(connection, CURRENT_SCHEMA_VERSION)
@@ -220,15 +344,320 @@ def record_schema_version(connection: ConnectionLike, version: str) -> None:
     )
 
 
+def replace_ordered_values(
+    connection: ConnectionLike,
+    table: str,
+    id_column: str,
+    id_value: str,
+    value_column: str,
+    values: list[str],
+) -> None:
+    now = utc_now()
+    connection.execute(f"DELETE FROM {table} WHERE {id_column} = %s", (id_value,))
+    for index, value in enumerate(values):
+        connection.execute(
+            f"""
+            INSERT INTO {table} ({id_column}, {value_column}, sort_order, created_at, updated_at)
+            VALUES (%s, %s, %s, %s, %s)
+            ON CONFLICT({id_column}, {value_column}) DO UPDATE SET
+                sort_order = excluded.sort_order,
+                updated_at = excluded.updated_at
+            """,
+            (id_value, value, index, now, now),
+        )
+
+
+def load_ordered_values(
+    connection: ConnectionLike,
+    table: str,
+    id_column: str,
+    id_value: str,
+    value_column: str,
+) -> list[str]:
+    rows = connection.execute(
+        f"SELECT {value_column} FROM {table} WHERE {id_column} = %s ORDER BY sort_order, {value_column}",
+        (id_value,),
+    ).fetchall()
+    return [str(row[value_column]) for row in rows]
+
+
+def replace_runner_log_details(connection: ConnectionLike, log_id: str, details: dict[str, Any]) -> None:
+    now = utc_now()
+    connection.execute("DELETE FROM runner_log_details WHERE log_id = %s", (log_id,))
+    for key, value in sorted(details.items()):
+        connection.execute(
+            """
+            INSERT INTO runner_log_details (log_id, detail_key, detail_value, created_at)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT(log_id, detail_key) DO UPDATE SET
+                detail_value = excluded.detail_value
+            """,
+            (log_id, str(key), "" if value is None else str(value), now),
+        )
+
+
+def load_runner_log_details(connection: ConnectionLike, log_id: str) -> dict[str, Any]:
+    rows = connection.execute(
+        "SELECT detail_key, detail_value FROM runner_log_details WHERE log_id = %s ORDER BY detail_key",
+        (log_id,),
+    ).fetchall()
+    return {str(row["detail_key"]): parse_detail_value(str(row["detail_value"])) for row in rows}
+
+
+def parse_detail_value(value: str) -> Any:
+    lowered = value.lower()
+    if lowered == "true":
+        return True
+    if lowered == "false":
+        return False
+    if lowered == "none" or lowered == "null":
+        return None
+    try:
+        return int(value)
+    except ValueError:
+        return value
+
+
+def parse_runner_payload(value: Any) -> Any:
+    if isinstance(value, dict | list):
+        return value
+    if not isinstance(value, str) or not value.strip():
+        return {}
+    try:
+        parsed = json.loads(value)
+    except json.JSONDecodeError:
+        return {"raw": value}
+    return parsed if isinstance(parsed, dict | list) else {"value": parsed}
+
+
+def escape_payload_path_segment(value: str) -> str:
+    return value.replace("~", "~0").replace("/", "~1")
+
+
+def unescape_payload_path_segment(value: str) -> str:
+    return value.replace("~1", "/").replace("~0", "~")
+
+
+def flatten_payload_values(value: Any) -> list[tuple[str, int, str, str]]:
+    rows: list[tuple[str, int, str, str]] = []
+
+    def append_leaf(path: str, raw_value: Any) -> None:
+        if isinstance(raw_value, dict):
+            value_type = "object"
+            value_text = ""
+        elif isinstance(raw_value, list):
+            value_type = "array"
+            value_text = ""
+        elif raw_value is None:
+            value_type = "null"
+            value_text = ""
+        elif isinstance(raw_value, bool):
+            value_type = "boolean"
+            value_text = "true" if raw_value else "false"
+        elif isinstance(raw_value, int | float):
+            value_type = "number"
+            value_text = str(raw_value)
+        else:
+            value_type = "string"
+            value_text = str(raw_value)
+        rows.append((path or "/", len(rows), value_type, value_text))
+
+    def walk(path: str, current: Any) -> None:
+        if isinstance(current, dict):
+            if not current:
+                append_leaf(path, current)
+            for key, child in current.items():
+                walk(f"{path}/{escape_payload_path_segment(str(key))}", child)
+            return
+        if isinstance(current, list):
+            if not current:
+                append_leaf(path, current)
+            for index, child in enumerate(current):
+                walk(f"{path}/{index}", child)
+            return
+        append_leaf(path, current)
+
+    walk("", value)
+    return rows
+
+
+def typed_payload_value(value_type: str, value_text: str) -> Any:
+    if value_type == "null":
+        return None
+    if value_type == "boolean":
+        return value_text.lower() == "true"
+    if value_type == "number":
+        try:
+            return int(value_text)
+        except ValueError:
+            try:
+                return float(value_text)
+            except ValueError:
+                return value_text
+    if value_type == "object":
+        return {}
+    if value_type == "array":
+        return []
+    return value_text
+
+
+def payload_path_segments(path: str) -> list[str]:
+    if not path or path == "/":
+        return []
+    return [unescape_payload_path_segment(segment) for segment in path.strip("/").split("/")]
+
+
+def assign_payload_value(root: Any, segments: list[str], value: Any) -> Any:
+    if not segments:
+        return value
+    if root is None:
+        root = [] if segments[0].isdigit() else {}
+
+    current = root
+    for index, segment in enumerate(segments):
+        last = index == len(segments) - 1
+        next_is_list = not last and segments[index + 1].isdigit()
+
+        if isinstance(current, list):
+            position = int(segment) if segment.isdigit() else len(current)
+            while len(current) <= position:
+                current.append(None)
+            if last:
+                current[position] = value
+                continue
+            if current[position] is None:
+                current[position] = [] if next_is_list else {}
+            current = current[position]
+            continue
+
+        if last:
+            current[segment] = value
+            continue
+        if segment not in current or current[segment] is None:
+            current[segment] = [] if next_is_list else {}
+        current = current[segment]
+
+    return root
+
+
+def replace_runner_payload_values(connection: ConnectionLike, queue_item_id: str, runner_payload: Any) -> None:
+    now = utc_now()
+    connection.execute("DELETE FROM submission_queue_runner_payload_values WHERE queue_item_id = %s", (queue_item_id,))
+    for path, sort_order, value_type, value_text in flatten_payload_values(parse_runner_payload(runner_payload)):
+        connection.execute(
+            """
+            INSERT INTO submission_queue_runner_payload_values (
+                queue_item_id, payload_path, sort_order, value_type, value_text, created_at, updated_at
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT(queue_item_id, payload_path) DO UPDATE SET
+                sort_order = excluded.sort_order,
+                value_type = excluded.value_type,
+                value_text = excluded.value_text,
+                updated_at = excluded.updated_at
+            """,
+            (queue_item_id, path, sort_order, value_type, value_text, now, now),
+        )
+
+
+def load_runner_payload(connection: ConnectionLike, queue_item_id: str) -> str:
+    rows = connection.execute(
+        """
+        SELECT payload_path, value_type, value_text
+        FROM submission_queue_runner_payload_values
+        WHERE queue_item_id = %s
+        ORDER BY sort_order, payload_path
+        """,
+        (queue_item_id,),
+    ).fetchall()
+    if not rows:
+        return ""
+
+    root: Any = None
+    for row in rows:
+        root = assign_payload_value(
+            root,
+            payload_path_segments(str(row["payload_path"])),
+            typed_payload_value(str(row["value_type"]), str(row["value_text"])),
+        )
+    return json.dumps(root if root is not None else {}, indent=2)
+
+
+def migrate_legacy_tag_blobs(connection: ConnectionLike) -> None:
+    rows = connection.execute("SELECT * FROM advertisements ORDER BY updated_at DESC").fetchall()
+    for row in rows:
+        data = row_to_dict(row)
+        if "tags" in data:
+            replace_ordered_values(connection, "advertisement_tags", "advertisement_id", str(data["id"]), "tag", parse_tags(data["tags"]))
+
+    rows = connection.execute("SELECT * FROM templates ORDER BY name").fetchall()
+    for row in rows:
+        data = row_to_dict(row)
+        if "tags" in data:
+            replace_ordered_values(connection, "template_tags", "template_id", str(data["id"]), "tag", parse_tags(data["tags"]))
+
+
+def migrate_legacy_queue_runner_payloads(connection: ConnectionLike) -> None:
+    rows = connection.execute("SELECT * FROM submission_queue ORDER BY updated_at DESC").fetchall()
+    for row in rows:
+        data = row_to_dict(row)
+        runner_payload = data.get("runner_payload")
+        if runner_payload:
+            replace_runner_payload_values(connection, str(data["id"]), runner_payload)
+
+
+def legacy_app_settings_exists(connection: ConnectionLike) -> bool:
+    row = connection.execute(
+        """
+        SELECT table_name
+        FROM information_schema.tables
+        WHERE table_schema = current_schema()
+          AND table_name = %s
+        """,
+        ("app_settings",),
+    ).fetchone()
+    return bool(row)
+
+
+def migrate_legacy_runner_log_details(connection: ConnectionLike) -> None:
+    rows = connection.execute("SELECT * FROM runner_logs ORDER BY created_at DESC LIMIT 150").fetchall()
+    for row in rows:
+        data = row_to_dict(row)
+        details = data.get("details")
+        if isinstance(details, str):
+            try:
+                loaded = json.loads(details)
+            except json.JSONDecodeError:
+                loaded = {}
+            details = loaded
+        if isinstance(details, dict):
+            replace_runner_log_details(connection, str(data["id"]), details)
+
+
+def migrate_legacy_app_settings(connection: ConnectionLike) -> None:
+    row = connection.execute("SELECT * FROM app_settings WHERE key = %s", ("app",)).fetchone()
+    if not row:
+        return
+
+    value = row_to_dict(row).get("value") or {}
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except json.JSONDecodeError:
+            value = {}
+    if isinstance(value, dict):
+        upsert_app_settings(connection, value, audit=False)
+
+
 def seed_templates(connection: ConnectionLike) -> None:
     now = utc_now()
     for template in SEED_TEMPLATES:
         connection.execute(
             """
             INSERT INTO templates (
-                id, name, content, forum_url, tags, created_at, updated_at
+                id, name, content, forum_url, created_at, updated_at
             )
-            VALUES (%s, %s, %s, %s, %s::jsonb, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s)
             ON CONFLICT(id) DO NOTHING
             """,
             (
@@ -236,11 +665,11 @@ def seed_templates(connection: ConnectionLike) -> None:
                 template["name"],
                 template["content"],
                 template["forum_url"],
-                json.dumps(template["tags"]),
                 now,
                 now,
             ),
         )
+        replace_ordered_values(connection, "template_tags", "template_id", template["id"], "tag", parse_tags(template["tags"]))
 
 
 def parse_tags(value: Any) -> list[str]:
@@ -293,22 +722,26 @@ def row_to_dict(row: Any) -> dict[str, Any]:
     return {key: normalize_datetime(value) for key, value in dict(row).items()}
 
 
-def row_to_advertisement(row: Any) -> dict[str, Any]:
+def row_to_advertisement(row: Any, tags: list[str] | None = None) -> dict[str, Any]:
     data = row_to_dict(row)
-    data["tags"] = parse_tags(data["tags"])
+    data["tags"] = tags if tags is not None else parse_tags(data.get("tags", []))
     if data.get("post_type") not in POST_TYPES:
         data["post_type"] = "photo"
     return data
 
 
-def row_to_template(row: Any) -> dict[str, Any]:
+def row_to_template(row: Any, tags: list[str] | None = None) -> dict[str, Any]:
     data = row_to_dict(row)
-    data["tags"] = parse_tags(data["tags"])
+    data["tags"] = tags if tags is not None else parse_tags(data.get("tags", []))
     return data
 
 
-def row_to_queue_item(row: Any) -> dict[str, Any]:
+def row_to_queue_item(row: Any, runner_payload: str | None = None) -> dict[str, Any]:
     data = row_to_dict(row)
+    if runner_payload is not None:
+        data["runner_payload"] = runner_payload
+    elif "runner_payload" not in data:
+        data["runner_payload"] = ""
     data["queue_name"] = str(data.get("queue_name") or "Default queue").strip() or "Default queue"
     if data.get("post_type") not in POST_TYPES:
         data["post_type"] = "photo"
@@ -317,18 +750,11 @@ def row_to_queue_item(row: Any) -> dict[str, Any]:
     return data
 
 
-def row_to_runner_log(row: Any) -> dict[str, Any]:
+def row_to_runner_log(row: Any, details: dict[str, Any] | None = None) -> dict[str, Any]:
     data = row_to_dict(row)
     data["run_id"] = str(data.get("run_id") or "")
     data["target_name"] = str(data.get("target_name") or "")
-    details = data.get("details")
-    if isinstance(details, str):
-        try:
-            data["details"] = json.loads(details)
-        except json.JSONDecodeError:
-            data["details"] = {}
-    elif not isinstance(details, dict):
-        data["details"] = {}
+    data["details"] = details if details is not None else {}
     if data.get("level") not in LOG_LEVELS:
         data["level"] = "info"
     return data
@@ -400,7 +826,7 @@ def queue_item_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "scheduled_for": parse_optional_datetime(payload_field(payload, "scheduled_for", "scheduledFor")),
         "timezone": str(payload_field(payload, "timezone", "timezone", DEFAULT_TIMEZONE) or DEFAULT_TIMEZONE).strip() or DEFAULT_TIMEZONE,
         "notes": str(payload.get("notes", "")),
-        "runner_payload": str(payload_field(payload, "runner_payload", "runnerPayload")),
+        "runner_payload": payload_field(payload, "runner_payload", "runnerPayload"),
         "created_at": parse_optional_datetime(payload_field(payload, "created_at", "createdAt")),
         "updated_at": parse_optional_datetime(payload_field(payload, "updated_at", "updatedAt")),
         "last_run_at": parse_optional_datetime(payload_field(payload, "last_run_at", "lastRunAt")),
@@ -496,26 +922,175 @@ def app_settings_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def get_app_settings(connection: ConnectionLike) -> dict[str, Any]:
-    row = connection.execute("SELECT * FROM app_settings WHERE key = %s", ("app",)).fetchone()
-    if not row:
-        return {}
+    submit_targets = [
+        {
+            "id": row["id"],
+            "name": row["name"],
+            "submitUrl": row["submit_url"],
+            "forumUrl": row["forum_url"],
+        }
+        for row in connection.execute("SELECT * FROM submit_targets ORDER BY name").fetchall()
+    ]
+    queue_definitions = [
+        {"id": row["id"], "name": row["name"]}
+        for row in connection.execute("SELECT * FROM queue_definitions ORDER BY name").fetchall()
+    ]
+    tag_profiles: dict[str, list[str]] = {}
+    for row in connection.execute("SELECT * FROM tag_profile_tags ORDER BY blog_id, sort_order, tag").fetchall():
+        tag_profiles.setdefault(str(row["blog_id"]), []).append(str(row["tag"]))
 
-    value = row_to_dict(row).get("value") or {}
-    return value if isinstance(value, dict) else {}
+    runner_row = connection.execute("SELECT * FROM runner_settings WHERE id = %s", ("default",)).fetchone()
+    schedule_row = connection.execute("SELECT * FROM queue_schedule_settings WHERE id = %s", ("default",)).fetchone()
+
+    return {
+        "submitTargets": submit_targets,
+        "queueDefinitions": queue_definitions,
+        "tagProfiles": tag_profiles,
+        "runnerSettings": normalize_runner_settings(
+            {
+                "mediaDir": runner_row["media_dir"] if runner_row else "",
+                "slowMo": runner_row["slow_mo"] if runner_row else 500,
+                "submit": runner_row["submit"] if runner_row else False,
+            }
+        ),
+        "queueScheduleSettings": normalize_queue_schedule_settings(
+            {
+                "enabled": schedule_row["enabled"] if schedule_row else False,
+                "dailyTime": schedule_row["daily_time"] if schedule_row else "09:00",
+                "timezone": schedule_row["timezone"] if schedule_row else DEFAULT_TIMEZONE,
+            }
+        ),
+    }
 
 
-def upsert_app_settings(connection: ConnectionLike, payload: dict[str, Any]) -> dict[str, Any]:
-    settings = app_settings_from_payload(payload)
+def record_settings_audit(
+    connection: ConnectionLike,
+    area: str,
+    action: str,
+    entity_id: str = "",
+    field_name: str = "",
+    old_value: Any = "",
+    new_value: Any = "",
+) -> None:
     connection.execute(
         """
-        INSERT INTO app_settings (key, value, updated_at)
-        VALUES (%s, %s::jsonb, %s)
-        ON CONFLICT(key) DO UPDATE SET
-            value = excluded.value,
+        INSERT INTO settings_audit_events (
+            id, area, action, entity_id, field_name, old_value, new_value, created_at
+        )
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        """,
+        (
+            f"audit-{uuid.uuid4().hex}",
+            area,
+            action,
+            entity_id,
+            field_name,
+            "" if old_value is None else str(old_value),
+            "" if new_value is None else str(new_value),
+            utc_now(),
+        ),
+    )
+
+
+def settings_statistics(connection: ConnectionLike) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    queries = {
+        "submitTargets": "SELECT * FROM submit_targets ORDER BY name",
+        "queueDefinitions": "SELECT * FROM queue_definitions ORDER BY name",
+        "tagProfileTags": "SELECT * FROM tag_profile_tags ORDER BY blog_id, sort_order, tag",
+        "queueRunnerPayloadValues": "SELECT * FROM submission_queue_runner_payload_values ORDER BY queue_item_id, sort_order, payload_path",
+        "runnerSettings": "SELECT * FROM runner_settings WHERE id = %s",
+        "queueScheduleSettings": "SELECT * FROM queue_schedule_settings WHERE id = %s",
+        "settingsAuditEvents": "SELECT * FROM settings_audit_events ORDER BY created_at DESC",
+    }
+    for key, query in queries.items():
+        params = ("default",) if key in {"runnerSettings", "queueScheduleSettings"} else ()
+        counts[key] = len(connection.execute(query, params).fetchall())
+    return counts
+
+
+def upsert_app_settings(connection: ConnectionLike, payload: dict[str, Any], audit: bool = True) -> dict[str, Any]:
+    settings = app_settings_from_payload(payload)
+    now = utc_now()
+    connection.execute("DELETE FROM submit_targets")
+    for target in settings["submitTargets"]:
+        connection.execute(
+            """
+            INSERT INTO submit_targets (id, name, submit_url, forum_url, created_at, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            ON CONFLICT(id) DO UPDATE SET
+                name = excluded.name,
+                submit_url = excluded.submit_url,
+                forum_url = excluded.forum_url,
+                updated_at = excluded.updated_at
+            """,
+            (target["id"], target["name"], target["submitUrl"], target["forumUrl"], now, now),
+        )
+        if audit:
+            for field_name in ("name", "submitUrl", "forumUrl"):
+                record_settings_audit(connection, "submit_targets", "upsert", target["id"], field_name, "", target[field_name])
+
+    connection.execute("DELETE FROM queue_definitions")
+    for queue in settings["queueDefinitions"]:
+        connection.execute(
+            """
+            INSERT INTO queue_definitions (id, name, created_at, updated_at)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT(id) DO UPDATE SET
+                name = excluded.name,
+                updated_at = excluded.updated_at
+            """,
+            (queue["id"], queue["name"], now, now),
+        )
+        if audit:
+            record_settings_audit(connection, "queue_definitions", "upsert", queue["id"], "name", "", queue["name"])
+
+    connection.execute("DELETE FROM tag_profile_tags")
+    for blog_id, tags in settings["tagProfiles"].items():
+        replace_ordered_values(connection, "tag_profile_tags", "blog_id", str(blog_id), "tag", tags)
+        if audit:
+            for tag in tags:
+                record_settings_audit(connection, "tag_profile_tags", "upsert", str(blog_id), "tag", "", tag)
+
+    runner_settings = settings["runnerSettings"]
+    connection.execute(
+        """
+        INSERT INTO runner_settings (id, media_dir, slow_mo, submit, updated_at)
+        VALUES (%s, %s, %s, %s, %s)
+        ON CONFLICT(id) DO UPDATE SET
+            media_dir = excluded.media_dir,
+            slow_mo = excluded.slow_mo,
+            submit = excluded.submit,
             updated_at = excluded.updated_at
         """,
-        ("app", json.dumps(settings), utc_now()),
+        ("default", runner_settings["mediaDir"], runner_settings["slowMo"], runner_settings["submit"], now),
     )
+    if audit:
+        for field_name in ("mediaDir", "slowMo", "submit"):
+            record_settings_audit(connection, "runner_settings", "upsert", "default", field_name, "", runner_settings[field_name])
+
+    schedule_settings = settings["queueScheduleSettings"]
+    connection.execute(
+        """
+        INSERT INTO queue_schedule_settings (id, enabled, daily_time, timezone, updated_at)
+        VALUES (%s, %s, %s, %s, %s)
+        ON CONFLICT(id) DO UPDATE SET
+            enabled = excluded.enabled,
+            daily_time = excluded.daily_time,
+            timezone = excluded.timezone,
+            updated_at = excluded.updated_at
+        """,
+        (
+            "default",
+            schedule_settings["enabled"],
+            schedule_settings["dailyTime"],
+            schedule_settings["timezone"],
+            now,
+        ),
+    )
+    if audit:
+        for field_name in ("enabled", "dailyTime", "timezone"):
+            record_settings_audit(connection, "queue_schedule_settings", "upsert", "default", field_name, "", schedule_settings[field_name])
     return get_app_settings(connection)
 
 
@@ -533,18 +1108,17 @@ def upsert_advertisement(connection: ConnectionLike, payload: dict[str, Any]) ->
     connection.execute(
         """
         INSERT INTO advertisements (
-            id, post_type, title, content, destination_blog, forum_url, tags,
+            id, post_type, title, content, destination_blog, forum_url,
             image_caption, image_name, image_data_url, video_url, video_name,
             status, created_at, updated_at
         )
-        VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s, %s, %s, %s, %s, %s)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT(id) DO UPDATE SET
             post_type = excluded.post_type,
             title = excluded.title,
             content = excluded.content,
             destination_blog = excluded.destination_blog,
             forum_url = excluded.forum_url,
-            tags = excluded.tags,
             image_caption = excluded.image_caption,
             image_name = excluded.image_name,
             image_data_url = excluded.image_data_url,
@@ -560,7 +1134,6 @@ def upsert_advertisement(connection: ConnectionLike, payload: dict[str, Any]) ->
             advertisement["content"],
             advertisement["destination_blog"],
             advertisement["forum_url"],
-            json.dumps(advertisement["tags"]),
             advertisement["image_caption"],
             advertisement["image_name"],
             advertisement["image_data_url"],
@@ -571,11 +1144,15 @@ def upsert_advertisement(connection: ConnectionLike, payload: dict[str, Any]) ->
             now,
         ),
     )
+    replace_ordered_values(connection, "advertisement_tags", "advertisement_id", advertisement["id"], "tag", advertisement["tags"])
 
     row = connection.execute(
         "SELECT * FROM advertisements WHERE id = %s", (advertisement["id"],)
     ).fetchone()
-    return row_to_advertisement(row)
+    return row_to_advertisement(
+        row,
+        load_ordered_values(connection, "advertisement_tags", "advertisement_id", advertisement["id"], "tag"),
+    )
 
 
 def upsert_template(connection: ConnectionLike, payload: dict[str, Any]) -> dict[str, Any]:
@@ -591,13 +1168,12 @@ def upsert_template(connection: ConnectionLike, payload: dict[str, Any]) -> dict
 
     connection.execute(
         """
-        INSERT INTO templates (id, name, content, forum_url, tags, created_at, updated_at)
-        VALUES (%s, %s, %s, %s, %s::jsonb, %s, %s)
+        INSERT INTO templates (id, name, content, forum_url, created_at, updated_at)
+        VALUES (%s, %s, %s, %s, %s, %s)
         ON CONFLICT(id) DO UPDATE SET
             name = excluded.name,
             content = excluded.content,
             forum_url = excluded.forum_url,
-            tags = excluded.tags,
             updated_at = excluded.updated_at
         """,
         (
@@ -605,14 +1181,14 @@ def upsert_template(connection: ConnectionLike, payload: dict[str, Any]) -> dict
             template["name"],
             template["content"],
             template["forum_url"],
-            json.dumps(template["tags"]),
             created_at,
             now,
         ),
     )
+    replace_ordered_values(connection, "template_tags", "template_id", template["id"], "tag", template["tags"])
 
     row = connection.execute("SELECT * FROM templates WHERE id = %s", (template["id"],)).fetchone()
-    return row_to_template(row)
+    return row_to_template(row, load_ordered_values(connection, "template_tags", "template_id", template["id"], "tag"))
 
 
 def upsert_queue_item(connection: ConnectionLike, payload: dict[str, Any]) -> dict[str, Any]:
@@ -635,10 +1211,10 @@ def upsert_queue_item(connection: ConnectionLike, payload: dict[str, Any]) -> di
         """
         INSERT INTO submission_queue (
             id, ad_id, target_id, target_name, queue_name, submit_url, post_type, status,
-            scheduled_for, timezone, notes, runner_payload, created_at, updated_at,
+            scheduled_for, timezone, notes, created_at, updated_at,
             last_run_at, posted_at, failed_at
         )
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT(id) DO UPDATE SET
             ad_id = excluded.ad_id,
             target_id = excluded.target_id,
@@ -650,7 +1226,6 @@ def upsert_queue_item(connection: ConnectionLike, payload: dict[str, Any]) -> di
             scheduled_for = excluded.scheduled_for,
             timezone = excluded.timezone,
             notes = excluded.notes,
-            runner_payload = excluded.runner_payload,
             updated_at = excluded.updated_at,
             last_run_at = excluded.last_run_at,
             posted_at = excluded.posted_at,
@@ -668,7 +1243,6 @@ def upsert_queue_item(connection: ConnectionLike, payload: dict[str, Any]) -> di
             queue_item["scheduled_for"],
             queue_item["timezone"],
             queue_item["notes"],
-            queue_item["runner_payload"],
             created_at,
             updated_at,
             queue_item["last_run_at"],
@@ -676,9 +1250,10 @@ def upsert_queue_item(connection: ConnectionLike, payload: dict[str, Any]) -> di
             queue_item["failed_at"],
         ),
     )
+    replace_runner_payload_values(connection, queue_item["id"], queue_item["runner_payload"])
 
     row = connection.execute("SELECT * FROM submission_queue WHERE id = %s", (queue_item["id"],)).fetchone()
-    return row_to_queue_item(row)
+    return row_to_queue_item(row, load_runner_payload(connection, queue_item["id"]))
 
 
 def runner_log_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
@@ -719,8 +1294,8 @@ def record_runner_log(connection: ConnectionLike, payload: dict[str, Any]) -> di
 
     connection.execute(
         """
-        INSERT INTO runner_logs (id, run_id, queue_item_id, target_name, level, message, details, created_at)
-        VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb, %s)
+        INSERT INTO runner_logs (id, run_id, queue_item_id, target_name, level, message, created_at)
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
         """,
         (
             log["id"],
@@ -729,16 +1304,16 @@ def record_runner_log(connection: ConnectionLike, payload: dict[str, Any]) -> di
             log["target_name"],
             log["level"],
             log["message"],
-            json.dumps(log["details"]),
             log["created_at"],
         ),
     )
+    replace_runner_log_details(connection, log["id"], log["details"])
 
     if log["status"]:
         touch_queue_item_status(connection, log["queue_item_id"], log["status"], log["message"], log["created_at"])
 
     row = connection.execute("SELECT * FROM runner_logs WHERE id = %s", (log["id"],)).fetchone()
-    return row_to_runner_log(row)
+    return row_to_runner_log(row, load_runner_log_details(connection, log["id"]))
 
 
 def touch_queue_item_status(
@@ -752,7 +1327,7 @@ def touch_queue_item_status(
     if not existing:
         return
 
-    data = row_to_queue_item(existing)
+    data = row_to_queue_item(existing, load_runner_payload(connection, queue_item_id))
     data["status"] = status
     data["notes"] = notes
     data["updated_at"] = timestamp
@@ -864,26 +1439,55 @@ class Handler(BaseHTTPRequestHandler):
         with connect() as connection:
             if collection == "advertisements" and item_id is None:
                 rows = connection.execute("SELECT * FROM advertisements ORDER BY updated_at DESC").fetchall()
-                self.respond({"advertisements": [row_to_advertisement(row) for row in rows]})
+                self.respond(
+                    {
+                        "advertisements": [
+                            row_to_advertisement(
+                                row,
+                                load_ordered_values(connection, "advertisement_tags", "advertisement_id", str(row["id"]), "tag"),
+                            )
+                            for row in rows
+                        ]
+                    }
+                )
                 return
 
             if collection == "templates" and item_id is None:
                 rows = connection.execute("SELECT * FROM templates ORDER BY name").fetchall()
-                self.respond({"templates": [row_to_template(row) for row in rows]})
+                self.respond(
+                    {
+                        "templates": [
+                            row_to_template(
+                                row,
+                                load_ordered_values(connection, "template_tags", "template_id", str(row["id"]), "tag"),
+                            )
+                            for row in rows
+                        ]
+                    }
+                )
                 return
 
             if collection == "queue" and item_id is None:
                 rows = connection.execute("SELECT * FROM submission_queue ORDER BY updated_at DESC").fetchall()
-                self.respond({"queue": [row_to_queue_item(row) for row in rows]})
+                self.respond({"queue": [row_to_queue_item(row, load_runner_payload(connection, str(row["id"]))) for row in rows]})
                 return
 
             if collection == "runner/logs" and item_id is None:
                 rows = connection.execute("SELECT * FROM runner_logs ORDER BY created_at DESC LIMIT 150").fetchall()
-                self.respond({"logs": [row_to_runner_log(row) for row in rows]})
+                self.respond({"logs": [row_to_runner_log(row, load_runner_log_details(connection, str(row["id"]))) for row in rows]})
                 return
 
             if collection == "settings" and item_id is None:
                 self.respond({"settings": get_app_settings(connection)})
+                return
+
+            if collection == "settings/stats" and item_id is None:
+                self.respond({"stats": settings_statistics(connection)})
+                return
+
+            if collection == "settings/audit" and item_id is None:
+                rows = connection.execute("SELECT * FROM settings_audit_events ORDER BY created_at DESC LIMIT 150").fetchall()
+                self.respond({"audit": [row_to_dict(row) for row in rows]})
                 return
 
         self.send_error(HTTPStatus.NOT_FOUND)
@@ -967,6 +1571,7 @@ class Handler(BaseHTTPRequestHandler):
         collection, item_id = self.route()
         if collection == "runner/logs" and item_id is None:
             with connect() as connection:
+                connection.execute("DELETE FROM runner_log_details")
                 connection.execute("DELETE FROM runner_logs")
             self.respond({"deleted": "runner_logs"})
             return
@@ -975,17 +1580,33 @@ class Handler(BaseHTTPRequestHandler):
             self.send_error(HTTPStatus.NOT_FOUND)
             return
 
+        if collection == "settings":
+            with connect() as connection:
+                for table in (
+                    "submit_targets",
+                    "queue_definitions",
+                    "tag_profile_tags",
+                    "runner_settings",
+                    "queue_schedule_settings",
+                ):
+                    connection.execute(f"DELETE FROM {table}")
+                record_settings_audit(connection, "settings", "delete", item_id)
+            self.respond({"deleted": item_id})
+            return
+
         table = {
             "advertisements": "advertisements",
             "templates": "templates",
             "queue": "submission_queue",
-            "settings": "app_settings",
         }[collection]
         with connect() as connection:
-            if collection == "settings":
-                connection.execute(f"DELETE FROM {table} WHERE key = %s", (item_id,))
-            else:
-                connection.execute(f"DELETE FROM {table} WHERE id = %s", (item_id,))
+            if collection == "advertisements":
+                connection.execute("DELETE FROM advertisement_tags WHERE advertisement_id = %s", (item_id,))
+            if collection == "templates":
+                connection.execute("DELETE FROM template_tags WHERE template_id = %s", (item_id,))
+            if collection == "queue":
+                connection.execute("DELETE FROM submission_queue_runner_payload_values WHERE queue_item_id = %s", (item_id,))
+            connection.execute(f"DELETE FROM {table} WHERE id = %s", (item_id,))
 
         self.respond({"deleted": item_id})
 
@@ -1026,6 +1647,10 @@ class Handler(BaseHTTPRequestHandler):
         if len(parts) == 2 and parts[0] == "api":
             return parts[1], None
         if len(parts) == 3 and parts[0] == "api" and parts[1] == "runner":
+            return f"{parts[1]}/{parts[2]}", None
+        if len(parts) == 3 and parts[0] == "api" and parts[1] == "settings" and parts[2] == "stats":
+            return f"{parts[1]}/{parts[2]}", None
+        if len(parts) == 3 and parts[0] == "api" and parts[1] == "settings" and parts[2] == "audit":
             return f"{parts[1]}/{parts[2]}", None
         if len(parts) == 3 and parts[0] == "api" and parts[1] == "tags":
             return f"{parts[1]}/{parts[2]}", None
