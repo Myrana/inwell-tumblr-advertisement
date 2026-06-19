@@ -123,7 +123,6 @@ function App() {
   const [newSubmitUrl, setNewSubmitUrl] = useState("");
   const [submitTargetStatus, setSubmitTargetStatus] = useState("");
   const [validation, setValidation] = useState<string[]>([]);
-  const [, setGeneratedPost] = useState("");
   const [queueStatus, setQueueStatus] = useState("");
   const [queueNameDraft, setQueueNameDraft] = useState("");
   const [selectedQueueName, setSelectedQueueName] = useState(defaultQueueName);
@@ -563,7 +562,6 @@ function App() {
     const next = emptyAd();
     activeDestinationBlogRef.current = "";
     setValidation([]);
-    setGeneratedPost("");
     setSaveStatus("");
     setStored((current) => ({
       ads: [next, ...current.ads],
@@ -593,7 +591,7 @@ function App() {
   function saveDraft() {
     updateActiveAd({ status: "draft" });
     setValidation([]);
-    setSaveStatus("Saved. Start a new submission or keep editing this one.");
+    setSaveStatus("Saved.");
   }
 
   function validateAd() {
@@ -604,18 +602,6 @@ function App() {
 
   function buildPost() {
     return buildPreparedPost(activeAd);
-  }
-
-  function generatePost() {
-    const missing = validateAd();
-    if (missing.length) {
-      return;
-    }
-
-    const finalPost = buildPost();
-
-    setGeneratedPost(finalPost);
-    updateActiveAd({ status: "ready" });
   }
 
   function createQueueItem(target: TumblrSubmitTarget): SubmissionQueueItem {
@@ -629,7 +615,6 @@ function App() {
     }
 
     const nextItems = targets.map((target) => createQueueItem(target));
-    setGeneratedPost(buildPost());
     setSubmissionQueue((current) => {
       const withoutExisting = current.filter(
         (item) => item.queueName !== activeQueueName || item.adId !== activeAd.id || !nextItems.some((next) => next.targetId === item.targetId),
@@ -1042,8 +1027,7 @@ function App() {
           title={pageTitles[activeView].title}
           saveStatus={saveStatus}
           onCreateDraft={createDraft}
-          onGeneratePost={generatePost}
-          onKeepEditing={() => setSaveStatus("")}
+          onGeneratePost={() => queueTargets([activeSubmitTarget])}
           onSaveDraft={saveDraft}
         />
 

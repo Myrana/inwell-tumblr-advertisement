@@ -1,4 +1,4 @@
-import { Plus, Save, Sparkles } from "lucide-react";
+import { Plus, Save, Send } from "lucide-react";
 
 type WorkspaceTopbarProps = {
   actionsVisible?: boolean;
@@ -7,7 +7,6 @@ type WorkspaceTopbarProps = {
   title: string;
   onCreateDraft: () => void;
   onGeneratePost: () => void;
-  onKeepEditing?: () => void;
   onSaveDraft: () => void;
 };
 
@@ -18,7 +17,6 @@ export function WorkspaceTopbar({
   title,
   onCreateDraft,
   onGeneratePost,
-  onKeepEditing,
   onSaveDraft,
 }: WorkspaceTopbarProps) {
   return (
@@ -39,19 +37,13 @@ export function WorkspaceTopbar({
               Save
             </button>
             <button className="primary" type="button" onClick={onGeneratePost}>
-              <Sparkles size={18} />
-              Prepare
+              <Send size={18} />
+              Add to queue
             </button>
           </div>
           {saveStatus ? (
-            <div className="save-next-step" role="status">
+            <div className="save-next-step compact" role="status">
               <span>{saveStatus}</span>
-              <button className="secondary" type="button" onClick={onCreateDraft}>
-                Start new
-              </button>
-              <button className="secondary" type="button" onClick={onKeepEditing}>
-                Keep editing
-              </button>
             </div>
           ) : null}
         </div>
