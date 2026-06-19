@@ -752,23 +752,23 @@ function App() {
       return;
     }
 
-    const checking: TumblrAccount = {
-      ...account,
-      status: "checking",
-      lastCheckedAt: new Date().toISOString(),
-      notes: "Login helper launched. Complete Tumblr login in the visible browser.",
-    };
-    setTumblrAccounts((current) => upsertTumblrAccount(current, checking));
-    syncTumblrAccount(checking);
     setRunnerSettings((current) => ({ ...current, tumblrAccountId: id }));
 
     try {
       const response = await launchTumblrLogin(id);
+      const checking: TumblrAccount = {
+        ...account,
+        status: "checking",
+        lastCheckedAt: new Date().toISOString(),
+        notes: "Login helper launched. Complete Tumblr login in the visible browser.",
+      };
+      setTumblrAccounts((current) => upsertTumblrAccount(current, checking));
       setApiAvailable(true);
       setAccountStatus(`Login helper opened in process ${response.login.pid}. Finish Tumblr login in that browser.`);
-    } catch {
+    } catch (error) {
       setApiAvailable(false);
-      setAccountStatus("Could not launch Tumblr login helper. Start the Python API and try again.");
+      const message = error instanceof ApiError ? error.message : "Could not launch Tumblr login helper. Start the Python API and try again.";
+      setAccountStatus(message);
     }
   }
 

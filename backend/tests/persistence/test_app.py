@@ -33,7 +33,9 @@ from app import (
     upsert_queue_item,
     upsert_template,
     upsert_tumblr_account,
+    unsupported_tumblr_helper_message,
     verify_password,
+    visible_tumblr_helper_supported,
 )
 
 
@@ -926,6 +928,14 @@ class PersistenceTests(unittest.TestCase):
         self.assertEqual(saved["status"], "connected")
         self.assertIn(".tumblr-sessions", saved["user_data_dir"])
         self.assertEqual(self.connection.tumblr_accounts["snowleopardx"]["notes"], "Logged in through Playwright.")
+
+    def test_visible_tumblr_helper_requires_desktop_display_on_non_windows(self) -> None:
+        with patch("app.os.name", "posix"), patch.dict(os.environ, {}, clear=True):
+            self.assertFalse(visible_tumblr_helper_supported())
+            self.assertIn("Railway cannot show", unsupported_tumblr_helper_message())
+
+        with patch("app.os.name", "posix"), patch.dict(os.environ, {"DISPLAY": ":99"}, clear=True):
+            self.assertTrue(visible_tumblr_helper_supported())
 
     def test_create_user_workspace_hashes_password_and_assigns_default_data(self) -> None:
         template = upsert_template(

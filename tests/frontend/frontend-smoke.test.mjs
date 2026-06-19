@@ -641,6 +641,88 @@ test("tumblr accounts can be saved and selected for queue runs", { timeout: 4000
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
 });
 
+test("tumblr login helper failure does not mark account as launched", { timeout: 40000 }, async (t) => {
+  const server = spawn("npx vite --host 127.0.0.1 --port 8123 --strictPort", {
+    cwd: process.cwd(),
+    shell: true,
+    stdio: "ignore",
+  });
+
+  t.after(() => {
+    stopProcessTree(server);
+  });
+
+  await waitForServer(appUrl);
+
+  const browser = await chromium.launch();
+  t.after(async () => {
+    await browser.close();
+  });
+
+  const page = await browser.newPage();
+  const pageErrors = [];
+  const unsupportedMessage = "Tumblr login helper needs a visible browser on your local desktop. Railway cannot show that browser.";
+  page.on("pageerror", (error) => pageErrors.push(error));
+  await page.route("http://127.0.0.1:8021/api/**", (route) => route.abort());
+  await routeAuthenticatedSession(page);
+  await page.route("http://127.0.0.1:8021/api/advertisements", (route) =>
+    route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ advertisements: [] }) }),
+  );
+  await page.route("http://127.0.0.1:8021/api/templates", (route) =>
+    route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ templates: [] }) }),
+  );
+  await page.route("http://127.0.0.1:8021/api/queue", (route) =>
+    route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ queue: [] }) }),
+  );
+  await page.route("http://127.0.0.1:8021/api/runner/logs", (route) =>
+    route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ logs: [] }) }),
+  );
+  await page.route("http://127.0.0.1:8021/api/settings", (route) =>
+    route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ settings: {} }) }),
+  );
+  await page.route("http://127.0.0.1:8021/api/settings/app", (route) =>
+    route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ settings: route.request().postDataJSON() }) }),
+  );
+  await page.route("http://127.0.0.1:8021/api/tumblr/accounts", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({
+        accounts: [
+          {
+            id: "snowleopardx",
+            display_name: "Snow",
+            blog_name: "snowleopardx",
+            user_data_dir: "/app/.tumblr-sessions/snowleopardx",
+            status: "needs-login",
+            last_checked_at: null,
+            last_login_at: null,
+            notes: "Launch the login helper to create a reusable browser session.",
+            updated_at: "2026-06-19T01:00:00.000Z",
+          },
+        ],
+      }),
+    }),
+  );
+  await page.route("http://127.0.0.1:8021/api/tumblr/login", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      status: 400,
+      body: JSON.stringify({ error: unsupportedMessage }),
+    }),
+  );
+
+  await page.goto(appUrl);
+  await page.getByRole("button", { name: "Tumblr Accounts" }).click();
+  await page.getByRole("heading", { name: "Tumblr accounts", level: 1 }).waitFor();
+  await page.getByRole("button", { name: "Connect", exact: true }).click();
+  await page.getByText(unsupportedMessage).waitFor();
+  assert.equal(await page.getByText("Login helper launched. Complete Tumblr login in the visible browser.").count(), 0);
+  await page.getByText("Launch the login helper to create a reusable browser session.").waitFor();
+  assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
+});
+
 test("runner logs are grouped by expandable queue run", { timeout: 40000 }, async (t) => {
   const server = spawn("npx vite --host 127.0.0.1 --port 8123 --strictPort", {
     cwd: process.cwd(),
