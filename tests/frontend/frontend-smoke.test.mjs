@@ -615,7 +615,14 @@ test("tumblr accounts can be saved and selected for queue runs", { timeout: 4000
     return route.fulfill({
       contentType: "application/json",
       headers: apiHeaders,
-      body: JSON.stringify({ login: { pid: 9191, command: ["npm", "run", "tumblr:login"] } }),
+      body: JSON.stringify({
+        login: {
+          mode: "local",
+          pid: 9191,
+          command: ["npm", "run", "tumblr:login"],
+          message: "Login helper opened in process 9191. Finish Tumblr login in that browser.",
+        },
+      }),
     });
   });
 
@@ -697,7 +704,7 @@ test("tumblr login helper failure does not mark account as launched", { timeout:
             status: "needs-login",
             last_checked_at: null,
             last_login_at: null,
-            notes: "Launch the login helper to create a reusable browser session.",
+            notes: "Connect a browser session before queue runs.",
             updated_at: "2026-06-19T01:00:00.000Z",
           },
         ],
@@ -719,7 +726,120 @@ test("tumblr login helper failure does not mark account as launched", { timeout:
   await page.getByRole("button", { name: "Connect", exact: true }).click();
   await page.getByText(unsupportedMessage).waitFor();
   assert.equal(await page.getByText("Login helper launched. Complete Tumblr login in the visible browser.").count(), 0);
-  await page.getByText("Launch the login helper to create a reusable browser session.").waitFor();
+  await page.getByText("Connect a browser session before queue runs.").waitFor();
+  assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
+});
+
+test("tumblr account connect opens configured remote browser session", { timeout: 40000 }, async (t) => {
+  const server = spawn("npx vite --host 127.0.0.1 --port 8123 --strictPort", {
+    cwd: process.cwd(),
+    shell: true,
+    stdio: "ignore",
+  });
+
+  t.after(() => {
+    stopProcessTree(server);
+  });
+
+  await waitForServer(appUrl);
+
+  const browser = await chromium.launch();
+  t.after(async () => {
+    await browser.close();
+  });
+
+  const page = await browser.newPage();
+  const pageErrors = [];
+  page.on("pageerror", (error) => pageErrors.push(error));
+
+  await page.route("http://127.0.0.1:8021/api/**", (route) => route.abort());
+  await routeAuthenticatedSession(page);
+  await page.route("http://127.0.0.1:8021/api/advertisements", (route) =>
+    route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ advertisements: [] }) }),
+  );
+  await page.route("http://127.0.0.1:8021/api/templates", (route) =>
+    route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ templates: [] }) }),
+  );
+  await page.route("http://127.0.0.1:8021/api/queue", (route) =>
+    route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ queue: [] }) }),
+  );
+  await page.route("http://127.0.0.1:8021/api/runner/logs", (route) =>
+    route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ logs: [] }) }),
+  );
+  await page.route("http://127.0.0.1:8021/api/settings", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({
+        settings: {
+          runnerSettings: {
+            mediaDir: "",
+            slowMo: 500,
+            submit: false,
+            tumblrAccountId: "snowleopardx",
+            remoteBrowserProvider: "custom",
+            remoteBrowserLaunchUrl: "https://browser.example/live/snow",
+          },
+        },
+      }),
+    }),
+  );
+  await page.route("http://127.0.0.1:8021/api/settings/app", (route) =>
+    route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ settings: route.request().postDataJSON() }) }),
+  );
+  await page.route("http://127.0.0.1:8021/api/tumblr/accounts", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({
+        accounts: [
+          {
+            id: "snowleopardx",
+            display_name: "Snow",
+            blog_name: "snowleopardx",
+            user_data_dir: "/app/.tumblr-sessions/snowleopardx",
+            status: "needs-login",
+            last_checked_at: null,
+            last_login_at: null,
+            notes: "Connect a browser session before queue runs.",
+            updated_at: "2026-06-19T01:00:00.000Z",
+          },
+        ],
+      }),
+    }),
+  );
+  await page.route("http://127.0.0.1:8021/api/tumblr/login", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({
+        login: {
+          mode: "remote",
+          provider: "custom",
+          launchUrl: "https://browser.example/live/snow",
+          message: "Remote browser login session is ready. Complete Tumblr login in the opened browser.",
+        },
+      }),
+    }),
+  );
+
+  await page.goto(appUrl);
+  await page.evaluate(() => {
+    window.__openedRemoteUrl = "";
+    window.open = (url) => {
+      window.__openedRemoteUrl = String(url);
+      return null;
+    };
+  });
+  await page.getByRole("button", { name: "Tumblr Accounts" }).click();
+  await page.getByRole("heading", { name: "Tumblr accounts", level: 1 }).waitFor();
+  await page.getByLabel("Browser provider").selectOption("custom");
+  await page.getByRole("textbox", { name: "Live browser URL" }).fill("https://browser.example/live/snow");
+  await page.getByRole("button", { name: "Connect", exact: true }).click();
+  await page.locator("p.queue-status").filter({ hasText: "Remote browser login session is ready." }).waitFor();
+
+  const openedUrl = await page.evaluate(() => window.__openedRemoteUrl);
+  assert.equal(openedUrl, "https://browser.example/live/snow");
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
 });
 

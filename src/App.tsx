@@ -332,7 +332,7 @@ function App() {
             ? backendSettings.tagProfiles
             : tagProfiles,
         );
-        setRunnerSettings(backendSettings.runnerSettings ?? runnerSettings);
+        setRunnerSettings(backendSettings.runnerSettings ? { ...runnerSettings, ...backendSettings.runnerSettings } : runnerSettings);
         setQueueScheduleSettings(backendSettings.queueScheduleSettings ?? queueScheduleSettings);
         setRunnerLogs(backendLogs);
         if (backendTumblrAccounts.length) {
@@ -716,7 +716,7 @@ function App() {
       displayName: accountDraft.displayName,
       blogName: accountDraft.blogName,
       status: "needs-login",
-      notes: "Launch the login helper to create a reusable browser session.",
+      notes: "Connect a browser session before queue runs.",
     });
     if (!normalized) {
       setAccountStatus("Enter a Tumblr account name or blog name first.");
@@ -727,7 +727,7 @@ function App() {
     setRunnerSettings((current) => ({ ...current, tumblrAccountId: normalized.id }));
     syncTumblrAccount(normalized);
     setAccountDraft({ displayName: "", blogName: "" });
-    setAccountStatus(`Added ${normalized.displayName}. Launch Connect to log into Tumblr.`);
+    setAccountStatus(`Added ${normalized.displayName}. Use Connect to log into Tumblr.`);
   }
 
   function deleteTumblrAccount(id: string) {
@@ -756,18 +756,27 @@ function App() {
 
     try {
       const response = await launchTumblrLogin(id);
+      const note =
+        response.login.mode === "remote"
+          ? response.login.message
+          : "Login helper launched. Complete Tumblr login in the visible browser.";
       const checking: TumblrAccount = {
         ...account,
         status: "checking",
         lastCheckedAt: new Date().toISOString(),
-        notes: "Login helper launched. Complete Tumblr login in the visible browser.",
+        notes: note,
       };
       setTumblrAccounts((current) => upsertTumblrAccount(current, checking));
       setApiAvailable(true);
-      setAccountStatus(`Login helper opened in process ${response.login.pid}. Finish Tumblr login in that browser.`);
+      if (response.login.mode === "remote") {
+        window.open(response.login.launchUrl, "_blank", "noopener,noreferrer");
+        setAccountStatus(response.login.message);
+      } else {
+        setAccountStatus(response.login.message || `Login helper opened in process ${response.login.pid}. Finish Tumblr login in that browser.`);
+      }
     } catch (error) {
       setApiAvailable(false);
-      const message = error instanceof ApiError ? error.message : "Could not launch Tumblr login helper. Start the Python API and try again.";
+      const message = error instanceof ApiError ? error.message : "Could not start Tumblr account connection. Start the Python API and try again.";
       setAccountStatus(message);
     }
   }
@@ -1079,6 +1088,7 @@ function App() {
           <TumblrAccountsWorkspace
             accounts={tumblrAccounts}
             draft={accountDraft}
+            runnerSettings={runnerSettings}
             selectedAccountId={runnerSettings.tumblrAccountId}
             status={accountStatus}
             onCreateAccount={createTumblrAccount}
@@ -1086,6 +1096,7 @@ function App() {
             onDraftChange={(patch) => setAccountDraft((current) => ({ ...current, ...patch }))}
             onLaunchLogin={launchTumblrAccountLogin}
             onMarkConnected={markTumblrAccountConnected}
+            onRunnerSettingsChange={(patch) => setRunnerSettings((current) => ({ ...current, ...patch }))}
             onSelectAccount={selectTumblrAccount}
           />
         ) : null}

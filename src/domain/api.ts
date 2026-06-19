@@ -223,8 +223,12 @@ export async function removeTumblrAccount(id: string) {
   await apiRequest(`/tumblr/accounts/${id}`, { method: "DELETE" });
 }
 
+export type TumblrLoginResponse =
+  | { login: { mode: "local"; pid: number; command: string[]; message: string } }
+  | { login: { mode: "remote"; provider: string; launchUrl: string; message: string } };
+
 export async function launchTumblrLogin(accountId: string, slowMo = 250) {
-  return apiRequest<{ login: { pid: number; command: string[] } }>("/tumblr/login", {
+  return apiRequest<TumblrLoginResponse>("/tumblr/login", {
     method: "POST",
     body: JSON.stringify({ accountId, slowMo }),
   });

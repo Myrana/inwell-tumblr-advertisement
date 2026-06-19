@@ -33,6 +33,7 @@ from app import (
     upsert_queue_item,
     upsert_template,
     upsert_tumblr_account,
+    remote_tumblr_login_launch,
     unsupported_tumblr_helper_message,
     verify_password,
     visible_tumblr_helper_supported,
@@ -393,7 +394,9 @@ class FakePostgresConnection:
                 "slow_mo": params[3],
                 "submit": params[4],
                 "tumblr_account_id": params[5],
-                "updated_at": params[6],
+                "remote_browser_provider": params[6],
+                "remote_browser_launch_url": params[7],
+                "updated_at": params[8],
             }
             self.runner_settings[str(params[0])] = row
             return FakeCursor()
@@ -847,7 +850,14 @@ class PersistenceTests(unittest.TestCase):
                 ],
                 "queueDefinitions": [{"id": "daily-adverts", "name": "Daily adverts"}],
                 "tagProfiles": {"allthingsroleplay": ["Jcink Site", "jcink site", "premium jcink"]},
-                "runnerSettings": {"mediaDir": "C:/media", "slowMo": 750, "submit": True, "tumblrAccountId": "snowleopardx"},
+                "runnerSettings": {
+                    "mediaDir": "C:/media",
+                    "slowMo": 750,
+                    "submit": True,
+                    "tumblrAccountId": "snowleopardx",
+                    "remoteBrowserProvider": "custom",
+                    "remoteBrowserLaunchUrl": "https://browser.example/live/snow",
+                },
                 "queueScheduleSettings": {"enabled": True, "dailyTime": "08:30", "timezone": "America/New_York"},
             },
         )
@@ -856,12 +866,24 @@ class PersistenceTests(unittest.TestCase):
         self.assertEqual(saved["submitTargets"][0]["forumUrl"], "https://forum.example")
         self.assertEqual(saved["queueDefinitions"][0]["name"], "Daily adverts")
         self.assertEqual(saved["tagProfiles"]["allthingsroleplay"], ["jcink site", "premium jcink"])
-        self.assertEqual(saved["runnerSettings"], {"mediaDir": "C:/media", "slowMo": 750, "submit": True, "tumblrAccountId": "snowleopardx"})
+        self.assertEqual(
+            saved["runnerSettings"],
+            {
+                "mediaDir": "C:/media",
+                "slowMo": 750,
+                "submit": True,
+                "tumblrAccountId": "snowleopardx",
+                "remoteBrowserProvider": "custom",
+                "remoteBrowserLaunchUrl": "https://browser.example/live/snow",
+            },
+        )
         self.assertEqual(saved["queueScheduleSettings"]["dailyTime"], "08:30")
         self.assertEqual(self.connection.submit_targets["allthingsroleplay"]["submit_url"], "https://allthingsroleplay.tumblr.com/submit")
         self.assertEqual(self.connection.queue_definitions["daily-adverts"]["name"], "Daily adverts")
         self.assertEqual(self.connection.runner_settings["default"]["slow_mo"], 750)
         self.assertEqual(self.connection.runner_settings["default"]["tumblr_account_id"], "snowleopardx")
+        self.assertEqual(self.connection.runner_settings["default"]["remote_browser_provider"], "custom")
+        self.assertEqual(self.connection.runner_settings["default"]["remote_browser_launch_url"], "https://browser.example/live/snow")
         self.assertEqual(self.connection.queue_schedule_settings["default"]["daily_time"], "08:30")
         self.assertGreater(len(self.connection.settings_audit_events), 0)
 
@@ -881,7 +903,25 @@ class PersistenceTests(unittest.TestCase):
         self.assertEqual(saved["queueDefinitions"], [{"id": "default-queue", "name": "Default queue"}])
         self.assertEqual(saved["tagProfiles"], {})
         self.assertEqual(saved["runnerSettings"]["slowMo"], 500)
+        self.assertEqual(saved["runnerSettings"]["remoteBrowserProvider"], "none")
+        self.assertEqual(saved["runnerSettings"]["remoteBrowserLaunchUrl"], "")
         self.assertEqual(saved["queueScheduleSettings"]["dailyTime"], "09:00")
+
+    def test_remote_tumblr_login_launch_requires_configured_url(self) -> None:
+        self.assertIsNone(remote_tumblr_login_launch({"remoteBrowserProvider": "none"}))
+
+        with self.assertRaisesRegex(ValueError, "no live browser URL"):
+            remote_tumblr_login_launch({"remoteBrowserProvider": "browserbase"})
+
+        with self.assertRaisesRegex(ValueError, "must start"):
+            remote_tumblr_login_launch({"remoteBrowserProvider": "custom", "remoteBrowserLaunchUrl": "browser.example/live"})
+
+        launch = remote_tumblr_login_launch(
+            {"remoteBrowserProvider": "custom", "remoteBrowserLaunchUrl": "https://browser.example/live/snow"}
+        )
+        self.assertEqual(launch["mode"], "remote")
+        self.assertEqual(launch["provider"], "custom")
+        self.assertEqual(launch["launchUrl"], "https://browser.example/live/snow")
 
     def test_settings_statistics_count_relational_rows(self) -> None:
         upsert_app_settings(
