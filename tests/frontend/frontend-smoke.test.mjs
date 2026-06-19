@@ -468,6 +468,10 @@ test("templates can be saved and applied from their own workspace", { timeout: 4
   await page.getByRole("button", { name: "Clear queue" }).click();
   await page.getByRole("button", { name: "Queues", exact: true }).click();
   await siteAdsRow.getByText("0 items - 0 complete").waitFor();
+  await siteAdsRow.getByRole("button", { name: "Delete queue" }).click();
+  await page.getByText("Deleted Site ads.").waitFor();
+  await page.getByText("Create your first queue when you are ready to organize submissions.").waitFor();
+  assert.equal(await page.locator(".queue-management-row", { hasText: "Site ads" }).count(), 0);
   await page.getByRole("button", { name: "Runner Logs" }).click();
   await page.getByRole("heading", { name: "Runner logs", level: 1 }).waitFor();
   await page.getByText("No runner logs yet.").waitFor();
