@@ -1950,6 +1950,16 @@ def start_runner(payload: dict[str, Any]) -> dict[str, Any]:
     return runner_status()
 
 
+def visible_tumblr_helper_supported() -> bool:
+    if os.name == "nt":
+        return True
+    return bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
+
+
+def unsupported_tumblr_helper_message() -> str:
+    return "Tumblr login helper needs a visible browser on your local desktop. Railway cannot show that browser."
+
+
 def powershell_quote(value: str) -> str:
     return "'" + value.replace("'", "''") + "'"
 
@@ -2162,13 +2172,8 @@ class Handler(BaseHTTPRequestHandler):
                     if not account:
                         raise ValueError("Tumblr account not found")
                     account_data = row_to_tumblr_account(account)
-                    update_tumblr_account_status(
-                        connection,
-                        account_id,
-                        "checking",
-                        "Login helper launched. Complete Tumblr login in the visible browser.",
-                        utc_now(),
-                    )
+                if not visible_tumblr_helper_supported():
+                    raise ValueError(unsupported_tumblr_helper_message())
                 runner_args = [
                     "npm.cmd" if os.name == "nt" else "npm",
                     "run",
@@ -2192,9 +2197,18 @@ class Handler(BaseHTTPRequestHandler):
                     command = runner_args
                     creationflags = 0
                 process = subprocess.Popen(command, cwd=REPO_ROOT, creationflags=creationflags)
+                with connect() as connection:
+                    update_tumblr_account_status(
+                        connection,
+                        account_id,
+                        "checking",
+                        "Login helper launched. Complete Tumblr login in the visible browser.",
+                        utc_now(),
+                    )
                 self.respond({"login": {"pid": process.pid, "command": runner_args}}, HTTPStatus.CREATED)
-            except ValueError as error:
-                self.respond({"error": str(error)}, HTTPStatus.BAD_REQUEST)
+            except (OSError, ValueError) as error:
+                message = unsupported_tumblr_helper_message() if isinstance(error, OSError) else str(error)
+                self.respond({"error": message}, HTTPStatus.BAD_REQUEST)
             return
 
         payload = self.read_json()
