@@ -436,6 +436,7 @@ test("templates can be saved and applied from their own workspace", { timeout: 4
   await page.getByRole("button", { name: "Add queue" }).click();
   await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
   assert.equal(await page.getByLabel("Active queue").inputValue(), "Want ads");
+  await page.locator(".workflow-section", { hasText: "Queue actions" }).locator(".section-state.warning", { hasText: "Empty" }).waitFor();
   assert.equal(await page.getByLabel("Media folder").count(), 0);
   await page.locator(".workflow-section", { hasText: "Schedule" }).locator(".section-state.warning", { hasText: "Off" }).waitFor();
   await page.getByRole("button", { name: "Toggle queue actions section" }).click();
@@ -455,9 +456,13 @@ test("templates can be saved and applied from their own workspace", { timeout: 4
   await page.getByRole("button", { name: "Queues", exact: true }).click();
   const wantAdsRow = page.locator(".queue-management-row", { hasText: "Want ads" });
   await wantAdsRow.getByText("1 item - 0 complete").waitFor();
-  await wantAdsRow.getByLabel("Queue name").fill("Site ads");
-  await wantAdsRow.getByRole("button", { name: "Save name" }).click();
+  assert.equal(await wantAdsRow.getByLabel("Queue name").count(), 0);
+  await wantAdsRow.getByRole("button", { name: "Open queue" }).click();
+  await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
+  await page.getByLabel("Queue name").fill("Site ads");
+  await page.getByRole("button", { name: "Save name" }).click();
   await page.getByText("Renamed Want ads to Site ads.").waitFor();
+  await page.getByRole("button", { name: "Queues", exact: true }).click();
   const siteAdsRow = page.locator(".queue-management-row", { hasText: "Site ads" });
   await siteAdsRow.getByText("1 item - 0 complete").waitFor();
   assert.equal(await wantAdsRow.getByRole("button", { name: "Clear queue" }).count(), 0);
