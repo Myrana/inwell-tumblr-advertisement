@@ -348,6 +348,39 @@ h2 {
   font-weight: 800;
 }
 
+.queue-confirmation {
+  min-height: 64px;
+  padding: 12px 14px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid #b9d8ca;
+  border-left: 4px solid var(--green);
+  border-radius: 8px;
+  background: #f3faf6;
+}
+
+.queue-confirmation strong,
+.queue-confirmation span {
+  display: block;
+}
+
+.queue-confirmation span {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.queue-confirmation-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .workflow-section {
   overflow: hidden;
   border: 1px solid var(--line);
@@ -1915,6 +1948,7 @@ html[data-theme="dark"] .queue-readiness {
 }
 
 html[data-theme="dark"] .queue-readiness.ready,
+html[data-theme="dark"] .queue-confirmation,
 html[data-theme="dark"] .account-ready-panel {
   border-color: #315f4d;
   border-left-color: var(--green);
@@ -2054,12 +2088,22 @@ html[data-theme="dark"] .selected-tags button {
     align-items: stretch;
   }
 
+  .queue-confirmation {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
   .queue-readiness-actions {
     width: 100%;
   }
 
+  .queue-confirmation-actions {
+    width: 100%;
+  }
+
   .queue-destination-select,
-  .queue-readiness-actions > button {
+  .queue-readiness-actions > button,
+  .queue-confirmation-actions > button {
     flex: 1;
   }
 

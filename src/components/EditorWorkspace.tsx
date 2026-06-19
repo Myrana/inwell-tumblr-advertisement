@@ -1,5 +1,5 @@
 import { Editor, EditorContent } from "@tiptap/react";
-import { CheckCircle2, ChevronDown, ImagePlus, Plus, Send, Tags, Video } from "lucide-react";
+import { CheckCircle2, ChevronDown, Eye, ImagePlus, Plus, Send, Tags, Video } from "lucide-react";
 import { ChangeEvent, FormEvent, ReactNode, useState } from "react";
 import { postTypes } from "../domain/constants";
 import { validateAdvertisement } from "../domain/post";
@@ -15,6 +15,11 @@ type ToolbarButton = {
 
 type WorkflowSectionKey = "details" | "templates" | "composer";
 
+type QueueConfirmation = {
+  count: number;
+  queueName: string;
+};
+
 type EditorWorkspaceProps = {
   activeAd: Advertisement;
   activeSubmitTarget: TumblrSubmitTarget;
@@ -23,6 +28,7 @@ type EditorWorkspaceProps = {
   editor: Editor | null;
   newSubmitUrl: string;
   queueOptions: QueueDefinition[];
+  queueConfirmation: QueueConfirmation | null;
   selectedQueueName: string;
   submissionComplete: boolean;
   submitTargetStatus: string;
@@ -35,6 +41,7 @@ type EditorWorkspaceProps = {
   onImageUpload: (event: ChangeEvent<HTMLInputElement>) => void;
   onApplyTemplate: (template: SavedTemplate) => void;
   onQueueTargets: (targets: TumblrSubmitTarget[]) => void;
+  onDismissQueueConfirmation: () => void;
   onSelectQueue: (queueName: string) => void;
   onSelectSubmitTarget: (targetId: string) => void;
   onToggleTag: (tag: string) => void;
@@ -42,6 +49,7 @@ type EditorWorkspaceProps = {
   onUpdateCustomTag: (value: string) => void;
   onUpdateForumUrl: (value: string) => void;
   onUpdateNewSubmitUrl: (value: string) => void;
+  onViewQueue: () => void;
   onVideoUpload: (event: ChangeEvent<HTMLInputElement>) => void;
 };
 
@@ -52,6 +60,7 @@ export function EditorWorkspace({
   customTag,
   editor,
   newSubmitUrl,
+  queueConfirmation,
   queueOptions,
   selectedQueueName,
   submissionComplete,
@@ -65,6 +74,7 @@ export function EditorWorkspace({
   onApplyTemplate,
   onImageUpload,
   onQueueTargets,
+  onDismissQueueConfirmation,
   onSelectQueue,
   onSelectSubmitTarget,
   onToggleTag,
@@ -72,6 +82,7 @@ export function EditorWorkspace({
   onUpdateCustomTag,
   onUpdateForumUrl,
   onUpdateNewSubmitUrl,
+  onViewQueue,
   onVideoUpload,
 }: EditorWorkspaceProps) {
   const [openSections, setOpenSections] = useState<Record<WorkflowSectionKey, boolean>>({
@@ -138,6 +149,26 @@ export function EditorWorkspace({
             </button>
           </div>
         </div>
+
+        {queueConfirmation ? (
+          <div className="queue-confirmation" role="status" aria-label="Queue confirmation">
+            <div>
+              <strong>Added to {queueConfirmation.queueName}</strong>
+              <span>
+                {queueConfirmation.count} submission{queueConfirmation.count === 1 ? "" : "s"} ready in the queue.
+              </span>
+            </div>
+            <div className="queue-confirmation-actions">
+              <button className="primary" type="button" onClick={onViewQueue}>
+                <Eye size={18} />
+                View queue
+              </button>
+              <button className="secondary" type="button" onClick={onDismissQueueConfirmation}>
+                Keep editing
+              </button>
+            </div>
+          </div>
+        ) : null}
 
         <section className="workflow-section">
           <div className="workflow-section-header">

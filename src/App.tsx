@@ -127,6 +127,7 @@ function App() {
   const [submitTargetStatus, setSubmitTargetStatus] = useState("");
   const [validation, setValidation] = useState<string[]>([]);
   const [queueStatus, setQueueStatus] = useState("");
+  const [editorQueueConfirmation, setEditorQueueConfirmation] = useState<{ count: number; queueName: string } | null>(null);
   const [queueNameDraft, setQueueNameDraft] = useState("");
   const [selectedQueueName, setSelectedQueueName] = useState("");
   const [queueScheduleSettings, setQueueScheduleSettings] = useState<QueueScheduleSettings>(() => loadQueueScheduleSettings());
@@ -297,6 +298,10 @@ function App() {
   useEffect(() => {
     activeDestinationBlogRef.current = activeAd.destinationBlog;
   }, [activeAd.destinationBlog]);
+
+  useEffect(() => {
+    setEditorQueueConfirmation(null);
+  }, [activeAd.id]);
 
   useEffect(() => {
     const nextContent = composerContentFor(activeAd);
@@ -661,6 +666,9 @@ function App() {
     });
     nextItems.forEach(syncQueueItem);
     setQueueStatus(`Queued ${nextItems.length} target${nextItems.length === 1 ? "" : "s"} in ${activeQueueName}.`);
+    if (activeView === "editor") {
+      setEditorQueueConfirmation({ count: nextItems.length, queueName: activeQueueName });
+    }
   }
 
   function renameQueueDefinition(currentName: string, nextNameValue: string) {
@@ -1150,6 +1158,7 @@ function App() {
             customTag={customTag}
             editor={editor}
             newSubmitUrl={newSubmitUrl}
+            queueConfirmation={editorQueueConfirmation}
             queueOptions={queueOptions}
             selectedQueueName={activeQueueName}
             submissionComplete={submissionComplete}
@@ -1161,15 +1170,20 @@ function App() {
             onAddCustomTag={addCustomTag}
             onAddSubmitTarget={addSubmitTarget}
             onApplyTemplate={applyTemplate}
+            onDismissQueueConfirmation={() => setEditorQueueConfirmation(null)}
             onImageUpload={handleImageUpload}
             onQueueTargets={queueTargets}
-            onSelectQueue={setSelectedQueueName}
+            onSelectQueue={(queueName) => {
+              setSelectedQueueName(queueName);
+              setEditorQueueConfirmation(null);
+            }}
             onSelectSubmitTarget={selectSubmitTarget}
             onToggleTag={toggleTag}
             onUpdateActiveAd={updateActiveAd}
             onUpdateCustomTag={setCustomTag}
             onUpdateForumUrl={updateForumUrl}
             onUpdateNewSubmitUrl={setNewSubmitUrl}
+            onViewQueue={() => setActiveView("queue")}
             onVideoUpload={handleVideoUpload}
           />
         ) : null}
