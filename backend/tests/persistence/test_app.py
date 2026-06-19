@@ -11,9 +11,14 @@ from unittest.mock import Mock, patch
 sys.path.insert(0, str(Path(__file__).parents[2]))
 import app
 from app import (
+    authenticate_request,
+    create_session,
+    create_user_workspace,
     database_settings,
+    hash_session_token,
     initialize,
     initialize_database_for_startup,
+    login_user,
     record_runner_log,
     run,
     settings_statistics,
@@ -23,6 +28,7 @@ from app import (
     upsert_queue_item,
     upsert_template,
     upsert_tumblr_account,
+    verify_password,
 )
 
 
@@ -55,6 +61,9 @@ class FakePostgresConnection:
         self.templates: dict[str, dict[str, Any]] = {}
         self.template_tags: dict[tuple[str, str], dict[str, Any]] = {}
         self.tumblr_accounts: dict[str, dict[str, Any]] = {}
+        self.users: dict[str, dict[str, Any]] = {}
+        self.user_sessions: dict[str, dict[str, Any]] = {}
+        self.workspaces: dict[str, dict[str, Any]] = {}
 
     def execute(self, query: str, params: tuple[Any, ...] | None = None) -> FakeCursor:
         normalized = " ".join(query.split()).lower()
@@ -80,6 +89,74 @@ class FakePostgresConnection:
                 }
             return FakeCursor()
 
+        if normalized.startswith("select * from users order by"):
+            return FakeCursor(sorted(self.users.values(), key=lambda row: row["created_at"]))
+
+        if normalized.startswith("select * from users where id"):
+            row = self.users.get(str(params[0]))
+            return FakeCursor([row] if row else [])
+
+        if normalized.startswith("select * from users where email"):
+            email = str(params[0])
+            rows = [row for row in self.users.values() if row["email"] == email]
+            return FakeCursor(rows)
+
+        if normalized.startswith("insert into users"):
+            self.users[str(params[0])] = {
+                "id": params[0],
+                "email": params[1],
+                "display_name": params[2],
+                "password_hash": params[3],
+                "created_at": params[4],
+                "updated_at": params[5],
+            }
+            return FakeCursor()
+
+        if normalized.startswith("select * from workspaces where id"):
+            row = self.workspaces.get(str(params[0]))
+            return FakeCursor([row] if row else [])
+
+        if normalized.startswith("select * from workspaces where owner_user_id"):
+            rows = [row for row in self.workspaces.values() if row["owner_user_id"] == params[0]]
+            return FakeCursor(sorted(rows, key=lambda row: row["created_at"]))
+
+        if normalized.startswith("insert into workspaces"):
+            self.workspaces[str(params[0])] = {
+                "id": params[0],
+                "owner_user_id": params[1],
+                "name": params[2],
+                "created_at": params[3],
+                "updated_at": params[4],
+            }
+            return FakeCursor()
+
+        if normalized.startswith("select * from user_sessions where token_hash"):
+            rows = [row for row in self.user_sessions.values() if row["token_hash"] == params[0]]
+            return FakeCursor(rows)
+
+        if normalized.startswith("insert into user_sessions"):
+            self.user_sessions[str(params[0])] = {
+                "id": params[0],
+                "user_id": params[1],
+                "workspace_id": params[2],
+                "token_hash": params[3],
+                "expires_at": params[4],
+                "created_at": params[5],
+            }
+            return FakeCursor()
+
+        if normalized.startswith("delete from user_sessions"):
+            self.user_sessions.pop(str(params[0]), None)
+            return FakeCursor()
+
+        if normalized.startswith("update ") and " set workspace_id = %s where workspace_id = %s" in normalized:
+            table_name = normalized.split()[1]
+            table = getattr(self, table_name)
+            for row in table.values():
+                if row.get("workspace_id", "default") == params[1]:
+                    row["workspace_id"] = params[0]
+            return FakeCursor()
+
         if normalized.startswith("select created_at from advertisements"):
             row = self.advertisements.get(str(params[0]))
             return FakeCursor([{"created_at": row["created_at"]}] if row else [])
@@ -91,28 +168,38 @@ class FakePostgresConnection:
         if normalized.startswith("select * from advertisements order by"):
             return FakeCursor(list(self.advertisements.values()))
 
+        if normalized.startswith("select * from advertisements where workspace_id"):
+            return FakeCursor([row for row in self.advertisements.values() if row.get("workspace_id") == params[0]])
+
         if normalized.startswith("insert into advertisements"):
             row = {
                 "id": params[0],
-                "post_type": params[1],
-                "title": params[2],
-                "content": params[3],
-                "destination_blog": params[4],
-                "forum_url": params[5],
-                "image_caption": params[6],
-                "image_name": params[7],
-                "image_data_url": params[8],
-                "video_url": params[9],
-                "video_name": params[10],
-                "status": params[11],
-                "created_at": params[12],
-                "updated_at": params[13],
+                "workspace_id": params[1],
+                "post_type": params[2],
+                "title": params[3],
+                "content": params[4],
+                "destination_blog": params[5],
+                "forum_url": params[6],
+                "image_caption": params[7],
+                "image_name": params[8],
+                "image_data_url": params[9],
+                "video_url": params[10],
+                "video_name": params[11],
+                "status": params[12],
+                "created_at": params[13],
+                "updated_at": params[14],
             }
             self.advertisements[str(params[0])] = row
             return FakeCursor()
 
         if normalized.startswith("delete from advertisements"):
             self.advertisements.pop(str(params[0]), None)
+            return FakeCursor()
+
+        if normalized.startswith("update advertisement_tags set workspace_id"):
+            for row in self.advertisement_tags.values():
+                if row["advertisement_id"] == params[1]:
+                    row["workspace_id"] = params[0]
             return FakeCursor()
 
         if normalized.startswith("delete from advertisement_tags"):
@@ -123,6 +210,7 @@ class FakePostgresConnection:
         if normalized.startswith("insert into advertisement_tags"):
             row = {
                 "advertisement_id": params[0],
+                "workspace_id": "default",
                 "tag": params[1],
                 "sort_order": params[2],
                 "created_at": params[3],
@@ -139,17 +227,22 @@ class FakePostgresConnection:
             return FakeCursor()
 
         if normalized.startswith("delete from submit_targets"):
-            self.submit_targets.clear()
+            if params:
+                for key in [key for key, row in self.submit_targets.items() if row.get("workspace_id") == params[0]]:
+                    self.submit_targets.pop(key, None)
+            else:
+                self.submit_targets.clear()
             return FakeCursor()
 
         if normalized.startswith("insert into submit_targets"):
             row = {
                 "id": params[0],
-                "name": params[1],
-                "submit_url": params[2],
-                "forum_url": params[3],
-                "created_at": params[4],
-                "updated_at": params[5],
+                "workspace_id": params[1],
+                "name": params[2],
+                "submit_url": params[3],
+                "forum_url": params[4],
+                "created_at": params[5],
+                "updated_at": params[6],
             }
             self.submit_targets[str(params[0])] = row
             return FakeCursor()
@@ -157,17 +250,27 @@ class FakePostgresConnection:
         if normalized.startswith("select * from submit_targets order by"):
             return FakeCursor(sorted(self.submit_targets.values(), key=lambda row: row["name"]))
 
+        if normalized.startswith("select * from submit_targets where workspace_id"):
+            return FakeCursor(sorted([row for row in self.submit_targets.values() if row.get("workspace_id") == params[0]], key=lambda row: row["name"]))
+
         if normalized.startswith("delete from queue_definitions"):
-            self.queue_definitions.clear()
+            if params:
+                for key in [key for key, row in self.queue_definitions.items() if row.get("workspace_id") == params[0]]:
+                    self.queue_definitions.pop(key, None)
+            else:
+                self.queue_definitions.clear()
             return FakeCursor()
 
         if normalized.startswith("insert into queue_definitions"):
-            row = {"id": params[0], "name": params[1], "created_at": params[2], "updated_at": params[3]}
+            row = {"id": params[0], "workspace_id": params[1], "name": params[2], "created_at": params[3], "updated_at": params[4]}
             self.queue_definitions[str(params[0])] = row
             return FakeCursor()
 
         if normalized.startswith("select * from queue_definitions order by"):
             return FakeCursor(sorted(self.queue_definitions.values(), key=lambda row: row["name"]))
+
+        if normalized.startswith("select * from queue_definitions where workspace_id"):
+            return FakeCursor(sorted([row for row in self.queue_definitions.values() if row.get("workspace_id") == params[0]], key=lambda row: row["name"]))
 
         if normalized.startswith("select created_at from tumblr_accounts"):
             row = self.tumblr_accounts.get(str(params[0]))
@@ -175,7 +278,13 @@ class FakePostgresConnection:
 
         if normalized.startswith("select * from tumblr_accounts where id"):
             row = self.tumblr_accounts.get(str(params[0]))
+            if row and len(params) > 1 and row.get("workspace_id") != params[1]:
+                row = None
             return FakeCursor([row] if row else [])
+
+        if normalized.startswith("select * from tumblr_accounts where workspace_id"):
+            rows = [row for row in self.tumblr_accounts.values() if row.get("workspace_id") == params[0]]
+            return FakeCursor(sorted(rows, key=lambda row: row["display_name"]))
 
         if normalized.startswith("select * from tumblr_accounts order by"):
             return FakeCursor(sorted(self.tumblr_accounts.values(), key=lambda row: row["display_name"]))
@@ -183,15 +292,16 @@ class FakePostgresConnection:
         if normalized.startswith("insert into tumblr_accounts"):
             row = {
                 "id": params[0],
-                "display_name": params[1],
-                "blog_name": params[2],
-                "user_data_dir": params[3],
-                "status": params[4],
-                "last_checked_at": params[5],
-                "last_login_at": params[6],
-                "notes": params[7],
-                "created_at": params[8],
-                "updated_at": params[9],
+                "workspace_id": params[1],
+                "display_name": params[2],
+                "blog_name": params[3],
+                "user_data_dir": params[4],
+                "status": params[5],
+                "last_checked_at": params[6],
+                "last_login_at": params[7],
+                "notes": params[8],
+                "created_at": params[9],
+                "updated_at": params[10],
             }
             self.tumblr_accounts[str(params[0])] = row
             return FakeCursor()
@@ -205,13 +315,24 @@ class FakePostgresConnection:
             return FakeCursor()
 
         if normalized.startswith("delete from tag_profile_tags"):
-            for key in [key for key in self.tag_profile_tags if key[0] == str(params[0])]:
-                self.tag_profile_tags.pop(key, None)
+            if "workspace_id" in normalized:
+                for key in [key for key, row in self.tag_profile_tags.items() if row.get("workspace_id") == params[0]]:
+                    self.tag_profile_tags.pop(key, None)
+            else:
+                for key in [key for key in self.tag_profile_tags if key[0] == str(params[0])]:
+                    self.tag_profile_tags.pop(key, None)
+            return FakeCursor()
+
+        if normalized.startswith("update tag_profile_tags set workspace_id"):
+            for row in self.tag_profile_tags.values():
+                if row["blog_id"] == params[1]:
+                    row["workspace_id"] = params[0]
             return FakeCursor()
 
         if normalized.startswith("insert into tag_profile_tags"):
             row = {
                 "blog_id": params[0],
+                "workspace_id": "default",
                 "tag": params[1],
                 "sort_order": params[2],
                 "created_at": params[3],
@@ -223,61 +344,95 @@ class FakePostgresConnection:
         if normalized.startswith("select * from tag_profile_tags order by"):
             return FakeCursor(sorted(self.tag_profile_tags.values(), key=lambda row: (row["blog_id"], row["sort_order"], row["tag"])))
 
+        if normalized.startswith("select * from tag_profile_tags where workspace_id"):
+            rows = [row for row in self.tag_profile_tags.values() if row.get("workspace_id") == params[0]]
+            return FakeCursor(sorted(rows, key=lambda row: (row["blog_id"], row["sort_order"], row["tag"])))
+
         if normalized.startswith("insert into runner_settings"):
             row = {
                 "id": params[0],
-                "media_dir": params[1],
-                "slow_mo": params[2],
-                "submit": params[3],
-                "tumblr_account_id": params[4],
-                "updated_at": params[5],
+                "workspace_id": params[1],
+                "media_dir": params[2],
+                "slow_mo": params[3],
+                "submit": params[4],
+                "tumblr_account_id": params[5],
+                "updated_at": params[6],
             }
             self.runner_settings[str(params[0])] = row
             return FakeCursor()
 
         if normalized.startswith("select * from runner_settings where id"):
             row = self.runner_settings.get(str(params[0]))
+            if row and len(params) > 1 and row.get("workspace_id") != params[1]:
+                row = None
+            return FakeCursor([row] if row else [])
+
+        if normalized.startswith("select * from runner_settings where workspace_id"):
+            rows = [row for row in self.runner_settings.values() if row.get("workspace_id") == params[0]]
+            return FakeCursor(rows)
+
+        if normalized.startswith("select * from runner_settings where id"):
             return FakeCursor([row] if row else [])
 
         if normalized.startswith("delete from runner_settings"):
-            self.runner_settings.clear()
+            if params:
+                for key in [key for key, row in self.runner_settings.items() if row.get("workspace_id") == params[0]]:
+                    self.runner_settings.pop(key, None)
+            else:
+                self.runner_settings.clear()
             return FakeCursor()
 
         if normalized.startswith("insert into queue_schedule_settings"):
             row = {
                 "id": params[0],
-                "enabled": params[1],
-                "daily_time": params[2],
-                "timezone": params[3],
-                "updated_at": params[4],
+                "workspace_id": params[1],
+                "enabled": params[2],
+                "daily_time": params[3],
+                "timezone": params[4],
+                "updated_at": params[5],
             }
             self.queue_schedule_settings[str(params[0])] = row
             return FakeCursor()
 
         if normalized.startswith("select * from queue_schedule_settings where id"):
             row = self.queue_schedule_settings.get(str(params[0]))
+            if row and len(params) > 1 and row.get("workspace_id") != params[1]:
+                row = None
             return FakeCursor([row] if row else [])
 
+        if normalized.startswith("select * from queue_schedule_settings where workspace_id"):
+            rows = [row for row in self.queue_schedule_settings.values() if row.get("workspace_id") == params[0]]
+            return FakeCursor(rows)
+
         if normalized.startswith("delete from queue_schedule_settings"):
-            self.queue_schedule_settings.clear()
+            if params:
+                for key in [key for key, row in self.queue_schedule_settings.items() if row.get("workspace_id") == params[0]]:
+                    self.queue_schedule_settings.pop(key, None)
+            else:
+                self.queue_schedule_settings.clear()
             return FakeCursor()
 
         if normalized.startswith("insert into settings_audit_events"):
             row = {
                 "id": params[0],
-                "area": params[1],
-                "action": params[2],
-                "entity_id": params[3],
-                "field_name": params[4],
-                "old_value": params[5],
-                "new_value": params[6],
-                "created_at": params[7],
+                "workspace_id": params[1],
+                "area": params[2],
+                "action": params[3],
+                "entity_id": params[4],
+                "field_name": params[5],
+                "old_value": params[6],
+                "new_value": params[7],
+                "created_at": params[8],
             }
             self.settings_audit_events[str(params[0])] = row
             return FakeCursor()
 
         if normalized.startswith("select * from settings_audit_events order by"):
             return FakeCursor(sorted(self.settings_audit_events.values(), key=lambda row: row["created_at"], reverse=True))
+
+        if normalized.startswith("select * from settings_audit_events where workspace_id"):
+            rows = [row for row in self.settings_audit_events.values() if row.get("workspace_id") == params[0]]
+            return FakeCursor(sorted(rows, key=lambda row: row["created_at"], reverse=True))
 
         if normalized.startswith("select created_at from templates"):
             row = self.templates.get(str(params[0]))
@@ -290,19 +445,41 @@ class FakePostgresConnection:
         if normalized.startswith("select * from templates order by"):
             return FakeCursor(sorted(self.templates.values(), key=lambda row: row["name"]))
 
+        if normalized.startswith("select * from templates where workspace_id"):
+            rows = [row for row in self.templates.values() if row.get("workspace_id") == params[0]]
+            return FakeCursor(sorted(rows, key=lambda row: row["name"]))
+
         if normalized.startswith("insert into templates"):
             if "do nothing" in normalized and str(params[0]) in self.templates:
                 return FakeCursor()
 
-            row = {
-                "id": params[0],
-                "name": params[1],
-                "content": params[2],
-                "forum_url": params[3],
-                "created_at": params[4],
-                "updated_at": params[5],
-            }
+            if "workspace_id" in normalized:
+                row = {
+                    "id": params[0],
+                    "workspace_id": params[1],
+                    "name": params[2],
+                    "content": params[3],
+                    "forum_url": params[4],
+                    "created_at": params[5],
+                    "updated_at": params[6],
+                }
+            else:
+                row = {
+                    "id": params[0],
+                    "workspace_id": "default",
+                    "name": params[1],
+                    "content": params[2],
+                    "forum_url": params[3],
+                    "created_at": params[4],
+                    "updated_at": params[5],
+                }
             self.templates[str(params[0])] = row
+            return FakeCursor()
+
+        if normalized.startswith("update template_tags set workspace_id"):
+            for row in self.template_tags.values():
+                if row["template_id"] == params[1]:
+                    row["workspace_id"] = params[0]
             return FakeCursor()
 
         if normalized.startswith("delete from template_tags"):
@@ -313,6 +490,7 @@ class FakePostgresConnection:
         if normalized.startswith("insert into template_tags"):
             row = {
                 "template_id": params[0],
+                "workspace_id": "default",
                 "tag": params[1],
                 "sort_order": params[2],
                 "created_at": params[3],
@@ -340,25 +518,30 @@ class FakePostgresConnection:
         if normalized.startswith("select * from submission_queue order by"):
             return FakeCursor(sorted(self.submission_queue.values(), key=lambda row: row["updated_at"], reverse=True))
 
+        if normalized.startswith("select * from submission_queue where workspace_id"):
+            rows = [row for row in self.submission_queue.values() if row.get("workspace_id") == params[0]]
+            return FakeCursor(sorted(rows, key=lambda row: row["updated_at"], reverse=True))
+
         if normalized.startswith("insert into submission_queue ("):
             row = {
                 "id": params[0],
-                "ad_id": params[1],
-                "target_id": params[2],
-                "target_name": params[3],
-                "tumblr_account_id": params[4],
-                "queue_name": params[5],
-                "submit_url": params[6],
-                "post_type": params[7],
-                "status": params[8],
-                "scheduled_for": params[9],
-                "timezone": params[10],
-                "notes": params[11],
-                "created_at": params[12],
-                "updated_at": params[13],
-                "last_run_at": params[14],
-                "posted_at": params[15],
-                "failed_at": params[16],
+                "workspace_id": params[1],
+                "ad_id": params[2],
+                "target_id": params[3],
+                "target_name": params[4],
+                "tumblr_account_id": params[5],
+                "queue_name": params[6],
+                "submit_url": params[7],
+                "post_type": params[8],
+                "status": params[9],
+                "scheduled_for": params[10],
+                "timezone": params[11],
+                "notes": params[12],
+                "created_at": params[13],
+                "updated_at": params[14],
+                "last_run_at": params[15],
+                "posted_at": params[16],
+                "failed_at": params[17],
             }
             self.submission_queue[str(params[0])] = row
             return FakeCursor()
@@ -371,6 +554,7 @@ class FakePostgresConnection:
         if normalized.startswith("insert into submission_queue_runner_payload_values"):
             row = {
                 "queue_item_id": params[0],
+                "workspace_id": "default",
                 "payload_path": params[1],
                 "sort_order": params[2],
                 "value_type": params[3],
@@ -393,6 +577,16 @@ class FakePostgresConnection:
                 )
             )
 
+        if normalized.startswith("select * from submission_queue_runner_payload_values where workspace_id"):
+            rows = [row for row in self.submission_queue_runner_payload_values.values() if row.get("workspace_id") == params[0]]
+            return FakeCursor(sorted(rows, key=lambda row: (row["queue_item_id"], row["sort_order"], row["payload_path"])))
+
+        if normalized.startswith("update submission_queue_runner_payload_values set workspace_id"):
+            for row in self.submission_queue_runner_payload_values.values():
+                if row["queue_item_id"] == params[1]:
+                    row["workspace_id"] = params[0]
+            return FakeCursor()
+
         if normalized.startswith("delete from submission_queue"):
             self.submission_queue.pop(str(params[0]), None)
             return FakeCursor()
@@ -400,12 +594,13 @@ class FakePostgresConnection:
         if normalized.startswith("insert into runner_logs"):
             row = {
                 "id": params[0],
-                "run_id": params[1],
-                "queue_item_id": params[2],
-                "target_name": params[3],
-                "level": params[4],
-                "message": params[5],
-                "created_at": params[6],
+                "workspace_id": params[1],
+                "run_id": params[2],
+                "queue_item_id": params[3],
+                "target_name": params[4],
+                "level": params[5],
+                "message": params[6],
+                "created_at": params[7],
             }
             self.runner_logs[str(params[0])] = row
             return FakeCursor()
@@ -421,6 +616,7 @@ class FakePostgresConnection:
         if normalized.startswith("insert into runner_log_details"):
             row = {
                 "log_id": params[0],
+                "workspace_id": "default",
                 "detail_key": params[1],
                 "detail_value": params[2],
                 "created_at": params[3],
@@ -432,8 +628,18 @@ class FakePostgresConnection:
             rows = [row for row in self.runner_log_details.values() if row["log_id"] == params[0]]
             return FakeCursor(sorted(rows, key=lambda row: row["detail_key"]))
 
-        if normalized == "delete from runner_logs":
-            self.runner_logs.clear()
+        if normalized.startswith("update runner_log_details set workspace_id"):
+            for row in self.runner_log_details.values():
+                if row["log_id"] == params[1]:
+                    row["workspace_id"] = params[0]
+            return FakeCursor()
+
+        if normalized.startswith("delete from runner_logs"):
+            if params:
+                for key in [key for key, row in self.runner_logs.items() if row.get("workspace_id") == params[0]]:
+                    self.runner_logs.pop(key, None)
+            else:
+                self.runner_logs.clear()
             return FakeCursor()
 
         if normalized.startswith("select * from runner_logs where id"):
@@ -442,6 +648,10 @@ class FakePostgresConnection:
 
         if normalized.startswith("select * from runner_logs order by"):
             return FakeCursor(sorted(self.runner_logs.values(), key=lambda row: row["created_at"], reverse=True))
+
+        if normalized.startswith("select * from runner_logs where workspace_id"):
+            rows = [row for row in self.runner_logs.values() if row.get("workspace_id") == params[0]]
+            return FakeCursor(sorted(rows, key=lambda row: row["created_at"], reverse=True))
 
         raise AssertionError(f"Unexpected query: {query}")
 
@@ -681,6 +891,62 @@ class PersistenceTests(unittest.TestCase):
         self.assertEqual(saved["status"], "connected")
         self.assertIn(".tumblr-sessions", saved["user_data_dir"])
         self.assertEqual(self.connection.tumblr_accounts["snowleopardx"]["notes"], "Logged in through Playwright.")
+
+    def test_create_user_workspace_hashes_password_and_assigns_default_data(self) -> None:
+        template = upsert_template(
+            self.connection,
+            {
+                "id": "template-owned",
+                "name": "Owned template",
+                "content": "Workspace copy",
+                "tags": ["jcink"],
+            },
+        )
+
+        user, workspace_id = create_user_workspace(
+            self.connection,
+            {
+                "email": "myrana@example.test",
+                "password": "super-secret-password",
+                "displayName": "Myrana",
+                "workspaceName": "Myrana workspace",
+            },
+        )
+        token = create_session(self.connection, user["id"], workspace_id)
+        auth = authenticate_request(self.connection, f"other=value; inwell_session={token}")
+
+        stored_user = self.connection.users[user["id"]]
+        self.assertNotEqual(stored_user["password_hash"], "super-secret-password")
+        self.assertTrue(verify_password("super-secret-password", stored_user["password_hash"]))
+        self.assertEqual(user["email"], "myrana@example.test")
+        self.assertEqual(user["workspace"]["name"], "Myrana workspace")
+        self.assertEqual(auth["workspace_id"], workspace_id)
+        self.assertEqual(hash_session_token(token), next(iter(self.connection.user_sessions.values()))["token_hash"])
+        self.assertEqual(self.connection.templates[template["id"]]["workspace_id"], workspace_id)
+        self.assertEqual(self.connection.template_tags[(template["id"], "jcink")]["workspace_id"], workspace_id)
+
+    def test_login_rejects_wrong_password_and_returns_workspace_for_valid_user(self) -> None:
+        created_user, workspace_id = create_user_workspace(
+            self.connection,
+            {
+                "email": "owner@example.test",
+                "password": "correct-password",
+                "displayName": "Owner",
+                "workspaceName": "Owner workspace",
+            },
+        )
+
+        with self.assertRaises(ValueError):
+            login_user(self.connection, {"email": "owner@example.test", "password": "wrong-password"})
+
+        logged_in_user, logged_in_workspace_id = login_user(
+            self.connection,
+            {"email": "owner@example.test", "password": "correct-password"},
+        )
+
+        self.assertEqual(logged_in_user["id"], created_user["id"])
+        self.assertEqual(logged_in_workspace_id, workspace_id)
+        self.assertEqual(logged_in_user["workspace"]["name"], "Owner workspace")
 
     def test_queue_item_upsert_round_trips_schedule_and_status(self) -> None:
         saved = upsert_queue_item(

@@ -15,6 +15,7 @@ import { AppSidebar } from "./components/AppSidebar";
 import { EditorWorkspace } from "./components/EditorWorkspace";
 import { QueueWorkspace } from "./components/QueueWorkspace";
 import { QueueManagerWorkspace } from "./components/QueueManagerWorkspace";
+import { LoginWorkspace } from "./components/LoginWorkspace";
 import { RunnerLogsWorkspace } from "./components/RunnerLogsWorkspace";
 import { SavedSubmissionsView } from "./components/SavedSubmissionsView";
 import { TemplatesWorkspace } from "./components/TemplatesWorkspace";
@@ -28,8 +29,11 @@ import {
   loadBackendQueue,
   loadBackendTemplates,
   loadBackendTumblrAccounts,
+  loadAuthSession,
   loadRunnerLogs,
   launchTumblrLogin,
+  loginInkwellUser,
+  logoutInkwellUser,
   removeAdvertisement,
   removeQueueItem,
   removeTemplate,
@@ -39,6 +43,7 @@ import {
   saveQueueItem,
   saveTemplate,
   saveTumblrAccount,
+  registerInkwellUser,
 } from "./domain/api";
 import { composerContentFor, emptyAd, fromApiAdvertisement, normalizeStoredState } from "./domain/ads";
 import { defaultQueueName, defaultTagProfiles, postTypes } from "./domain/constants";
@@ -78,6 +83,7 @@ import {
   Advertisement,
   AppSettings,
   ApiAdvertisement,
+  AuthUser,
   QueueScheduleSettings,
   QueueDefinition,
   RunnerLog,
@@ -92,6 +98,11 @@ import {
   WorkspaceView,
 } from "./domain/types";
 function App() {
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [bootstrapRequired, setBootstrapRequired] = useState(false);
+  const [loginStatus, setLoginStatus] = useState("");
+  const [loginForm, setLoginForm] = useState({ email: "", password: "", displayName: "", workspaceName: "Inkwell workspace" });
   const [stored, setStored] = useState<StoredState>(() => loadStoredState());
   const [submitTargets, setSubmitTargets] = useState<TumblrSubmitTarget[]>(() => loadSubmitTargets());
   const [submissionQueue, setSubmissionQueue] = useState<SubmissionQueueItem[]>(() => loadSubmissionQueue());
@@ -170,6 +181,29 @@ function App() {
   );
 
   useEffect(() => {
+    let cancelled = false;
+    async function checkSession() {
+      try {
+        const session = await loadAuthSession();
+        if (cancelled) return;
+        setAuthUser(session.authenticated ? session.user : null);
+        setBootstrapRequired(session.bootstrapRequired);
+      } catch {
+        if (!cancelled) {
+          setAuthUser(null);
+          setBootstrapRequired(true);
+        }
+      } finally {
+        if (!cancelled) setAuthChecked(true);
+      }
+    }
+    void checkSession();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     saveStoredState(stored);
   }, [stored]);
 
@@ -212,7 +246,7 @@ function App() {
   }, [queueScheduleSettings]);
 
   useEffect(() => {
-    if (!backendStateLoaded) {
+    if (!authUser || !backendStateLoaded) {
       return;
     }
 
@@ -227,7 +261,7 @@ function App() {
     void saveBackendAppSettings(settings)
       .then(() => setApiAvailable(true))
       .catch(() => setApiAvailable(false));
-  }, [backendStateLoaded, queueOptions, queueScheduleSettings, runnerSettings, submitTargets, tagProfiles]);
+  }, [authUser, backendStateLoaded, queueOptions, queueScheduleSettings, runnerSettings, submitTargets, tagProfiles]);
 
   useEffect(() => {
     activeDestinationBlogRef.current = activeAd.destinationBlog;
@@ -256,6 +290,9 @@ function App() {
     let cancelled = false;
 
     async function loadBackendState() {
+      if (!authUser) {
+        return;
+      }
       try {
         const [advertisementResponse, backendTemplates, backendQueue, backendLogs, backendSettings, backendTumblrAccounts] = await Promise.all([
           apiRequest<{ advertisements: ApiAdvertisement[] }>("/advertisements"),
@@ -314,7 +351,7 @@ function App() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [authUser]);
 
   useEffect(() => {
     if (!["queue", "logs"].includes(activeView) || !runnerState?.running) {
@@ -332,6 +369,42 @@ function App() {
     void saveAdvertisement(advertisement)
       .then(() => setApiAvailable(true))
       .catch(() => setApiAvailable(false));
+  }
+
+  async function registerInkwell(event: FormEvent) {
+    event.preventDefault();
+    try {
+      const session = await registerInkwellUser(loginForm);
+      setAuthUser(session.user);
+      setBootstrapRequired(false);
+      setBackendStateLoaded(false);
+      setLoginStatus("");
+    } catch {
+      setLoginStatus("Could not create that login. Use a valid email and a password with at least 8 characters.");
+    }
+  }
+
+  async function loginInkwell(event: FormEvent) {
+    event.preventDefault();
+    try {
+      const session = await loginInkwellUser({ email: loginForm.email, password: loginForm.password });
+      setAuthUser(session.user);
+      setBootstrapRequired(false);
+      setBackendStateLoaded(false);
+      setLoginStatus("");
+    } catch {
+      setLoginStatus("Email or password was not accepted.");
+    }
+  }
+
+  async function logoutInkwell() {
+    try {
+      await logoutInkwellUser();
+    } finally {
+      setAuthUser(null);
+      setBackendStateLoaded(false);
+      setLoginStatus("");
+    }
   }
 
   function syncTemplate(template: SavedTemplate) {
@@ -868,10 +941,41 @@ function App() {
     },
   ];
 
+  if (!authChecked) {
+    return (
+      <main className="login-shell">
+        <section className="login-panel">
+          <div className="brand login-brand">
+            <div className="brand-mark">I</div>
+            <div>
+              <strong>Inkwell</strong>
+              <span>Loading workspace</span>
+            </div>
+          </div>
+        </section>
+      </main>
+    );
+  }
+
+  if (!authUser) {
+    return (
+      <LoginWorkspace
+        bootstrapRequired={bootstrapRequired}
+        form={loginForm}
+        status={loginStatus}
+        onFormChange={(patch) => setLoginForm((current) => ({ ...current, ...patch }))}
+        onLogin={loginInkwell}
+        onRegister={registerInkwell}
+      />
+    );
+  }
+
   return (
     <main className="app-shell">
       <AppSidebar
         activeView={activeView}
+        user={authUser}
+        onLogout={logoutInkwell}
         onViewChange={setActiveView}
       />
 

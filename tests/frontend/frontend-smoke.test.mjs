@@ -1,9 +1,25 @@
-import assert from "node:assert/strict";
+﻿import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import test from "node:test";
 import { chromium } from "playwright";
 
 const appUrl = "http://127.0.0.1:8123";
+const apiHeaders = {
+  "Access-Control-Allow-Credentials": "true",
+  "Access-Control-Allow-Headers": "Content-Type",
+  "Access-Control-Allow-Methods": "DELETE,GET,OPTIONS,POST,PUT",
+  "Access-Control-Allow-Origin": appUrl,
+};
+const authenticatedSession = {
+  authenticated: true,
+  bootstrapRequired: false,
+  user: {
+    id: "user-test",
+    email: "myrana@example.test",
+    displayName: "Myrana",
+    workspace: { id: "workspace-test", name: "Myrana workspace" },
+  },
+};
 
 function stopProcessTree(childProcess) {
   if (!childProcess.pid) {
@@ -45,6 +61,95 @@ function waitForServer(url, timeoutMs = 20000) {
   });
 }
 
+async function routeAuthenticatedSession(page) {
+  await page.route("http://127.0.0.1:8021/api/auth/session", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify(authenticatedSession),
+    }),
+  );
+}
+
+async function routeEmptyWorkspaceApis(page) {
+  await page.route("http://127.0.0.1:8021/api/tumblr/accounts", (route) =>
+    route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ accounts: [] }) }),
+  );
+  await page.route("http://127.0.0.1:8021/api/advertisements", (route) =>
+    route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ advertisements: [] }) }),
+  );
+  await page.route("http://127.0.0.1:8021/api/templates", (route) =>
+    route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ templates: [] }) }),
+  );
+  await page.route("http://127.0.0.1:8021/api/queue", (route) =>
+    route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ queue: [] }) }),
+  );
+  await page.route("http://127.0.0.1:8021/api/runner/logs", (route) =>
+    route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ logs: [] }) }),
+  );
+  await page.route("http://127.0.0.1:8021/api/settings", (route) =>
+    route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ settings: {} }) }),
+  );
+  await page.route("http://127.0.0.1:8021/api/settings/app", (route) =>
+    route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ settings: route.request().postDataJSON() }) }),
+  );
+}
+
+test("first user can create an Inkwell login before opening the workspace", { timeout: 40000 }, async (t) => {
+  const server = spawn("npx vite --host 127.0.0.1 --port 8123 --strictPort", {
+    cwd: process.cwd(),
+    shell: true,
+    stdio: "ignore",
+  });
+
+  t.after(() => {
+    stopProcessTree(server);
+  });
+
+  await waitForServer(appUrl);
+
+  const browser = await chromium.launch();
+  t.after(async () => {
+    await browser.close();
+  });
+
+  const page = await browser.newPage();
+  const pageErrors = [];
+  let registerPayload = null;
+  page.on("pageerror", (error) => pageErrors.push(error));
+  await page.route("http://127.0.0.1:8021/api/**", (route) => route.abort());
+  await page.route("http://127.0.0.1:8021/api/auth/session", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({ authenticated: false, user: null, bootstrapRequired: true }),
+    }),
+  );
+  await page.route("http://127.0.0.1:8021/api/auth/register", (route) => {
+    registerPayload = route.request().postDataJSON();
+    return route.fulfill({
+      contentType: "application/json",
+      headers: { ...apiHeaders, "Set-Cookie": "inwell_session=test-session; Path=/; HttpOnly; SameSite=Lax" },
+      body: JSON.stringify(authenticatedSession),
+    });
+  });
+  await routeEmptyWorkspaceApis(page);
+
+  await page.goto(appUrl);
+  await page.getByRole("heading", { name: "Create your Inkwell login" }).waitFor();
+  await page.getByLabel("Name").fill("Myrana");
+  await page.getByLabel("Workspace").fill("Myrana workspace");
+  await page.getByLabel("Email").fill("myrana@example.test");
+  await page.getByLabel("Password").fill("super-secret-password");
+  await page.getByRole("button", { name: "Create login" }).click();
+  await page.getByRole("button", { name: "Log out" }).waitFor();
+
+  assert.equal(registerPayload?.email, "myrana@example.test");
+  assert.equal(registerPayload?.displayName, "Myrana");
+  assert.equal(registerPayload?.workspaceName, "Myrana workspace");
+  assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
+});
+
 test("custom blog submission flow does not blank the editor", { timeout: 40000 }, async (t) => {
   const server = spawn("npx vite --host 127.0.0.1 --port 8123 --strictPort", {
     cwd: process.cwd(),
@@ -67,10 +172,12 @@ test("custom blog submission flow does not blank the editor", { timeout: 40000 }
   const pageErrors = [];
   page.on("pageerror", (error) => pageErrors.push(error));
   await page.route("http://127.0.0.1:8021/api/**", (route) => route.abort());
+  await routeAuthenticatedSession(page);
   await page.route("http://127.0.0.1:8021/api/tumblr/accounts", (route) =>
     route.fulfill({
       contentType: "application/json",
-      headers: { "Access-Control-Allow-Origin": "*" },
+      headers: { "Access-Control-Allow-Origin": appUrl,
+    "Access-Control-Allow-Credentials": "true" },
       body: JSON.stringify({ accounts: [] }),
     }),
   );
@@ -122,7 +229,7 @@ test("custom blog submission flow does not blank the editor", { timeout: 40000 }
 
   await page.goto(appUrl);
   await assert.doesNotReject(() => page.getByRole("heading", { name: "Custom target ad" }).waitFor());
-  assert.equal(await page.getByRole("button", { name: "Log out" }).count(), 0);
+  assert.equal(await page.getByRole("button", { name: "Log out" }).count(), 1);
   assert.equal(await page.getByLabel("Advertisement counts").count(), 0);
 
   const targetSelect = page.locator('label:has-text("Target Tumblr blog") select');
@@ -190,10 +297,12 @@ test("templates can be saved and applied from their own workspace", { timeout: 4
   const apiHeaders = {
     "Access-Control-Allow-Headers": "Content-Type",
     "Access-Control-Allow-Methods": "DELETE,GET,OPTIONS,POST,PUT",
-    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Origin": appUrl,
+    "Access-Control-Allow-Credentials": "true",
   };
   page.on("pageerror", (error) => pageErrors.push(error));
   await page.route("http://127.0.0.1:8021/api/**", (route) => route.abort());
+  await routeAuthenticatedSession(page);
   await page.route("http://127.0.0.1:8021/api/tumblr/accounts", (route) =>
     route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ accounts: [] }) }),
   );
@@ -312,12 +421,14 @@ test("shared app settings load from and save to the backend", { timeout: 40000 }
   const apiHeaders = {
     "Access-Control-Allow-Headers": "Content-Type",
     "Access-Control-Allow-Methods": "DELETE,GET,OPTIONS,POST,PUT",
-    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Origin": appUrl,
+    "Access-Control-Allow-Credentials": "true",
   };
   let savedSettings = null;
 
   page.on("pageerror", (error) => pageErrors.push(error));
   await page.route("http://127.0.0.1:8021/api/**", (route) => route.abort());
+  await routeAuthenticatedSession(page);
   await page.route("http://127.0.0.1:8021/api/tumblr/accounts", (route) =>
     route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ accounts: [] }) }),
   );
@@ -408,13 +519,15 @@ test("tumblr accounts can be saved and selected for queue runs", { timeout: 4000
   const apiHeaders = {
     "Access-Control-Allow-Headers": "Content-Type",
     "Access-Control-Allow-Methods": "DELETE,GET,OPTIONS,POST,PUT",
-    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Origin": appUrl,
+    "Access-Control-Allow-Credentials": "true",
   };
   let savedAccount = null;
   let loginPayload = null;
 
   page.on("pageerror", (error) => pageErrors.push(error));
   await page.route("http://127.0.0.1:8021/api/**", (route) => route.abort());
+  await routeAuthenticatedSession(page);
   await page.route("http://127.0.0.1:8021/api/advertisements", (route) =>
     route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ advertisements: [] }) }),
   );
@@ -503,10 +616,12 @@ test("runner logs are grouped by expandable queue run", { timeout: 40000 }, asyn
   const apiHeaders = {
     "Access-Control-Allow-Headers": "Content-Type",
     "Access-Control-Allow-Methods": "DELETE,GET,OPTIONS,POST,PUT",
-    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Origin": appUrl,
+    "Access-Control-Allow-Credentials": "true",
   };
   page.on("pageerror", (error) => pageErrors.push(error));
   await page.route("http://127.0.0.1:8021/api/**", (route) => route.abort());
+  await routeAuthenticatedSession(page);
   await page.route("http://127.0.0.1:8021/api/tumblr/accounts", (route) =>
     route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ accounts: [] }) }),
   );
@@ -640,7 +755,8 @@ test("running the queue sends a run id and shows failure explanations", { timeou
   const apiHeaders = {
     "Access-Control-Allow-Headers": "Content-Type",
     "Access-Control-Allow-Methods": "DELETE,GET,OPTIONS,POST,PUT",
-    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Origin": appUrl,
+    "Access-Control-Allow-Credentials": "true",
   };
   const queueItem = {
     id: "queue-run-allthingsroleplay",
@@ -664,6 +780,7 @@ test("running the queue sends a run id and shows failure explanations", { timeou
 
   page.on("pageerror", (error) => pageErrors.push(error));
   await page.route("http://127.0.0.1:8021/api/**", (route) => route.abort());
+  await routeAuthenticatedSession(page);
   await page.route("http://127.0.0.1:8021/api/tumblr/accounts", (route) =>
     route.fulfill({
       contentType: "application/json",
