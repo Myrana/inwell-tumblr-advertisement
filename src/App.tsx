@@ -52,6 +52,7 @@ import { defaultTagProfiles, postTypes } from "./domain/constants";
 import { buildPreparedPost, validateAdvertisement } from "./domain/post";
 import { createQueueItem as createSubmissionQueueItem, queueIdFromName, uniqueQueueDefinitions } from "./domain/queue";
 import {
+  loadColorTheme,
   loadQueueScheduleSettings,
   loadQueueDefinitions,
   loadRunnerSettings,
@@ -61,6 +62,7 @@ import {
   loadTagProfiles,
   loadTemplates,
   loadTumblrAccounts,
+  saveColorTheme,
   saveQueueScheduleSettings,
   saveQueueDefinitions,
   saveRunnerSettings,
@@ -86,6 +88,7 @@ import {
   AppSettings,
   ApiAdvertisement,
   AuthUser,
+  ColorTheme,
   QueueScheduleSettings,
   QueueDefinition,
   RunnerLog,
@@ -131,6 +134,7 @@ function App() {
   const [runnerState, setRunnerState] = useState<RunnerStatus | null>(null);
   const [runnerLogs, setRunnerLogs] = useState<RunnerLog[]>([]);
   const [activeView, setActiveView] = useState<WorkspaceView>("editor");
+  const [colorTheme, setColorTheme] = useState<ColorTheme>(() => loadColorTheme());
   const [accountSetupRouteApplied, setAccountSetupRouteApplied] = useState(false);
 
   const activeAd = useMemo(() => {
@@ -250,6 +254,11 @@ function App() {
   useEffect(() => {
     saveQueueScheduleSettings(queueScheduleSettings);
   }, [queueScheduleSettings]);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = colorTheme;
+    saveColorTheme(colorTheme);
+  }, [colorTheme]);
 
   useEffect(() => {
     if (!authUser || !backendStateLoaded) {
@@ -1085,7 +1094,7 @@ function App() {
 
   if (!authChecked) {
     return (
-      <main className="login-shell">
+      <main className="login-shell" data-theme={colorTheme}>
         <section className="login-panel">
           <div className="brand login-brand">
             <div className="brand-mark">I</div>
@@ -1113,7 +1122,7 @@ function App() {
   }
 
   return (
-    <main className="app-shell">
+    <main className="app-shell" data-theme={colorTheme}>
       <AppSidebar
         activeView={activeView}
         user={authUser}
@@ -1127,8 +1136,10 @@ function App() {
           eyebrow={pageTitles[activeView].eyebrow}
           title={pageTitles[activeView].title}
           saveStatus={saveStatus}
+          theme={colorTheme}
           onCreateDraft={createDraft}
           onSaveDraft={saveDraft}
+          onToggleTheme={() => setColorTheme((current) => (current === "dark" ? "light" : "dark"))}
         />
 
         {activeView === "editor" ? (

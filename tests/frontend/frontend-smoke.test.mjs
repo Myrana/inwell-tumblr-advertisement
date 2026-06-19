@@ -286,6 +286,13 @@ test("custom blog submission flow does not blank the editor", { timeout: 40000 }
   await assert.doesNotReject(() => page.getByRole("heading", { name: "Custom target ad" }).waitFor());
   assert.equal(await page.getByRole("button", { name: "Log out" }).count(), 1);
   assert.equal(await page.getByLabel("Advertisement counts").count(), 0);
+  await page.getByRole("button", { name: "Dark mode" }).click();
+  assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), "dark");
+  assert.equal(await page.evaluate(() => localStorage.getItem("inkwell-color-theme")), "dark");
+  await page.reload();
+  await page.getByRole("heading", { name: "Custom target ad" }).waitFor();
+  assert.equal(await page.getByRole("button", { name: "Light mode" }).count(), 1);
+  assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), "dark");
 
   const targetSelect = page.locator('label:has-text("Target Tumblr blog") select');
   const addBlogInput = page.locator('label:has-text("Add Tumblr submit URL") input');

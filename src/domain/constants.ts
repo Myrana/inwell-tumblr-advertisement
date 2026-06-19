@@ -11,6 +11,7 @@ export const queueScheduleSettingsStorageKey = "inwell-queue-schedule-settings";
 export const runnerSettingsStorageKey = "inwell-tumblr-runner-settings";
 export const tumblrAccountsStorageKey = "inwell-tumblr-accounts";
 export const templateStorageKey = "inkwell-saved-templates";
+export const themeStorageKey = "inkwell-color-theme";
 export const apiBaseUrl = configuredApiBaseUrl || (import.meta.env.DEV ? "http://127.0.0.1:8021/api" : "/api");
 
 export const defaultSubmitTargets: TumblrSubmitTarget[] = [];

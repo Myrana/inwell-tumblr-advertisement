@@ -7,6 +7,7 @@ import {
   submitTargetStorageKey,
   tagProfileStorageKey,
   templateStorageKey,
+  themeStorageKey,
   tumblrAccountsStorageKey,
 } from "./constants";
 import { emptyAd, normalizeStoredState } from "./ads";
@@ -15,7 +16,7 @@ import { loadSubmitTargets } from "./submitTargets";
 import { loadTagProfiles } from "./tags";
 import { normalizeTemplate } from "./templates";
 import { normalizeTumblrAccount } from "./tumblrAccounts";
-import { QueueDefinition, QueueScheduleSettings, RemoteBrowserProvider, RunnerSettings, SavedTemplate, StoredState, TumblrAccount } from "./types";
+import { ColorTheme, QueueDefinition, QueueScheduleSettings, RemoteBrowserProvider, RunnerSettings, SavedTemplate, StoredState, TumblrAccount } from "./types";
 
 export { loadSubmissionQueue, loadSubmitTargets, loadTagProfiles };
 
@@ -118,6 +119,14 @@ export function loadTemplates(): SavedTemplate[] {
   }
 }
 
+export function loadColorTheme(): ColorTheme {
+  try {
+    return localStorage.getItem(themeStorageKey) === "dark" ? "dark" : "light";
+  } catch {
+    return "light";
+  }
+}
+
 export function saveStoredState(stored: StoredState) {
   localStorage.setItem(storageKey, JSON.stringify(stored));
 }
@@ -152,4 +161,8 @@ export function saveTemplates(value: unknown) {
 
 export function saveTumblrAccounts(value: unknown) {
   localStorage.setItem(tumblrAccountsStorageKey, JSON.stringify(value));
+}
+
+export function saveColorTheme(value: ColorTheme) {
+  localStorage.setItem(themeStorageKey, value);
 }

@@ -1,6 +1,7 @@
 :root {
   color-scheme: light;
   --ink: #1b1e24;
+  --text: #1b1e24;
   --muted: #68717f;
   --line: #d8dee7;
   --surface: #ffffff;
@@ -12,6 +13,20 @@
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
     sans-serif;
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #eef4f7;
+  --text: #eef4f7;
+  --muted: #9fb0bb;
+  --line: #334351;
+  --surface: #17212b;
+  --soft: #0f151d;
+  --cyan: #5fb3c5;
+  --coral: #f08067;
+  --green: #74c79d;
+  --amber: #e0a649;
 }
 
 * {
@@ -1819,6 +1834,191 @@ pre {
 
 .draft-row.selected {
   background: #f3faf8;
+}
+
+html[data-theme="dark"] body {
+  background: var(--soft);
+}
+
+html[data-theme="dark"] .sidebar {
+  background: #0c1219;
+}
+
+html[data-theme="dark"] .login-shell {
+  background: #0f151d;
+}
+
+html[data-theme="dark"] .account-strip,
+html[data-theme="dark"] .login-panel,
+html[data-theme="dark"] .editor-surface,
+html[data-theme="dark"] .preview-panel,
+html[data-theme="dark"] .submission-queue-panel,
+html[data-theme="dark"] .draft-table,
+html[data-theme="dark"] .templates-workspace,
+html[data-theme="dark"] .workflow-section,
+html[data-theme="dark"] .tumblr-submit-shell,
+html[data-theme="dark"] .template-card,
+html[data-theme="dark"] .template-composer,
+html[data-theme="dark"] .queue-management-row,
+html[data-theme="dark"] .account-session-row,
+html[data-theme="dark"] .runner-log-run,
+html[data-theme="dark"] .queue-item,
+html[data-theme="dark"] .queue-log {
+  background: var(--surface);
+  border-color: var(--line);
+}
+
+html[data-theme="dark"] .workflow-section-header,
+html[data-theme="dark"] .workflow-section-body,
+html[data-theme="dark"] .setup-panel,
+html[data-theme="dark"] .save-next-step,
+html[data-theme="dark"] .runner-control-panel,
+html[data-theme="dark"] .queue-selector-panel,
+html[data-theme="dark"] .queue-management-form,
+html[data-theme="dark"] .queue-monitor-stat,
+html[data-theme="dark"] .runner-log-run-summary,
+html[data-theme="dark"] .template-form,
+html[data-theme="dark"] .template-card-actions,
+html[data-theme="dark"] .tumblr-tag-panel,
+html[data-theme="dark"] .tumblr-photo-stage,
+html[data-theme="dark"] .tumblr-body-field,
+html[data-theme="dark"] pre {
+  background: #111a23;
+  border-color: var(--line);
+  color: var(--ink);
+}
+
+html[data-theme="dark"] input,
+html[data-theme="dark"] select,
+html[data-theme="dark"] textarea {
+  background: #0f1720;
+  border-color: var(--line);
+  color: var(--ink);
+}
+
+html[data-theme="dark"] input::placeholder,
+html[data-theme="dark"] textarea::placeholder {
+  color: #7f929f;
+}
+
+html[data-theme="dark"] .secondary,
+html[data-theme="dark"] .icon-button,
+html[data-theme="dark"] .tumblr-file-button {
+  background: #243241;
+  color: var(--ink);
+}
+
+html[data-theme="dark"] .queue-readiness {
+  border-color: #6f562c;
+  border-left-color: var(--amber);
+  background: #211c13;
+}
+
+html[data-theme="dark"] .queue-readiness.ready,
+html[data-theme="dark"] .account-ready-panel {
+  border-color: #315f4d;
+  border-left-color: var(--green);
+  background: #10231d;
+}
+
+html[data-theme="dark"] .section-state,
+html[data-theme="dark"] .account-status-needs-login,
+html[data-theme="dark"] .account-status-expired {
+  background: #3a241a;
+  color: #ffb08d;
+}
+
+html[data-theme="dark"] .section-state.ready,
+html[data-theme="dark"] .account-status-pill {
+  background: #123226;
+  color: #8fe0b4;
+}
+
+html[data-theme="dark"] .section-state.optional,
+html[data-theme="dark"] .account-status-checking {
+  background: #172d3b;
+  color: #8bcde0;
+}
+
+html[data-theme="dark"] .section-state.warning,
+html[data-theme="dark"] .runner-run-status.failed,
+html[data-theme="dark"] .validation {
+  background: #3b1d1d;
+  color: #ffaaa0;
+}
+
+html[data-theme="dark"] .queue-management-row.selected,
+html[data-theme="dark"] .account-session-row.selected,
+html[data-theme="dark"] .draft-row.selected,
+html[data-theme="dark"] .tag-check.selected {
+  border-color: #4da0b0;
+  background: #12252b;
+}
+
+html[data-theme="dark"] .queue-item-explanation,
+html[data-theme="dark"] .runner-failure-summary,
+html[data-theme="dark"] .queue-log-error,
+html[data-theme="dark"] .runner-target-summary-failed {
+  background: #321b19;
+}
+
+html[data-theme="dark"] .queue-item-explanation.warning,
+html[data-theme="dark"] .queue-log-warning,
+html[data-theme="dark"] .runner-target-summary-needs-review {
+  background: #2a2111;
+}
+
+html[data-theme="dark"] .runner-target-summary,
+html[data-theme="dark"] .queue-item-log-list .queue-log,
+html[data-theme="dark"] .tag-check,
+html[data-theme="dark"] .type-picker,
+html[data-theme="dark"] .video-drop {
+  background: #111a23;
+}
+
+html[data-theme="dark"] .type-option {
+  color: var(--muted);
+}
+
+html[data-theme="dark"] .type-option.active {
+  background: #172a24;
+  color: var(--green);
+}
+
+html[data-theme="dark"] .tumblr-composer-header select,
+html[data-theme="dark"] .tumblr-title-input,
+html[data-theme="dark"] .tumblr-editor-tools,
+html[data-theme="dark"] .tumblr-tag-panel {
+  border-color: var(--line);
+}
+
+html[data-theme="dark"] .tumblr-rich-editor,
+html[data-theme="dark"] .tumblr-body-field,
+html[data-theme="dark"] .tumblr-blog-id,
+html[data-theme="dark"] .tumblr-photo-stage,
+html[data-theme="dark"] .tumblr-editor-tools button,
+html[data-theme="dark"] .tumblr-tag-check,
+html[data-theme="dark"] .tumblr-terms,
+html[data-theme="dark"] .tumblr-thank-you {
+  color: var(--muted);
+}
+
+html[data-theme="dark"] .tumblr-editor-tools button:hover,
+html[data-theme="dark"] .tumblr-editor-tools button:focus-visible,
+html[data-theme="dark"] .tumblr-editor-tools button.active,
+html[data-theme="dark"] .tumblr-thank-you h2,
+html[data-theme="dark"] .tumblr-photo-stage strong,
+html[data-theme="dark"] .template-card-main,
+html[data-theme="dark"] .draft-row strong,
+html[data-theme="dark"] .queue-item strong,
+html[data-theme="dark"] .runner-log-run-summary {
+  color: var(--ink);
+}
+
+html[data-theme="dark"] .upload-button,
+html[data-theme="dark"] .selected-tags button {
+  background: #172d3b;
+  color: #8bcde0;
 }
 
 @media (max-width: 1120px) {
