@@ -320,7 +320,7 @@ test("custom blog submission flow does not blank the editor", { timeout: 40000 }
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await page.getByText("Saved.").waitFor();
   assert.equal(await page.getByRole("button", { name: "Keep editing" }).count(), 0);
-  assert.equal(await page.getByRole("button", { name: "Add to queue" }).count() >= 1, true);
+  assert.equal(await page.getByRole("button", { name: "Add to queue" }).count(), 1);
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
   assert.match((await page.locator("main").textContent()) ?? "", /Advertisement workspace/);
 });

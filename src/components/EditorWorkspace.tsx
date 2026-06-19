@@ -350,18 +350,6 @@ export function EditorWorkspace({
                       <p className="manual-tag-empty">Add tags manually with the custom tag box.</p>
                     )}
                   </div>
-
-                  <div className="tumblr-submit-footer">
-                    <button
-                      className="primary"
-                      type="button"
-                      onClick={() => onQueueTargets([activeSubmitTarget])}
-                      disabled={!queueReady}
-                    >
-                      <Send size={18} />
-                      Add to queue
-                    </button>
-                  </div>
                 </div>
               )}
             </div>

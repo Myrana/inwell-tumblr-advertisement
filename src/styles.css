@@ -965,24 +965,6 @@ textarea:focus {
   accent-color: #4da9ff;
 }
 
-.tumblr-submit-footer {
-  min-height: 86px;
-  padding: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 16px;
-  border-top: 1px solid var(--line);
-}
-
-.tumblr-submit-footer .tumblr-terms {
-  margin-right: auto;
-}
-
-.tumblr-submit-footer > button {
-  flex: 0 0 auto;
-}
-
 .tumblr-terms {
   display: flex;
   align-items: center;
@@ -1705,11 +1687,6 @@ pre {
   .tumblr-composer-header select {
     border-right: 0;
     border-bottom: 1px solid var(--line);
-  }
-
-  .tumblr-submit-footer {
-    align-items: stretch;
-    flex-direction: column;
   }
 
   .media-preview,
