@@ -23,7 +23,7 @@ DEFAULT_TIMEZONE = "America/New_York"
 DEFAULT_PGHOST = "192.168.1.3"
 DEFAULT_PGDATABASE = "inwell_tumblr_advertisement"
 DEFAULT_PGUSER = "postgres"
-CURRENT_SCHEMA_VERSION = "0003_runner_log_runs"
+CURRENT_SCHEMA_VERSION = "0004_named_queues"
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DIST_ROOT = REPO_ROOT / "dist"
 RUNNER_PLAN_PATH = REPO_ROOT / "tumblr-runner-plan.json"
@@ -150,6 +150,7 @@ def initialize(connection: ConnectionLike) -> None:
             ad_id TEXT NOT NULL,
             target_id TEXT NOT NULL,
             target_name TEXT NOT NULL DEFAULT '',
+            queue_name TEXT NOT NULL DEFAULT 'Default queue',
             submit_url TEXT NOT NULL,
             post_type TEXT NOT NULL DEFAULT 'photo',
             status TEXT NOT NULL DEFAULT 'queued',
@@ -181,6 +182,7 @@ def initialize(connection: ConnectionLike) -> None:
     )
     connection.execute("ALTER TABLE runner_logs ADD COLUMN IF NOT EXISTS run_id TEXT NOT NULL DEFAULT ''")
     connection.execute("ALTER TABLE runner_logs ADD COLUMN IF NOT EXISTS target_name TEXT NOT NULL DEFAULT ''")
+    connection.execute("ALTER TABLE submission_queue ADD COLUMN IF NOT EXISTS queue_name TEXT NOT NULL DEFAULT 'Default queue'")
     if not has_schema_history:
         seed_templates(connection)
     record_schema_version(connection, CURRENT_SCHEMA_VERSION)
@@ -285,6 +287,7 @@ def row_to_template(row: Any) -> dict[str, Any]:
 
 def row_to_queue_item(row: Any) -> dict[str, Any]:
     data = row_to_dict(row)
+    data["queue_name"] = str(data.get("queue_name") or "Default queue").strip() or "Default queue"
     if data.get("post_type") not in POST_TYPES:
         data["post_type"] = "photo"
     if data.get("status") not in QUEUE_STATUSES:
@@ -368,6 +371,7 @@ def queue_item_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "ad_id": str(payload_field(payload, "ad_id", "adId")).strip(),
         "target_id": str(payload_field(payload, "target_id", "targetId")).strip(),
         "target_name": str(payload_field(payload, "target_name", "targetName")).strip(),
+        "queue_name": str(payload_field(payload, "queue_name", "queueName", "Default queue") or "Default queue").strip() or "Default queue",
         "submit_url": str(payload_field(payload, "submit_url", "submitUrl")).strip(),
         "post_type": post_type,
         "status": normalize_queue_status(payload.get("status")),
@@ -498,15 +502,16 @@ def upsert_queue_item(connection: ConnectionLike, payload: dict[str, Any]) -> di
     connection.execute(
         """
         INSERT INTO submission_queue (
-            id, ad_id, target_id, target_name, submit_url, post_type, status,
+            id, ad_id, target_id, target_name, queue_name, submit_url, post_type, status,
             scheduled_for, timezone, notes, runner_payload, created_at, updated_at,
             last_run_at, posted_at, failed_at
         )
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT(id) DO UPDATE SET
             ad_id = excluded.ad_id,
             target_id = excluded.target_id,
             target_name = excluded.target_name,
+            queue_name = excluded.queue_name,
             submit_url = excluded.submit_url,
             post_type = excluded.post_type,
             status = excluded.status,
@@ -524,6 +529,7 @@ def upsert_queue_item(connection: ConnectionLike, payload: dict[str, Any]) -> di
             queue_item["ad_id"],
             queue_item["target_id"],
             queue_item["target_name"],
+            queue_item["queue_name"],
             queue_item["submit_url"],
             queue_item["post_type"],
             queue_item["status"],

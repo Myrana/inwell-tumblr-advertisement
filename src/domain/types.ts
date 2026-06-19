@@ -1,6 +1,6 @@
 export type Status = "draft" | "ready" | "submitted";
 export type PostType = "text" | "photo" | "video";
-export type WorkspaceView = "editor" | "saved" | "templates" | "queue" | "logs";
+export type WorkspaceView = "editor" | "saved" | "templates" | "queue" | "queue-settings" | "logs";
 
 export type Advertisement = {
   id: string;
@@ -40,6 +40,11 @@ export type TumblrSubmitTarget = {
   forumUrl: string;
 };
 
+export type QueueDefinition = {
+  id: string;
+  name: string;
+};
+
 export type SubmissionStatus = "queued" | "scheduled" | "running" | "submitted" | "posted" | "needs-review" | "failed";
 
 export type SubmissionQueueItem = {
@@ -47,6 +52,7 @@ export type SubmissionQueueItem = {
   adId: string;
   targetId: string;
   targetName: string;
+  queueName: string;
   submitUrl: string;
   postType: PostType;
   status: SubmissionStatus;
@@ -123,6 +129,7 @@ export type ApiQueueItem = {
   ad_id: string;
   target_id: string;
   target_name: string;
+  queue_name?: string;
   submit_url: string;
   post_type: PostType;
   status: SubmissionStatus;

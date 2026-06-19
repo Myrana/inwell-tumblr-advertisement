@@ -14,6 +14,7 @@ import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "re
 import { AppSidebar } from "./components/AppSidebar";
 import { EditorWorkspace } from "./components/EditorWorkspace";
 import { QueueWorkspace } from "./components/QueueWorkspace";
+import { QueueManagerWorkspace } from "./components/QueueManagerWorkspace";
 import { RunnerLogsWorkspace } from "./components/RunnerLogsWorkspace";
 import { SavedSubmissionsView } from "./components/SavedSubmissionsView";
 import { TemplatesWorkspace } from "./components/TemplatesWorkspace";
@@ -33,11 +34,12 @@ import {
   saveTemplate,
 } from "./domain/api";
 import { composerContentFor, emptyAd, fromApiAdvertisement, normalizeStoredState } from "./domain/ads";
-import { defaultTagProfiles, postTypes } from "./domain/constants";
+import { defaultQueueName, defaultTagProfiles, postTypes } from "./domain/constants";
 import { buildPreparedPost, validateAdvertisement } from "./domain/post";
-import { createQueueItem as createSubmissionQueueItem } from "./domain/queue";
+import { createQueueItem as createSubmissionQueueItem, queueIdFromName, uniqueQueueDefinitions } from "./domain/queue";
 import {
   loadQueueScheduleSettings,
+  loadQueueDefinitions,
   loadRunnerSettings,
   loadStoredState,
   loadSubmissionQueue,
@@ -45,6 +47,7 @@ import {
   loadTagProfiles,
   loadTemplates,
   saveQueueScheduleSettings,
+  saveQueueDefinitions,
   saveRunnerSettings,
   saveStoredState,
   saveSubmissionQueue,
@@ -65,6 +68,7 @@ import {
   Advertisement,
   ApiAdvertisement,
   QueueScheduleSettings,
+  QueueDefinition,
   RunnerLog,
   RunnerSettings,
   RunnerStatus,
@@ -79,6 +83,7 @@ function App() {
   const [stored, setStored] = useState<StoredState>(() => loadStoredState());
   const [submitTargets, setSubmitTargets] = useState<TumblrSubmitTarget[]>(() => loadSubmitTargets());
   const [submissionQueue, setSubmissionQueue] = useState<SubmissionQueueItem[]>(() => loadSubmissionQueue());
+  const [queueDefinitions, setQueueDefinitions] = useState<QueueDefinition[]>(() => loadQueueDefinitions());
   const [tagProfiles, setTagProfiles] = useState<Record<string, string[]>>(() => loadTagProfiles());
   const [templates, setTemplates] = useState<SavedTemplate[]>(() => loadTemplates());
   const [apiAvailable, setApiAvailable] = useState(false);
@@ -91,6 +96,8 @@ function App() {
   const [validation, setValidation] = useState<string[]>([]);
   const [, setGeneratedPost] = useState("");
   const [queueStatus, setQueueStatus] = useState("");
+  const [queueNameDraft, setQueueNameDraft] = useState("");
+  const [selectedQueueName, setSelectedQueueName] = useState(defaultQueueName);
   const [queueScheduleSettings, setQueueScheduleSettings] = useState<QueueScheduleSettings>(() => loadQueueScheduleSettings());
   const [runnerSettings, setRunnerSettings] = useState<RunnerSettings>(() => loadRunnerSettings());
   const [runnerState, setRunnerState] = useState<RunnerStatus | null>(null);
@@ -110,7 +117,9 @@ function App() {
     [activeSubmitTarget, submitTargets],
   );
 
-  const activeQueue = submissionQueue.filter((item) => item.adId === activeAd.id);
+  const queueOptions = useMemo(() => uniqueQueueDefinitions(queueDefinitions, submissionQueue), [queueDefinitions, submissionQueue]);
+  const activeQueueName = queueOptions.some((queue) => queue.name === selectedQueueName) ? selectedQueueName : queueOptions[0]?.name ?? defaultQueueName;
+  const activeQueue = submissionQueue.filter((item) => item.queueName === activeQueueName);
   const activeDestinationBlogRef = useRef(activeAd.destinationBlog);
   const activeBlogTags = tagProfiles[activeAd.destinationBlog] ?? defaultTagProfiles[activeAd.destinationBlog] ?? [];
   const checklistTags = uniqueTags([...activeBlogTags, ...activeAd.tags]);
@@ -155,6 +164,16 @@ function App() {
   useEffect(() => {
     saveSubmissionQueue(submissionQueue);
   }, [submissionQueue]);
+
+  useEffect(() => {
+    saveQueueDefinitions(queueOptions);
+  }, [queueOptions]);
+
+  useEffect(() => {
+    if (selectedQueueName !== activeQueueName) {
+      setSelectedQueueName(activeQueueName);
+    }
+  }, [activeQueueName, selectedQueueName]);
 
   useEffect(() => {
     saveTagProfiles(tagProfiles);
@@ -458,7 +477,7 @@ function App() {
   }
 
   function createQueueItem(target: TumblrSubmitTarget): SubmissionQueueItem {
-    return createSubmissionQueueItem(activeAd, target, buildPost());
+    return createSubmissionQueueItem(activeAd, target, buildPost(), activeQueueName);
   }
 
   function queueTargets(targets: TumblrSubmitTarget[]) {
@@ -471,12 +490,12 @@ function App() {
     setGeneratedPost(buildPost());
     setSubmissionQueue((current) => {
       const withoutExisting = current.filter(
-        (item) => item.adId !== activeAd.id || !nextItems.some((next) => next.targetId === item.targetId),
+        (item) => item.queueName !== activeQueueName || item.adId !== activeAd.id || !nextItems.some((next) => next.targetId === item.targetId),
       );
       return [...nextItems, ...withoutExisting];
     });
     nextItems.forEach(syncQueueItem);
-    setQueueStatus(`Queued ${nextItems.length} target${nextItems.length === 1 ? "" : "s"} for the local runner.`);
+    setQueueStatus(`Queued ${nextItems.length} target${nextItems.length === 1 ? "" : "s"} in ${activeQueueName}.`);
   }
 
   function updateQueueItem(id: string, status: SubmissionStatus, notes: string) {
@@ -506,14 +525,38 @@ function App() {
     }
   }
 
-  function clearCompletedQueueItems() {
+  function createQueueDefinition(event: FormEvent) {
+    event.preventDefault();
+    const name = queueNameDraft.trim();
+    if (!name) {
+      setQueueStatus("Enter a queue name first.");
+      return;
+    }
+
+    const nextQueue = { id: queueIdFromName(name), name };
+    setQueueDefinitions((current) => uniqueQueueDefinitions([...current, nextQueue], submissionQueue));
+    setSelectedQueueName(name);
+    setQueueNameDraft("");
+    setActiveView("queue");
+    setQueueStatus(`Created queue ${name}.`);
+  }
+
+  function clearQueueItems(queueName: string, completedOnly: boolean) {
     const completedStatuses: SubmissionStatus[] = ["submitted", "posted", "failed"];
-    const removable = submissionQueue.filter((item) => item.adId === activeAd.id && completedStatuses.includes(item.status));
-    setSubmissionQueue((current) => current.filter((item) => item.adId !== activeAd.id || !completedStatuses.includes(item.status)));
+    const removable = submissionQueue.filter(
+      (item) => item.queueName === queueName && (!completedOnly || completedStatuses.includes(item.status)),
+    );
+    setSubmissionQueue((current) =>
+      current.filter((item) => item.queueName !== queueName || (completedOnly && !completedStatuses.includes(item.status))),
+    );
     removable.forEach((item) => {
       void removeQueueItem(item.id).catch(() => setApiAvailable(false));
     });
-    setQueueStatus("Cleared submitted, posted, and failed entries for this saved submission.");
+    setQueueStatus(
+      completedOnly
+        ? `Cleared completed entries from ${queueName}.`
+        : `Cleared all entries from ${queueName}.`,
+    );
   }
 
   function runnableQueueItems() {
@@ -614,6 +657,7 @@ function App() {
     saved: { eyebrow: "Saved submission library", title: "Saved submissions" },
     templates: { eyebrow: "Reusable copy library", title: "Saved templates" },
     queue: { eyebrow: "Tumblr automation", title: "Submission queue" },
+    "queue-settings": { eyebrow: "Tumblr automation", title: "Queues" },
     logs: { eyebrow: "Tumblr automation", title: "Runner logs" },
   };
   const toolbarButtons = [
@@ -718,20 +762,37 @@ function App() {
         {activeView === "queue" ? (
           <QueueWorkspace
             activeQueue={activeQueue}
+            activeQueueName={activeQueueName}
             activeSubmitTarget={activeSubmitTarget}
+            queueOptions={queueOptions}
             queueStatus={queueStatus}
             queueScheduleSettings={queueScheduleSettings}
             runnerSettings={runnerSettings}
             runnerState={runnerState}
             runnerLogs={runnerLogs}
             targetOptions={targetOptions}
-            onClearCompleted={clearCompletedQueueItems}
             onQueueTargets={queueTargets}
+            onSelectQueue={setSelectedQueueName}
             onQueueScheduleSettingsChange={(patch) => setQueueScheduleSettings((current) => ({ ...current, ...patch }))}
             onRefreshRunnerStatus={refreshRunnerStatus}
             onRunnerSettingsChange={(patch) => setRunnerSettings((current) => ({ ...current, ...patch }))}
             onStartRunner={startRunner}
             onUpdateQueueItem={updateQueueItem}
+          />
+        ) : null}
+        {activeView === "queue-settings" ? (
+          <QueueManagerWorkspace
+            activeQueueName={activeQueueName}
+            queueNameDraft={queueNameDraft}
+            queueOptions={queueOptions}
+            submissionQueue={submissionQueue}
+            onClearQueue={clearQueueItems}
+            onCreateQueue={createQueueDefinition}
+            onQueueNameDraftChange={setQueueNameDraft}
+            onSelectQueue={(queueName) => {
+              setSelectedQueueName(queueName);
+              setActiveView("queue");
+            }}
           />
         ) : null}
         {activeView === "logs" ? (

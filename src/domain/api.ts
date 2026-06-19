@@ -1,5 +1,6 @@
 import { apiBaseUrl } from "./constants";
 import { toApiAdvertisement } from "./ads";
+import { normalizeQueueName } from "./queue";
 import { fromApiTemplate, toApiTemplate } from "./templates";
 import {
   Advertisement,
@@ -61,6 +62,7 @@ export function fromApiQueueItem(item: ApiQueueItem): SubmissionQueueItem {
     adId: item.ad_id,
     targetId: item.target_id,
     targetName: item.target_name,
+    queueName: normalizeQueueName(item.queue_name),
     submitUrl: item.submit_url,
     postType: item.post_type,
     status: item.status,
@@ -82,6 +84,7 @@ export function toApiQueueItem(item: SubmissionQueueItem): ApiQueueItem {
     ad_id: item.adId,
     target_id: item.targetId,
     target_name: item.targetName,
+    queue_name: normalizeQueueName(item.queueName),
     submit_url: item.submitUrl,
     post_type: item.postType,
     status: item.status,

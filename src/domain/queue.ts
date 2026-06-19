@@ -1,8 +1,41 @@
-import { submissionQueueStorageKey } from "./constants";
-import { Advertisement, SubmissionQueueItem, SubmissionStatus, TumblrSubmitTarget } from "./types";
+import { defaultQueueName, submissionQueueStorageKey } from "./constants";
+import { Advertisement, QueueDefinition, SubmissionQueueItem, SubmissionStatus, TumblrSubmitTarget } from "./types";
 import { composerContentFor } from "./ads";
 
 export const defaultScheduleTimezone = "America/New_York";
+
+export function queueIdFromName(name: string) {
+  const normalized = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  return normalized || "default-queue";
+}
+
+export function normalizeQueueName(value: unknown) {
+  const name = typeof value === "string" ? value.trim() : "";
+  return name || defaultQueueName;
+}
+
+export function normalizeQueueDefinition(value: Partial<QueueDefinition> | null | undefined): QueueDefinition | null {
+  const name = normalizeQueueName(value?.name);
+  const id = typeof value?.id === "string" && value.id.trim() ? value.id.trim() : queueIdFromName(name);
+  return { id, name };
+}
+
+export function uniqueQueueDefinitions(definitions: QueueDefinition[], items: SubmissionQueueItem[] = []) {
+  const byName = new Map<string, QueueDefinition>();
+  [...definitions, ...items.map((item) => ({ id: queueIdFromName(item.queueName), name: item.queueName }))].forEach((definition) => {
+    const normalized = normalizeQueueDefinition(definition);
+    if (!normalized) {
+      return;
+    }
+    byName.set(normalized.name.toLowerCase(), normalized);
+  });
+
+  if (!byName.size) {
+    byName.set(defaultQueueName.toLowerCase(), { id: queueIdFromName(defaultQueueName), name: defaultQueueName });
+  }
+
+  return Array.from(byName.values()).sort((left, right) => left.name.localeCompare(right.name));
+}
 
 export function normalizeQueueItem(value: Partial<SubmissionQueueItem> | null | undefined): SubmissionQueueItem | null {
   if (!value?.id || !value.adId || !value.targetId || !value.submitUrl) {
@@ -16,6 +49,7 @@ export function normalizeQueueItem(value: Partial<SubmissionQueueItem> | null | 
     adId: value.adId,
     targetId: value.targetId,
     targetName: value.targetName || value.targetId,
+    queueName: normalizeQueueName(value.queueName),
     submitUrl: value.submitUrl,
     postType: value.postType === "text" || value.postType === "video" ? value.postType : "photo",
     status,
@@ -93,13 +127,20 @@ export function buildRunnerPayload(advertisement: Advertisement, target: TumblrS
   );
 }
 
-export function createQueueItem(advertisement: Advertisement, target: TumblrSubmitTarget, postPackage: string): SubmissionQueueItem {
+export function createQueueItem(
+  advertisement: Advertisement,
+  target: TumblrSubmitTarget,
+  postPackage: string,
+  queueName = defaultQueueName,
+): SubmissionQueueItem {
   const timestamp = new Date().toISOString();
+  const normalizedQueueName = normalizeQueueName(queueName);
   return {
-    id: `${advertisement.id}-${target.id}`,
+    id: `${advertisement.id}-${queueIdFromName(normalizedQueueName)}-${target.id}`,
     adId: advertisement.id,
     targetId: target.id,
     targetName: target.name,
+    queueName: normalizedQueueName,
     submitUrl: target.submitUrl,
     postType: advertisement.postType,
     status: "queued",
