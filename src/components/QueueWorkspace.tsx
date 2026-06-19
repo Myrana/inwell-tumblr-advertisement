@@ -10,6 +10,7 @@ import {
   RunnerStatus,
   SubmissionQueueItem,
   SubmissionStatus,
+  TumblrAccount,
   TumblrSubmitTarget,
 } from "../domain/types";
 
@@ -24,6 +25,7 @@ type QueueWorkspaceProps = {
   runnerState: RunnerStatus | null;
   runnerLogs: RunnerLog[];
   targetOptions: TumblrSubmitTarget[];
+  tumblrAccounts: TumblrAccount[];
   onQueueTargets: (targets: TumblrSubmitTarget[]) => void;
   onSelectQueue: (queueName: string) => void;
   onQueueScheduleSettingsChange: (patch: Partial<QueueScheduleSettings>) => void;
@@ -44,6 +46,7 @@ export function QueueWorkspace({
   runnerState,
   runnerLogs,
   targetOptions,
+  tumblrAccounts,
   onQueueTargets,
   onSelectQueue,
   onQueueScheduleSettingsChange,
@@ -120,6 +123,20 @@ export function QueueWorkspace({
       </div>
       <div className="runner-control-panel" aria-label="Local Tumblr runner controls">
         <div className="field-grid three">
+          <label>
+            Tumblr account
+            <select
+              value={runnerSettings.tumblrAccountId}
+              onChange={(event) => onRunnerSettingsChange({ tumblrAccountId: event.target.value })}
+            >
+              <option value="">Select account</option>
+              {tumblrAccounts.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.displayName}
+                </option>
+              ))}
+            </select>
+          </label>
           <label>
             Media folder
             <input

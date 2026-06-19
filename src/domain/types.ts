@@ -1,6 +1,6 @@
 export type Status = "draft" | "ready" | "submitted";
 export type PostType = "text" | "photo" | "video";
-export type WorkspaceView = "editor" | "saved" | "templates" | "queue" | "queue-settings" | "logs";
+export type WorkspaceView = "editor" | "saved" | "templates" | "queue" | "queue-settings" | "accounts" | "logs";
 
 export type Advertisement = {
   id: string;
@@ -52,6 +52,7 @@ export type SubmissionQueueItem = {
   adId: string;
   targetId: string;
   targetName: string;
+  tumblrAccountId: string;
   queueName: string;
   submitUrl: string;
   postType: PostType;
@@ -71,6 +72,21 @@ export type RunnerSettings = {
   mediaDir: string;
   slowMo: number;
   submit: boolean;
+  tumblrAccountId: string;
+};
+
+export type TumblrAccountStatus = "connected" | "needs-login" | "expired" | "checking";
+
+export type TumblrAccount = {
+  id: string;
+  displayName: string;
+  blogName: string;
+  userDataDir: string;
+  status: TumblrAccountStatus;
+  lastCheckedAt: string;
+  lastLoginAt: string;
+  notes: string;
+  updatedAt: string;
 };
 
 export type QueueScheduleSettings = {
@@ -137,6 +153,7 @@ export type ApiQueueItem = {
   ad_id: string;
   target_id: string;
   target_name: string;
+  tumblr_account_id?: string;
   queue_name?: string;
   submit_url: string;
   post_type: PostType;
@@ -150,6 +167,18 @@ export type ApiQueueItem = {
   failed_at?: string | null;
   notes: string;
   runner_payload: string;
+};
+
+export type ApiTumblrAccount = {
+  id: string;
+  display_name: string;
+  blog_name: string;
+  user_data_dir: string;
+  status: TumblrAccountStatus;
+  last_checked_at?: string | null;
+  last_login_at?: string | null;
+  notes: string;
+  updated_at: string;
 };
 
 export type ApiRunnerLog = {

@@ -2,15 +2,18 @@ import { apiBaseUrl } from "./constants";
 import { toApiAdvertisement } from "./ads";
 import { normalizeQueueName } from "./queue";
 import { fromApiTemplate, toApiTemplate } from "./templates";
+import { fromApiTumblrAccount, toApiTumblrAccount } from "./tumblrAccounts";
 import {
   Advertisement,
   AppSettings,
   ApiQueueItem,
   ApiRunnerLog,
   ApiTemplate,
+  ApiTumblrAccount,
   RunnerLog,
   SavedTemplate,
   SubmissionQueueItem,
+  TumblrAccount,
 } from "./types";
 
 export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
@@ -76,6 +79,7 @@ export function fromApiQueueItem(item: ApiQueueItem): SubmissionQueueItem {
     adId: item.ad_id,
     targetId: item.target_id,
     targetName: item.target_name,
+    tumblrAccountId: item.tumblr_account_id ?? "",
     queueName: normalizeQueueName(item.queue_name),
     submitUrl: item.submit_url,
     postType: item.post_type,
@@ -98,6 +102,7 @@ export function toApiQueueItem(item: SubmissionQueueItem): ApiQueueItem {
     ad_id: item.adId,
     target_id: item.targetId,
     target_name: item.targetName,
+    tumblr_account_id: item.tumblrAccountId,
     queue_name: normalizeQueueName(item.queueName),
     submit_url: item.submitUrl,
     post_type: item.postType,
@@ -151,4 +156,28 @@ export async function loadRunnerLogs() {
 
 export async function clearRunnerLogs() {
   await apiRequest("/runner/logs", { method: "DELETE" });
+}
+
+export async function loadBackendTumblrAccounts() {
+  const response = await apiRequest<{ accounts: ApiTumblrAccount[] }>("/tumblr/accounts");
+  return response.accounts.map(fromApiTumblrAccount);
+}
+
+export async function saveTumblrAccount(account: TumblrAccount) {
+  const response = await apiRequest<{ account: ApiTumblrAccount }>(`/tumblr/accounts/${account.id}`, {
+    method: "PUT",
+    body: JSON.stringify(toApiTumblrAccount(account)),
+  });
+  return fromApiTumblrAccount(response.account);
+}
+
+export async function removeTumblrAccount(id: string) {
+  await apiRequest(`/tumblr/accounts/${id}`, { method: "DELETE" });
+}
+
+export async function launchTumblrLogin(accountId: string, slowMo = 250) {
+  return apiRequest<{ login: { pid: number; command: string[] } }>("/tumblr/login", {
+    method: "POST",
+    body: JSON.stringify({ accountId, slowMo }),
+  });
 }
