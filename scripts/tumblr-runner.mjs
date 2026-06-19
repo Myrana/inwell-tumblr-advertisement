@@ -6,6 +6,7 @@ import path from "node:path";
 import { chromium } from "playwright";
 import {
   appearsLoggedInToTumblr,
+  appearsRateLimitedByTumblr,
   frameCandidateScore,
   fieldsForItem,
   fillRichTextEditorInDocument,
@@ -151,7 +152,13 @@ async function runQueueItem(context, item, options) {
   await reportRunnerEvent(options, item, "running", `Opening ${item.targetName}.`, "info", { submitUrl: item.submitUrl });
   await page.goto(item.submitUrl, { waitUntil: "domcontentloaded", timeout: 60000 });
   await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => undefined);
+  if (await handleTumblrRateLimit(page, item, options)) {
+    return rateLimitReviewResult(page, options);
+  }
   await waitForSubmitForm(page, item);
+  if (await handleTumblrRateLimit(page, item, options)) {
+    return rateLimitReviewResult(page, options);
+  }
 
   if (await pageNeedsManualAction(page)) {
     console.log(`[manual-action] ${item.targetName}: login, captcha, terms, or changed form detected.`);
@@ -276,6 +283,32 @@ async function pageNeedsManualAction(page) {
   }
 
   return false;
+}
+
+async function handleTumblrRateLimit(page, item, options) {
+  for (const frame of page.frames()) {
+    const text = await frame.locator("body").innerText({ timeout: 5000 }).catch(() => "");
+    if (appearsRateLimitedByTumblr(text, frame.url())) {
+      const message = "Tumblr rate limit exceeded. Wait before retrying this target.";
+      console.log(`[manual-action] ${item.targetName}: ${message}`);
+      await reportRunnerEvent(options, item, "needs-review", message, "warning", {
+        explanation: message,
+        url: frame.url(),
+      });
+      return true;
+    }
+  }
+
+  return false;
+}
+
+async function rateLimitReviewResult(page, options) {
+  if (shouldDeferReadyReview(options)) {
+    return { readyForReview: true, page };
+  }
+
+  await pauseForOperator(page, options);
+  return { readyForReview: false };
 }
 
 async function automationTarget(page) {

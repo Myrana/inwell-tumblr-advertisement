@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   appearsLoggedInToTumblr,
+  appearsRateLimitedByTumblr,
   dataUrlToBuffer,
   fieldsForItem,
   fillRichTextEditorInDocument,
@@ -181,6 +182,12 @@ test("manual action detection catches login and captcha states", () => {
   assert.equal(shouldPauseForManualAction("Please log in to continue"), true);
   assert.equal(shouldPauseForManualAction("Complete this captcha"), true);
   assert.equal(shouldPauseForManualAction("Public submit form"), false);
+});
+
+test("Tumblr rate-limit detection catches Tumblr rate-limit pages only", () => {
+  assert.equal(appearsRateLimitedByTumblr("Rate limit exceeded.", "https://inkwell-test.tumblr.com/submit"), true);
+  assert.equal(appearsRateLimitedByTumblr("Find out why you may have encountered the rate limit.", "https://www.tumblr.com/submit_form/inkwell-test.tumblr.com"), true);
+  assert.equal(appearsRateLimitedByTumblr("Rate limit exceeded.", "https://example.com"), false);
 });
 
 test("Tumblr login detection skips prompt for active dashboard sessions", () => {
