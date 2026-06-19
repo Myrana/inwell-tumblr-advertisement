@@ -23,6 +23,7 @@ import { WorkspaceTopbar } from "./components/WorkspaceTopbar";
 import {
   apiRequest,
   clearRunnerLogs,
+  loadBackendAppSettings,
   loadBackendQueue,
   loadBackendTemplates,
   loadRunnerLogs,
@@ -30,6 +31,7 @@ import {
   removeQueueItem,
   removeTemplate,
   saveAdvertisement,
+  saveBackendAppSettings,
   saveQueueItem,
   saveTemplate,
 } from "./domain/api";
@@ -66,6 +68,7 @@ import { normalizeTag, uniqueTags } from "./domain/tags";
 import { applyTemplateToAdvertisement, normalizeTemplate, templateFromAdvertisement } from "./domain/templates";
 import {
   Advertisement,
+  AppSettings,
   ApiAdvertisement,
   QueueScheduleSettings,
   QueueDefinition,
@@ -87,6 +90,7 @@ function App() {
   const [tagProfiles, setTagProfiles] = useState<Record<string, string[]>>(() => loadTagProfiles());
   const [templates, setTemplates] = useState<SavedTemplate[]>(() => loadTemplates());
   const [apiAvailable, setApiAvailable] = useState(false);
+  const [backendStateLoaded, setBackendStateLoaded] = useState(false);
   const [customTag, setCustomTag] = useState("");
   const [templateDraft, setTemplateDraft] = useState({ name: "", content: "" });
   const [templateStatus, setTemplateStatus] = useState("");
@@ -192,6 +196,24 @@ function App() {
   }, [queueScheduleSettings]);
 
   useEffect(() => {
+    if (!backendStateLoaded) {
+      return;
+    }
+
+    const settings: AppSettings = {
+      submitTargets,
+      queueDefinitions: queueOptions,
+      tagProfiles,
+      runnerSettings,
+      queueScheduleSettings,
+    };
+
+    void saveBackendAppSettings(settings)
+      .then(() => setApiAvailable(true))
+      .catch(() => setApiAvailable(false));
+  }, [backendStateLoaded, queueOptions, queueScheduleSettings, runnerSettings, submitTargets, tagProfiles]);
+
+  useEffect(() => {
     activeDestinationBlogRef.current = activeAd.destinationBlog;
   }, [activeAd.destinationBlog]);
 
@@ -219,11 +241,12 @@ function App() {
 
     async function loadBackendState() {
       try {
-        const [advertisementResponse, backendTemplates, backendQueue, backendLogs] = await Promise.all([
+        const [advertisementResponse, backendTemplates, backendQueue, backendLogs, backendSettings] = await Promise.all([
           apiRequest<{ advertisements: ApiAdvertisement[] }>("/advertisements"),
           loadBackendTemplates(),
           loadBackendQueue(),
           loadRunnerLogs(),
+          loadBackendAppSettings(),
         ]);
 
         if (cancelled) {
@@ -241,8 +264,24 @@ function App() {
         if (backendQueue.length) {
           setSubmissionQueue(backendQueue);
         }
+        setSubmitTargets(
+          backendSettings.submitTargets?.length ? uniqueSubmitTargets(backendSettings.submitTargets) : submitTargets,
+        );
+        setQueueDefinitions(
+          backendSettings.queueDefinitions?.length
+            ? uniqueQueueDefinitions(backendSettings.queueDefinitions, backendQueue)
+            : uniqueQueueDefinitions(queueDefinitions, backendQueue),
+        );
+        setTagProfiles(
+          backendSettings.tagProfiles && Object.keys(backendSettings.tagProfiles).length
+            ? backendSettings.tagProfiles
+            : tagProfiles,
+        );
+        setRunnerSettings(backendSettings.runnerSettings ?? runnerSettings);
+        setQueueScheduleSettings(backendSettings.queueScheduleSettings ?? queueScheduleSettings);
         setRunnerLogs(backendLogs);
         setApiAvailable(true);
+        setBackendStateLoaded(true);
       } catch {
         if (!cancelled) {
           setApiAvailable(false);

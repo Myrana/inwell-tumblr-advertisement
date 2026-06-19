@@ -79,6 +79,14 @@ export type QueueScheduleSettings = {
   timezone: "America/New_York";
 };
 
+export type AppSettings = {
+  submitTargets: TumblrSubmitTarget[];
+  queueDefinitions: QueueDefinition[];
+  tagProfiles: Record<string, string[]>;
+  runnerSettings: RunnerSettings;
+  queueScheduleSettings: QueueScheduleSettings;
+};
+
 export type RunnerStatus = {
   running: boolean;
   pid: number | null;

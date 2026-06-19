@@ -4,6 +4,7 @@ import { normalizeQueueName } from "./queue";
 import { fromApiTemplate, toApiTemplate } from "./templates";
 import {
   Advertisement,
+  AppSettings,
   ApiQueueItem,
   ApiRunnerLog,
   ApiTemplate,
@@ -54,6 +55,19 @@ export async function saveTemplate(template: SavedTemplate) {
 
 export async function removeTemplate(id: string) {
   await apiRequest(`/templates/${id}`, { method: "DELETE" });
+}
+
+export async function loadBackendAppSettings() {
+  const response = await apiRequest<{ settings: Partial<AppSettings> }>("/settings");
+  return response.settings;
+}
+
+export async function saveBackendAppSettings(settings: AppSettings) {
+  const response = await apiRequest<{ settings: AppSettings }>("/settings/app", {
+    method: "PUT",
+    body: JSON.stringify(settings),
+  });
+  return response.settings;
 }
 
 export function fromApiQueueItem(item: ApiQueueItem): SubmissionQueueItem {
