@@ -25,6 +25,10 @@ export function normalizeTumblrAccount(value: Partial<TumblrAccount> | null | un
     lastCheckedAt: typeof value?.lastCheckedAt === "string" ? value.lastCheckedAt : "",
     lastLoginAt: typeof value?.lastLoginAt === "string" ? value.lastLoginAt : "",
     notes: typeof value?.notes === "string" ? value.notes : "",
+    browserbaseContextId: typeof value?.browserbaseContextId === "string" ? value.browserbaseContextId : "",
+    browserbaseSessionId: typeof value?.browserbaseSessionId === "string" ? value.browserbaseSessionId : "",
+    browserbaseLiveUrl: typeof value?.browserbaseLiveUrl === "string" ? value.browserbaseLiveUrl : "",
+    browserbaseSessionExpiresAt: typeof value?.browserbaseSessionExpiresAt === "string" ? value.browserbaseSessionExpiresAt : "",
     updatedAt: typeof value?.updatedAt === "string" ? value.updatedAt : new Date().toISOString(),
   };
 }
@@ -39,6 +43,10 @@ export function fromApiTumblrAccount(account: ApiTumblrAccount): TumblrAccount {
     lastCheckedAt: account.last_checked_at ?? "",
     lastLoginAt: account.last_login_at ?? "",
     notes: account.notes,
+    browserbaseContextId: account.browserbase_context_id ?? "",
+    browserbaseSessionId: account.browserbase_session_id ?? "",
+    browserbaseLiveUrl: account.browserbase_live_url ?? "",
+    browserbaseSessionExpiresAt: account.browserbase_session_expires_at ?? "",
     updatedAt: account.updated_at,
   };
 }
@@ -53,6 +61,10 @@ export function toApiTumblrAccount(account: TumblrAccount): ApiTumblrAccount {
     last_checked_at: account.lastCheckedAt || null,
     last_login_at: account.lastLoginAt || null,
     notes: account.notes,
+    browserbase_context_id: account.browserbaseContextId,
+    browserbase_session_id: account.browserbaseSessionId,
+    browserbase_live_url: account.browserbaseLiveUrl,
+    browserbase_session_expires_at: account.browserbaseSessionExpiresAt || null,
     updated_at: account.updatedAt,
   };
 }

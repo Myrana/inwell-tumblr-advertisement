@@ -730,7 +730,7 @@ test("tumblr login helper failure does not mark account as launched", { timeout:
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
 });
 
-test("tumblr account connect opens configured remote browser session", { timeout: 40000 }, async (t) => {
+test("tumblr account connect opens Browserbase live view without manual URL", { timeout: 40000 }, async (t) => {
   const server = spawn("npx vite --host 127.0.0.1 --port 8123 --strictPort", {
     cwd: process.cwd(),
     shell: true,
@@ -777,8 +777,8 @@ test("tumblr account connect opens configured remote browser session", { timeout
             slowMo: 500,
             submit: false,
             tumblrAccountId: "snowleopardx",
-            remoteBrowserProvider: "custom",
-            remoteBrowserLaunchUrl: "https://browser.example/live/snow",
+            remoteBrowserProvider: "browserbase",
+            remoteBrowserLaunchUrl: "",
           },
         },
       }),
@@ -815,9 +815,26 @@ test("tumblr account connect opens configured remote browser session", { timeout
       body: JSON.stringify({
         login: {
           mode: "remote",
-          provider: "custom",
-          launchUrl: "https://browser.example/live/snow",
-          message: "Remote browser login session is ready. Complete Tumblr login in the opened browser.",
+          provider: "browserbase",
+          sessionId: "session-new",
+          contextId: "ctx-new",
+          launchUrl: "https://browserbase.com/live/session-new",
+          message: "Browserbase login session is ready. Complete Tumblr login in the opened browser.",
+          account: {
+            id: "snowleopardx",
+            display_name: "Snow",
+            blog_name: "snowleopardx",
+            user_data_dir: "/app/.tumblr-sessions/snowleopardx",
+            status: "checking",
+            last_checked_at: "2026-06-19T01:05:00.000Z",
+            last_login_at: null,
+            notes: "Browserbase login session is ready. Complete Tumblr login in the opened browser.",
+            browserbase_context_id: "ctx-new",
+            browserbase_session_id: "session-new",
+            browserbase_live_url: "https://browserbase.com/live/session-new",
+            browserbase_session_expires_at: "2026-06-19T01:20:00.000Z",
+            updated_at: "2026-06-19T01:05:00.000Z",
+          },
         },
       }),
     }),
@@ -833,13 +850,13 @@ test("tumblr account connect opens configured remote browser session", { timeout
   });
   await page.getByRole("button", { name: "Tumblr Accounts" }).click();
   await page.getByRole("heading", { name: "Tumblr accounts", level: 1 }).waitFor();
-  await page.getByLabel("Browser provider").selectOption("custom");
-  await page.getByRole("textbox", { name: "Live browser URL" }).fill("https://browser.example/live/snow");
+  await page.getByLabel("Browser provider").selectOption("browserbase");
+  assert.equal(await page.getByRole("textbox", { name: "Live browser URL" }).count(), 0);
   await page.getByRole("button", { name: "Connect", exact: true }).click();
-  await page.locator("p.queue-status").filter({ hasText: "Remote browser login session is ready." }).waitFor();
+  await page.locator("p.queue-status").filter({ hasText: "Browserbase login session is ready." }).waitFor();
 
   const openedUrl = await page.evaluate(() => window.__openedRemoteUrl);
-  assert.equal(openedUrl, "https://browser.example/live/snow");
+  assert.equal(openedUrl, "https://browserbase.com/live/session-new");
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
 });
 
