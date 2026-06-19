@@ -142,7 +142,7 @@ export function QueueWorkspace({
       <section className="workflow-section queue-workflow-section">
         <div className="workflow-section-header">
           {sectionToggle("schedule", "Schedule", scheduleSummary(queueScheduleSettings))}
-          <span className={queueScheduleSettings.enabled ? "section-state ready" : "section-state optional"}>
+          <span className={queueScheduleSettings.enabled ? "section-state ready" : "section-state warning"}>
             {queueScheduleSettings.enabled ? "On" : "Off"}
           </span>
         </div>

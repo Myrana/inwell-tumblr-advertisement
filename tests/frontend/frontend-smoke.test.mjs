@@ -437,6 +437,7 @@ test("templates can be saved and applied from their own workspace", { timeout: 4
   await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
   assert.equal(await page.getByLabel("Active queue").inputValue(), "Want ads");
   assert.equal(await page.getByLabel("Media folder").count(), 0);
+  await page.locator(".workflow-section", { hasText: "Schedule" }).locator(".section-state.warning", { hasText: "Off" }).waitFor();
   await page.getByRole("button", { name: "Toggle queue actions section" }).click();
   await page.getByRole("button", { name: "Queue current" }).waitFor();
   await page.getByRole("button", { name: "Queue current" }).click();

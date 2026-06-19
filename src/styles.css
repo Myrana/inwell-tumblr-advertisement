@@ -391,6 +391,11 @@ h2 {
   color: #315f6c;
 }
 
+.section-state.warning {
+  background: #fff1f1;
+  color: #a52f2f;
+}
+
 .workflow-section-body {
   padding: 14px;
   display: grid;
