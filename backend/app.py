@@ -1949,6 +1949,9 @@ def start_runner(payload: dict[str, Any]) -> dict[str, Any]:
     if RUNNER_PROCESS is not None and RUNNER_PROCESS.poll() is None:
         raise ValueError("runner is already running")
 
+    if not visible_tumblr_helper_supported():
+        raise ValueError(unsupported_tumblr_helper_message())
+
     run_id = str(payload.get("runId") or f"run-{uuid.uuid4().hex}").strip()
 
     plan = {

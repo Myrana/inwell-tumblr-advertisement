@@ -995,9 +995,13 @@ function App() {
       setSubmissionQueue(backendQueue);
       setApiAvailable(true);
       setQueueStatus(`Runner launched in a visible PowerShell window. Plan: ${response.runner.plan_path}`);
-    } catch {
+    } catch (error) {
       setApiAvailable(false);
-      setQueueStatus("Could not launch runner. Start the Python API and make sure no runner is already open.");
+      const message =
+        error instanceof ApiError
+          ? error.message
+          : "Start the Python API before launching the runner from the app.";
+      setQueueStatus(`Could not launch runner. ${message}`);
     }
   }
 

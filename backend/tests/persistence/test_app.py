@@ -1531,5 +1531,28 @@ class PersistenceTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             start_runner({"items": []})
 
+    def test_start_runner_rejects_unsupported_visible_browser_environment(self) -> None:
+        temp_plan = Path("backend-test-runner-plan.json")
+        old_process = app.RUNNER_PROCESS
+        old_plan = app.RUNNER_PLAN_PATH
+        app.RUNNER_PROCESS = None
+        app.RUNNER_PLAN_PATH = temp_plan
+
+        try:
+            with (
+                patch("app.visible_tumblr_helper_supported", return_value=False),
+                patch("app.subprocess.Popen") as popen,
+            ):
+                with self.assertRaisesRegex(ValueError, "visible browser"):
+                    start_runner({"items": [{"id": "queue-1", "runnerPayload": "{}"}]})
+
+            popen.assert_not_called()
+            self.assertFalse(temp_plan.exists())
+        finally:
+            if temp_plan.exists():
+                temp_plan.unlink()
+            app.RUNNER_PROCESS = old_process
+            app.RUNNER_PLAN_PATH = old_plan
+
 if __name__ == "__main__":
     unittest.main()
