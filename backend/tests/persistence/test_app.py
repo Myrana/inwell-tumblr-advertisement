@@ -17,6 +17,7 @@ from app import (
     record_runner_log,
     run,
     start_runner,
+    upsert_app_settings,
     upsert_advertisement,
     upsert_queue_item,
     upsert_template,
@@ -37,6 +38,7 @@ class FakeCursor:
 class FakePostgresConnection:
     def __init__(self) -> None:
         self.advertisements: dict[str, dict[str, Any]] = {}
+        self.app_settings: dict[str, dict[str, Any]] = {}
         self.runner_logs: dict[str, dict[str, Any]] = {}
         self.schema_migrations: dict[str, dict[str, Any]] = {}
         self.submission_queue: dict[str, dict[str, Any]] = {}
@@ -94,6 +96,23 @@ class FakePostgresConnection:
 
         if normalized.startswith("delete from advertisements"):
             self.advertisements.pop(str(params[0]), None)
+            return FakeCursor()
+
+        if normalized.startswith("select * from app_settings where key"):
+            row = self.app_settings.get(str(params[0]))
+            return FakeCursor([row] if row else [])
+
+        if normalized.startswith("insert into app_settings"):
+            row = {
+                "key": params[0],
+                "value": json.loads(params[1]),
+                "updated_at": params[2],
+            }
+            self.app_settings[str(params[0])] = row
+            return FakeCursor()
+
+        if normalized.startswith("delete from app_settings"):
+            self.app_settings.pop(str(params[0]), None)
             return FakeCursor()
 
         if normalized.startswith("select created_at from templates"):
@@ -326,6 +345,50 @@ class PersistenceTests(unittest.TestCase):
 
         self.assertEqual(saved["name"], "Custom template")
         self.assertEqual(saved["tags"], ["#custom"])
+
+    def test_app_settings_upsert_round_trips_shared_state(self) -> None:
+        saved = upsert_app_settings(
+            self.connection,
+            {
+                "submitTargets": [
+                    {
+                        "id": "AllThingsRoleplay",
+                        "name": "allthingsroleplay",
+                        "submitUrl": "https://allthingsroleplay.tumblr.com/submit",
+                        "forumUrl": "https://forum.example",
+                    }
+                ],
+                "queueDefinitions": [{"id": "daily-adverts", "name": "Daily adverts"}],
+                "tagProfiles": {"allthingsroleplay": ["Jcink Site", "jcink site", "premium jcink"]},
+                "runnerSettings": {"mediaDir": "C:/media", "slowMo": 750, "submit": True},
+                "queueScheduleSettings": {"enabled": True, "dailyTime": "08:30", "timezone": "America/New_York"},
+            },
+        )
+
+        self.assertEqual(saved["submitTargets"][0]["id"], "allthingsroleplay")
+        self.assertEqual(saved["submitTargets"][0]["forumUrl"], "https://forum.example")
+        self.assertEqual(saved["queueDefinitions"][0]["name"], "Daily adverts")
+        self.assertEqual(saved["tagProfiles"]["allthingsroleplay"], ["jcink site", "premium jcink"])
+        self.assertEqual(saved["runnerSettings"], {"mediaDir": "C:/media", "slowMo": 750, "submit": True})
+        self.assertEqual(saved["queueScheduleSettings"]["dailyTime"], "08:30")
+
+    def test_app_settings_normalize_invalid_values(self) -> None:
+        saved = upsert_app_settings(
+            self.connection,
+            {
+                "submitTargets": [{"id": "", "submitUrl": ""}],
+                "queueDefinitions": [{"name": ""}],
+                "tagProfiles": {"blog": "not-a-list"},
+                "runnerSettings": {"slowMo": "bad"},
+                "queueScheduleSettings": {"dailyTime": "bad"},
+            },
+        )
+
+        self.assertEqual(saved["submitTargets"], [])
+        self.assertEqual(saved["queueDefinitions"], [{"id": "default-queue", "name": "Default queue"}])
+        self.assertEqual(saved["tagProfiles"], {})
+        self.assertEqual(saved["runnerSettings"]["slowMo"], 500)
+        self.assertEqual(saved["queueScheduleSettings"]["dailyTime"], "09:00")
 
     def test_queue_item_upsert_round_trips_schedule_and_status(self) -> None:
         saved = upsert_queue_item(

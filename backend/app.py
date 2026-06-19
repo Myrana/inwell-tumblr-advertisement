@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import mimetypes
 import os
+import re
 import subprocess
 import uuid
 from datetime import date, datetime, timezone
@@ -23,7 +24,7 @@ DEFAULT_TIMEZONE = "America/New_York"
 DEFAULT_PGHOST = "192.168.1.3"
 DEFAULT_PGDATABASE = "inwell_tumblr_advertisement"
 DEFAULT_PGUSER = "postgres"
-CURRENT_SCHEMA_VERSION = "0004_named_queues"
+CURRENT_SCHEMA_VERSION = "0005_app_settings"
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DIST_ROOT = REPO_ROOT / "dist"
 RUNNER_PLAN_PATH = REPO_ROOT / "tumblr-runner-plan.json"
@@ -180,6 +181,15 @@ def initialize(connection: ConnectionLike) -> None:
         )
         """
     )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS app_settings (
+            key TEXT PRIMARY KEY,
+            value JSONB NOT NULL DEFAULT '{}'::jsonb,
+            updated_at TIMESTAMPTZ NOT NULL
+        )
+        """
+    )
     connection.execute("ALTER TABLE runner_logs ADD COLUMN IF NOT EXISTS run_id TEXT NOT NULL DEFAULT ''")
     connection.execute("ALTER TABLE runner_logs ADD COLUMN IF NOT EXISTS target_name TEXT NOT NULL DEFAULT ''")
     connection.execute("ALTER TABLE submission_queue ADD COLUMN IF NOT EXISTS queue_name TEXT NOT NULL DEFAULT 'Default queue'")
@@ -243,6 +253,18 @@ def parse_tags(value: Any) -> list[str]:
             return []
         return [str(tag) for tag in loaded] if isinstance(loaded, list) else []
     return []
+
+
+def normalize_tag_profile_values(value: Any) -> list[str]:
+    tags = parse_tags(value)
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for tag in tags:
+        candidate = " ".join(str(tag).strip().lower().split())
+        if candidate and candidate not in seen:
+            seen.add(candidate)
+            normalized.append(candidate)
+    return normalized
 
 
 def normalize_datetime(value: Any) -> Any:
@@ -385,6 +407,116 @@ def queue_item_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "posted_at": parse_optional_datetime(payload_field(payload, "posted_at", "postedAt")),
         "failed_at": parse_optional_datetime(payload_field(payload, "failed_at", "failedAt")),
     }
+
+
+def normalize_submit_target(value: Any) -> dict[str, str] | None:
+    if not isinstance(value, dict):
+        return None
+
+    target_id = str(value.get("id", "")).strip().lower()
+    submit_url = str(value.get("submitUrl") or value.get("submit_url") or "").strip()
+    name = str(value.get("name") or target_id).strip() or target_id
+    forum_url = str(value.get("forumUrl") or value.get("forum_url") or "").strip()
+
+    if not target_id or not submit_url:
+        return None
+
+    return {
+        "id": target_id,
+        "name": name,
+        "submitUrl": submit_url,
+        "forumUrl": forum_url,
+    }
+
+
+def normalize_queue_definition(value: Any) -> dict[str, str] | None:
+    if not isinstance(value, dict):
+        return None
+
+    name = str(value.get("name") or "").strip() or "Default queue"
+    setting_id = str(value.get("id") or "").strip() or "-".join(name.lower().split()) or "default-queue"
+    return {"id": setting_id, "name": name}
+
+
+def normalize_runner_settings(value: Any) -> dict[str, Any]:
+    data = value if isinstance(value, dict) else {}
+    try:
+        slow_mo = int(data.get("slowMo", 500))
+    except (TypeError, ValueError):
+        slow_mo = 500
+
+    return {
+        "mediaDir": str(data.get("mediaDir") or ""),
+        "slowMo": max(0, min(slow_mo, 5000)),
+        "submit": bool(data.get("submit")),
+    }
+
+
+def normalize_queue_schedule_settings(value: Any) -> dict[str, Any]:
+    data = value if isinstance(value, dict) else {}
+    daily_time = str(data.get("dailyTime") or "09:00")
+    if not re.match(r"^\d{2}:\d{2}$", daily_time):
+        daily_time = "09:00"
+
+    return {
+        "enabled": bool(data.get("enabled")),
+        "dailyTime": daily_time,
+        "timezone": DEFAULT_TIMEZONE,
+    }
+
+
+def app_settings_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    submit_targets = payload.get("submitTargets", [])
+    queue_definitions = payload.get("queueDefinitions", [])
+    tag_profiles = payload.get("tagProfiles", {})
+    submit_target_items = submit_targets if isinstance(submit_targets, list) else []
+    queue_definition_items = queue_definitions if isinstance(queue_definitions, list) else []
+
+    normalized_profiles: dict[str, list[str]] = {}
+    if isinstance(tag_profiles, dict):
+        for blog, tags in tag_profiles.items():
+            if isinstance(tags, list):
+                normalized_profiles[str(blog)] = normalize_tag_profile_values(tags)
+
+    return {
+        "submitTargets": [
+            target
+            for target in (normalize_submit_target(item) for item in submit_target_items)
+            if target
+        ],
+        "queueDefinitions": [
+            queue
+            for queue in (normalize_queue_definition(item) for item in queue_definition_items)
+            if queue
+        ],
+        "tagProfiles": normalized_profiles,
+        "runnerSettings": normalize_runner_settings(payload.get("runnerSettings")),
+        "queueScheduleSettings": normalize_queue_schedule_settings(payload.get("queueScheduleSettings")),
+    }
+
+
+def get_app_settings(connection: ConnectionLike) -> dict[str, Any]:
+    row = connection.execute("SELECT * FROM app_settings WHERE key = %s", ("app",)).fetchone()
+    if not row:
+        return {}
+
+    value = row_to_dict(row).get("value") or {}
+    return value if isinstance(value, dict) else {}
+
+
+def upsert_app_settings(connection: ConnectionLike, payload: dict[str, Any]) -> dict[str, Any]:
+    settings = app_settings_from_payload(payload)
+    connection.execute(
+        """
+        INSERT INTO app_settings (key, value, updated_at)
+        VALUES (%s, %s::jsonb, %s)
+        ON CONFLICT(key) DO UPDATE SET
+            value = excluded.value,
+            updated_at = excluded.updated_at
+        """,
+        ("app", json.dumps(settings), utc_now()),
+    )
+    return get_app_settings(connection)
 
 
 def upsert_advertisement(connection: ConnectionLike, payload: dict[str, Any]) -> dict[str, Any]:
@@ -750,6 +882,10 @@ class Handler(BaseHTTPRequestHandler):
                 self.respond({"logs": [row_to_runner_log(row) for row in rows]})
                 return
 
+            if collection == "settings" and item_id is None:
+                self.respond({"settings": get_app_settings(connection)})
+                return
+
         self.send_error(HTTPStatus.NOT_FOUND)
 
     def serve_static(self) -> None:
@@ -835,13 +971,21 @@ class Handler(BaseHTTPRequestHandler):
             self.respond({"deleted": "runner_logs"})
             return
 
-        if item_id is None or collection not in {"advertisements", "templates", "queue"}:
+        if item_id is None or collection not in {"advertisements", "templates", "queue", "settings"}:
             self.send_error(HTTPStatus.NOT_FOUND)
             return
 
-        table = {"advertisements": "advertisements", "templates": "templates", "queue": "submission_queue"}[collection]
+        table = {
+            "advertisements": "advertisements",
+            "templates": "templates",
+            "queue": "submission_queue",
+            "settings": "app_settings",
+        }[collection]
         with connect() as connection:
-            connection.execute(f"DELETE FROM {table} WHERE id = %s", (item_id,))
+            if collection == "settings":
+                connection.execute(f"DELETE FROM {table} WHERE key = %s", (item_id,))
+            else:
+                connection.execute(f"DELETE FROM {table} WHERE id = %s", (item_id,))
 
         self.respond({"deleted": item_id})
 
@@ -866,6 +1010,10 @@ class Handler(BaseHTTPRequestHandler):
                 if collection == "queue":
                     item = upsert_queue_item(connection, payload)
                     self.respond({"queue_item": item}, status)
+                    return
+
+                if collection == "settings":
+                    self.respond({"settings": upsert_app_settings(connection, payload)}, status)
                     return
         except ValueError as error:
             self.respond({"error": str(error)}, HTTPStatus.BAD_REQUEST)

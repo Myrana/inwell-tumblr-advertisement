@@ -275,6 +275,99 @@ test("templates can be saved and applied from their own workspace", { timeout: 4
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
 });
 
+test("shared app settings load from and save to the backend", { timeout: 40000 }, async (t) => {
+  const server = spawn("npx vite --host 127.0.0.1 --port 8123 --strictPort", {
+    cwd: process.cwd(),
+    shell: true,
+    stdio: "ignore",
+  });
+
+  t.after(() => {
+    stopProcessTree(server);
+  });
+
+  await waitForServer(appUrl);
+
+  const browser = await chromium.launch();
+  t.after(async () => {
+    await browser.close();
+  });
+
+  const page = await browser.newPage();
+  const pageErrors = [];
+  const apiHeaders = {
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Methods": "DELETE,GET,OPTIONS,POST,PUT",
+    "Access-Control-Allow-Origin": "*",
+  };
+  let savedSettings = null;
+
+  page.on("pageerror", (error) => pageErrors.push(error));
+  await page.route("http://127.0.0.1:8021/api/**", (route) => route.abort());
+  await page.route("http://127.0.0.1:8021/api/advertisements", (route) =>
+    route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ advertisements: [] }) }),
+  );
+  await page.route("http://127.0.0.1:8021/api/templates", (route) =>
+    route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ templates: [] }) }),
+  );
+  await page.route("http://127.0.0.1:8021/api/queue", (route) =>
+    route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ queue: [] }) }),
+  );
+  await page.route("http://127.0.0.1:8021/api/runner/logs", (route) =>
+    route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ logs: [] }) }),
+  );
+  await page.route("http://127.0.0.1:8021/api/settings", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({
+        settings: {
+          submitTargets: [
+            {
+              id: "backendblog",
+              name: "backendblog",
+              submitUrl: "https://backendblog.tumblr.com/submit",
+              forumUrl: "https://backend.example",
+            },
+          ],
+          queueDefinitions: [{ id: "backend-queue", name: "Backend queue" }],
+          tagProfiles: { backendblog: ["jcink site"] },
+          runnerSettings: { mediaDir: "C:/backend-media", slowMo: 900, submit: true },
+          queueScheduleSettings: { enabled: true, dailyTime: "07:45", timezone: "America/New_York" },
+        },
+      }),
+    }),
+  );
+  await page.route("http://127.0.0.1:8021/api/settings/app", (route) => {
+    savedSettings = route.request().postDataJSON();
+    return route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({ settings: savedSettings }),
+    });
+  });
+
+  await page.goto(appUrl);
+  await page.getByLabel("Workspace views").getByRole("button", { name: "Queue", exact: true }).click();
+  await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
+  assert.equal(await page.getByLabel("Active queue").inputValue(), "Backend queue");
+  assert.equal(await page.getByLabel("Media folder").inputValue(), "C:/backend-media");
+  assert.equal(await page.getByLabel("Slow motion").inputValue(), "900");
+  assert.equal(await page.getByLabel("Click Submit after filling").isChecked(), true);
+  assert.equal(await page.getByLabel("Run this queue daily").isChecked(), true);
+  assert.equal(await page.getByLabel("Daily run time").inputValue(), "07:45");
+
+  await page.getByRole("button", { name: "Queues", exact: true }).click();
+  await page.getByLabel("New queue name").fill("Backend second queue");
+  await page.getByRole("button", { name: "Add queue" }).click();
+  await page.waitForTimeout(250);
+
+  assert.equal(savedSettings?.submitTargets?.[0]?.id, "backendblog");
+  assert.equal(savedSettings?.runnerSettings?.slowMo, 900);
+  assert.ok(savedSettings?.queueDefinitions?.some((queue) => queue.name === "Backend second queue"));
+  assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
+});
+
 test("runner logs are grouped by expandable queue run", { timeout: 40000 }, async (t) => {
   const server = spawn("npx vite --host 127.0.0.1 --port 8123 --strictPort", {
     cwd: process.cwd(),
@@ -378,6 +471,13 @@ test("runner logs are grouped by expandable queue run", { timeout: 40000 }, asyn
       contentType: "application/json",
       headers: apiHeaders,
       body: JSON.stringify({ templates: [] }),
+    }),
+  );
+  await page.route("http://127.0.0.1:8021/api/settings", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({ settings: {} }),
     }),
   );
 
@@ -502,6 +602,13 @@ test("running the queue sends a run id and shows failure explanations", { timeou
       contentType: "application/json",
       headers: apiHeaders,
       body: JSON.stringify({ templates: [] }),
+    }),
+  );
+  await page.route("http://127.0.0.1:8021/api/settings", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({ settings: {} }),
     }),
   );
 
