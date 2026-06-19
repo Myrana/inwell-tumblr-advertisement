@@ -49,6 +49,7 @@ export function normalizeQueueItem(value: Partial<SubmissionQueueItem> | null | 
     adId: value.adId,
     targetId: value.targetId,
     targetName: value.targetName || value.targetId,
+    tumblrAccountId: value.tumblrAccountId || "",
     queueName: normalizeQueueName(value.queueName),
     submitUrl: value.submitUrl,
     postType: value.postType === "text" || value.postType === "video" ? value.postType : "photo",
@@ -132,6 +133,7 @@ export function createQueueItem(
   target: TumblrSubmitTarget,
   postPackage: string,
   queueName = defaultQueueName,
+  tumblrAccountId = "",
 ): SubmissionQueueItem {
   const timestamp = new Date().toISOString();
   const normalizedQueueName = normalizeQueueName(queueName);
@@ -140,6 +142,7 @@ export function createQueueItem(
     adId: advertisement.id,
     targetId: target.id,
     targetName: target.name,
+    tumblrAccountId,
     queueName: normalizedQueueName,
     submitUrl: target.submitUrl,
     postType: advertisement.postType,

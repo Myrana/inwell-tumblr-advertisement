@@ -22,6 +22,7 @@ from app import (
     upsert_advertisement,
     upsert_queue_item,
     upsert_template,
+    upsert_tumblr_account,
 )
 
 
@@ -53,6 +54,7 @@ class FakePostgresConnection:
         self.tag_profile_tags: dict[tuple[str, str], dict[str, Any]] = {}
         self.templates: dict[str, dict[str, Any]] = {}
         self.template_tags: dict[tuple[str, str], dict[str, Any]] = {}
+        self.tumblr_accounts: dict[str, dict[str, Any]] = {}
 
     def execute(self, query: str, params: tuple[Any, ...] | None = None) -> FakeCursor:
         normalized = " ".join(query.split()).lower()
@@ -167,6 +169,37 @@ class FakePostgresConnection:
         if normalized.startswith("select * from queue_definitions order by"):
             return FakeCursor(sorted(self.queue_definitions.values(), key=lambda row: row["name"]))
 
+        if normalized.startswith("select created_at from tumblr_accounts"):
+            row = self.tumblr_accounts.get(str(params[0]))
+            return FakeCursor([{"created_at": row["created_at"]}] if row else [])
+
+        if normalized.startswith("select * from tumblr_accounts where id"):
+            row = self.tumblr_accounts.get(str(params[0]))
+            return FakeCursor([row] if row else [])
+
+        if normalized.startswith("select * from tumblr_accounts order by"):
+            return FakeCursor(sorted(self.tumblr_accounts.values(), key=lambda row: row["display_name"]))
+
+        if normalized.startswith("insert into tumblr_accounts"):
+            row = {
+                "id": params[0],
+                "display_name": params[1],
+                "blog_name": params[2],
+                "user_data_dir": params[3],
+                "status": params[4],
+                "last_checked_at": params[5],
+                "last_login_at": params[6],
+                "notes": params[7],
+                "created_at": params[8],
+                "updated_at": params[9],
+            }
+            self.tumblr_accounts[str(params[0])] = row
+            return FakeCursor()
+
+        if normalized.startswith("delete from tumblr_accounts"):
+            self.tumblr_accounts.pop(str(params[0]), None)
+            return FakeCursor()
+
         if normalized.startswith("delete from tag_profile_tags") and not params:
             self.tag_profile_tags.clear()
             return FakeCursor()
@@ -196,7 +229,8 @@ class FakePostgresConnection:
                 "media_dir": params[1],
                 "slow_mo": params[2],
                 "submit": params[3],
-                "updated_at": params[4],
+                "tumblr_account_id": params[4],
+                "updated_at": params[5],
             }
             self.runner_settings[str(params[0])] = row
             return FakeCursor()
@@ -312,18 +346,19 @@ class FakePostgresConnection:
                 "ad_id": params[1],
                 "target_id": params[2],
                 "target_name": params[3],
-                "queue_name": params[4],
-                "submit_url": params[5],
-                "post_type": params[6],
-                "status": params[7],
-                "scheduled_for": params[8],
-                "timezone": params[9],
-                "notes": params[10],
-                "created_at": params[11],
-                "updated_at": params[12],
-                "last_run_at": params[13],
-                "posted_at": params[14],
-                "failed_at": params[15],
+                "tumblr_account_id": params[4],
+                "queue_name": params[5],
+                "submit_url": params[6],
+                "post_type": params[7],
+                "status": params[8],
+                "scheduled_for": params[9],
+                "timezone": params[10],
+                "notes": params[11],
+                "created_at": params[12],
+                "updated_at": params[13],
+                "last_run_at": params[14],
+                "posted_at": params[15],
+                "failed_at": params[16],
             }
             self.submission_queue[str(params[0])] = row
             return FakeCursor()
@@ -565,7 +600,7 @@ class PersistenceTests(unittest.TestCase):
                 ],
                 "queueDefinitions": [{"id": "daily-adverts", "name": "Daily adverts"}],
                 "tagProfiles": {"allthingsroleplay": ["Jcink Site", "jcink site", "premium jcink"]},
-                "runnerSettings": {"mediaDir": "C:/media", "slowMo": 750, "submit": True},
+                "runnerSettings": {"mediaDir": "C:/media", "slowMo": 750, "submit": True, "tumblrAccountId": "snowleopardx"},
                 "queueScheduleSettings": {"enabled": True, "dailyTime": "08:30", "timezone": "America/New_York"},
             },
         )
@@ -574,11 +609,12 @@ class PersistenceTests(unittest.TestCase):
         self.assertEqual(saved["submitTargets"][0]["forumUrl"], "https://forum.example")
         self.assertEqual(saved["queueDefinitions"][0]["name"], "Daily adverts")
         self.assertEqual(saved["tagProfiles"]["allthingsroleplay"], ["jcink site", "premium jcink"])
-        self.assertEqual(saved["runnerSettings"], {"mediaDir": "C:/media", "slowMo": 750, "submit": True})
+        self.assertEqual(saved["runnerSettings"], {"mediaDir": "C:/media", "slowMo": 750, "submit": True, "tumblrAccountId": "snowleopardx"})
         self.assertEqual(saved["queueScheduleSettings"]["dailyTime"], "08:30")
         self.assertEqual(self.connection.submit_targets["allthingsroleplay"]["submit_url"], "https://allthingsroleplay.tumblr.com/submit")
         self.assertEqual(self.connection.queue_definitions["daily-adverts"]["name"], "Daily adverts")
         self.assertEqual(self.connection.runner_settings["default"]["slow_mo"], 750)
+        self.assertEqual(self.connection.runner_settings["default"]["tumblr_account_id"], "snowleopardx")
         self.assertEqual(self.connection.queue_schedule_settings["default"]["daily_time"], "08:30")
         self.assertGreater(len(self.connection.settings_audit_events), 0)
 
@@ -628,6 +664,24 @@ class PersistenceTests(unittest.TestCase):
         self.assertEqual(stats["queueScheduleSettings"], 1)
         self.assertGreater(stats["settingsAuditEvents"], 0)
 
+    def test_tumblr_account_upsert_tracks_session_metadata(self) -> None:
+        saved = upsert_tumblr_account(
+            self.connection,
+            {
+                "displayName": "Myrana Tumblr",
+                "blogName": "snowleopardx",
+                "status": "connected",
+                "notes": "Logged in through Playwright.",
+            },
+        )
+
+        self.assertEqual(saved["id"], "snowleopardx")
+        self.assertEqual(saved["display_name"], "Myrana Tumblr")
+        self.assertEqual(saved["blog_name"], "snowleopardx")
+        self.assertEqual(saved["status"], "connected")
+        self.assertIn(".tumblr-sessions", saved["user_data_dir"])
+        self.assertEqual(self.connection.tumblr_accounts["snowleopardx"]["notes"], "Logged in through Playwright.")
+
     def test_queue_item_upsert_round_trips_schedule_and_status(self) -> None:
         saved = upsert_queue_item(
             self.connection,
@@ -636,6 +690,7 @@ class PersistenceTests(unittest.TestCase):
                 "adId": "ad-1",
                 "targetId": "allthingsroleplay",
                 "targetName": "allthingsroleplay",
+                "tumblrAccountId": "snowleopardx",
                 "queueName": "Daily adverts",
                 "submitUrl": "https://allthingsroleplay.tumblr.com/submit",
                 "postType": "photo",
@@ -650,6 +705,7 @@ class PersistenceTests(unittest.TestCase):
         self.assertEqual(saved["id"], "queue-1")
         self.assertEqual(saved["ad_id"], "ad-1")
         self.assertEqual(saved["queue_name"], "Daily adverts")
+        self.assertEqual(saved["tumblr_account_id"], "snowleopardx")
         self.assertEqual(saved["status"], "scheduled")
         self.assertEqual(saved["post_type"], "photo")
         self.assertIn("2026-06-18T14:30:00", saved["scheduled_for"])

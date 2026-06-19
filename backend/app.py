@@ -24,7 +24,7 @@ DEFAULT_TIMEZONE = "America/New_York"
 DEFAULT_PGHOST = "192.168.1.3"
 DEFAULT_PGDATABASE = "inwell_tumblr_advertisement"
 DEFAULT_PGUSER = "postgres"
-CURRENT_SCHEMA_VERSION = "0006_relational_app_settings"
+CURRENT_SCHEMA_VERSION = "0007_tumblr_account_sessions"
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DIST_ROOT = REPO_ROOT / "dist"
 RUNNER_PLAN_PATH = REPO_ROOT / "tumblr-runner-plan.json"
@@ -149,6 +149,7 @@ def initialize(connection: ConnectionLike) -> None:
             ad_id TEXT NOT NULL,
             target_id TEXT NOT NULL,
             target_name TEXT NOT NULL DEFAULT '',
+            tumblr_account_id TEXT NOT NULL DEFAULT '',
             queue_name TEXT NOT NULL DEFAULT 'Default queue',
             submit_url TEXT NOT NULL,
             post_type TEXT NOT NULL DEFAULT 'photo',
@@ -175,6 +176,22 @@ def initialize(connection: ConnectionLike) -> None:
             created_at TIMESTAMPTZ NOT NULL,
             updated_at TIMESTAMPTZ NOT NULL,
             PRIMARY KEY (queue_item_id, payload_path)
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS tumblr_accounts (
+            id TEXT PRIMARY KEY,
+            display_name TEXT NOT NULL DEFAULT '',
+            blog_name TEXT NOT NULL DEFAULT '',
+            user_data_dir TEXT NOT NULL DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'needs-login',
+            last_checked_at TIMESTAMPTZ,
+            last_login_at TIMESTAMPTZ,
+            notes TEXT NOT NULL DEFAULT '',
+            created_at TIMESTAMPTZ NOT NULL,
+            updated_at TIMESTAMPTZ NOT NULL
         )
         """
     )
@@ -267,6 +284,7 @@ def initialize(connection: ConnectionLike) -> None:
             media_dir TEXT NOT NULL DEFAULT '',
             slow_mo INTEGER NOT NULL DEFAULT 500,
             submit BOOLEAN NOT NULL DEFAULT FALSE,
+            tumblr_account_id TEXT NOT NULL DEFAULT '',
             updated_at TIMESTAMPTZ NOT NULL
         )
         """
@@ -299,10 +317,14 @@ def initialize(connection: ConnectionLike) -> None:
     connection.execute("ALTER TABLE runner_logs ADD COLUMN IF NOT EXISTS run_id TEXT NOT NULL DEFAULT ''")
     connection.execute("ALTER TABLE runner_logs ADD COLUMN IF NOT EXISTS target_name TEXT NOT NULL DEFAULT ''")
     connection.execute("ALTER TABLE submission_queue ADD COLUMN IF NOT EXISTS queue_name TEXT NOT NULL DEFAULT 'Default queue'")
+    connection.execute("ALTER TABLE submission_queue ADD COLUMN IF NOT EXISTS tumblr_account_id TEXT NOT NULL DEFAULT ''")
+    connection.execute("ALTER TABLE runner_settings ADD COLUMN IF NOT EXISTS tumblr_account_id TEXT NOT NULL DEFAULT ''")
     connection.execute("CREATE INDEX IF NOT EXISTS idx_advertisement_tags_tag ON advertisement_tags(tag)")
     connection.execute("CREATE INDEX IF NOT EXISTS idx_template_tags_tag ON template_tags(tag)")
     connection.execute("CREATE INDEX IF NOT EXISTS idx_runner_log_details_key ON runner_log_details(detail_key)")
     connection.execute("CREATE INDEX IF NOT EXISTS idx_submission_queue_payload_path ON submission_queue_runner_payload_values(payload_path)")
+    connection.execute("CREATE INDEX IF NOT EXISTS idx_submission_queue_tumblr_account ON submission_queue(tumblr_account_id)")
+    connection.execute("CREATE INDEX IF NOT EXISTS idx_tumblr_accounts_status ON tumblr_accounts(status)")
     connection.execute("CREATE INDEX IF NOT EXISTS idx_submit_targets_name ON submit_targets(name)")
     connection.execute("CREATE INDEX IF NOT EXISTS idx_queue_definitions_name ON queue_definitions(name)")
     connection.execute("CREATE INDEX IF NOT EXISTS idx_tag_profile_tags_blog_order ON tag_profile_tags(blog_id, sort_order)")
@@ -742,11 +764,22 @@ def row_to_queue_item(row: Any, runner_payload: str | None = None) -> dict[str, 
         data["runner_payload"] = runner_payload
     elif "runner_payload" not in data:
         data["runner_payload"] = ""
+    data["tumblr_account_id"] = str(data.get("tumblr_account_id") or "")
     data["queue_name"] = str(data.get("queue_name") or "Default queue").strip() or "Default queue"
     if data.get("post_type") not in POST_TYPES:
         data["post_type"] = "photo"
     if data.get("status") not in QUEUE_STATUSES:
         data["status"] = "queued"
+    return data
+
+
+def row_to_tumblr_account(row: Any) -> dict[str, Any]:
+    data = row_to_dict(row)
+    data["display_name"] = str(data.get("display_name") or "")
+    data["blog_name"] = str(data.get("blog_name") or "")
+    data["user_data_dir"] = str(data.get("user_data_dir") or "")
+    data["status"] = normalize_tumblr_account_status(data.get("status"))
+    data["notes"] = str(data.get("notes") or "")
     return data
 
 
@@ -803,6 +836,16 @@ def normalize_queue_status(value: Any) -> str:
     return status if status in QUEUE_STATUSES else "queued"
 
 
+def normalize_tumblr_account_status(value: Any) -> str:
+    status = str(value or "").strip().lower()
+    return status if status in {"connected", "needs-login", "expired", "checking"} else "needs-login"
+
+
+def default_tumblr_user_data_dir(account_id: str) -> str:
+    safe_id = re.sub(r"[^a-zA-Z0-9_.-]+", "-", account_id).strip("-") or "default"
+    return str(REPO_ROOT / ".tumblr-sessions" / safe_id)
+
+
 def payload_field(payload: dict[str, Any], snake_name: str, camel_name: str, default: Any = "") -> Any:
     if snake_name in payload:
         return payload.get(snake_name, default)
@@ -819,6 +862,7 @@ def queue_item_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "ad_id": str(payload_field(payload, "ad_id", "adId")).strip(),
         "target_id": str(payload_field(payload, "target_id", "targetId")).strip(),
         "target_name": str(payload_field(payload, "target_name", "targetName")).strip(),
+        "tumblr_account_id": str(payload_field(payload, "tumblr_account_id", "tumblrAccountId")).strip(),
         "queue_name": str(payload_field(payload, "queue_name", "queueName", "Default queue") or "Default queue").strip() or "Default queue",
         "submit_url": str(payload_field(payload, "submit_url", "submitUrl")).strip(),
         "post_type": post_type,
@@ -875,6 +919,7 @@ def normalize_runner_settings(value: Any) -> dict[str, Any]:
         "mediaDir": str(data.get("mediaDir") or ""),
         "slowMo": max(0, min(slow_mo, 5000)),
         "submit": bool(data.get("submit")),
+        "tumblrAccountId": str(data.get("tumblrAccountId") or data.get("tumblr_account_id") or "").strip(),
     }
 
 
@@ -921,6 +966,33 @@ def app_settings_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def tumblr_account_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    account_id = str(payload.get("id") or "").strip().lower()
+    display_name = str(payload.get("displayName") or payload.get("display_name") or "").strip()
+    blog_name = str(payload.get("blogName") or payload.get("blog_name") or "").strip().lower()
+    if not account_id:
+        account_id = re.sub(r"[^a-z0-9]+", "-", (blog_name or display_name).lower()).strip("-")
+    if not account_id:
+        raise ValueError("id or blogName is required")
+    if not display_name:
+        display_name = blog_name or account_id
+
+    user_data_dir = str(payload.get("userDataDir") or payload.get("user_data_dir") or "").strip()
+    if not user_data_dir:
+        user_data_dir = default_tumblr_user_data_dir(account_id)
+
+    return {
+        "id": account_id,
+        "display_name": display_name,
+        "blog_name": blog_name,
+        "user_data_dir": user_data_dir,
+        "status": normalize_tumblr_account_status(payload.get("status")),
+        "last_checked_at": parse_optional_datetime(payload.get("lastCheckedAt") or payload.get("last_checked_at")),
+        "last_login_at": parse_optional_datetime(payload.get("lastLoginAt") or payload.get("last_login_at")),
+        "notes": str(payload.get("notes") or ""),
+    }
+
+
 def get_app_settings(connection: ConnectionLike) -> dict[str, Any]:
     submit_targets = [
         {
@@ -951,6 +1023,7 @@ def get_app_settings(connection: ConnectionLike) -> dict[str, Any]:
                 "mediaDir": runner_row["media_dir"] if runner_row else "",
                 "slowMo": runner_row["slow_mo"] if runner_row else 500,
                 "submit": runner_row["submit"] if runner_row else False,
+                "tumblrAccountId": runner_row["tumblr_account_id"] if runner_row else "",
             }
         ),
         "queueScheduleSettings": normalize_queue_schedule_settings(
@@ -1055,18 +1128,26 @@ def upsert_app_settings(connection: ConnectionLike, payload: dict[str, Any], aud
     runner_settings = settings["runnerSettings"]
     connection.execute(
         """
-        INSERT INTO runner_settings (id, media_dir, slow_mo, submit, updated_at)
-        VALUES (%s, %s, %s, %s, %s)
+        INSERT INTO runner_settings (id, media_dir, slow_mo, submit, tumblr_account_id, updated_at)
+        VALUES (%s, %s, %s, %s, %s, %s)
         ON CONFLICT(id) DO UPDATE SET
             media_dir = excluded.media_dir,
             slow_mo = excluded.slow_mo,
             submit = excluded.submit,
+            tumblr_account_id = excluded.tumblr_account_id,
             updated_at = excluded.updated_at
         """,
-        ("default", runner_settings["mediaDir"], runner_settings["slowMo"], runner_settings["submit"], now),
+        (
+            "default",
+            runner_settings["mediaDir"],
+            runner_settings["slowMo"],
+            runner_settings["submit"],
+            runner_settings["tumblrAccountId"],
+            now,
+        ),
     )
     if audit:
-        for field_name in ("mediaDir", "slowMo", "submit"):
+        for field_name in ("mediaDir", "slowMo", "submit", "tumblrAccountId"):
             record_settings_audit(connection, "runner_settings", "upsert", "default", field_name, "", runner_settings[field_name])
 
     schedule_settings = settings["queueScheduleSettings"]
@@ -1092,6 +1173,71 @@ def upsert_app_settings(connection: ConnectionLike, payload: dict[str, Any], aud
         for field_name in ("enabled", "dailyTime", "timezone"):
             record_settings_audit(connection, "queue_schedule_settings", "upsert", "default", field_name, "", schedule_settings[field_name])
     return get_app_settings(connection)
+
+
+def upsert_tumblr_account(connection: ConnectionLike, payload: dict[str, Any]) -> dict[str, Any]:
+    account = tumblr_account_from_payload(payload)
+    now = utc_now()
+    existing = connection.execute("SELECT created_at FROM tumblr_accounts WHERE id = %s", (account["id"],)).fetchone()
+    created_at = existing["created_at"] if existing else now
+
+    connection.execute(
+        """
+        INSERT INTO tumblr_accounts (
+            id, display_name, blog_name, user_data_dir, status, last_checked_at,
+            last_login_at, notes, created_at, updated_at
+        )
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        ON CONFLICT(id) DO UPDATE SET
+            display_name = excluded.display_name,
+            blog_name = excluded.blog_name,
+            user_data_dir = excluded.user_data_dir,
+            status = excluded.status,
+            last_checked_at = excluded.last_checked_at,
+            last_login_at = excluded.last_login_at,
+            notes = excluded.notes,
+            updated_at = excluded.updated_at
+        """,
+        (
+            account["id"],
+            account["display_name"],
+            account["blog_name"],
+            account["user_data_dir"],
+            account["status"],
+            account["last_checked_at"],
+            account["last_login_at"],
+            account["notes"],
+            created_at,
+            now,
+        ),
+    )
+    row = connection.execute("SELECT * FROM tumblr_accounts WHERE id = %s", (account["id"],)).fetchone()
+    return row_to_tumblr_account(row)
+
+
+def update_tumblr_account_status(
+    connection: ConnectionLike,
+    account_id: str,
+    status: str,
+    notes: str,
+    checked_at: datetime | None = None,
+    login_at: datetime | None = None,
+) -> dict[str, Any] | None:
+    existing = connection.execute("SELECT * FROM tumblr_accounts WHERE id = %s", (account_id,)).fetchone()
+    if not existing:
+        return None
+
+    data = row_to_tumblr_account(existing)
+    timestamp = checked_at or utc_now()
+    data.update(
+        {
+            "status": normalize_tumblr_account_status(status),
+            "notes": notes,
+            "last_checked_at": timestamp,
+            "last_login_at": login_at or parse_optional_datetime(data.get("last_login_at")),
+        }
+    )
+    return upsert_tumblr_account(connection, data)
 
 
 def upsert_advertisement(connection: ConnectionLike, payload: dict[str, Any]) -> dict[str, Any]:
@@ -1210,15 +1356,16 @@ def upsert_queue_item(connection: ConnectionLike, payload: dict[str, Any]) -> di
     connection.execute(
         """
         INSERT INTO submission_queue (
-            id, ad_id, target_id, target_name, queue_name, submit_url, post_type, status,
+            id, ad_id, target_id, target_name, tumblr_account_id, queue_name, submit_url, post_type, status,
             scheduled_for, timezone, notes, created_at, updated_at,
             last_run_at, posted_at, failed_at
         )
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT(id) DO UPDATE SET
             ad_id = excluded.ad_id,
             target_id = excluded.target_id,
             target_name = excluded.target_name,
+            tumblr_account_id = excluded.tumblr_account_id,
             queue_name = excluded.queue_name,
             submit_url = excluded.submit_url,
             post_type = excluded.post_type,
@@ -1236,6 +1383,7 @@ def upsert_queue_item(connection: ConnectionLike, payload: dict[str, Any]) -> di
             queue_item["ad_id"],
             queue_item["target_id"],
             queue_item["target_name"],
+            queue_item["tumblr_account_id"],
             queue_item["queue_name"],
             queue_item["submit_url"],
             queue_item["post_type"],
@@ -1376,6 +1524,13 @@ def start_runner(payload: dict[str, Any]) -> dict[str, Any]:
     slow_mo = max(0, min(slow_mo, 5000))
     media_dir = str(payload.get("mediaDir") or "").strip()
     submit = bool(payload.get("submit"))
+    user_data_dir = str(payload.get("userDataDir") or "").strip()
+    tumblr_account_id = str(payload.get("tumblrAccountId") or "").strip()
+    if tumblr_account_id and not user_data_dir:
+        with connect() as connection:
+            account = connection.execute("SELECT * FROM tumblr_accounts WHERE id = %s", (tumblr_account_id,)).fetchone()
+            if account:
+                user_data_dir = str(row_to_tumblr_account(account).get("user_data_dir") or "")
 
     runner_args = [
         "npm.cmd" if os.name == "nt" else "npm",
@@ -1394,6 +1549,8 @@ def start_runner(payload: dict[str, Any]) -> dict[str, Any]:
     ]
     if media_dir:
         runner_args.extend(["--media-dir", media_dir])
+    if user_data_dir:
+        runner_args.extend(["--user-data-dir", user_data_dir])
     if submit:
         runner_args.append("--submit")
 
@@ -1470,6 +1627,11 @@ class Handler(BaseHTTPRequestHandler):
             if collection == "queue" and item_id is None:
                 rows = connection.execute("SELECT * FROM submission_queue ORDER BY updated_at DESC").fetchall()
                 self.respond({"queue": [row_to_queue_item(row, load_runner_payload(connection, str(row["id"]))) for row in rows]})
+                return
+
+            if collection == "tumblr/accounts" and item_id is None:
+                rows = connection.execute("SELECT * FROM tumblr_accounts ORDER BY display_name").fetchall()
+                self.respond({"accounts": [row_to_tumblr_account(row) for row in rows]})
                 return
 
             if collection == "runner/logs" and item_id is None:
@@ -1555,6 +1717,52 @@ class Handler(BaseHTTPRequestHandler):
                 self.respond({"error": str(error)}, HTTPStatus.BAD_REQUEST)
             return
 
+        if collection == "tumblr/login":
+            try:
+                payload = self.read_json()
+                account_id = str(payload.get("accountId") or payload.get("account_id") or "").strip()
+                if not account_id:
+                    raise ValueError("accountId is required")
+                with connect() as connection:
+                    account = connection.execute("SELECT * FROM tumblr_accounts WHERE id = %s", (account_id,)).fetchone()
+                    if not account:
+                        raise ValueError("Tumblr account not found")
+                    account_data = row_to_tumblr_account(account)
+                    update_tumblr_account_status(
+                        connection,
+                        account_id,
+                        "checking",
+                        "Login helper launched. Complete Tumblr login in the visible browser.",
+                        utc_now(),
+                    )
+                runner_args = [
+                    "npm.cmd" if os.name == "nt" else "npm",
+                    "run",
+                    "tumblr:login",
+                    "--",
+                    "--user-data-dir",
+                    account_data["user_data_dir"],
+                    "--slow-mo",
+                    str(int(payload.get("slowMo") or 250)),
+                ]
+                if os.name == "nt":
+                    command = [
+                        "powershell.exe",
+                        "-NoExit",
+                        "-Command",
+                        f"Set-Location -LiteralPath {powershell_quote(str(REPO_ROOT))}; & "
+                        + " ".join(powershell_quote(arg) for arg in runner_args),
+                    ]
+                    creationflags = subprocess.CREATE_NEW_CONSOLE
+                else:
+                    command = runner_args
+                    creationflags = 0
+                process = subprocess.Popen(command, cwd=REPO_ROOT, creationflags=creationflags)
+                self.respond({"login": {"pid": process.pid, "command": runner_args}}, HTTPStatus.CREATED)
+            except ValueError as error:
+                self.respond({"error": str(error)}, HTTPStatus.BAD_REQUEST)
+            return
+
         self.save_resource(collection, self.read_json(), HTTPStatus.CREATED)
 
     def do_PUT(self) -> None:
@@ -1576,7 +1784,7 @@ class Handler(BaseHTTPRequestHandler):
             self.respond({"deleted": "runner_logs"})
             return
 
-        if item_id is None or collection not in {"advertisements", "templates", "queue", "settings"}:
+        if item_id is None or collection not in {"advertisements", "templates", "queue", "settings", "tumblr/accounts"}:
             self.send_error(HTTPStatus.NOT_FOUND)
             return
 
@@ -1598,6 +1806,7 @@ class Handler(BaseHTTPRequestHandler):
             "advertisements": "advertisements",
             "templates": "templates",
             "queue": "submission_queue",
+            "tumblr/accounts": "tumblr_accounts",
         }[collection]
         with connect() as connection:
             if collection == "advertisements":
@@ -1633,6 +1842,11 @@ class Handler(BaseHTTPRequestHandler):
                     self.respond({"queue_item": item}, status)
                     return
 
+                if collection == "tumblr/accounts":
+                    item = upsert_tumblr_account(connection, payload)
+                    self.respond({"account": item}, status)
+                    return
+
                 if collection == "settings":
                     self.respond({"settings": upsert_app_settings(connection, payload)}, status)
                     return
@@ -1648,6 +1862,10 @@ class Handler(BaseHTTPRequestHandler):
             return parts[1], None
         if len(parts) == 3 and parts[0] == "api" and parts[1] == "runner":
             return f"{parts[1]}/{parts[2]}", None
+        if len(parts) == 3 and parts[0] == "api" and parts[1] == "tumblr" and parts[2] in {"accounts", "login"}:
+            return f"{parts[1]}/{parts[2]}", None
+        if len(parts) == 4 and parts[0] == "api" and parts[1] == "tumblr" and parts[2] == "accounts":
+            return f"{parts[1]}/{parts[2]}", parts[3]
         if len(parts) == 3 and parts[0] == "api" and parts[1] == "settings" and parts[2] == "stats":
             return f"{parts[1]}/{parts[2]}", None
         if len(parts) == 3 and parts[0] == "api" and parts[1] == "settings" and parts[2] == "audit":

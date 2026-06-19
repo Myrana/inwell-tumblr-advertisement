@@ -18,6 +18,7 @@ import { QueueManagerWorkspace } from "./components/QueueManagerWorkspace";
 import { RunnerLogsWorkspace } from "./components/RunnerLogsWorkspace";
 import { SavedSubmissionsView } from "./components/SavedSubmissionsView";
 import { TemplatesWorkspace } from "./components/TemplatesWorkspace";
+import { TumblrAccountsWorkspace } from "./components/TumblrAccountsWorkspace";
 import { WorkspaceTopbar } from "./components/WorkspaceTopbar";
 
 import {
@@ -26,14 +27,18 @@ import {
   loadBackendAppSettings,
   loadBackendQueue,
   loadBackendTemplates,
+  loadBackendTumblrAccounts,
   loadRunnerLogs,
+  launchTumblrLogin,
   removeAdvertisement,
   removeQueueItem,
   removeTemplate,
+  removeTumblrAccount,
   saveAdvertisement,
   saveBackendAppSettings,
   saveQueueItem,
   saveTemplate,
+  saveTumblrAccount,
 } from "./domain/api";
 import { composerContentFor, emptyAd, fromApiAdvertisement, normalizeStoredState } from "./domain/ads";
 import { defaultQueueName, defaultTagProfiles, postTypes } from "./domain/constants";
@@ -48,6 +53,7 @@ import {
   loadSubmitTargets,
   loadTagProfiles,
   loadTemplates,
+  loadTumblrAccounts,
   saveQueueScheduleSettings,
   saveQueueDefinitions,
   saveRunnerSettings,
@@ -56,6 +62,7 @@ import {
   saveSubmitTargets,
   saveTagProfiles,
   saveTemplates,
+  saveTumblrAccounts,
 } from "./domain/storage";
 import {
   fallbackTarget,
@@ -66,6 +73,7 @@ import {
 } from "./domain/submitTargets";
 import { normalizeTag, uniqueTags } from "./domain/tags";
 import { applyTemplateToAdvertisement, normalizeTemplate, templateFromAdvertisement } from "./domain/templates";
+import { normalizeTumblrAccount, tumblrAccountId, upsertTumblrAccount } from "./domain/tumblrAccounts";
 import {
   Advertisement,
   AppSettings,
@@ -80,6 +88,7 @@ import {
   SubmissionStatus,
   StoredState,
   TumblrSubmitTarget,
+  TumblrAccount,
   WorkspaceView,
 } from "./domain/types";
 function App() {
@@ -89,6 +98,9 @@ function App() {
   const [queueDefinitions, setQueueDefinitions] = useState<QueueDefinition[]>(() => loadQueueDefinitions());
   const [tagProfiles, setTagProfiles] = useState<Record<string, string[]>>(() => loadTagProfiles());
   const [templates, setTemplates] = useState<SavedTemplate[]>(() => loadTemplates());
+  const [tumblrAccounts, setTumblrAccounts] = useState<TumblrAccount[]>(() => loadTumblrAccounts());
+  const [accountDraft, setAccountDraft] = useState({ displayName: "", blogName: "" });
+  const [accountStatus, setAccountStatus] = useState("");
   const [apiAvailable, setApiAvailable] = useState(false);
   const [backendStateLoaded, setBackendStateLoaded] = useState(false);
   const [customTag, setCustomTag] = useState("");
@@ -188,6 +200,10 @@ function App() {
   }, [templates]);
 
   useEffect(() => {
+    saveTumblrAccounts(tumblrAccounts);
+  }, [tumblrAccounts]);
+
+  useEffect(() => {
     saveRunnerSettings(runnerSettings);
   }, [runnerSettings]);
 
@@ -241,12 +257,13 @@ function App() {
 
     async function loadBackendState() {
       try {
-        const [advertisementResponse, backendTemplates, backendQueue, backendLogs, backendSettings] = await Promise.all([
+        const [advertisementResponse, backendTemplates, backendQueue, backendLogs, backendSettings, backendTumblrAccounts] = await Promise.all([
           apiRequest<{ advertisements: ApiAdvertisement[] }>("/advertisements"),
           loadBackendTemplates(),
           loadBackendQueue(),
           loadRunnerLogs(),
           loadBackendAppSettings(),
+          loadBackendTumblrAccounts(),
         ]);
 
         if (cancelled) {
@@ -280,6 +297,9 @@ function App() {
         setRunnerSettings(backendSettings.runnerSettings ?? runnerSettings);
         setQueueScheduleSettings(backendSettings.queueScheduleSettings ?? queueScheduleSettings);
         setRunnerLogs(backendLogs);
+        if (backendTumblrAccounts.length) {
+          setTumblrAccounts(backendTumblrAccounts);
+        }
         setApiAvailable(true);
         setBackendStateLoaded(true);
       } catch {
@@ -516,7 +536,7 @@ function App() {
   }
 
   function createQueueItem(target: TumblrSubmitTarget): SubmissionQueueItem {
-    return createSubmissionQueueItem(activeAd, target, buildPost(), activeQueueName);
+    return createSubmissionQueueItem(activeAd, target, buildPost(), activeQueueName, runnerSettings.tumblrAccountId);
   }
 
   function queueTargets(targets: TumblrSubmitTarget[]) {
@@ -598,6 +618,97 @@ function App() {
     );
   }
 
+  function syncTumblrAccount(account: TumblrAccount) {
+    void saveTumblrAccount(account)
+      .then((saved) => {
+        setTumblrAccounts((current) => upsertTumblrAccount(current, saved));
+        setApiAvailable(true);
+      })
+      .catch(() => setApiAvailable(false));
+  }
+
+  function createTumblrAccount(event: FormEvent) {
+    event.preventDefault();
+    const normalized = normalizeTumblrAccount({
+      id: tumblrAccountId(accountDraft.blogName || accountDraft.displayName),
+      displayName: accountDraft.displayName,
+      blogName: accountDraft.blogName,
+      status: "needs-login",
+      notes: "Launch the login helper to create a reusable browser session.",
+    });
+    if (!normalized) {
+      setAccountStatus("Enter a Tumblr account name or blog name first.");
+      return;
+    }
+
+    setTumblrAccounts((current) => upsertTumblrAccount(current, normalized));
+    setRunnerSettings((current) => ({ ...current, tumblrAccountId: normalized.id }));
+    syncTumblrAccount(normalized);
+    setAccountDraft({ displayName: "", blogName: "" });
+    setAccountStatus(`Added ${normalized.displayName}. Launch Connect to log into Tumblr.`);
+  }
+
+  function deleteTumblrAccount(id: string) {
+    setTumblrAccounts((current) => current.filter((account) => account.id !== id));
+    setRunnerSettings((current) => ({ ...current, tumblrAccountId: current.tumblrAccountId === id ? "" : current.tumblrAccountId }));
+    void removeTumblrAccount(id)
+      .then(() => setApiAvailable(true))
+      .catch(() => setApiAvailable(false));
+    setAccountStatus("Deleted Tumblr account session record.");
+  }
+
+  function selectTumblrAccount(id: string) {
+    setRunnerSettings((current) => ({ ...current, tumblrAccountId: id }));
+    const account = tumblrAccounts.find((item) => item.id === id);
+    setAccountStatus(account ? `Selected ${account.displayName} for queue runs.` : "No Tumblr account selected.");
+  }
+
+  async function launchTumblrAccountLogin(id: string) {
+    const account = tumblrAccounts.find((item) => item.id === id);
+    if (!account) {
+      setAccountStatus("Select or create a Tumblr account first.");
+      return;
+    }
+
+    const checking: TumblrAccount = {
+      ...account,
+      status: "checking",
+      lastCheckedAt: new Date().toISOString(),
+      notes: "Login helper launched. Complete Tumblr login in the visible browser.",
+    };
+    setTumblrAccounts((current) => upsertTumblrAccount(current, checking));
+    syncTumblrAccount(checking);
+    setRunnerSettings((current) => ({ ...current, tumblrAccountId: id }));
+
+    try {
+      const response = await launchTumblrLogin(id);
+      setApiAvailable(true);
+      setAccountStatus(`Login helper opened in process ${response.login.pid}. Finish Tumblr login in that browser.`);
+    } catch {
+      setApiAvailable(false);
+      setAccountStatus("Could not launch Tumblr login helper. Start the Python API and try again.");
+    }
+  }
+
+  function markTumblrAccountConnected(id: string) {
+    const account = tumblrAccounts.find((item) => item.id === id);
+    if (!account) {
+      return;
+    }
+
+    const connected: TumblrAccount = {
+      ...account,
+      status: "connected",
+      lastCheckedAt: new Date().toISOString(),
+      lastLoginAt: new Date().toISOString(),
+      notes: "Marked connected after manual Tumblr login.",
+    };
+    setTumblrAccounts((current) => upsertTumblrAccount(current, connected));
+    setRunnerSettings((current) => ({ ...current, tumblrAccountId: id }));
+    syncTumblrAccount(connected);
+    setAccountStatus(`${connected.displayName} is ready for queue runs.`);
+  }
+
   function runnableQueueItems() {
     return activeQueue.filter((item) => !["submitted", "posted", "running"].includes(item.status));
   }
@@ -628,6 +739,11 @@ function App() {
     const items = runnableQueueItems();
     if (!items.length) {
       setQueueStatus("Queue at least one target before starting the runner.");
+      return;
+    }
+    if (!runnerSettings.tumblrAccountId) {
+      setQueueStatus("Select a Tumblr account session before starting the runner.");
+      setActiveView("accounts");
       return;
     }
 
@@ -697,6 +813,7 @@ function App() {
     templates: { eyebrow: "Reusable copy library", title: "Saved templates" },
     queue: { eyebrow: "Tumblr automation", title: "Submission queue" },
     "queue-settings": { eyebrow: "Tumblr automation", title: "Queues" },
+    accounts: { eyebrow: "Tumblr automation", title: "Tumblr accounts" },
     logs: { eyebrow: "Tumblr automation", title: "Runner logs" },
   };
   const toolbarButtons = [
@@ -810,6 +927,7 @@ function App() {
             runnerState={runnerState}
             runnerLogs={runnerLogs}
             targetOptions={targetOptions}
+            tumblrAccounts={tumblrAccounts}
             onQueueTargets={queueTargets}
             onSelectQueue={setSelectedQueueName}
             onQueueScheduleSettingsChange={(patch) => setQueueScheduleSettings((current) => ({ ...current, ...patch }))}
@@ -841,6 +959,21 @@ function App() {
             runnerState={runnerState}
             onClearRunnerLogs={clearRunnerLogHistory}
             onRefreshRunnerStatus={refreshRunnerStatus}
+          />
+        ) : null}
+
+        {activeView === "accounts" ? (
+          <TumblrAccountsWorkspace
+            accounts={tumblrAccounts}
+            draft={accountDraft}
+            selectedAccountId={runnerSettings.tumblrAccountId}
+            status={accountStatus}
+            onCreateAccount={createTumblrAccount}
+            onDeleteAccount={deleteTumblrAccount}
+            onDraftChange={(patch) => setAccountDraft((current) => ({ ...current, ...patch }))}
+            onLaunchLogin={launchTumblrAccountLogin}
+            onMarkConnected={markTumblrAccountConnected}
+            onSelectAccount={selectTumblrAccount}
           />
         ) : null}
 

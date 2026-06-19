@@ -9,6 +9,7 @@ export const submissionQueueStorageKey = "inwell-tumblr-submission-queue";
 export const queueDefinitionsStorageKey = "inwell-tumblr-queue-definitions";
 export const queueScheduleSettingsStorageKey = "inwell-queue-schedule-settings";
 export const runnerSettingsStorageKey = "inwell-tumblr-runner-settings";
+export const tumblrAccountsStorageKey = "inwell-tumblr-accounts";
 export const templateStorageKey = "inkwell-saved-templates";
 export const apiBaseUrl = configuredApiBaseUrl || (import.meta.env.DEV ? "http://127.0.0.1:8021/api" : "/api");
 

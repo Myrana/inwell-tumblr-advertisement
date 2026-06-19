@@ -7,13 +7,15 @@ import {
   submitTargetStorageKey,
   tagProfileStorageKey,
   templateStorageKey,
+  tumblrAccountsStorageKey,
 } from "./constants";
 import { emptyAd, normalizeStoredState } from "./ads";
 import { loadSubmissionQueue, normalizeQueueDefinition, uniqueQueueDefinitions } from "./queue";
 import { loadSubmitTargets } from "./submitTargets";
 import { loadTagProfiles } from "./tags";
 import { normalizeTemplate } from "./templates";
-import { QueueDefinition, QueueScheduleSettings, RunnerSettings, SavedTemplate, StoredState } from "./types";
+import { normalizeTumblrAccount } from "./tumblrAccounts";
+import { QueueDefinition, QueueScheduleSettings, RunnerSettings, SavedTemplate, StoredState, TumblrAccount } from "./types";
 
 export { loadSubmissionQueue, loadSubmitTargets, loadTagProfiles };
 
@@ -54,9 +56,22 @@ export function loadRunnerSettings(): RunnerSettings {
       mediaDir: typeof parsed.mediaDir === "string" ? parsed.mediaDir : "",
       slowMo: typeof parsed.slowMo === "number" ? parsed.slowMo : 500,
       submit: Boolean(parsed.submit),
+      tumblrAccountId: typeof parsed.tumblrAccountId === "string" ? parsed.tumblrAccountId : "",
     };
   } catch {
-    return { mediaDir: "", slowMo: 500, submit: false };
+    return { mediaDir: "", slowMo: 500, submit: false, tumblrAccountId: "" };
+  }
+}
+
+export function loadTumblrAccounts(): TumblrAccount[] {
+  try {
+    const raw = localStorage.getItem(tumblrAccountsStorageKey);
+    const parsed = raw ? (JSON.parse(raw) as Partial<TumblrAccount>[]) : [];
+    return Array.isArray(parsed)
+      ? (parsed.map((account) => normalizeTumblrAccount(account)).filter(Boolean) as TumblrAccount[])
+      : [];
+  } catch {
+    return [];
   }
 }
 
@@ -115,4 +130,8 @@ export function saveQueueScheduleSettings(value: unknown) {
 
 export function saveTemplates(value: unknown) {
   localStorage.setItem(templateStorageKey, JSON.stringify(value));
+}
+
+export function saveTumblrAccounts(value: unknown) {
+  localStorage.setItem(tumblrAccountsStorageKey, JSON.stringify(value));
 }

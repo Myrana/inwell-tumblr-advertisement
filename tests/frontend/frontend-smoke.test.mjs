@@ -67,7 +67,13 @@ test("custom blog submission flow does not blank the editor", { timeout: 40000 }
   const pageErrors = [];
   page.on("pageerror", (error) => pageErrors.push(error));
   await page.route("http://127.0.0.1:8021/api/**", (route) => route.abort());
-
+  await page.route("http://127.0.0.1:8021/api/tumblr/accounts", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      headers: { "Access-Control-Allow-Origin": "*" },
+      body: JSON.stringify({ accounts: [] }),
+    }),
+  );
   await page.addInitScript(() => {
     localStorage.setItem(
       "inwell-tumblr-submit-targets",
@@ -181,8 +187,16 @@ test("templates can be saved and applied from their own workspace", { timeout: 4
 
   const page = await browser.newPage();
   const pageErrors = [];
+  const apiHeaders = {
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Methods": "DELETE,GET,OPTIONS,POST,PUT",
+    "Access-Control-Allow-Origin": "*",
+  };
   page.on("pageerror", (error) => pageErrors.push(error));
   await page.route("http://127.0.0.1:8021/api/**", (route) => route.abort());
+  await page.route("http://127.0.0.1:8021/api/tumblr/accounts", (route) =>
+    route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ accounts: [] }) }),
+  );
 
   await page.addInitScript(() => {
     localStorage.setItem(
@@ -304,6 +318,9 @@ test("shared app settings load from and save to the backend", { timeout: 40000 }
 
   page.on("pageerror", (error) => pageErrors.push(error));
   await page.route("http://127.0.0.1:8021/api/**", (route) => route.abort());
+  await page.route("http://127.0.0.1:8021/api/tumblr/accounts", (route) =>
+    route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ accounts: [] }) }),
+  );
   await page.route("http://127.0.0.1:8021/api/advertisements", (route) =>
     route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ advertisements: [] }) }),
   );
@@ -368,6 +385,101 @@ test("shared app settings load from and save to the backend", { timeout: 40000 }
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
 });
 
+test("tumblr accounts can be saved and selected for queue runs", { timeout: 40000 }, async (t) => {
+  const server = spawn("npx vite --host 127.0.0.1 --port 8123 --strictPort", {
+    cwd: process.cwd(),
+    shell: true,
+    stdio: "ignore",
+  });
+
+  t.after(() => {
+    stopProcessTree(server);
+  });
+
+  await waitForServer(appUrl);
+
+  const browser = await chromium.launch();
+  t.after(async () => {
+    await browser.close();
+  });
+
+  const page = await browser.newPage();
+  const pageErrors = [];
+  const apiHeaders = {
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Methods": "DELETE,GET,OPTIONS,POST,PUT",
+    "Access-Control-Allow-Origin": "*",
+  };
+  let savedAccount = null;
+  let loginPayload = null;
+
+  page.on("pageerror", (error) => pageErrors.push(error));
+  await page.route("http://127.0.0.1:8021/api/**", (route) => route.abort());
+  await page.route("http://127.0.0.1:8021/api/advertisements", (route) =>
+    route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ advertisements: [] }) }),
+  );
+  await page.route("http://127.0.0.1:8021/api/templates", (route) =>
+    route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ templates: [] }) }),
+  );
+  await page.route("http://127.0.0.1:8021/api/queue", (route) =>
+    route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ queue: [] }) }),
+  );
+  await page.route("http://127.0.0.1:8021/api/runner/logs", (route) =>
+    route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ logs: [] }) }),
+  );
+  await page.route("http://127.0.0.1:8021/api/settings", (route) =>
+    route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ settings: {} }) }),
+  );
+  await page.route("http://127.0.0.1:8021/api/settings/app", (route) =>
+    route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ settings: route.request().postDataJSON() }) }),
+  );
+  await page.route("http://127.0.0.1:8021/api/tumblr/accounts", (route) =>
+    route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ accounts: [] }) }),
+  );
+  await page.route("http://127.0.0.1:8021/api/tumblr/accounts/*", (route) => {
+    savedAccount = route.request().postDataJSON();
+    return route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({
+        account: {
+          ...savedAccount,
+          updated_at: "2026-06-19T01:00:00.000Z",
+        },
+      }),
+    });
+  });
+  await page.route("http://127.0.0.1:8021/api/tumblr/login", (route) => {
+    loginPayload = route.request().postDataJSON();
+    return route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({ login: { pid: 9191, command: ["npm", "run", "tumblr:login"] } }),
+    });
+  });
+
+  await page.goto(appUrl);
+  await page.getByRole("button", { name: "Tumblr Accounts" }).click();
+  await page.getByRole("heading", { name: "Tumblr accounts", level: 1 }).waitFor();
+  await page.getByLabel("Account name").fill("Myrana Tumblr");
+  await page.getByLabel("Tumblr blog name").fill("snowleopardx");
+  await page.getByRole("button", { name: "Add account" }).click();
+  await page.getByText("Added Myrana Tumblr.").waitFor();
+  assert.equal(savedAccount?.id, "snowleopardx");
+  assert.equal(savedAccount?.status, "needs-login");
+
+  await page.getByRole("button", { name: "Connect", exact: true }).click();
+  await page.getByText("Login helper opened in process 9191.").waitFor();
+  assert.equal(loginPayload?.accountId, "snowleopardx");
+
+  await page.getByRole("button", { name: "Mark connected" }).click();
+  await page.getByText("Myrana Tumblr is ready for queue runs.").waitFor();
+  await page.getByRole("button", { name: "Queue", exact: true }).click();
+  await page.getByLabel("Tumblr account").selectOption("snowleopardx");
+  assert.equal(await page.getByLabel("Tumblr account").inputValue(), "snowleopardx");
+  assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
+});
+
 test("runner logs are grouped by expandable queue run", { timeout: 40000 }, async (t) => {
   const server = spawn("npx vite --host 127.0.0.1 --port 8123 --strictPort", {
     cwd: process.cwd(),
@@ -395,6 +507,9 @@ test("runner logs are grouped by expandable queue run", { timeout: 40000 }, asyn
   };
   page.on("pageerror", (error) => pageErrors.push(error));
   await page.route("http://127.0.0.1:8021/api/**", (route) => route.abort());
+  await page.route("http://127.0.0.1:8021/api/tumblr/accounts", (route) =>
+    route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ accounts: [] }) }),
+  );
   await page.route("http://127.0.0.1:8021/api/runner/logs", (route) =>
     route.fulfill({
       contentType: "application/json",
@@ -532,6 +647,7 @@ test("running the queue sends a run id and shows failure explanations", { timeou
     ad_id: "ad-run",
     target_id: "allthingsroleplay",
     target_name: "allthingsroleplay",
+    tumblr_account_id: "snowleopardx",
     submit_url: "https://allthingsroleplay.tumblr.com/submit",
     post_type: "photo",
     status: "failed",
@@ -548,6 +664,27 @@ test("running the queue sends a run id and shows failure explanations", { timeou
 
   page.on("pageerror", (error) => pageErrors.push(error));
   await page.route("http://127.0.0.1:8021/api/**", (route) => route.abort());
+  await page.route("http://127.0.0.1:8021/api/tumblr/accounts", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({
+        accounts: [
+          {
+            id: "snowleopardx",
+            display_name: "Myrana Tumblr",
+            blog_name: "snowleopardx",
+            user_data_dir: "C:/sessions/snowleopardx",
+            status: "connected",
+            last_checked_at: "2026-06-18T21:00:00.000Z",
+            last_login_at: "2026-06-18T21:00:00.000Z",
+            notes: "Connected",
+            updated_at: "2026-06-18T21:00:00.000Z",
+          },
+        ],
+      }),
+    }),
+  );
   await page.route("http://127.0.0.1:8021/api/runner/start", async (route) => {
     startPayload = route.request().postDataJSON();
     await route.fulfill({
@@ -608,7 +745,7 @@ test("running the queue sends a run id and shows failure explanations", { timeou
     route.fulfill({
       contentType: "application/json",
       headers: apiHeaders,
-      body: JSON.stringify({ settings: {} }),
+      body: JSON.stringify({ settings: { runnerSettings: { mediaDir: "", slowMo: 500, submit: false, tumblrAccountId: "snowleopardx" } } }),
     }),
   );
 
