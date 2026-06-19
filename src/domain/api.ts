@@ -17,6 +17,18 @@ import {
   TumblrAccount,
 } from "./types";
 
+export class ApiError extends Error {
+  status: number;
+  retryAfterSeconds?: number;
+
+  constructor(status: number, message: string, retryAfterSeconds?: number) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.retryAfterSeconds = retryAfterSeconds;
+  }
+}
+
 export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${apiBaseUrl}${path}`, {
     ...init,
@@ -28,7 +40,13 @@ export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T
   });
 
   if (!response.ok) {
-    throw new Error(`API request failed: ${response.status}`);
+    let payload: { error?: string; retryAfterSeconds?: number } = {};
+    try {
+      payload = (await response.json()) as typeof payload;
+    } catch {
+      payload = {};
+    }
+    throw new ApiError(response.status, payload.error || `API request failed: ${response.status}`, payload.retryAfterSeconds);
   }
 
   return response.json() as Promise<T>;

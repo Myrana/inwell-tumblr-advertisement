@@ -11,14 +11,19 @@ from unittest.mock import Mock, patch
 sys.path.insert(0, str(Path(__file__).parents[2]))
 import app
 from app import (
+    AuthRateLimitError,
     authenticate_request,
+    clear_auth_failures,
+    client_key_from_address,
     create_session,
     create_user_workspace,
+    create_user_workspace_with_lock,
     database_settings,
     hash_session_token,
     initialize,
     initialize_database_for_startup,
     login_user,
+    login_user_with_lock,
     record_runner_log,
     run,
     settings_statistics,
@@ -47,6 +52,7 @@ class FakePostgresConnection:
     def __init__(self) -> None:
         self.advertisements: dict[str, dict[str, Any]] = {}
         self.advertisement_tags: dict[tuple[str, str], dict[str, Any]] = {}
+        self.auth_attempts: dict[str, dict[str, Any]] = {}
         self.queue_definitions: dict[str, dict[str, Any]] = {}
         self.queue_schedule_settings: dict[str, dict[str, Any]] = {}
         self.runner_logs: dict[str, dict[str, Any]] = {}
@@ -87,6 +93,35 @@ class FakePostgresConnection:
                     "version": params[0],
                     "applied_at": params[1],
                 }
+            return FakeCursor()
+
+        if normalized.startswith("select * from auth_attempts"):
+            rows = [
+                row
+                for row in self.auth_attempts.values()
+                if row["action"] == params[0] and row["success"] == params[1] and row["created_at"] >= params[2]
+            ]
+            return FakeCursor(sorted(rows, key=lambda row: row["created_at"], reverse=True))
+
+        if normalized.startswith("insert into auth_attempts"):
+            self.auth_attempts[str(params[0])] = {
+                "id": params[0],
+                "action": params[1],
+                "email": params[2],
+                "client_key": params[3],
+                "success": params[4],
+                "created_at": params[5],
+            }
+            return FakeCursor()
+
+        if normalized.startswith("delete from auth_attempts"):
+            action, success, email, client_key = params
+            for key in [
+                key
+                for key, row in self.auth_attempts.items()
+                if row["action"] == action and row["success"] == success and (row["email"] == email or row["client_key"] == client_key)
+            ]:
+                self.auth_attempts.pop(key, None)
             return FakeCursor()
 
         if normalized.startswith("select * from users order by"):
@@ -947,6 +982,73 @@ class PersistenceTests(unittest.TestCase):
         self.assertEqual(logged_in_user["id"], created_user["id"])
         self.assertEqual(logged_in_workspace_id, workspace_id)
         self.assertEqual(logged_in_user["workspace"]["name"], "Owner workspace")
+
+    def test_login_lock_limits_repeated_email_failures_and_clears_on_success(self) -> None:
+        create_user_workspace(
+            self.connection,
+            {
+                "email": "locked@example.test",
+                "password": "correct-password",
+                "displayName": "Owner",
+                "workspaceName": "Owner workspace",
+            },
+        )
+        client_key = client_key_from_address("203.0.113.10")
+
+        for _ in range(app.AUTH_LOGIN_EMAIL_FAILURE_LIMIT):
+            with self.assertRaises(ValueError):
+                login_user_with_lock(
+                    self.connection,
+                    {"email": "locked@example.test", "password": "wrong-password"},
+                    client_key,
+                )
+
+        with self.assertRaises(AuthRateLimitError) as error:
+            login_user_with_lock(
+                self.connection,
+                {"email": "locked@example.test", "password": "correct-password"},
+                client_key,
+            )
+
+        self.assertGreaterEqual(error.exception.retry_after_seconds, 60)
+        self.assertEqual(
+            len([row for row in self.connection.auth_attempts.values() if row["action"] == "login" and row["success"] is False]),
+            app.AUTH_LOGIN_EMAIL_FAILURE_LIMIT,
+        )
+
+        clear_auth_failures(self.connection, "login", "locked@example.test", client_key)
+        user, workspace_id = login_user_with_lock(
+            self.connection,
+            {"email": "locked@example.test", "password": "correct-password"},
+            client_key,
+        )
+
+        self.assertEqual(user["email"], "locked@example.test")
+        self.assertTrue(workspace_id.startswith("workspace-"))
+        self.assertEqual([row for row in self.connection.auth_attempts.values() if row["success"] is False], [])
+
+    def test_register_lock_limits_repeated_invalid_registration_attempts_by_client(self) -> None:
+        client_key = client_key_from_address("203.0.113.11")
+
+        for index in range(app.AUTH_REGISTER_CLIENT_ATTEMPT_LIMIT):
+            with self.assertRaises(ValueError):
+                create_user_workspace_with_lock(
+                    self.connection,
+                    {"email": f"bad-{index}", "password": "short"},
+                    client_key,
+                )
+
+        with self.assertRaises(AuthRateLimitError):
+            create_user_workspace_with_lock(
+                self.connection,
+                {
+                    "email": "valid@example.test",
+                    "password": "valid-password",
+                    "displayName": "Valid",
+                    "workspaceName": "Valid workspace",
+                },
+                client_key,
+            )
 
     def test_queue_item_upsert_round_trips_schedule_and_status(self) -> None:
         saved = upsert_queue_item(

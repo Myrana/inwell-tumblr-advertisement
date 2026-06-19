@@ -28,9 +28,13 @@ DEFAULT_TIMEZONE = "America/New_York"
 DEFAULT_PGHOST = "192.168.1.3"
 DEFAULT_PGDATABASE = "inwell_tumblr_advertisement"
 DEFAULT_PGUSER = "postgres"
-CURRENT_SCHEMA_VERSION = "0008_user_workspace_auth"
+CURRENT_SCHEMA_VERSION = "0009_auth_attempt_locks"
 SESSION_COOKIE_NAME = "inwell_session"
 SESSION_DAYS = 14
+AUTH_LOCK_WINDOW_MINUTES = 15
+AUTH_LOGIN_EMAIL_FAILURE_LIMIT = 5
+AUTH_LOGIN_CLIENT_FAILURE_LIMIT = 25
+AUTH_REGISTER_CLIENT_ATTEMPT_LIMIT = 8
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DIST_ROOT = REPO_ROOT / "dist"
 RUNNER_PLAN_PATH = REPO_ROOT / "tumblr-runner-plan.json"
@@ -147,6 +151,18 @@ def initialize(connection: ConnectionLike) -> None:
             workspace_id TEXT NOT NULL,
             token_hash TEXT NOT NULL UNIQUE,
             expires_at TIMESTAMPTZ NOT NULL,
+            created_at TIMESTAMPTZ NOT NULL
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS auth_attempts (
+            id TEXT PRIMARY KEY,
+            action TEXT NOT NULL,
+            email TEXT NOT NULL DEFAULT '',
+            client_key TEXT NOT NULL DEFAULT '',
+            success BOOLEAN NOT NULL DEFAULT FALSE,
             created_at TIMESTAMPTZ NOT NULL
         )
         """
@@ -388,6 +404,9 @@ def initialize(connection: ConnectionLike) -> None:
     connection.execute("CREATE INDEX IF NOT EXISTS idx_submission_queue_tumblr_account ON submission_queue(tumblr_account_id)")
     connection.execute("CREATE INDEX IF NOT EXISTS idx_tumblr_accounts_status ON tumblr_accounts(status)")
     connection.execute("CREATE INDEX IF NOT EXISTS idx_user_sessions_token_hash ON user_sessions(token_hash)")
+    connection.execute("CREATE INDEX IF NOT EXISTS idx_auth_attempts_action_created ON auth_attempts(action, created_at)")
+    connection.execute("CREATE INDEX IF NOT EXISTS idx_auth_attempts_email_created ON auth_attempts(email, created_at)")
+    connection.execute("CREATE INDEX IF NOT EXISTS idx_auth_attempts_client_created ON auth_attempts(client_key, created_at)")
     connection.execute("CREATE INDEX IF NOT EXISTS idx_advertisements_workspace ON advertisements(workspace_id)")
     connection.execute("CREATE INDEX IF NOT EXISTS idx_templates_workspace ON templates(workspace_id)")
     connection.execute("CREATE INDEX IF NOT EXISTS idx_submission_queue_workspace ON submission_queue(workspace_id)")
@@ -829,6 +848,104 @@ def verify_password(password: str, stored_hash: str) -> bool:
 
 def hash_session_token(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+class AuthRateLimitError(ValueError):
+    def __init__(self, message: str, retry_after_seconds: int) -> None:
+        super().__init__(message)
+        self.retry_after_seconds = retry_after_seconds
+
+
+def normalize_email(value: Any) -> str:
+    return str(value or "").strip().lower()
+
+
+def client_key_from_address(address: str) -> str:
+    normalized = str(address or "unknown").split(",")[0].strip().lower() or "unknown"
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+
+def recent_auth_failures(connection: ConnectionLike, action: str) -> list[dict[str, Any]]:
+    since = utc_now() - timedelta(minutes=AUTH_LOCK_WINDOW_MINUTES)
+    rows = connection.execute(
+        """
+        SELECT * FROM auth_attempts
+        WHERE action = %s AND success = %s AND created_at >= %s
+        ORDER BY created_at DESC
+        """,
+        (action, False, since),
+    ).fetchall()
+    return [row_to_dict(row) for row in rows]
+
+
+def retry_after_for_attempts(attempts: list[dict[str, Any]]) -> int:
+    oldest = min((parse_optional_datetime(row.get("created_at")) for row in attempts), default=None)
+    if not oldest:
+        return AUTH_LOCK_WINDOW_MINUTES * 60
+    unlock_at = oldest + timedelta(minutes=AUTH_LOCK_WINDOW_MINUTES)
+    return max(60, int((unlock_at - utc_now()).total_seconds()))
+
+
+def enforce_login_lock(connection: ConnectionLike, email: str, client_key: str) -> None:
+    failures = recent_auth_failures(connection, "login")
+    email_failures = [row for row in failures if row.get("email") == email]
+    client_failures = [row for row in failures if row.get("client_key") == client_key]
+    if len(email_failures) >= AUTH_LOGIN_EMAIL_FAILURE_LIMIT:
+        raise AuthRateLimitError("Too many failed login attempts. Try again later.", retry_after_for_attempts(email_failures))
+    if len(client_failures) >= AUTH_LOGIN_CLIENT_FAILURE_LIMIT:
+        raise AuthRateLimitError("Too many failed login attempts from this network. Try again later.", retry_after_for_attempts(client_failures))
+
+
+def enforce_register_lock(connection: ConnectionLike, client_key: str) -> None:
+    failures = recent_auth_failures(connection, "register")
+    client_failures = [row for row in failures if row.get("client_key") == client_key]
+    if len(client_failures) >= AUTH_REGISTER_CLIENT_ATTEMPT_LIMIT:
+        raise AuthRateLimitError("Too many registration attempts. Try again later.", retry_after_for_attempts(client_failures))
+
+
+def record_auth_attempt(connection: ConnectionLike, action: str, email: str, client_key: str, success: bool) -> None:
+    connection.execute(
+        """
+        INSERT INTO auth_attempts (id, action, email, client_key, success, created_at)
+        VALUES (%s, %s, %s, %s, %s, %s)
+        """,
+        (f"auth-attempt-{uuid.uuid4().hex}", action, email, client_key, success, utc_now()),
+    )
+
+
+def clear_auth_failures(connection: ConnectionLike, action: str, email: str, client_key: str) -> None:
+    connection.execute(
+        """
+        DELETE FROM auth_attempts
+        WHERE action = %s AND success = %s AND (email = %s OR client_key = %s)
+        """,
+        (action, False, email, client_key),
+    )
+
+
+def create_user_workspace_with_lock(connection: ConnectionLike, payload: dict[str, Any], client_key: str) -> tuple[dict[str, Any], str]:
+    email = normalize_email(payload.get("email"))
+    enforce_register_lock(connection, client_key)
+    try:
+        user, workspace_id = create_user_workspace(connection, payload)
+    except ValueError:
+        record_auth_attempt(connection, "register", email, client_key, False)
+        raise
+    record_auth_attempt(connection, "register", email, client_key, True)
+    return user, workspace_id
+
+
+def login_user_with_lock(connection: ConnectionLike, payload: dict[str, Any], client_key: str) -> tuple[dict[str, Any], str]:
+    email = normalize_email(payload.get("email"))
+    enforce_login_lock(connection, email, client_key)
+    try:
+        user, workspace_id = login_user(connection, payload)
+    except ValueError as error:
+        record_auth_attempt(connection, "login", email, client_key, False)
+        raise ValueError("Invalid email or password") from error
+    clear_auth_failures(connection, "login", email, client_key)
+    record_auth_attempt(connection, "login", email, client_key, True)
+    return user, workspace_id
 
 
 def row_to_user(row: Any, workspace: Any | None = None) -> dict[str, Any]:
@@ -1393,7 +1510,7 @@ def update_tumblr_account_status(
 
 
 def create_user_workspace(connection: ConnectionLike, payload: dict[str, Any]) -> tuple[dict[str, Any], str]:
-    email = str(payload.get("email") or "").strip().lower()
+    email = normalize_email(payload.get("email"))
     password = str(payload.get("password") or "")
     display_name = str(payload.get("displayName") or payload.get("display_name") or email.split("@")[0]).strip()
     workspace_name = str(payload.get("workspaceName") or payload.get("workspace_name") or f"{display_name or 'Inkwell'} workspace").strip()
@@ -1428,7 +1545,7 @@ def create_user_workspace(connection: ConnectionLike, payload: dict[str, Any]) -
 
 
 def login_user(connection: ConnectionLike, payload: dict[str, Any]) -> tuple[dict[str, Any], str]:
-    email = str(payload.get("email") or "").strip().lower()
+    email = normalize_email(payload.get("email"))
     password = str(payload.get("password") or "")
     user = connection.execute("SELECT * FROM users WHERE email = %s", (email,)).fetchone()
     if not user or not verify_password(password, str(user["password_hash"])):
@@ -1960,10 +2077,17 @@ class Handler(BaseHTTPRequestHandler):
         if collection in {"auth/register", "auth/login"}:
             try:
                 payload = self.read_json()
+                client_key = self.auth_client_key()
                 with connect() as connection:
-                    user, workspace_id = create_user_workspace(connection, payload) if collection == "auth/register" else login_user(connection, payload)
+                    user, workspace_id = (
+                        create_user_workspace_with_lock(connection, payload, client_key)
+                        if collection == "auth/register"
+                        else login_user_with_lock(connection, payload, client_key)
+                    )
                     token = create_session(connection, user["id"], workspace_id)
                 self.respond_with_cookie({"authenticated": True, "user": user}, token, HTTPStatus.CREATED)
+            except AuthRateLimitError as error:
+                self.respond_rate_limited(str(error), error.retry_after_seconds)
             except ValueError as error:
                 self.respond({"error": str(error)}, HTTPStatus.BAD_REQUEST)
             return
@@ -2213,8 +2337,20 @@ class Handler(BaseHTTPRequestHandler):
         self.respond({"error": "Authentication required"}, HTTPStatus.UNAUTHORIZED)
         return None
 
+    def auth_client_key(self) -> str:
+        forwarded_for = self.headers.get("X-Forwarded-For") or self.headers.get("X-Real-IP") or ""
+        address = forwarded_for or (self.client_address[0] if self.client_address else "unknown")
+        return client_key_from_address(address)
+
     def respond(self, payload: dict[str, Any], status: HTTPStatus = HTTPStatus.OK) -> None:
         self.respond_with_headers(payload, status)
+
+    def respond_rate_limited(self, message: str, retry_after_seconds: int) -> None:
+        self.respond_with_headers(
+            {"error": message, "retryAfterSeconds": retry_after_seconds},
+            HTTPStatus.TOO_MANY_REQUESTS,
+            [f"Retry-After: {retry_after_seconds}"],
+        )
 
     def respond_with_cookie(self, payload: dict[str, Any], token: str, status: HTTPStatus = HTTPStatus.OK) -> None:
         self.respond_with_headers(payload, status, [self.session_cookie_header(token)])
