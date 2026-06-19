@@ -32,6 +32,7 @@ import {
   loadBackendTemplates,
   loadBackendTumblrAccounts,
   loadAuthSession,
+  loadLocalRunnerCommand,
   loadRunnerLogs,
   launchTumblrLogin,
   loginInkwellUser,
@@ -1012,6 +1013,19 @@ function App() {
     }
   }
 
+  async function showLocalRunnerCommand() {
+    try {
+      const localRunner = await loadLocalRunnerCommand(activeQueueName);
+      setApiAvailable(true);
+      setQueueStatus(
+        `${localRunner.message} ${localRunner.tokenConfigured ? "" : "Railway is missing INWELL_LOCAL_RUNNER_TOKEN. "}Command: ${localRunner.command}`,
+      );
+    } catch (error) {
+      const message = error instanceof ApiError ? error.message : "Could not prepare the local runner command.";
+      setQueueStatus(`Could not prepare local runner command. ${message}`);
+    }
+  }
+
   async function clearRunnerLogHistory() {
     try {
       await clearRunnerLogs();
@@ -1219,6 +1233,7 @@ function App() {
             onQueueScheduleSettingsChange={(patch) => setQueueScheduleSettings((current) => ({ ...current, ...patch }))}
             onRefreshRunnerStatus={refreshRunnerStatus}
             onRunnerSettingsChange={(patch) => setRunnerSettings((current) => ({ ...current, ...patch }))}
+            onShowLocalRunnerCommand={showLocalRunnerCommand}
             onStartRunner={startRunner}
             onUpdateQueueItem={updateQueueItem}
           />

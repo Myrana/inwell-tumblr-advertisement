@@ -206,6 +206,18 @@ export async function clearRunnerLogs() {
   await apiRequest("/runner/logs", { method: "DELETE" });
 }
 
+export async function loadLocalRunnerCommand(queueName: string) {
+  const response = await apiRequest<{
+    localRunner: {
+      command: string;
+      tokenConfigured: boolean;
+      tokenEnv: string;
+      message: string;
+    };
+  }>(`/runner/local-command?queueName=${encodeURIComponent(queueName)}`);
+  return response.localRunner;
+}
+
 export async function loadBackendTumblrAccounts() {
   const response = await apiRequest<{ accounts: ApiTumblrAccount[] }>("/tumblr/accounts");
   return response.accounts.map(fromApiTumblrAccount);
