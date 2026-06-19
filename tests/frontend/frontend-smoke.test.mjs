@@ -703,6 +703,8 @@ test("tumblr accounts can be saved and selected for queue runs", { timeout: 4000
   await page.goto(appUrl);
   await page.getByRole("button", { name: "Tumblr Accounts" }).click();
   await page.getByRole("heading", { name: "Tumblr accounts", level: 1 }).waitFor();
+  await page.getByRole("button", { name: "Dark mode" }).click();
+  assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), "dark");
   await page.getByLabel("Account name").fill("Myrana Tumblr");
   await page.getByLabel("Tumblr blog name").fill("snowleopardx");
   await page.getByRole("button", { name: "Add account" }).click();
@@ -724,6 +726,8 @@ test("tumblr accounts can be saved and selected for queue runs", { timeout: 4000
     (await connectedAccountRow.textContent()) ?? "",
     /\.tumblr-sessions|\/sessions|C:\\sessions|C:\/sessions|userDataDir|user_data_dir/,
   );
+  const noteBackground = await connectedAccountRow.locator(".account-session-note").evaluate((element) => getComputedStyle(element).backgroundColor);
+  assert.notEqual(noteBackground, "rgb(255, 255, 255)");
   await connectedAccountRow.getByRole("button", { name: "Check saved login" }).waitFor();
   await page.getByRole("button", { name: "Create submission" }).click();
   await page.getByRole("heading", { name: "Untitled submission" }).waitFor();
