@@ -3,7 +3,7 @@ import { CheckCircle2, ChevronDown, ImagePlus, Plus, Send, Tags, Video } from "l
 import { ChangeEvent, FormEvent, ReactNode, useState } from "react";
 import { postTypes } from "../domain/constants";
 import { validateAdvertisement } from "../domain/post";
-import { Advertisement, PostType, SavedTemplate, TumblrSubmitTarget } from "../domain/types";
+import { Advertisement, PostType, QueueDefinition, SavedTemplate, TumblrSubmitTarget } from "../domain/types";
 import { TemplateLibrary } from "./TemplateLibrary";
 
 type ToolbarButton = {
@@ -22,6 +22,8 @@ type EditorWorkspaceProps = {
   customTag: string;
   editor: Editor | null;
   newSubmitUrl: string;
+  queueOptions: QueueDefinition[];
+  selectedQueueName: string;
   submissionComplete: boolean;
   submitTargetStatus: string;
   targetOptions: TumblrSubmitTarget[];
@@ -33,6 +35,7 @@ type EditorWorkspaceProps = {
   onImageUpload: (event: ChangeEvent<HTMLInputElement>) => void;
   onApplyTemplate: (template: SavedTemplate) => void;
   onQueueTargets: (targets: TumblrSubmitTarget[]) => void;
+  onSelectQueue: (queueName: string) => void;
   onSelectSubmitTarget: (targetId: string) => void;
   onToggleTag: (tag: string) => void;
   onUpdateActiveAd: (patch: Partial<Advertisement>) => void;
@@ -49,6 +52,8 @@ export function EditorWorkspace({
   customTag,
   editor,
   newSubmitUrl,
+  queueOptions,
+  selectedQueueName,
   submissionComplete,
   submitTargetStatus,
   targetOptions,
@@ -60,6 +65,7 @@ export function EditorWorkspace({
   onApplyTemplate,
   onImageUpload,
   onQueueTargets,
+  onSelectQueue,
   onSelectSubmitTarget,
   onToggleTag,
   onUpdateActiveAd,
@@ -108,15 +114,29 @@ export function EditorWorkspace({
               {activeAd.postType ? ` - ${activeAd.postType} post` : ""}
             </span>
           </div>
-          <button
-            className="primary"
-            type="button"
-            onClick={() => onQueueTargets([activeSubmitTarget])}
-            disabled={!queueReady}
-          >
-            <Send size={18} />
-            Add to queue
-          </button>
+          <div className="queue-readiness-actions">
+            {queueOptions.length ? (
+              <label className="queue-destination-select">
+                Queue destination
+                <select value={selectedQueueName} onChange={(event) => onSelectQueue(event.target.value)}>
+                  {queueOptions.map((queue) => (
+                    <option key={queue.id} value={queue.name}>
+                      {queue.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+            <button
+              className="primary"
+              type="button"
+              onClick={() => onQueueTargets([activeSubmitTarget])}
+              disabled={!queueReady}
+            >
+              <Send size={18} />
+              Add to queue
+            </button>
+          </div>
         </div>
 
         <section className="workflow-section">

@@ -1139,6 +1139,8 @@ function App() {
             customTag={customTag}
             editor={editor}
             newSubmitUrl={newSubmitUrl}
+            queueOptions={queueOptions}
+            selectedQueueName={activeQueueName}
             submissionComplete={submissionComplete}
             submitTargetStatus={submitTargetStatus}
             targetOptions={targetOptions}
@@ -1150,6 +1152,7 @@ function App() {
             onApplyTemplate={applyTemplate}
             onImageUpload={handleImageUpload}
             onQueueTargets={queueTargets}
+            onSelectQueue={setSelectedQueueName}
             onSelectSubmitTarget={selectSubmitTarget}
             onToggleTag={toggleTag}
             onUpdateActiveAd={updateActiveAd}

@@ -309,6 +309,30 @@ h2 {
   overflow-wrap: anywhere;
 }
 
+.queue-readiness-actions {
+  display: inline-flex;
+  align-items: end;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.queue-destination-select {
+  min-width: 190px;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.queue-destination-select select {
+  min-height: 40px;
+  padding: 8px 34px 8px 10px;
+  color: var(--ink);
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
 .workflow-section {
   overflow: hidden;
   border: 1px solid var(--line);
@@ -1823,6 +1847,20 @@ pre {
   .media-row,
   .queue-management-row {
     flex-direction: column;
+  }
+
+  .queue-readiness {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .queue-readiness-actions {
+    width: 100%;
+  }
+
+  .queue-destination-select,
+  .queue-readiness-actions > button {
+    flex: 1;
   }
 
   .account-session-row {

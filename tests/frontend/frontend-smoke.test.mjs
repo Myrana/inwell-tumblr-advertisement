@@ -439,10 +439,29 @@ test("templates can be saved and applied from their own workspace", { timeout: 4
   await page.locator(".workflow-section", { hasText: "Queue actions" }).locator(".section-state.warning", { hasText: "Empty" }).waitFor();
   assert.equal(await page.getByLabel("Media folder").count(), 0);
   await page.locator(".workflow-section", { hasText: "Schedule" }).locator(".section-state.warning", { hasText: "Off" }).waitFor();
+
+  await page.getByRole("button", { name: "Queues", exact: true }).click();
+  await page.getByLabel("New queue name").fill("Site ads");
+  await page.getByRole("button", { name: "Add queue" }).click();
+  await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
+  assert.equal(await page.getByLabel("Active queue").inputValue(), "Site ads");
+
+  await page.getByRole("button", { name: "New Submission" }).click();
+  await page.getByRole("heading", { name: "All Things Roleplay" }).waitFor();
+  await page.getByLabel("Queue destination").selectOption("Want ads");
+  await page.getByRole("button", { name: "Add to queue" }).click();
+
+  await page.getByRole("button", { name: "Queues", exact: true }).click();
+  const wantAdsRow = page.locator(".queue-management-row", { hasText: "Want ads" });
+  const emptySiteAdsRow = page.locator(".queue-management-row", { hasText: "Site ads" });
+  await wantAdsRow.getByText("1 item - 0 complete").waitFor();
+  await emptySiteAdsRow.getByText("0 items - 0 complete").waitFor();
+  await emptySiteAdsRow.getByRole("button", { name: "Delete queue" }).click();
+  await page.getByText("Deleted Site ads.").waitFor();
+  await wantAdsRow.getByRole("button", { name: "Open queue" }).click();
+  await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
+  assert.equal(await page.getByLabel("Active queue").inputValue(), "Want ads");
   await page.getByRole("button", { name: "Toggle queue actions section" }).click();
-  await page.getByRole("button", { name: "Queue current" }).waitFor();
-  await page.getByRole("button", { name: "Queue current" }).click();
-  await page.getByText("Queued 1 target in Want ads.").waitFor();
   await page.getByRole("button", { name: "Queue all targets" }).waitFor();
   await page.getByRole("button", { name: "Run queue" }).waitFor();
   await page.getByRole("button", { name: "Toggle schedule section" }).click();
@@ -454,7 +473,6 @@ test("templates can be saved and applied from their own workspace", { timeout: 4
   assert.equal(persistedSchedule.enabled, true);
   assert.equal(persistedSchedule.dailyTime, "09:30");
   await page.getByRole("button", { name: "Queues", exact: true }).click();
-  const wantAdsRow = page.locator(".queue-management-row", { hasText: "Want ads" });
   await wantAdsRow.getByText("1 item - 0 complete").waitFor();
   assert.equal(await wantAdsRow.getByLabel("Queue name").count(), 0);
   await wantAdsRow.getByRole("button", { name: "Open queue" }).click();
