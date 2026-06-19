@@ -436,14 +436,17 @@ test("templates can be saved and applied from their own workspace", { timeout: 4
   await page.getByRole("button", { name: "Add queue" }).click();
   await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
   assert.equal(await page.getByLabel("Active queue").inputValue(), "Want ads");
+  assert.equal(await page.getByLabel("Media folder").count(), 0);
+  await page.getByRole("button", { name: "Toggle queue actions section" }).click();
   await page.getByRole("button", { name: "Queue current" }).waitFor();
   await page.getByRole("button", { name: "Queue current" }).click();
   await page.getByText("Queued 1 target in Want ads.").waitFor();
   await page.getByRole("button", { name: "Queue all targets" }).waitFor();
   await page.getByRole("button", { name: "Run queue" }).waitFor();
+  await page.getByRole("button", { name: "Toggle schedule section" }).click();
   await page.getByLabel("Run this queue daily").check();
   await page.getByLabel("Daily run time").fill("09:30");
-  await page.getByText("Daily automation is on.").waitFor();
+  await page.getByLabel("Daily automation schedule").getByText("Daily automation is on.").waitFor();
   await page.getByText("Next queued local run:").waitFor();
   const persistedSchedule = await page.evaluate(() => JSON.parse(localStorage.getItem("inwell-queue-schedule-settings") ?? "{}"));
   assert.equal(persistedSchedule.enabled, true);
@@ -465,6 +468,7 @@ test("templates can be saved and applied from their own workspace", { timeout: 4
   await page.getByRole("button", { name: "Queues", exact: true }).click();
   await siteAdsRow.getByRole("button", { name: "Open queue" }).click();
   await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
+  await page.getByRole("button", { name: "Toggle queue actions section" }).click();
   await page.getByRole("button", { name: "Clear queue" }).click();
   await page.getByRole("button", { name: "Queues", exact: true }).click();
   await siteAdsRow.getByText("0 items - 0 complete").waitFor();
@@ -560,9 +564,11 @@ test("shared app settings load from and save to the backend", { timeout: 40000 }
   await page.locator(".queue-management-row", { hasText: "Backend queue" }).getByRole("button", { name: "Open queue" }).click();
   await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
   assert.equal(await page.getByLabel("Active queue").inputValue(), "Backend queue");
-  assert.equal(await page.getByLabel("Media folder").inputValue(), "C:/backend-media");
+  assert.equal(await page.getByLabel("Media folder").count(), 0);
+  await page.getByRole("button", { name: "Toggle runner settings section" }).click();
   assert.equal(await page.getByLabel("Slow motion").inputValue(), "900");
   assert.equal(await page.getByLabel("Click Submit after filling").isChecked(), true);
+  await page.getByRole("button", { name: "Toggle schedule section" }).click();
   assert.equal(await page.getByLabel("Run this queue daily").isChecked(), true);
   assert.equal(await page.getByLabel("Daily run time").inputValue(), "07:45");
 
@@ -1255,6 +1261,7 @@ test("running the queue sends a run id and shows failure explanations", { timeou
   await page.goto(appUrl);
   await page.getByLabel("Workspace views").getByRole("button", { name: "Queues", exact: true }).click();
   await page.locator(".queue-management-row", { hasText: "Default queue" }).getByRole("button", { name: "Open queue" }).click();
+  await page.getByRole("button", { name: "Toggle queue actions section" }).click();
   await page.getByRole("button", { name: "Run queue" }).click();
   await page.waitForTimeout(250);
   assert.match(startPayload?.runId ?? "", /^run-/);
