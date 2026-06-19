@@ -654,7 +654,12 @@ test("tumblr accounts can be saved and selected for queue runs", { timeout: 4000
   assert.equal(loginPayload?.accountId, "snowleopardx");
 
   await page.getByRole("button", { name: "Mark connected" }).click();
-  await page.getByText("Myrana Tumblr is ready for queue runs.").waitFor();
+  await page.getByText("Myrana Tumblr is ready").waitFor();
+  const connectedAccountRow = page.locator(".account-session-row", { hasText: "Myrana Tumblr" });
+  await connectedAccountRow.locator(".account-status-pill", { hasText: "Connected" }).waitFor();
+  assert.equal(await connectedAccountRow.getByRole("button", { name: "Connect", exact: true }).count(), 0);
+  assert.equal(await connectedAccountRow.getByRole("button", { name: "Mark connected", exact: true }).count(), 0);
+  await connectedAccountRow.getByRole("button", { name: "Check saved login" }).waitFor();
   await page.getByRole("button", { name: "Create submission" }).click();
   await page.getByRole("heading", { name: "Untitled submission" }).waitFor();
   await page.getByRole("button", { name: "Queue", exact: true }).click();
@@ -903,15 +908,19 @@ test("tumblr account connect opens Browserbase live view without manual URL", { 
   await page.getByRole("heading", { name: "Tumblr accounts", level: 1 }).waitFor();
   await page.getByLabel("Browser provider").selectOption("browserbase");
   assert.equal(await page.getByRole("textbox", { name: "Live browser URL" }).count(), 0);
-  await page.getByRole("button", { name: "Check saved login" }).click();
-  await page.locator("p.queue-status").filter({ hasText: "Saved Tumblr login is active." }).waitFor();
-  assert.equal(await page.evaluate(() => window.__openedRemoteUrl), "");
-
   await page.getByRole("button", { name: "Connect", exact: true }).click();
   await page.locator("p.queue-status").filter({ hasText: "Browserbase login session is ready." }).waitFor();
 
   const openedUrl = await page.evaluate(() => window.__openedRemoteUrl);
   assert.equal(openedUrl, "https://browserbase.com/live/session-new");
+
+  await page.evaluate(() => {
+    window.__openedRemoteUrl = "";
+  });
+  await page.getByRole("button", { name: "Check saved login" }).click();
+  await page.locator("p.queue-status").filter({ hasText: "Saved Tumblr login is active." }).waitFor();
+  assert.equal(await page.evaluate(() => window.__openedRemoteUrl), "");
+  assert.equal(await page.getByRole("button", { name: "Connect", exact: true }).count(), 0);
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
 });
 

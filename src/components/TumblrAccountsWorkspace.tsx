@@ -47,6 +47,7 @@ export function TumblrAccountsWorkspace({
   const connectedAccount = selectedAccount?.status === "connected"
     ? selectedAccount
     : accounts.find((account) => account.status === "connected");
+  const visibleStatus = connectedAccount && status === `${connectedAccount.displayName} is ready for queue runs.` ? "" : status;
 
   return (
     <section className="submission-queue-panel accounts-workspace" aria-label="Tumblr account sessions">
@@ -107,13 +108,13 @@ export function TumblrAccountsWorkspace({
         ) : null}
       </div>
 
-      {status ? <p className="queue-status">{status}</p> : null}
+      {visibleStatus ? <p className="queue-status">{visibleStatus}</p> : null}
 
       {connectedAccount ? (
         <div className="account-ready-panel" role="status">
           <div>
             <strong>{connectedAccount.displayName} is ready</strong>
-            <span>Create a submission when you are ready to build content for the queue.</span>
+            <span>Tumblr is connected. Create content when you are ready to add something to the queue.</span>
           </div>
           <button className="primary" type="button" onClick={onCreateSubmission}>
             <FileText size={18} />
@@ -125,33 +126,39 @@ export function TumblrAccountsWorkspace({
       <div className="queue-management-list">
         {accounts.length ? (
           accounts.map((account) => (
-            <article className={account.id === selectedAccountId ? "queue-management-row selected" : "queue-management-row"} key={account.id}>
-              <button type="button" onClick={() => onSelectAccount(account.id)}>
+            <article
+              className={account.id === selectedAccountId ? "account-session-row selected" : "account-session-row"}
+              key={account.id}
+            >
+              <button className="account-session-summary" type="button" onClick={() => onSelectAccount(account.id)}>
+                <span className={`account-status-pill account-status-${account.status}`}>{accountStatusLabel(account)}</span>
                 <strong>{account.displayName}</strong>
-                <span>
-                  {account.blogName || account.id} - {accountStatusLabel(account)}
-                </span>
+                <span>{account.blogName || account.id}</span>
                 <span>{account.userDataDir}</span>
               </button>
               <div className="queue-item-actions">
-                <button className="secondary" type="button" onClick={() => onLaunchLogin(account.id)}>
-                  <LogIn size={16} />
-                  Connect
-                </button>
+                {account.status === "connected" ? null : (
+                  <button className="secondary" type="button" onClick={() => onLaunchLogin(account.id)}>
+                    <LogIn size={16} />
+                    Connect
+                  </button>
+                )}
                 <button className="secondary" type="button" onClick={() => onCheckLogin(account.id)}>
                   <ShieldCheck size={16} />
                   Check saved login
                 </button>
-                <button className="secondary" type="button" onClick={() => onMarkConnected(account.id)}>
-                  <RefreshCw size={16} />
-                  Mark connected
-                </button>
+                {account.status === "connected" ? null : (
+                  <button className="secondary" type="button" onClick={() => onMarkConnected(account.id)}>
+                    <RefreshCw size={16} />
+                    Mark connected
+                  </button>
+                )}
                 <button className="secondary" type="button" onClick={() => onDeleteAccount(account.id)}>
                   <Trash2 size={16} />
                   Delete
                 </button>
               </div>
-              <div className="queue-item-explanation">
+              <div className="account-session-note">
                 <strong>{account.notes || accountStatusLabel(account)}</strong>
                 <span>
                   {account.lastCheckedAt ? `Last checked ${formatDate(account.lastCheckedAt)}` : "No session check recorded yet."}

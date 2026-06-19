@@ -1164,6 +1164,82 @@ pre {
   font-weight: 700;
 }
 
+.account-session-row {
+  padding: 12px;
+  display: grid;
+  grid-template-columns: minmax(210px, 1fr) auto minmax(240px, 0.7fr);
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.account-session-row.selected {
+  border-color: #2d8a9d;
+  background: #f5fbf8;
+}
+
+.account-session-summary {
+  min-width: 0;
+  padding: 0;
+  display: grid;
+  justify-items: start;
+  gap: 3px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.account-session-summary strong,
+.account-session-summary span,
+.account-session-note strong,
+.account-session-note span {
+  display: block;
+}
+
+.account-session-summary > span:not(.account-status-pill),
+.account-session-note span {
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.account-status-pill {
+  width: fit-content;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #eaf6f2;
+  color: #1f755f;
+  font-size: 0.74rem;
+  font-weight: 900;
+}
+
+.account-status-needs-login,
+.account-status-expired {
+  background: #fff4ec;
+  color: #9a4d1f;
+}
+
+.account-status-checking {
+  background: #eef5ff;
+  color: #315f9a;
+}
+
+.account-session-note {
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid #d8e7e2;
+  border-radius: 8px;
+  background: #fbfefd;
+}
+
+.account-session-note strong {
+  overflow-wrap: anywhere;
+}
+
 .queue-monitor-grid {
   margin-bottom: 12px;
   display: grid;
@@ -1707,9 +1783,15 @@ pre {
 
   .topbar,
   .account-ready-panel,
+  .account-session-row,
   .media-row,
   .queue-management-row {
     flex-direction: column;
+  }
+
+  .account-session-row {
+    grid-template-columns: 1fr;
+    align-items: stretch;
   }
 
   .field-grid.two,
