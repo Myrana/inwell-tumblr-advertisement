@@ -1,5 +1,5 @@
 import { FormEvent } from "react";
-import { LogIn, RefreshCw, ShieldCheck, Trash2, UserPlus } from "lucide-react";
+import { FileText, LogIn, RefreshCw, ShieldCheck, Trash2, UserPlus } from "lucide-react";
 import { formatDate } from "../domain/format";
 import { RunnerSettings, TumblrAccount } from "../domain/types";
 
@@ -9,6 +9,7 @@ type TumblrAccountsWorkspaceProps = {
   runnerSettings: RunnerSettings;
   status: string;
   selectedAccountId: string;
+  onCreateSubmission: () => void;
   onCreateAccount: (event: FormEvent) => void;
   onDeleteAccount: (id: string) => void;
   onDraftChange: (patch: Partial<{ displayName: string; blogName: string }>) => void;
@@ -32,6 +33,7 @@ export function TumblrAccountsWorkspace({
   runnerSettings,
   status,
   selectedAccountId,
+  onCreateSubmission,
   onCreateAccount,
   onDeleteAccount,
   onDraftChange,
@@ -41,6 +43,11 @@ export function TumblrAccountsWorkspace({
   onRunnerSettingsChange,
   onSelectAccount,
 }: TumblrAccountsWorkspaceProps) {
+  const selectedAccount = accounts.find((account) => account.id === selectedAccountId);
+  const connectedAccount = selectedAccount?.status === "connected"
+    ? selectedAccount
+    : accounts.find((account) => account.status === "connected");
+
   return (
     <section className="submission-queue-panel accounts-workspace" aria-label="Tumblr account sessions">
       <div className="panel-heading">
@@ -101,6 +108,19 @@ export function TumblrAccountsWorkspace({
       </div>
 
       {status ? <p className="queue-status">{status}</p> : null}
+
+      {connectedAccount ? (
+        <div className="account-ready-panel" role="status">
+          <div>
+            <strong>{connectedAccount.displayName} is ready</strong>
+            <span>Create a submission when you are ready to build content for the queue.</span>
+          </div>
+          <button className="primary" type="button" onClick={onCreateSubmission}>
+            <FileText size={18} />
+            Create submission
+          </button>
+        </div>
+      ) : null}
 
       <div className="queue-management-list">
         {accounts.length ? (
