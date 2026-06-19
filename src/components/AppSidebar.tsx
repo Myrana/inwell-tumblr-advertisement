@@ -1,4 +1,4 @@
-import { Activity, Archive, ClipboardCheck, FileText, ListChecks, Send, ShieldCheck } from "lucide-react";
+import { Activity, Archive, ClipboardCheck, FileText, ListChecks, ShieldCheck } from "lucide-react";
 import { AuthUser, WorkspaceView } from "../domain/types";
 
 type AppSidebarProps = {
@@ -44,11 +44,11 @@ export function AppSidebar({
           <ClipboardCheck size={18} />
           Templates
         </button>
-        <button className={activeView === "queue" ? "active" : ""} type="button" onClick={() => onViewChange("queue")}>
-          <Send size={18} />
-          Queue
-        </button>
-        <button className={activeView === "queue-settings" ? "active" : ""} type="button" onClick={() => onViewChange("queue-settings")}>
+        <button
+          className={activeView === "queue" || activeView === "queue-settings" ? "active" : ""}
+          type="button"
+          onClick={() => onViewChange("queue-settings")}
+        >
           <ListChecks size={18} />
           Queues
         </button>
