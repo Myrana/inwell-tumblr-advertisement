@@ -1015,6 +1015,7 @@ class PersistenceTests(unittest.TestCase):
                 return {"id": "ctx-new"}
             if method == "POST" and path == "/sessions":
                 self.assertEqual(payload["projectId"], "project-test")
+                self.assertIs(payload["keepAlive"], True)
                 self.assertEqual(payload["browserSettings"]["context"], {"id": "ctx-new", "persist": True})
                 self.assertEqual(payload["userMetadata"]["tumblrAccountId"], "snowleopardx")
                 return {"id": "session-new", "connectUrl": "wss://connect.browserbase.com/session-new", "expiresAt": "2026-06-19T05:00:00Z"}

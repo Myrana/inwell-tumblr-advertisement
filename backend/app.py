@@ -2081,6 +2081,7 @@ def create_browserbase_session(context_id: str, account_id: str, workspace_id: s
     _api_key, project_id = browserbase_credentials()
     payload = {
         "projectId": project_id,
+        "keepAlive": True,
         "browserSettings": {
             "context": {
                 "id": context_id,
