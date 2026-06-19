@@ -134,7 +134,6 @@ export function TumblrAccountsWorkspace({
                 <span className={`account-status-pill account-status-${account.status}`}>{accountStatusLabel(account)}</span>
                 <strong>{account.displayName}</strong>
                 <span>{account.blogName || account.id}</span>
-                <span>{account.userDataDir}</span>
               </button>
               <div className="queue-item-actions">
                 {account.status === "connected" ? null : (
