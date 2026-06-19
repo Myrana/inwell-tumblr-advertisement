@@ -265,7 +265,10 @@ async function reportRunnerEvent(options, item, status, message, level = "info",
 
   await fetch(`${options.apiBaseUrl}/runner/logs`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(options.apiToken ? { Authorization: `Bearer ${options.apiToken}` } : {}),
+    },
     body: JSON.stringify({
       run_id: options.runId,
       queue_item_id: item.id,

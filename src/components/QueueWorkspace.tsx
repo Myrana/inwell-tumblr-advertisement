@@ -1,4 +1,4 @@
-import { ChevronDown, List, Pencil, Play, Plus, Send, Trash2 } from "lucide-react";
+import { ChevronDown, List, Pencil, Play, Plus, Send, Terminal, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { formatDate, formatSubmissionStatus } from "../domain/format";
 import { queueLogGroups, runnerLogExplanation, visibleRunnerLogs } from "../domain/runnerLogs";
@@ -35,6 +35,7 @@ type QueueWorkspaceProps = {
   onQueueScheduleSettingsChange: (patch: Partial<QueueScheduleSettings>) => void;
   onRefreshRunnerStatus: () => void;
   onRunnerSettingsChange: (patch: Partial<RunnerSettings>) => void;
+  onShowLocalRunnerCommand: () => void;
   onStartRunner: () => void;
   onUpdateQueueItem: (id: string, status: SubmissionStatus, notes: string) => void;
 };
@@ -61,6 +62,7 @@ export function QueueWorkspace({
   onQueueScheduleSettingsChange,
   onRefreshRunnerStatus,
   onRunnerSettingsChange,
+  onShowLocalRunnerCommand,
   onStartRunner,
   onUpdateQueueItem,
 }: QueueWorkspaceProps) {
@@ -263,6 +265,10 @@ export function QueueWorkspace({
               </button>
               <button className="secondary" type="button" onClick={onRefreshRunnerStatus}>
                 Refresh runner status
+              </button>
+              <button className="secondary" type="button" onClick={onShowLocalRunnerCommand} disabled={!activeQueue.length}>
+                <Terminal size={18} />
+                Local runner command
               </button>
               {runnerState ? (
                 <span className="runner-state">

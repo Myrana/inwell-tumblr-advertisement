@@ -40,6 +40,8 @@ test("parseArgs supports same-session login before queue execution", () => {
     "125",
     "--api-base",
     "http://127.0.0.1:8021/api/",
+    "--api-token",
+    "local-token",
     "--run-id",
     "run-123",
     "--browserbase-cdp-url",
@@ -52,6 +54,7 @@ test("parseArgs supports same-session login before queue execution", () => {
   assert.equal(options.mediaDir, "media");
   assert.equal(options.slowMo, 125);
   assert.equal(options.apiBaseUrl, "http://127.0.0.1:8021/api");
+  assert.equal(options.apiToken, "local-token");
   assert.equal(options.runId, "run-123");
   assert.equal(options.browserbaseCdpUrl, "wss://connect.browserbase.com/session-123");
   assert.equal(options.browserbaseLiveUrl, "https://browserbase.com/live/session-123");

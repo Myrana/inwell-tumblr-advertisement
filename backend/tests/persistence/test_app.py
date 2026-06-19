@@ -36,6 +36,8 @@ from app import (
     check_browserbase_tumblr_login,
     create_browserbase_tumblr_login,
     get_app_settings,
+    local_runner_plan,
+    local_runner_token_valid,
     remote_tumblr_login_launch,
     unsupported_tumblr_helper_message,
     verify_password,
@@ -1415,6 +1417,54 @@ class PersistenceTests(unittest.TestCase):
         self.assertEqual(log["run_id"], "run-active")
         self.assertEqual(log["target_name"], "jcinktinder")
         self.assertEqual(self.connection.submission_queue["queue-log-2"]["status"], "needs-review")
+
+    def test_local_runner_token_validates_configured_env_token(self) -> None:
+        with patch.dict(os.environ, {"INWELL_LOCAL_RUNNER_TOKEN": "secret-token"}, clear=False):
+            self.assertTrue(local_runner_token_valid("secret-token"))
+            self.assertFalse(local_runner_token_valid("wrong-token"))
+
+        with patch.dict(os.environ, {"INWELL_LOCAL_RUNNER_TOKEN": ""}, clear=False):
+            self.assertFalse(local_runner_token_valid("secret-token"))
+
+    def test_local_runner_plan_returns_runnable_workspace_queue_items(self) -> None:
+        upsert_queue_item(
+            self.connection,
+            {
+                "id": "local-queue-1",
+                "workspace_id": "workspace-local",
+                "ad_id": "ad-1",
+                "target_id": "target-1",
+                "target_name": "inkwell-test",
+                "queue_name": "Local queue",
+                "submit_url": "https://inkwell-test.tumblr.com/submit",
+                "post_type": "photo",
+                "status": "queued",
+                "runner_payload": "{\"fields\":{\"body\":\"Local body\"}}",
+            },
+        )
+        upsert_queue_item(
+            self.connection,
+            {
+                "id": "local-queue-2",
+                "workspace_id": "workspace-local",
+                "ad_id": "ad-2",
+                "target_id": "target-2",
+                "target_name": "done",
+                "queue_name": "Local queue",
+                "submit_url": "https://done.tumblr.com/submit",
+                "status": "posted",
+                "runner_payload": "{}",
+            },
+        )
+
+        plan = local_runner_plan(self.connection, "workspace-local", "Local queue")
+
+        self.assertEqual(plan["workflow"], "tumblr-submission-queue")
+        self.assertEqual(plan["workspaceId"], "workspace-local")
+        self.assertEqual(len(plan["items"]), 1)
+        self.assertEqual(plan["items"][0]["id"], "local-queue-1")
+        self.assertEqual(plan["items"][0]["targetName"], "inkwell-test")
+        self.assertIn("Local body", plan["items"][0]["runnerPayload"])
 
     def test_start_runner_writes_plan_and_launches_known_command(self) -> None:
         temp_plan = Path("backend-test-runner-plan.json")

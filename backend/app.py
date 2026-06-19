@@ -19,7 +19,7 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Protocol
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -54,6 +54,7 @@ RUNNER_LAST_COMMAND: list[str] = []
 RUNNER_LAST_RUN_ID = ""
 RUNNER_LAST_BROWSER_PROVIDER = "local"
 RUNNER_LAST_LIVE_URL = ""
+LOCAL_RUNNER_TOKEN_ENV = "INWELL_LOCAL_RUNNER_TOKEN"
 
 SEED_TEMPLATES = [
     {
@@ -1943,6 +1944,81 @@ def runner_status() -> dict[str, Any]:
     }
 
 
+def local_runner_token_configured() -> bool:
+    return bool(os.environ.get(LOCAL_RUNNER_TOKEN_ENV, "").strip())
+
+
+def local_runner_token_valid(value: str) -> bool:
+    expected = os.environ.get(LOCAL_RUNNER_TOKEN_ENV, "").strip()
+    token = str(value or "").strip()
+    return bool(expected and token and hmac.compare_digest(expected, token))
+
+
+def bearer_token_from_header(header: str | None) -> str:
+    scheme, _, token = str(header or "").partition(" ")
+    return token.strip() if scheme.lower() == "bearer" else ""
+
+
+def queue_item_to_runner_plan_item(item: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": item["id"],
+        "targetId": item["target_id"],
+        "targetName": item["target_name"],
+        "submitUrl": item["submit_url"],
+        "postType": item["post_type"],
+        "tumblrAccountId": item.get("tumblr_account_id", ""),
+        "runnerPayload": item.get("runner_payload", ""),
+    }
+
+
+def local_runner_plan(connection: ConnectionLike, workspace_id: str, queue_name: str = "", limit: int = 0) -> dict[str, Any]:
+    rows = connection.execute(
+        "SELECT * FROM submission_queue WHERE workspace_id = %s ORDER BY updated_at DESC",
+        (workspace_id,),
+    ).fetchall()
+    items = []
+    for row in rows:
+        item = row_to_queue_item(row, load_runner_payload(connection, str(row["id"])))
+        if queue_name and item["queue_name"] != queue_name:
+            continue
+        if item["status"] in {"submitted", "posted", "running"}:
+            continue
+        items.append(queue_item_to_runner_plan_item(item))
+        if limit and len(items) >= limit:
+            break
+
+    run_id = f"local-run-{uuid.uuid4().hex}"
+    return {
+        "version": 1,
+        "workflow": "tumblr-submission-queue",
+        "runId": run_id,
+        "workspaceId": workspace_id,
+        "queueName": queue_name,
+        "generatedAt": utc_now().isoformat(),
+        "items": items,
+    }
+
+
+def local_runner_command(api_base_url: str, workspace_id: str, queue_name: str) -> dict[str, Any]:
+    token_placeholder = "<paste INWELL_LOCAL_RUNNER_TOKEN>"
+    queue_arg = queue_name or "Default queue"
+    command = (
+        f"$env:INWELL_LOCAL_RUNNER_TOKEN={powershell_quote(token_placeholder)}; "
+        f"npm.cmd run tumblr:runner:local -- --api-base {powershell_quote(api_base_url)} "
+        f"--workspace-id {powershell_quote(workspace_id)} "
+        f"--queue {powershell_quote(queue_arg)} "
+        "--user-data-dir .tumblr-runner-profile-local --submit"
+    )
+    return {
+        "command": command,
+        "tokenConfigured": local_runner_token_configured(),
+        "tokenEnv": LOCAL_RUNNER_TOKEN_ENV,
+        "message": (
+            "Run this on your Windows computer from the repo checkout. Set the same INWELL_LOCAL_RUNNER_TOKEN locally and in Railway."
+        ),
+    }
+
+
 def start_runner(payload: dict[str, Any]) -> dict[str, Any]:
     global RUNNER_LAST_BROWSER_PROVIDER, RUNNER_LAST_COMMAND, RUNNER_LAST_LIVE_URL, RUNNER_LAST_RUN_ID, RUNNER_PROCESS
 
@@ -2498,6 +2574,22 @@ class Handler(BaseHTTPRequestHandler):
                 self.respond({"authenticated": bool(auth), "user": auth["user"] if auth else None, "bootstrapRequired": not users_exist(connection)})
             return
 
+        if collection == "runner/local-plan" and item_id is None:
+            token = bearer_token_from_header(self.headers.get("Authorization"))
+            if not local_runner_token_valid(token):
+                self.respond({"error": "Local runner token is required"}, HTTPStatus.UNAUTHORIZED)
+                return
+            query = parse_qs(urlparse(self.path).query)
+            workspace_id = str(query.get("workspaceId", [""])[0] or "").strip()
+            queue_name = str(query.get("queueName", [""])[0] or "").strip()
+            limit = int(str(query.get("limit", ["0"])[0] or "0") or 0)
+            if not workspace_id:
+                self.respond({"error": "workspaceId is required"}, HTTPStatus.BAD_REQUEST)
+                return
+            with connect() as connection:
+                self.respond({"plan": local_runner_plan(connection, workspace_id, queue_name, limit)})
+            return
+
         auth = self.require_auth()
         if not auth:
             return
@@ -2505,6 +2597,12 @@ class Handler(BaseHTTPRequestHandler):
 
         if collection == "runner/status" and item_id is None:
             self.respond({"runner": runner_status()})
+            return
+
+        if collection == "runner/local-command" and item_id is None:
+            query = parse_qs(urlparse(self.path).query)
+            queue_name = str(query.get("queueName", ["Default queue"])[0] or "Default queue").strip() or "Default queue"
+            self.respond({"localRunner": local_runner_command(f"{self.request_base_url()}/api", workspace_id, queue_name)})
             return
 
         with connect() as connection:
@@ -2629,6 +2727,14 @@ class Handler(BaseHTTPRequestHandler):
         if collection == "runner/logs":
             payload = self.read_json()
             if str(payload.get("run_id") or "") == RUNNER_LAST_RUN_ID:
+                try:
+                    with connect() as connection:
+                        self.respond({"log": record_runner_log(connection, payload)}, HTTPStatus.CREATED)
+                except ValueError as error:
+                    self.respond({"error": str(error)}, HTTPStatus.BAD_REQUEST)
+                return
+            token = bearer_token_from_header(self.headers.get("Authorization"))
+            if local_runner_token_valid(token):
                 try:
                     with connect() as connection:
                         self.respond({"log": record_runner_log(connection, payload)}, HTTPStatus.CREATED)
@@ -2900,6 +3006,11 @@ class Handler(BaseHTTPRequestHandler):
         address = forwarded_for or (self.client_address[0] if self.client_address else "unknown")
         return client_key_from_address(address)
 
+    def request_base_url(self) -> str:
+        proto = self.headers.get("X-Forwarded-Proto") or "http"
+        host = self.headers.get("X-Forwarded-Host") or self.headers.get("Host") or "127.0.0.1"
+        return f"{proto}://{host}".rstrip("/")
+
     def respond(self, payload: dict[str, Any], status: HTTPStatus = HTTPStatus.OK) -> None:
         self.respond_with_headers(payload, status)
 
@@ -2945,7 +3056,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Origin", origin or "*")
         self.send_header("Access-Control-Allow-Credentials", "true")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
 
 
 def run(port: int | None = None, host: str | None = None) -> None:
