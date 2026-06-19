@@ -52,6 +52,8 @@ RUNNER_PLAN_PATH = REPO_ROOT / "tumblr-runner-plan.json"
 RUNNER_PROCESS: subprocess.Popen[Any] | None = None
 RUNNER_LAST_COMMAND: list[str] = []
 RUNNER_LAST_RUN_ID = ""
+RUNNER_LAST_BROWSER_PROVIDER = "local"
+RUNNER_LAST_LIVE_URL = ""
 
 SEED_TEMPLATES = [
     {
@@ -1936,11 +1938,13 @@ def runner_status() -> dict[str, Any]:
         "plan_path": str(RUNNER_PLAN_PATH),
         "command": RUNNER_LAST_COMMAND,
         "run_id": RUNNER_LAST_RUN_ID,
+        "browser_provider": RUNNER_LAST_BROWSER_PROVIDER,
+        "live_url": RUNNER_LAST_LIVE_URL,
     }
 
 
 def start_runner(payload: dict[str, Any]) -> dict[str, Any]:
-    global RUNNER_LAST_COMMAND, RUNNER_LAST_RUN_ID, RUNNER_PROCESS
+    global RUNNER_LAST_BROWSER_PROVIDER, RUNNER_LAST_COMMAND, RUNNER_LAST_LIVE_URL, RUNNER_LAST_RUN_ID, RUNNER_PROCESS
 
     items = payload.get("items")
     if not isinstance(items, list) or not items:
@@ -1949,10 +1953,15 @@ def start_runner(payload: dict[str, Any]) -> dict[str, Any]:
     if RUNNER_PROCESS is not None and RUNNER_PROCESS.poll() is None:
         raise ValueError("runner is already running")
 
-    if not visible_tumblr_helper_supported():
+    remote_browser_provider = str(payload.get("remoteBrowserProvider") or "none").strip().lower()
+    if remote_browser_provider not in {"none", "browserbase"}:
+        raise ValueError("Queue runner supports Browserbase remote sessions or a local visible browser.")
+
+    if remote_browser_provider != "browserbase" and not visible_tumblr_helper_supported():
         raise ValueError(unsupported_tumblr_helper_message())
 
     run_id = str(payload.get("runId") or f"run-{uuid.uuid4().hex}").strip()
+    browserbase_session = prepare_browserbase_runner_session(payload) if remote_browser_provider == "browserbase" else {}
 
     plan = {
         "version": 1,
@@ -1969,7 +1978,7 @@ def start_runner(payload: dict[str, Any]) -> dict[str, Any]:
     submit = bool(payload.get("submit"))
     user_data_dir = str(payload.get("userDataDir") or "").strip()
     tumblr_account_id = str(payload.get("tumblrAccountId") or "").strip()
-    if tumblr_account_id and not user_data_dir:
+    if remote_browser_provider != "browserbase" and tumblr_account_id and not user_data_dir:
         with connect() as connection:
             account = connection.execute("SELECT * FROM tumblr_accounts WHERE id = %s", (tumblr_account_id,)).fetchone()
             if account:
@@ -1996,8 +2005,11 @@ def start_runner(payload: dict[str, Any]) -> dict[str, Any]:
         runner_args.extend(["--user-data-dir", user_data_dir])
     if submit:
         runner_args.append("--submit")
+    if browserbase_session:
+        runner_args.extend(["--browserbase-cdp-url", str(browserbase_session["connect_url"])])
+        runner_args.extend(["--browserbase-live-url", str(browserbase_session["live_url"])])
 
-    if os.name == "nt":
+    if os.name == "nt" and not browserbase_session:
         command = [
             "powershell.exe",
             "-NoExit",
@@ -2012,6 +2024,8 @@ def start_runner(payload: dict[str, Any]) -> dict[str, Any]:
 
     RUNNER_LAST_COMMAND = runner_args
     RUNNER_LAST_RUN_ID = run_id
+    RUNNER_LAST_BROWSER_PROVIDER = "browserbase" if browserbase_session else "local"
+    RUNNER_LAST_LIVE_URL = str(browserbase_session.get("live_url") or "")
     RUNNER_PROCESS = subprocess.Popen(command, cwd=REPO_ROOT, creationflags=creationflags)
     return runner_status()
 
@@ -2024,6 +2038,53 @@ def visible_tumblr_helper_supported() -> bool:
 
 def unsupported_tumblr_helper_message() -> str:
     return "Tumblr login helper needs a visible browser on your local desktop. Railway cannot show that browser."
+
+
+def prepare_browserbase_runner_session(payload: dict[str, Any]) -> dict[str, str]:
+    workspace_id = str(payload.get("workspace_id") or "").strip()
+    account_id = str(payload.get("tumblrAccountId") or "").strip()
+    if not workspace_id:
+        raise ValueError("workspace_id is required for Browserbase queue runs")
+    if not account_id:
+        raise ValueError("Select a Tumblr account session before starting the Browserbase runner.")
+
+    with connect() as connection:
+        account = connection.execute("SELECT * FROM tumblr_accounts WHERE id = %s AND workspace_id = %s", (account_id, workspace_id)).fetchone()
+        if not account:
+            raise ValueError("Tumblr account not found")
+        account_data = row_to_tumblr_account(account)
+        context_id = str(account_data.get("browserbase_context_id") or "").strip()
+        if not context_id:
+            raise ValueError("Connect this Tumblr account with Browserbase before running the queue.")
+
+        session = create_browserbase_session(context_id, account_id, workspace_id)
+        session_id = str(session.get("id") or "").strip()
+        connect_url = str(session.get("connectUrl") or "").strip()
+        if not connect_url:
+            raise ValueError("Browserbase did not return a CDP connection URL.")
+        live_url = browserbase_live_view_url(session_id)
+        upsert_tumblr_account(
+            connection,
+            {
+                **account_data,
+                "workspace_id": workspace_id,
+                "status": account_data.get("status") or "connected",
+                "notes": "Browserbase queue runner session is active.",
+                "last_checked_at": utc_now(),
+                "browserbase_context_id": context_id,
+                "browserbase_session_id": session_id,
+                "browserbase_live_url": live_url,
+                "browserbase_session_expires_at": session.get("expiresAt"),
+            },
+        )
+
+    return {
+        "provider": "browserbase",
+        "context_id": context_id,
+        "session_id": session_id,
+        "connect_url": connect_url,
+        "live_url": live_url,
+    }
 
 
 def browserbase_credentials() -> tuple[str, str]:

@@ -994,7 +994,14 @@ function App() {
       setRunnerLogs(logs);
       setSubmissionQueue(backendQueue);
       setApiAvailable(true);
-      setQueueStatus(`Runner launched in a visible PowerShell window. Plan: ${response.runner.plan_path}`);
+      if (response.runner.live_url) {
+        window.open(response.runner.live_url, "_blank", "noopener,noreferrer");
+      }
+      setQueueStatus(
+        response.runner.browser_provider === "browserbase"
+          ? "Runner launched in Browserbase. Review queued pages in the live browser window."
+          : `Runner launched in a visible PowerShell window. Plan: ${response.runner.plan_path}`,
+      );
     } catch (error) {
       setApiAvailable(false);
       const message =
