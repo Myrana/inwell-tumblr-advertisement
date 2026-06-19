@@ -11,26 +11,29 @@ type SavedSubmissionsViewProps = {
 
 export function SavedSubmissionsView({ activeAdId, ads, onDeleteDraft, onSelectDraft }: SavedSubmissionsViewProps) {
   return (
-    <section className="draft-table" aria-label="Saved submissions">
+    <section className="draft-table" aria-label="Content library">
       <div className="panel-heading">
-        <h2>Saved submissions</h2>
+        <h2>Content library</h2>
         <Archive size={18} />
       </div>
       {ads.map((ad) => (
         <article className={ad.id === activeAdId ? "draft-row selected" : "draft-row"} key={ad.id}>
-          <button type="button" onClick={() => onSelectDraft(ad.id)}>
-            <strong>{ad.title || "Untitled saved submission"}</strong>
+          <div className="draft-row-summary">
+            <strong>{ad.title || "Untitled submission"}</strong>
             <span>{ad.postType} - {formatStatus(ad.status)} - {formatDate(ad.updatedAt)}</span>
-          </button>
+          </div>
           <a href={ad.forumUrl || "#"} aria-label="Forum URL">
             <Link size={18} />
           </a>
+          <button className="secondary compact-button" type="button" onClick={() => onSelectDraft(ad.id)}>
+            Edit
+          </button>
           <button
             className="icon-button"
             type="button"
             onClick={() => onDeleteDraft(ad.id)}
-            aria-label="Delete saved submission"
-            title="Delete saved submission"
+            aria-label="Delete content library item"
+            title="Delete content library item"
           >
             <Trash2 size={18} />
           </button>

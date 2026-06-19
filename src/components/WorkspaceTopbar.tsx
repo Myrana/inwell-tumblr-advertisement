@@ -21,7 +21,7 @@ export function WorkspaceTopbar({
     <header className="topbar">
       <div>
         <p className="eyebrow">{eyebrow}</p>
-        <h1>{title || "Untitled saved submission"}</h1>
+        <h1>{title || "Untitled submission"}</h1>
       </div>
       {actionsVisible ? (
         <div className="topbar-action-stack">

@@ -4,7 +4,7 @@ import { Advertisement } from "./types";
 export function validateAdvertisement(advertisement: Advertisement) {
   const bodyText = htmlToPlainText(composerContentFor(advertisement));
   return [
-    !advertisement.title.trim() ? "Add a saved submission name." : "",
+    !advertisement.title.trim() ? "Add a submission name." : "",
     !advertisement.forumUrl.trim() ? "Add a forum URL." : "",
     !advertisement.destinationBlog.trim() ? "Choose a target Tumblr blog." : "",
     !bodyText ? "Add post content." : "",

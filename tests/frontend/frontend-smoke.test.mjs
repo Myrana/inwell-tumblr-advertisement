@@ -283,7 +283,7 @@ test("custom blog submission flow does not blank the editor", { timeout: 40000 }
   const targetSelect = page.locator('label:has-text("Target Tumblr blog") select');
   const addBlogInput = page.locator('label:has-text("Add Tumblr submit URL") input');
   const forumInput = page.getByLabel("Forum link");
-  const savedNameInput = page.getByLabel("Saved submission name");
+  const savedNameInput = page.getByLabel("Submission name");
   assert.equal(await page.getByLabel("Tumblr post content").count(), 0);
 
   await addBlogInput.fill("https://another-rp.tumblr.com/submit");
@@ -291,9 +291,9 @@ test("custom blog submission flow does not blank the editor", { timeout: 40000 }
   assert.equal(await savedNameInput.inputValue(), "Custom target ad");
   await targetSelect.selectOption("another-rp");
   assert.equal(await forumInput.inputValue(), "https://forum.example");
-  await page.getByRole("button", { name: "New" }).click();
+  await page.getByRole("button", { name: "New", exact: true }).click();
 
-  await page.getByRole("heading", { name: "Untitled saved submission" }).waitFor();
+  await page.getByRole("heading", { name: "Untitled submission" }).waitFor();
   assert.equal(await targetSelect.inputValue(), "");
   assert.equal(await forumInput.inputValue(), "");
   assert.equal(await savedNameInput.inputValue(), "");
@@ -322,7 +322,7 @@ test("custom blog submission flow does not blank the editor", { timeout: 40000 }
   assert.equal(await page.getByRole("button", { name: "Keep editing" }).count(), 0);
   assert.equal(await page.getByRole("button", { name: "Add to queue" }).count(), 1);
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
-  assert.match((await page.locator("main").textContent()) ?? "", /Advertisement workspace/);
+  assert.match((await page.locator("main").textContent()) ?? "", /Submission workspace/);
 });
 
 test("templates can be saved and applied from their own workspace", { timeout: 40000 }, async (t) => {
@@ -415,8 +415,10 @@ test("templates can be saved and applied from their own workspace", { timeout: 4
   assert.equal(await page.getByLabel("jcink site").isChecked(), true);
   assert.equal(await page.getByLabel("premium jcink").count(), 0);
 
-  await page.getByRole("button", { name: "Saved Submissions" }).click();
-  await page.getByRole("heading", { name: "Saved submissions", level: 1 }).waitFor();
+  await page.getByRole("button", { name: "Content Library" }).click();
+  await page.getByRole("heading", { name: "Content library", level: 1 }).waitFor();
+  await page.getByRole("button", { name: "Edit" }).click();
+  await page.getByRole("heading", { name: "All Things Roleplay" }).waitFor();
   await page.getByRole("button", { name: "Queue", exact: true }).click();
   await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
   assert.equal(await page.getByRole("button", { name: "Export automation plan" }).count(), 0);
