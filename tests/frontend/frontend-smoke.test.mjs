@@ -284,6 +284,7 @@ test("custom blog submission flow does not blank the editor", { timeout: 40000 }
   const addBlogInput = page.locator('label:has-text("Add Tumblr submit URL") input');
   const forumInput = page.getByLabel("Forum link");
   const savedNameInput = page.getByLabel("Saved submission name");
+  assert.equal(await page.getByLabel("Tumblr post content").count(), 0);
 
   await addBlogInput.fill("https://another-rp.tumblr.com/submit");
   await page.getByRole("button", { name: "Add blog" }).click();
@@ -307,7 +308,9 @@ test("custom blog submission flow does not blank the editor", { timeout: 40000 }
   const persistedTargets = await page.evaluate(() => JSON.parse(localStorage.getItem("inwell-tumblr-submit-targets") ?? "[]"));
   assert.equal(persistedTargets.find((target) => target.id === "blank-name")?.forumUrl, "https://forum.example/updated");
   await page.getByText("Saved templates").waitFor();
+  await page.getByRole("button", { name: "Toggle reusable copy section" }).click();
   await page.getByRole("button", { name: /Editor quick template/ }).click();
+  await page.getByRole("button", { name: "Toggle post content section" }).click();
   await page.locator(".tumblr-rich-editor strong", { hasText: "Quick saved copy" }).waitFor();
   assert.equal(await page.getByText("Import this blog's tags from a screenshot").count(), 0);
   assert.equal(await page.getByLabel("jcink site").count(), 0);
@@ -405,6 +408,7 @@ test("templates can be saved and applied from their own workspace", { timeout: 4
   await page.getByRole("button", { name: /Reusable premium ad/ }).click();
 
   await page.getByRole("heading", { name: "All Things Roleplay" }).waitFor();
+  await page.getByRole("button", { name: "Toggle post content section" }).click();
   assert.match((await page.locator(".tumblr-rich-editor").textContent()) ?? "", /Template bold copy/);
   await page.locator(".tumblr-rich-editor strong", { hasText: "Template bold copy" }).waitFor();
   assert.equal(await page.getByLabel("Forum link").inputValue(), "https://forum.example/original");

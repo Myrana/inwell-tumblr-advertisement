@@ -1,6 +1,6 @@
 import { Editor, EditorContent } from "@tiptap/react";
 import { CheckCircle2, ChevronDown, ImagePlus, Plus, Send, Tags, Video } from "lucide-react";
-import { ChangeEvent, FormEvent, ReactNode, useEffect, useState } from "react";
+import { ChangeEvent, FormEvent, ReactNode, useState } from "react";
 import { postTypes } from "../domain/constants";
 import { validateAdvertisement } from "../domain/post";
 import { Advertisement, PostType, SavedTemplate, TumblrSubmitTarget } from "../domain/types";
@@ -71,7 +71,7 @@ export function EditorWorkspace({
   const [openSections, setOpenSections] = useState<Record<WorkflowSectionKey, boolean>>({
     details: true,
     templates: false,
-    composer: true,
+    composer: false,
   });
   const queueBlockers = validateAdvertisement(activeAd);
   const detailsReady = Boolean(activeAd.title.trim() && activeAd.destinationBlog.trim() && activeAd.forumUrl.trim());
@@ -91,13 +91,6 @@ export function EditorWorkspace({
   function setSectionOpen(section: WorkflowSectionKey, open: boolean) {
     setOpenSections((current) => ({ ...current, [section]: open }));
   }
-
-  useEffect(() => {
-    if (!templates.length) {
-      return;
-    }
-    setOpenSections((current) => (current.templates ? current : { ...current, templates: true }));
-  }, [templates.length]);
 
   function statusLabel(ready: boolean, optional = false) {
     if (ready) return "Ready";
