@@ -92,13 +92,17 @@ async function waitForTumblrLogin(context, options) {
 
   if (await tumblrSessionReady(page)) {
     console.log("[login] Tumblr session is already active; continuing without an Enter prompt.");
-    await page.close().catch(() => undefined);
+    if (!options.browserbaseCdpUrl) {
+      await page.close().catch(() => undefined);
+    }
     return;
   }
 
   if (options.headless || options.noPause) {
     console.log("[login] Noninteractive mode: continuing without waiting for manual login.");
-    await page.close().catch(() => undefined);
+    if (!options.browserbaseCdpUrl) {
+      await page.close().catch(() => undefined);
+    }
     return;
   }
 
@@ -107,7 +111,9 @@ async function waitForTumblrLogin(context, options) {
   if (!ready) {
     console.log("[login] Tumblr session was not detected before the timeout; continuing to the queue for review.");
   }
-  await page.close().catch(() => undefined);
+  if (!options.browserbaseCdpUrl) {
+    await page.close().catch(() => undefined);
+  }
 }
 
 async function tumblrSessionReady(page) {
