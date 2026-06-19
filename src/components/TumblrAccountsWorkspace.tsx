@@ -12,6 +12,7 @@ type TumblrAccountsWorkspaceProps = {
   onCreateAccount: (event: FormEvent) => void;
   onDeleteAccount: (id: string) => void;
   onDraftChange: (patch: Partial<{ displayName: string; blogName: string }>) => void;
+  onCheckLogin: (id: string) => void;
   onLaunchLogin: (id: string) => void;
   onMarkConnected: (id: string) => void;
   onRunnerSettingsChange: (patch: Partial<RunnerSettings>) => void;
@@ -34,6 +35,7 @@ export function TumblrAccountsWorkspace({
   onCreateAccount,
   onDeleteAccount,
   onDraftChange,
+  onCheckLogin,
   onLaunchLogin,
   onMarkConnected,
   onRunnerSettingsChange,
@@ -115,6 +117,10 @@ export function TumblrAccountsWorkspace({
                 <button className="secondary" type="button" onClick={() => onLaunchLogin(account.id)}>
                   <LogIn size={16} />
                   Connect
+                </button>
+                <button className="secondary" type="button" onClick={() => onCheckLogin(account.id)}>
+                  <ShieldCheck size={16} />
+                  Check saved login
                 </button>
                 <button className="secondary" type="button" onClick={() => onMarkConnected(account.id)}>
                   <RefreshCw size={16} />
