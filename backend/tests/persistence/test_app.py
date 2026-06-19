@@ -16,6 +16,7 @@ from app import (
     initialize_database_for_startup,
     record_runner_log,
     run,
+    settings_statistics,
     start_runner,
     upsert_app_settings,
     upsert_advertisement,
@@ -38,17 +39,32 @@ class FakeCursor:
 class FakePostgresConnection:
     def __init__(self) -> None:
         self.advertisements: dict[str, dict[str, Any]] = {}
-        self.app_settings: dict[str, dict[str, Any]] = {}
+        self.advertisement_tags: dict[tuple[str, str], dict[str, Any]] = {}
+        self.queue_definitions: dict[str, dict[str, Any]] = {}
+        self.queue_schedule_settings: dict[str, dict[str, Any]] = {}
         self.runner_logs: dict[str, dict[str, Any]] = {}
+        self.runner_log_details: dict[tuple[str, str], dict[str, Any]] = {}
+        self.runner_settings: dict[str, dict[str, Any]] = {}
         self.schema_migrations: dict[str, dict[str, Any]] = {}
+        self.settings_audit_events: dict[str, dict[str, Any]] = {}
         self.submission_queue: dict[str, dict[str, Any]] = {}
+        self.submission_queue_runner_payload_values: dict[tuple[str, str], dict[str, Any]] = {}
+        self.submit_targets: dict[str, dict[str, Any]] = {}
+        self.tag_profile_tags: dict[tuple[str, str], dict[str, Any]] = {}
         self.templates: dict[str, dict[str, Any]] = {}
+        self.template_tags: dict[tuple[str, str], dict[str, Any]] = {}
 
     def execute(self, query: str, params: tuple[Any, ...] | None = None) -> FakeCursor:
         normalized = " ".join(query.split()).lower()
         params = params or ()
 
-        if normalized.startswith("create table") or normalized.startswith("alter table"):
+        if normalized.startswith("create table") or normalized.startswith("alter table") or normalized.startswith("create index"):
+            return FakeCursor()
+
+        if normalized.startswith("drop table"):
+            return FakeCursor()
+
+        if normalized.startswith("select table_name from information_schema.tables"):
             return FakeCursor()
 
         if normalized.startswith("select * from schema_migrations order by"):
@@ -81,15 +97,14 @@ class FakePostgresConnection:
                 "content": params[3],
                 "destination_blog": params[4],
                 "forum_url": params[5],
-                "tags": json.loads(params[6]),
-                "image_caption": params[7],
-                "image_name": params[8],
-                "image_data_url": params[9],
-                "video_url": params[10],
-                "video_name": params[11],
-                "status": params[12],
-                "created_at": params[13],
-                "updated_at": params[14],
+                "image_caption": params[6],
+                "image_name": params[7],
+                "image_data_url": params[8],
+                "video_url": params[9],
+                "video_name": params[10],
+                "status": params[11],
+                "created_at": params[12],
+                "updated_at": params[13],
             }
             self.advertisements[str(params[0])] = row
             return FakeCursor()
@@ -98,22 +113,137 @@ class FakePostgresConnection:
             self.advertisements.pop(str(params[0]), None)
             return FakeCursor()
 
+        if normalized.startswith("delete from advertisement_tags"):
+            for key in [key for key in self.advertisement_tags if key[0] == str(params[0])]:
+                self.advertisement_tags.pop(key, None)
+            return FakeCursor()
+
+        if normalized.startswith("insert into advertisement_tags"):
+            row = {
+                "advertisement_id": params[0],
+                "tag": params[1],
+                "sort_order": params[2],
+                "created_at": params[3],
+                "updated_at": params[4],
+            }
+            self.advertisement_tags[(str(params[0]), str(params[1]))] = row
+            return FakeCursor()
+
+        if normalized.startswith("select tag from advertisement_tags"):
+            rows = [row for row in self.advertisement_tags.values() if row["advertisement_id"] == params[0]]
+            return FakeCursor(sorted(rows, key=lambda row: (row["sort_order"], row["tag"])))
+
         if normalized.startswith("select * from app_settings where key"):
-            row = self.app_settings.get(str(params[0]))
+            return FakeCursor()
+
+        if normalized.startswith("delete from submit_targets"):
+            self.submit_targets.clear()
+            return FakeCursor()
+
+        if normalized.startswith("insert into submit_targets"):
+            row = {
+                "id": params[0],
+                "name": params[1],
+                "submit_url": params[2],
+                "forum_url": params[3],
+                "created_at": params[4],
+                "updated_at": params[5],
+            }
+            self.submit_targets[str(params[0])] = row
+            return FakeCursor()
+
+        if normalized.startswith("select * from submit_targets order by"):
+            return FakeCursor(sorted(self.submit_targets.values(), key=lambda row: row["name"]))
+
+        if normalized.startswith("delete from queue_definitions"):
+            self.queue_definitions.clear()
+            return FakeCursor()
+
+        if normalized.startswith("insert into queue_definitions"):
+            row = {"id": params[0], "name": params[1], "created_at": params[2], "updated_at": params[3]}
+            self.queue_definitions[str(params[0])] = row
+            return FakeCursor()
+
+        if normalized.startswith("select * from queue_definitions order by"):
+            return FakeCursor(sorted(self.queue_definitions.values(), key=lambda row: row["name"]))
+
+        if normalized.startswith("delete from tag_profile_tags") and not params:
+            self.tag_profile_tags.clear()
+            return FakeCursor()
+
+        if normalized.startswith("delete from tag_profile_tags"):
+            for key in [key for key in self.tag_profile_tags if key[0] == str(params[0])]:
+                self.tag_profile_tags.pop(key, None)
+            return FakeCursor()
+
+        if normalized.startswith("insert into tag_profile_tags"):
+            row = {
+                "blog_id": params[0],
+                "tag": params[1],
+                "sort_order": params[2],
+                "created_at": params[3],
+                "updated_at": params[4],
+            }
+            self.tag_profile_tags[(str(params[0]), str(params[1]))] = row
+            return FakeCursor()
+
+        if normalized.startswith("select * from tag_profile_tags order by"):
+            return FakeCursor(sorted(self.tag_profile_tags.values(), key=lambda row: (row["blog_id"], row["sort_order"], row["tag"])))
+
+        if normalized.startswith("insert into runner_settings"):
+            row = {
+                "id": params[0],
+                "media_dir": params[1],
+                "slow_mo": params[2],
+                "submit": params[3],
+                "updated_at": params[4],
+            }
+            self.runner_settings[str(params[0])] = row
+            return FakeCursor()
+
+        if normalized.startswith("select * from runner_settings where id"):
+            row = self.runner_settings.get(str(params[0]))
             return FakeCursor([row] if row else [])
 
-        if normalized.startswith("insert into app_settings"):
-            row = {
-                "key": params[0],
-                "value": json.loads(params[1]),
-                "updated_at": params[2],
-            }
-            self.app_settings[str(params[0])] = row
+        if normalized.startswith("delete from runner_settings"):
+            self.runner_settings.clear()
             return FakeCursor()
 
-        if normalized.startswith("delete from app_settings"):
-            self.app_settings.pop(str(params[0]), None)
+        if normalized.startswith("insert into queue_schedule_settings"):
+            row = {
+                "id": params[0],
+                "enabled": params[1],
+                "daily_time": params[2],
+                "timezone": params[3],
+                "updated_at": params[4],
+            }
+            self.queue_schedule_settings[str(params[0])] = row
             return FakeCursor()
+
+        if normalized.startswith("select * from queue_schedule_settings where id"):
+            row = self.queue_schedule_settings.get(str(params[0]))
+            return FakeCursor([row] if row else [])
+
+        if normalized.startswith("delete from queue_schedule_settings"):
+            self.queue_schedule_settings.clear()
+            return FakeCursor()
+
+        if normalized.startswith("insert into settings_audit_events"):
+            row = {
+                "id": params[0],
+                "area": params[1],
+                "action": params[2],
+                "entity_id": params[3],
+                "field_name": params[4],
+                "old_value": params[5],
+                "new_value": params[6],
+                "created_at": params[7],
+            }
+            self.settings_audit_events[str(params[0])] = row
+            return FakeCursor()
+
+        if normalized.startswith("select * from settings_audit_events order by"):
+            return FakeCursor(sorted(self.settings_audit_events.values(), key=lambda row: row["created_at"], reverse=True))
 
         if normalized.startswith("select created_at from templates"):
             row = self.templates.get(str(params[0]))
@@ -135,12 +265,31 @@ class FakePostgresConnection:
                 "name": params[1],
                 "content": params[2],
                 "forum_url": params[3],
-                "tags": json.loads(params[4]),
-                "created_at": params[5],
-                "updated_at": params[6],
+                "created_at": params[4],
+                "updated_at": params[5],
             }
             self.templates[str(params[0])] = row
             return FakeCursor()
+
+        if normalized.startswith("delete from template_tags"):
+            for key in [key for key in self.template_tags if key[0] == str(params[0])]:
+                self.template_tags.pop(key, None)
+            return FakeCursor()
+
+        if normalized.startswith("insert into template_tags"):
+            row = {
+                "template_id": params[0],
+                "tag": params[1],
+                "sort_order": params[2],
+                "created_at": params[3],
+                "updated_at": params[4],
+            }
+            self.template_tags[(str(params[0]), str(params[1]))] = row
+            return FakeCursor()
+
+        if normalized.startswith("select tag from template_tags"):
+            rows = [row for row in self.template_tags.values() if row["template_id"] == params[0]]
+            return FakeCursor(sorted(rows, key=lambda row: (row["sort_order"], row["tag"])))
 
         if normalized.startswith("delete from templates"):
             self.templates.pop(str(params[0]), None)
@@ -157,7 +306,7 @@ class FakePostgresConnection:
         if normalized.startswith("select * from submission_queue order by"):
             return FakeCursor(sorted(self.submission_queue.values(), key=lambda row: row["updated_at"], reverse=True))
 
-        if normalized.startswith("insert into submission_queue"):
+        if normalized.startswith("insert into submission_queue ("):
             row = {
                 "id": params[0],
                 "ad_id": params[1],
@@ -170,15 +319,44 @@ class FakePostgresConnection:
                 "scheduled_for": params[8],
                 "timezone": params[9],
                 "notes": params[10],
-                "runner_payload": params[11],
-                "created_at": params[12],
-                "updated_at": params[13],
-                "last_run_at": params[14],
-                "posted_at": params[15],
-                "failed_at": params[16],
+                "created_at": params[11],
+                "updated_at": params[12],
+                "last_run_at": params[13],
+                "posted_at": params[14],
+                "failed_at": params[15],
             }
             self.submission_queue[str(params[0])] = row
             return FakeCursor()
+
+        if normalized.startswith("delete from submission_queue_runner_payload_values"):
+            for key in [key for key in self.submission_queue_runner_payload_values if key[0] == str(params[0])]:
+                self.submission_queue_runner_payload_values.pop(key, None)
+            return FakeCursor()
+
+        if normalized.startswith("insert into submission_queue_runner_payload_values"):
+            row = {
+                "queue_item_id": params[0],
+                "payload_path": params[1],
+                "sort_order": params[2],
+                "value_type": params[3],
+                "value_text": params[4],
+                "created_at": params[5],
+                "updated_at": params[6],
+            }
+            self.submission_queue_runner_payload_values[(str(params[0]), str(params[1]))] = row
+            return FakeCursor()
+
+        if normalized.startswith("select payload_path, value_type, value_text from submission_queue_runner_payload_values"):
+            rows = [row for row in self.submission_queue_runner_payload_values.values() if row["queue_item_id"] == params[0]]
+            return FakeCursor(sorted(rows, key=lambda row: (row["sort_order"], row["payload_path"])))
+
+        if normalized.startswith("select * from submission_queue_runner_payload_values order by"):
+            return FakeCursor(
+                sorted(
+                    self.submission_queue_runner_payload_values.values(),
+                    key=lambda row: (row["queue_item_id"], row["sort_order"], row["payload_path"]),
+                )
+            )
 
         if normalized.startswith("delete from submission_queue"):
             self.submission_queue.pop(str(params[0]), None)
@@ -192,11 +370,32 @@ class FakePostgresConnection:
                 "target_name": params[3],
                 "level": params[4],
                 "message": params[5],
-                "details": json.loads(params[6]),
-                "created_at": params[7],
+                "created_at": params[6],
             }
             self.runner_logs[str(params[0])] = row
             return FakeCursor()
+
+        if normalized.startswith("delete from runner_log_details"):
+            if not params:
+                self.runner_log_details.clear()
+                return FakeCursor()
+            for key in [key for key in self.runner_log_details if key[0] == str(params[0])]:
+                self.runner_log_details.pop(key, None)
+            return FakeCursor()
+
+        if normalized.startswith("insert into runner_log_details"):
+            row = {
+                "log_id": params[0],
+                "detail_key": params[1],
+                "detail_value": params[2],
+                "created_at": params[3],
+            }
+            self.runner_log_details[(str(params[0]), str(params[1]))] = row
+            return FakeCursor()
+
+        if normalized.startswith("select detail_key, detail_value from runner_log_details"):
+            rows = [row for row in self.runner_log_details.values() if row["log_id"] == params[0]]
+            return FakeCursor(sorted(rows, key=lambda row: row["detail_key"]))
 
         if normalized == "delete from runner_logs":
             self.runner_logs.clear()
@@ -279,6 +478,7 @@ class PersistenceTests(unittest.TestCase):
         self.assertEqual(saved["post_type"], "video")
         self.assertEqual(saved["content"], "<p>Optional copy</p>")
         self.assertEqual(saved["tags"], ["#jcink", "#forum rp"])
+        self.assertEqual([row["tag"] for row in self.connection.advertisement_tags.values()], ["#jcink", "#forum rp"])
         self.assertEqual(saved["image_caption"], "Picture post caption")
         self.assertEqual(saved["video_url"], "https://video.example.test/watch")
         self.assertEqual(saved["video_name"], "tour.mp4")
@@ -295,6 +495,7 @@ class PersistenceTests(unittest.TestCase):
 
         self.assertEqual(updated["title"], "Updated title")
         self.assertEqual(updated["tags"], [])
+        self.assertEqual(self.connection.advertisement_tags, {})
         self.assertEqual(updated["status"], "ready")
 
     def test_invalid_post_type_defaults_to_photo(self) -> None:
@@ -345,6 +546,10 @@ class PersistenceTests(unittest.TestCase):
 
         self.assertEqual(saved["name"], "Custom template")
         self.assertEqual(saved["tags"], ["#custom"])
+        self.assertEqual(
+            [row["tag"] for row in self.connection.template_tags.values() if row["template_id"] == "template-custom"],
+            ["#custom"],
+        )
 
     def test_app_settings_upsert_round_trips_shared_state(self) -> None:
         saved = upsert_app_settings(
@@ -371,6 +576,11 @@ class PersistenceTests(unittest.TestCase):
         self.assertEqual(saved["tagProfiles"]["allthingsroleplay"], ["jcink site", "premium jcink"])
         self.assertEqual(saved["runnerSettings"], {"mediaDir": "C:/media", "slowMo": 750, "submit": True})
         self.assertEqual(saved["queueScheduleSettings"]["dailyTime"], "08:30")
+        self.assertEqual(self.connection.submit_targets["allthingsroleplay"]["submit_url"], "https://allthingsroleplay.tumblr.com/submit")
+        self.assertEqual(self.connection.queue_definitions["daily-adverts"]["name"], "Daily adverts")
+        self.assertEqual(self.connection.runner_settings["default"]["slow_mo"], 750)
+        self.assertEqual(self.connection.queue_schedule_settings["default"]["daily_time"], "08:30")
+        self.assertGreater(len(self.connection.settings_audit_events), 0)
 
     def test_app_settings_normalize_invalid_values(self) -> None:
         saved = upsert_app_settings(
@@ -389,6 +599,34 @@ class PersistenceTests(unittest.TestCase):
         self.assertEqual(saved["tagProfiles"], {})
         self.assertEqual(saved["runnerSettings"]["slowMo"], 500)
         self.assertEqual(saved["queueScheduleSettings"]["dailyTime"], "09:00")
+
+    def test_settings_statistics_count_relational_rows(self) -> None:
+        upsert_app_settings(
+            self.connection,
+            {
+                "submitTargets": [
+                    {
+                        "id": "allthingsroleplay",
+                        "name": "allthingsroleplay",
+                        "submitUrl": "https://allthingsroleplay.tumblr.com/submit",
+                    }
+                ],
+                "queueDefinitions": [{"id": "daily-adverts", "name": "Daily adverts"}],
+                "tagProfiles": {"allthingsroleplay": ["jcink site", "premium jcink"]},
+                "runnerSettings": {"slowMo": 500},
+                "queueScheduleSettings": {"dailyTime": "09:00"},
+            },
+        )
+
+        stats = settings_statistics(self.connection)
+
+        self.assertEqual(stats["submitTargets"], 1)
+        self.assertEqual(stats["queueDefinitions"], 1)
+        self.assertEqual(stats["tagProfileTags"], 2)
+        self.assertEqual(stats["queueRunnerPayloadValues"], 0)
+        self.assertEqual(stats["runnerSettings"], 1)
+        self.assertEqual(stats["queueScheduleSettings"], 1)
+        self.assertGreater(stats["settingsAuditEvents"], 0)
 
     def test_queue_item_upsert_round_trips_schedule_and_status(self) -> None:
         saved = upsert_queue_item(
@@ -415,6 +653,34 @@ class PersistenceTests(unittest.TestCase):
         self.assertEqual(saved["status"], "scheduled")
         self.assertEqual(saved["post_type"], "photo")
         self.assertIn("2026-06-18T14:30:00", saved["scheduled_for"])
+        self.assertEqual(json.loads(saved["runner_payload"]), {})
+
+    def test_queue_runner_payload_uses_relational_value_rows(self) -> None:
+        saved = upsert_queue_item(
+            self.connection,
+            {
+                "id": "queue-payload-1",
+                "ad_id": "ad-1",
+                "target_id": "target-1",
+                "target_name": "allthingsroleplay",
+                "submit_url": "https://example.tumblr.com/submit",
+                "runnerPayload": json.dumps(
+                    {
+                        "version": 1,
+                        "target": {"name": "allthingsroleplay"},
+                        "advertisement": {"tags": ["jcink", "premium"]},
+                        "fields": {"body": "Prepared copy"},
+                        "runnerNotes": ["Review before submit"],
+                    }
+                ),
+            },
+        )
+
+        stored_paths = {key[1] for key in self.connection.submission_queue_runner_payload_values}
+        self.assertNotIn("runner_payload", self.connection.submission_queue["queue-payload-1"])
+        self.assertIn("/fields/body", stored_paths)
+        self.assertIn("/advertisement/tags/0", stored_paths)
+        self.assertEqual(json.loads(saved["runner_payload"])["fields"]["body"], "Prepared copy")
 
     def test_runner_log_updates_queue_status(self) -> None:
         upsert_queue_item(
@@ -445,6 +711,7 @@ class PersistenceTests(unittest.TestCase):
         self.assertEqual(log["run_id"], "run-test")
         self.assertEqual(log["target_name"], "allthingsroleplay")
         self.assertEqual(log["details"], {"submit": True})
+        self.assertEqual(self.connection.runner_log_details[(log["id"], "submit")]["detail_value"], "True")
         self.assertEqual(self.connection.submission_queue["queue-log-1"]["status"], "submitted")
         self.assertIsNone(self.connection.submission_queue["queue-log-1"]["posted_at"])
 
