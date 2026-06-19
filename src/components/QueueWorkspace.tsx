@@ -1,4 +1,4 @@
-import { List, Play, Plus, Send } from "lucide-react";
+import { List, Pencil, Play, Plus, Send, Trash2 } from "lucide-react";
 import { formatDate, formatSubmissionStatus } from "../domain/format";
 import { queueLogGroups, runnerLogExplanation, visibleRunnerLogs } from "../domain/runnerLogs";
 import { formatEasternRun, nextDailyRunAt, scheduleSummary } from "../domain/schedule";
@@ -26,6 +26,8 @@ type QueueWorkspaceProps = {
   runnerLogs: RunnerLog[];
   targetOptions: TumblrSubmitTarget[];
   tumblrAccounts: TumblrAccount[];
+  onClearQueue: (queueName: string, completedOnly: boolean) => void;
+  onEditQueueItem: (id: string) => void;
   onQueueTargets: (targets: TumblrSubmitTarget[]) => void;
   onSelectQueue: (queueName: string) => void;
   onQueueScheduleSettingsChange: (patch: Partial<QueueScheduleSettings>) => void;
@@ -47,6 +49,8 @@ export function QueueWorkspace({
   runnerLogs,
   targetOptions,
   tumblrAccounts,
+  onClearQueue,
+  onEditQueueItem,
   onQueueTargets,
   onSelectQueue,
   onQueueScheduleSettingsChange,
@@ -62,6 +66,7 @@ export function QueueWorkspace({
   const scopedLogs = visibleRunnerLogs(runnerLogs, false);
   const logGroups = queueLogGroups(activeQueue, scopedLogs);
   const nextRunAt = queueScheduleSettings.enabled ? nextDailyRunAt(queueScheduleSettings) : "";
+  const completedCount = statusCounts.submitted + statusCounts.posted + statusCounts.failed;
 
   function queueItemExplanation(item: SubmissionQueueItem) {
     const logs = logGroups.find((group) => group.item.id === item.id)?.logs ?? [];
@@ -191,16 +196,32 @@ export function QueueWorkspace({
         </button>
       </div>
       {queueStatus ? <p className="queue-status">{queueStatus}</p> : null}
+      <div className="queue-actions queue-maintenance-actions" aria-label="Queue maintenance">
+        <button className="secondary" type="button" onClick={() => onClearQueue(activeQueueName, true)} disabled={!completedCount}>
+          <Trash2 size={16} />
+          Clear completed
+        </button>
+        <button className="secondary" type="button" onClick={() => onClearQueue(activeQueueName, false)} disabled={!activeQueue.length}>
+          <Trash2 size={16} />
+          Clear queue
+        </button>
+      </div>
       <div className="queue-list">
         {activeQueue.length ? (
           activeQueue.map((item) => (
             <article className="queue-item" key={item.id}>
-              <div>
-                <strong>{item.targetName}</strong>
-                <span>{item.postType} - {formatSubmissionStatus(item.status)} - {formatDate(item.updatedAt)}</span>
-                <a href={item.submitUrl} target="_blank" rel="noreferrer">
-                  {item.submitUrl}
-                </a>
+              <div className="queue-item-header">
+                <div>
+                  <strong>{item.targetName}</strong>
+                  <span>{item.postType} - {formatSubmissionStatus(item.status)} - {formatDate(item.updatedAt)}</span>
+                  <a href={item.submitUrl} target="_blank" rel="noreferrer">
+                    {item.submitUrl}
+                  </a>
+                </div>
+                <button className="secondary" type="button" onClick={() => onEditQueueItem(item.id)}>
+                  <Pencil size={16} />
+                  Edit submission
+                </button>
               </div>
               {item.status === "failed" || item.status === "needs-review" ? null : <p>{item.notes}</p>}
               {item.status === "failed" || item.status === "needs-review" ? (

@@ -1293,6 +1293,21 @@ pre {
   background: #fff;
 }
 
+.queue-maintenance-actions {
+  margin-top: 10px;
+}
+
+.queue-item-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.queue-item-header > div {
+  min-width: 0;
+}
+
 .queue-item strong,
 .queue-item span,
 .queue-item a {

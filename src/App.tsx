@@ -675,6 +675,25 @@ function App() {
     }
   }
 
+  function editQueuedSubmission(id: string) {
+    const item = submissionQueue.find((queueItem) => queueItem.id === id);
+    if (!item) {
+      setQueueStatus("That queued submission is no longer available.");
+      return;
+    }
+
+    const normalized = normalizeStoredState(stored);
+    const ad = normalized.ads.find((candidate) => candidate.id === item.adId);
+    if (!ad) {
+      setQueueStatus("That queued submission is not in the content library yet.");
+      return;
+    }
+
+    setStored({ ...normalized, activeAdId: ad.id });
+    setSelectedQueueName(item.queueName);
+    setActiveView("editor");
+  }
+
   function createQueueDefinition(event: FormEvent) {
     event.preventDefault();
     const name = queueNameDraft.trim();
@@ -1094,6 +1113,8 @@ function App() {
             runnerLogs={runnerLogs}
             targetOptions={targetOptions}
             tumblrAccounts={tumblrAccounts}
+            onClearQueue={clearQueueItems}
+            onEditQueueItem={editQueuedSubmission}
             onQueueTargets={queueTargets}
             onSelectQueue={setSelectedQueueName}
             onQueueScheduleSettingsChange={(patch) => setQueueScheduleSettings((current) => ({ ...current, ...patch }))}
@@ -1109,7 +1130,6 @@ function App() {
             queueNameDraft={queueNameDraft}
             queueOptions={queueOptions}
             submissionQueue={submissionQueue}
-            onClearQueue={clearQueueItems}
             onCreateQueue={createQueueDefinition}
             onQueueNameDraftChange={setQueueNameDraft}
             onSelectQueue={(queueName) => {
