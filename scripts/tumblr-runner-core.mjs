@@ -142,8 +142,23 @@ export function postTypeCandidateIndex(candidates, optionValue) {
 }
 
 export function shouldPauseForManualAction(text, url = "") {
+  return Boolean(manualActionReason(text, url));
+}
+
+export function manualActionReason(text, url = "") {
   const haystack = `${url}\n${text}`;
-  return manualActionPatterns.some((pattern) => pattern.test(haystack));
+  if (/request denied|permission denied|access denied/i.test(haystack)) {
+    return "Tumblr denied this request. Review the live page or retry later with the saved Tumblr session.";
+  }
+  if (/captcha|recaptcha|verify you|are you a robot/i.test(haystack)) {
+    return "Tumblr asked for captcha or identity verification.";
+  }
+  if (/log in|login|sign in/i.test(haystack)) {
+    return "Tumblr asked for login before the submit form was available.";
+  }
+  return manualActionPatterns.some((pattern) => pattern.test(haystack))
+    ? "Tumblr needs manual review before this item can continue."
+    : "";
 }
 
 export function appearsRateLimitedByTumblr(text, url = "") {
