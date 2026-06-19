@@ -137,6 +137,9 @@ export function runnerLogExplanation(log: RunnerLog) {
   if (normalized.includes("captcha") || normalized.includes("login") || normalized.includes("log in")) {
     return "Tumblr asked for login, captcha, terms, or another manual checkpoint.";
   }
+  if (normalized.includes("rate limit")) {
+    return "Tumblr rate-limited this submit target. Wait before retrying it.";
+  }
   if (normalized.includes("post type") || normalized.includes("photo")) {
     return "Tumblr did not expose the expected photo post controls.";
   }

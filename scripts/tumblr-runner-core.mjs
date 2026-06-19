@@ -13,6 +13,11 @@ export const manualActionPatterns = [
   /are you a robot/i,
 ];
 
+export const tumblrRateLimitPatterns = [
+  /rate limit exceeded/i,
+  /encountered the rate limit/i,
+];
+
 export function parseArgs(argv) {
   const options = {
     planPath: "",
@@ -136,6 +141,11 @@ export function postTypeCandidateIndex(candidates, optionValue) {
 export function shouldPauseForManualAction(text, url = "") {
   const haystack = `${url}\n${text}`;
   return manualActionPatterns.some((pattern) => pattern.test(haystack));
+}
+
+export function appearsRateLimitedByTumblr(text, url = "") {
+  const haystack = `${url}\n${text}`;
+  return /tumblr\.com/i.test(haystack) && tumblrRateLimitPatterns.some((pattern) => pattern.test(haystack));
 }
 
 export function shouldDeferReadyReview(options) {
