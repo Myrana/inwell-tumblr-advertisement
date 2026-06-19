@@ -457,6 +457,10 @@ test("templates can be saved and applied from their own workspace", { timeout: 4
   await page.getByRole("heading", { name: "All Things Roleplay" }).waitFor();
   await page.getByLabel("Queue destination").selectOption("Want ads");
   await page.getByRole("button", { name: "Add to queue" }).click();
+  await page.getByText("Added to Want ads").waitFor();
+  await page.getByRole("button", { name: "View queue" }).click();
+  await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
+  assert.equal(await page.getByLabel("Active queue").inputValue(), "Want ads");
 
   await page.getByRole("button", { name: "Queues", exact: true }).click();
   const wantAdsRow = page.locator(".queue-management-row", { hasText: "Want ads" });
