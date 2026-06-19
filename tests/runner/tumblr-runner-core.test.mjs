@@ -201,9 +201,11 @@ test("ready queue pages defer review until the full queue is processed", () => {
   assert.equal(shouldDeferReadyReview({ submit: false, headless: false, noPause: true }), false);
 });
 
-test("Browserbase page reuse only accepts open blank pages", () => {
+test("Browserbase page reuse accepts open blank and Tumblr session pages", () => {
   assert.equal(isReusableBrowserbasePage({ isClosed: () => false, url: () => "about:blank" }), true);
   assert.equal(isReusableBrowserbasePage({ isClosed: () => false, url: () => "" }), true);
+  assert.equal(isReusableBrowserbasePage({ isClosed: () => false, url: () => "https://www.tumblr.com/dashboard" }), true);
+  assert.equal(isReusableBrowserbasePage({ isClosed: () => false, url: () => "https://www.tumblr.com/login?redirect_to=%2Fdashboard" }), true);
   assert.equal(isReusableBrowserbasePage({ isClosed: () => false, url: () => "https://example.tumblr.com/submit" }), false);
   assert.equal(isReusableBrowserbasePage({ isClosed: () => true, url: () => "about:blank" }), false);
   assert.equal(isReusableBrowserbasePage(null), false);

@@ -149,7 +149,8 @@ export function isReusableBrowserbasePage(page) {
   if (typeof page.url !== "function") {
     return false;
   }
-  return ["", "about:blank"].includes(page.url());
+  const url = page.url();
+  return ["", "about:blank"].includes(url) || /^https:\/\/www\.tumblr\.com\/(dashboard|login)/i.test(url);
 }
 
 export function reviewPagesOpenMessage(readyReviewCount) {
