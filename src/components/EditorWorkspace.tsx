@@ -141,13 +141,13 @@ export function EditorWorkspace({
             <div className="workflow-section-body">
               <div className="field-grid three editor-detail-grid">
                 <label>
-                  Saved submission name
+                  Submission name
                   <input
                     value={activeAd.title}
                     onChange={(event) => onUpdateActiveAd({ title: event.target.value })}
                     placeholder="Open canons photo ad"
                   />
-                  <span className="field-hint">Only used to find this saved submission again.</span>
+                  <span className="field-hint">Used to find this content library item again.</span>
                 </label>
 
                 <label>

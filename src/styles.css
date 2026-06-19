@@ -1614,12 +1614,9 @@ pre {
   border-top: 0;
 }
 
-.draft-row > button:first-child {
+.draft-row-summary {
   flex: 1;
   min-width: 0;
-  border: 0;
-  background: transparent;
-  text-align: left;
 }
 
 .draft-row strong,
@@ -1639,6 +1636,12 @@ pre {
   display: grid;
   place-items: center;
   color: #315f6c;
+}
+
+.draft-row .compact-button {
+  min-height: 40px;
+  padding: 0 14px;
+  flex: 0 0 auto;
 }
 
 .draft-row.selected {

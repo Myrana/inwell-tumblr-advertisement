@@ -34,11 +34,11 @@ export function AppSidebar({
       <nav className="nav-list" aria-label="Workspace views">
         <button className={activeView === "editor" ? "active" : ""} type="button" onClick={() => onViewChange("editor")}>
           <FileText size={18} />
-          Editor
+          New Submission
         </button>
         <button className={activeView === "saved" ? "active" : ""} type="button" onClick={() => onViewChange("saved")}>
           <Archive size={18} />
-          Saved Submissions
+          Content Library
         </button>
         <button className={activeView === "templates" ? "active" : ""} type="button" onClick={() => onViewChange("templates")}>
           <ClipboardCheck size={18} />

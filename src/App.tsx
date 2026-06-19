@@ -922,8 +922,8 @@ function App() {
 
   const submissionComplete = activeAd.status === "submitted";
   const pageTitles: Record<WorkspaceView, { eyebrow: string; title: string }> = {
-    editor: { eyebrow: "Advertisement workspace", title: activeAd.title || "Untitled saved submission" },
-    saved: { eyebrow: "Saved submission library", title: "Saved submissions" },
+    editor: { eyebrow: "Submission workspace", title: activeAd.title || "Untitled submission" },
+    saved: { eyebrow: "Content library", title: "Content library" },
     templates: { eyebrow: "Reusable copy library", title: "Saved templates" },
     queue: { eyebrow: "Tumblr automation", title: "Submission queue" },
     "queue-settings": { eyebrow: "Tumblr automation", title: "Queues" },

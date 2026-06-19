@@ -161,7 +161,7 @@ export function RunnerLogsWorkspace({
           })}
           {outsideQueueLogs.length ? (
             <p className="queue-empty">
-              {outsideQueueLogs.length} log entry{outsideQueueLogs.length === 1 ? "" : "ies"} belong to another saved submission.
+              {outsideQueueLogs.length} log entry{outsideQueueLogs.length === 1 ? "" : "ies"} belong to another content library item.
             </p>
           ) : null}
         </div>
