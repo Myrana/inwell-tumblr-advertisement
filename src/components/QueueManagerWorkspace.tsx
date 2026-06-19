@@ -1,5 +1,5 @@
 import { FormEvent } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { ListChecks, Plus } from "lucide-react";
 import { QueueDefinition, SubmissionQueueItem } from "../domain/types";
 
 type QueueManagerWorkspaceProps = {
@@ -7,7 +7,6 @@ type QueueManagerWorkspaceProps = {
   queueNameDraft: string;
   queueOptions: QueueDefinition[];
   submissionQueue: SubmissionQueueItem[];
-  onClearQueue: (queueName: string, completedOnly: boolean) => void;
   onCreateQueue: (event: FormEvent) => void;
   onQueueNameDraftChange: (value: string) => void;
   onSelectQueue: (queueName: string) => void;
@@ -20,7 +19,6 @@ export function QueueManagerWorkspace({
   queueNameDraft,
   queueOptions,
   submissionQueue,
-  onClearQueue,
   onCreateQueue,
   onQueueNameDraftChange,
   onSelectQueue,
@@ -29,7 +27,7 @@ export function QueueManagerWorkspace({
     <section className="submission-queue-panel queue-workspace" aria-label="Queue management">
       <div className="panel-heading">
         <h2>Queues</h2>
-        <Trash2 size={18} />
+        <ListChecks size={18} />
       </div>
 
       <form className="queue-management-form" onSubmit={onCreateQueue}>
@@ -61,11 +59,9 @@ export function QueueManagerWorkspace({
                 </span>
               </button>
               <div className="queue-item-actions">
-                <button className="secondary" type="button" onClick={() => onClearQueue(queue.name, true)} disabled={!completedCount}>
-                  Clear completed
-                </button>
-                <button className="secondary" type="button" onClick={() => onClearQueue(queue.name, false)} disabled={!items.length}>
-                  Clear queue
+                <button className="secondary" type="button" onClick={() => onSelectQueue(queue.name)}>
+                  <ListChecks size={16} />
+                  Open queue
                 </button>
               </div>
             </article>

@@ -451,7 +451,16 @@ test("templates can be saved and applied from their own workspace", { timeout: 4
   await page.getByRole("button", { name: "Queues", exact: true }).click();
   const wantAdsRow = page.locator(".queue-management-row", { hasText: "Want ads" });
   await wantAdsRow.getByText("1 item - 0 complete").waitFor();
-  await wantAdsRow.getByRole("button", { name: "Clear queue" }).click();
+  assert.equal(await wantAdsRow.getByRole("button", { name: "Clear queue" }).count(), 0);
+  await wantAdsRow.getByRole("button", { name: "Open queue" }).click();
+  await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
+  assert.equal(await page.getByLabel("Active queue").inputValue(), "Want ads");
+  await page.getByRole("button", { name: "Edit submission" }).click();
+  await page.getByRole("heading", { name: "All Things Roleplay" }).waitFor();
+  await page.getByRole("button", { name: "Queue", exact: true }).click();
+  await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
+  await page.getByRole("button", { name: "Clear queue" }).click();
+  await page.getByRole("button", { name: "Queues", exact: true }).click();
   await wantAdsRow.getByText("0 items - 0 complete").waitFor();
   await page.getByRole("button", { name: "Runner Logs" }).click();
   await page.getByRole("heading", { name: "Runner logs", level: 1 }).waitFor();
