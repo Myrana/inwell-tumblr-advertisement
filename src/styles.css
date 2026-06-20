@@ -1785,6 +1785,73 @@ pre {
   background: #fff;
 }
 
+.post-history-list {
+  margin-top: 14px;
+  display: grid;
+  gap: 10px;
+}
+
+.post-history-item {
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+  border: 1px solid #cfdde3;
+  border-left: 4px solid var(--cyan);
+  border-radius: 8px;
+  background: #fbfdfe;
+}
+
+.post-history-heading,
+.post-history-actions,
+.post-history-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.post-history-heading {
+  align-items: flex-start;
+}
+
+.post-history-heading svg {
+  margin-top: 2px;
+  color: #2d7d8f;
+}
+
+.post-history-heading strong,
+.post-history-heading span,
+.post-history-item p {
+  display: block;
+}
+
+.post-history-heading span,
+.post-history-item p {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.post-history-meta span {
+  padding: 3px 7px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #f8fafb;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.post-history-meta b {
+  color: var(--text);
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
 .queue-maintenance-actions {
   margin-top: 10px;
 }
@@ -2996,13 +3063,29 @@ html[data-theme="dark"] .queue-workspace .runner-activity-panel {
 }
 
 html[data-theme="dark"] .queue-workspace .queue-monitor-stat,
-html[data-theme="dark"] .queue-workspace .queue-item {
+html[data-theme="dark"] .queue-workspace .queue-item,
+html[data-theme="dark"] .queue-workspace .post-history-item {
   border-color: #2d4352;
   background: #121e28;
 }
 
 html[data-theme="dark"] .queue-workspace .queue-item a {
   color: #8bcde0;
+}
+
+html[data-theme="dark"] .queue-workspace .post-history-heading svg,
+html[data-theme="dark"] .queue-workspace .post-history-actions a {
+  color: #8bcde0;
+}
+
+html[data-theme="dark"] .queue-workspace .post-history-meta span {
+  border-color: rgba(159, 176, 187, 0.22);
+  background: #17232d;
+  color: #b9c9d2;
+}
+
+html[data-theme="dark"] .queue-workspace .post-history-meta b {
+  color: #e5eef2;
 }
 
 html[data-theme="dark"] .queue-workspace .queue-item-explanation {
