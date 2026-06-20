@@ -1302,7 +1302,6 @@ test("running the queue prepares the local runner and shows failure explanations
       body: JSON.stringify({ settings: { runnerSettings: { mediaDir: "", slowMo: 500, submit: false, tumblrAccountId: "snowleopardx" } } }),
     }),
   );
-
   await page.addInitScript(() => {
     window.__openedUrls = [];
     window.open = (url) => {
@@ -1354,6 +1353,8 @@ test("running the queue prepares the local runner and shows failure explanations
   await page.locator(".queue-management-row", { hasText: "Default queue" }).getByRole("button", { name: "Open queue" }).click();
   await page.getByRole("button", { name: "Toggle queue actions section" }).click();
   await page.getByText("Local runner online: Default queue").waitFor();
+  await page.getByRole("button", { name: "Start local runner" }).click();
+  await page.getByText("Opening the installed local runner.").waitFor();
   await page.getByRole("button", { name: "Download runner" }).click();
   await page.getByText("Local runner installer downloaded.").waitFor();
   assert.equal(localPackageRequested, true);

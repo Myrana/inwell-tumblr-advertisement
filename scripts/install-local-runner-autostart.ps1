@@ -44,15 +44,13 @@ $commandParts = @(
 )
 $command = $commandParts -join "; "
 
-function Install-StartupLauncher {
-  $startupDir = [Environment]::GetFolderPath("Startup")
-  if ([string]::IsNullOrWhiteSpace($startupDir)) {
-    throw "Could not find the Windows Startup folder for this user."
-  }
+$launcherRoot = Join-Path ([Environment]::GetFolderPath("LocalApplicationData")) "InkwellLocalRunner"
+$launcherName = Safe-FileName $TaskName
+$launcherPs1 = Join-Path $launcherRoot "$launcherName.ps1"
+$launcherCmd = Join-Path $launcherRoot "$launcherName.cmd"
 
-  $baseName = Safe-FileName $TaskName
-  $launcherPs1 = Join-Path $startupDir "$baseName.ps1"
-  $launcherCmd = Join-Path $startupDir "$baseName.cmd"
+function Install-RunnerLauncher {
+  New-Item -ItemType Directory -Force -Path $launcherRoot | Out-Null
   $launcherScript = @(
     '$ErrorActionPreference = "Stop"',
     '$env:INWELL_LOCAL_RUNNER_TOKEN = [Environment]::GetEnvironmentVariable("INWELL_LOCAL_RUNNER_TOKEN", "User")',
@@ -61,13 +59,41 @@ function Install-StartupLauncher {
   ) -join [Environment]::NewLine
   $launcherBatch = @"
 @echo off
-start "" powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "%~dp0$baseName.ps1"
+start "" powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "%~dp0$launcherName.ps1"
 "@
 
   Set-Content -LiteralPath $launcherPs1 -Value $launcherScript -Encoding UTF8
   Set-Content -LiteralPath $launcherCmd -Value $launcherBatch -Encoding ASCII
-  Write-Host "Installed Startup folder launcher: $launcherCmd"
 }
+
+function Install-ProtocolLauncher {
+  $protocolRoot = "HKCU:\Software\Classes\inkwell-runner"
+  New-Item -Path $protocolRoot -Force | Out-Null
+  New-ItemProperty -Path $protocolRoot -Name "(default)" -Value "URL:Inkwell Local Runner" -PropertyType String -Force | Out-Null
+  New-ItemProperty -Path $protocolRoot -Name "URL Protocol" -Value "" -PropertyType String -Force | Out-Null
+  New-Item -Path "$protocolRoot\shell\open\command" -Force | Out-Null
+  New-ItemProperty -Path "$protocolRoot\shell\open\command" -Name "(default)" -Value "`"$launcherCmd`" `"%1`"" -PropertyType String -Force | Out-Null
+  Write-Host "Installed protocol launcher: inkwell-runner://start"
+}
+
+function Install-StartupLauncher {
+  $startupDir = [Environment]::GetFolderPath("Startup")
+  if ([string]::IsNullOrWhiteSpace($startupDir)) {
+    throw "Could not find the Windows Startup folder for this user."
+  }
+
+  $baseName = Safe-FileName $TaskName
+  $startupCmd = Join-Path $startupDir "$baseName.cmd"
+  $startupBatch = @"
+@echo off
+call "$launcherCmd"
+"@
+  Set-Content -LiteralPath $startupCmd -Value $startupBatch -Encoding ASCII
+  Write-Host "Installed Startup folder launcher: $startupCmd"
+}
+
+Install-RunnerLauncher
+Install-ProtocolLauncher
 
 $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -Command $command"
 $trigger = New-ScheduledTaskTrigger -AtLogOn
