@@ -1336,7 +1336,7 @@ test("tumblr login helper failure does not mark account as launched", { timeout:
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
 });
 
-test("tumblr account connect opens Browserbase live view without manual URL", { timeout: 40000 }, async (t) => {
+test("tumblr account settings do not offer Browserbase and legacy values fall back to local desktop", { timeout: 40000 }, async (t) => {
   const server = spawn("npx vite --host 127.0.0.1 --port 8123 --strictPort", {
     cwd: process.cwd(),
     shell: true,
@@ -1418,95 +1418,16 @@ test("tumblr account connect opens Browserbase live view without manual URL", { 
       }),
     }),
   );
-  await page.route("http://127.0.0.1:8021/api/tumblr/login", (route) =>
-    route.fulfill({
-      contentType: "application/json",
-      headers: apiHeaders,
-      body: JSON.stringify({
-        login: {
-          mode: "remote",
-          provider: "browserbase",
-          sessionId: "session-new",
-          contextId: "ctx-new",
-          launchUrl: "https://browserbase.com/live/session-new",
-          message: "Browserbase login session is ready. Complete Tumblr login in the opened browser.",
-          account: {
-            id: "snowleopardx",
-            display_name: "Snow",
-            blog_name: "snowleopardx",
-            user_data_dir: "/app/.tumblr-sessions/snowleopardx",
-            status: "checking",
-            last_checked_at: "2026-06-19T01:05:00.000Z",
-            last_login_at: null,
-            notes: "Browserbase login session is ready. Complete Tumblr login in the opened browser.",
-            browserbase_context_id: "ctx-new",
-            browserbase_session_id: "session-new",
-            browserbase_live_url: "https://browserbase.com/live/session-new",
-            browserbase_session_expires_at: "2026-06-19T01:20:00.000Z",
-            updated_at: "2026-06-19T01:05:00.000Z",
-          },
-        },
-      }),
-    }),
-  );
-  await page.route("http://127.0.0.1:8021/api/tumblr/login-check", (route) =>
-    route.fulfill({
-      contentType: "application/json",
-      headers: apiHeaders,
-      body: JSON.stringify({
-        login: {
-          mode: "remote",
-          provider: "browserbase",
-          loggedIn: true,
-          sessionId: "session-check",
-          contextId: "ctx-saved",
-          launchUrl: "",
-          message: "Saved Tumblr login is active. This account is ready for queue runs.",
-          account: {
-            id: "snowleopardx",
-            display_name: "Snow",
-            blog_name: "snowleopardx",
-            user_data_dir: "/app/.tumblr-sessions/snowleopardx",
-            status: "connected",
-            last_checked_at: "2026-06-19T01:04:00.000Z",
-            last_login_at: "2026-06-19T01:04:00.000Z",
-            notes: "Saved Tumblr login is active. This account is ready for queue runs.",
-            browserbase_context_id: "ctx-saved",
-            browserbase_session_id: "session-check",
-            browserbase_live_url: "https://browserbase.com/live/session-check",
-            browserbase_session_expires_at: "2026-06-19T01:20:00.000Z",
-            updated_at: "2026-06-19T01:04:00.000Z",
-          },
-        },
-      }),
-    }),
-  );
 
   await page.goto(appUrl);
-  await page.evaluate(() => {
-    window.__openedRemoteUrl = "";
-    window.open = (url) => {
-      window.__openedRemoteUrl = String(url);
-      return null;
-    };
-  });
   await openWorkspaceView(page, "Tumblr Accounts");
   await page.getByRole("heading", { name: "Tumblr accounts", level: 1 }).waitFor();
-  await page.getByLabel("Browser provider").selectOption("browserbase");
+  const providerSelect = page.getByLabel("Browser provider");
+  assert.equal(await providerSelect.inputValue(), "none");
+  const providerOptions = await providerSelect.locator("option").allTextContents();
+  assert.deepEqual(providerOptions, ["Local desktop", "Browserless", "Custom live browser URL"]);
+  assert.equal(providerOptions.includes("Browserbase"), false);
   assert.equal(await page.getByRole("textbox", { name: "Live browser URL" }).count(), 0);
-  await page.getByRole("button", { name: "Connect", exact: true }).click();
-  await page.locator("p.queue-status").filter({ hasText: "Browserbase login session is ready." }).waitFor();
-
-  const openedUrl = await page.evaluate(() => window.__openedRemoteUrl);
-  assert.equal(openedUrl, "https://browserbase.com/live/session-new");
-
-  await page.evaluate(() => {
-    window.__openedRemoteUrl = "";
-  });
-  await page.getByRole("button", { name: "Check saved login" }).click();
-  await page.locator("p.queue-status").filter({ hasText: "Saved Tumblr login is active." }).waitFor();
-  assert.equal(await page.evaluate(() => window.__openedRemoteUrl), "");
-  assert.equal(await page.getByRole("button", { name: "Connect", exact: true }).count(), 0);
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
 });
 

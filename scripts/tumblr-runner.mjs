@@ -10,7 +10,7 @@ import {
   frameCandidateScore,
   fieldsForItem,
   fillRichTextEditorInDocument,
-  isReusableBrowserbasePage,
+  isReusableRemotePage,
   loginWaitMessage,
   loadRunnerPlan,
   manualActionReason,
@@ -55,12 +55,12 @@ async function main() {
 }
 
 async function openRunnerBrowser(options) {
-  if (options.browserbaseCdpUrl) {
-    console.log("[runner] Connecting to Browserbase queue session.");
-    if (options.browserbaseLiveUrl) {
-      console.log(`[runner] Browserbase live view: ${options.browserbaseLiveUrl}`);
+  if (options.remoteCdpUrl) {
+    console.log("[runner] Connecting to remote browser session.");
+    if (options.remoteLiveUrl) {
+      console.log(`[runner] Remote browser live view: ${options.remoteLiveUrl}`);
     }
-    const browser = await chromium.connectOverCDP(options.browserbaseCdpUrl);
+    const browser = await chromium.connectOverCDP(options.remoteCdpUrl);
     const context = browser.contexts()[0] ?? (await browser.newContext());
     return {
       context,
@@ -95,7 +95,7 @@ async function waitForTumblrLogin(context, options) {
 
   if (await tumblrSessionReady(page)) {
     console.log("[login] Tumblr session is already active; continuing without an Enter prompt.");
-    if (!options.browserbaseCdpUrl) {
+    if (!options.remoteCdpUrl) {
       await page.close().catch(() => undefined);
     }
     return;
@@ -103,7 +103,7 @@ async function waitForTumblrLogin(context, options) {
 
   if (options.headless || options.noPause) {
     console.log("[login] Noninteractive mode: continuing without waiting for manual login.");
-    if (!options.browserbaseCdpUrl) {
+    if (!options.remoteCdpUrl) {
       await page.close().catch(() => undefined);
     }
     return;
@@ -114,7 +114,7 @@ async function waitForTumblrLogin(context, options) {
   if (!ready) {
     console.log("[login] Tumblr session was not detected before the timeout; continuing to the queue for review.");
   }
-  if (!options.browserbaseCdpUrl) {
+  if (!options.remoteCdpUrl) {
     await page.close().catch(() => undefined);
   }
 }
@@ -255,8 +255,8 @@ async function postedUrlFromPage(page, submitUrl) {
 }
 
 async function runnerPage(context, options) {
-  if (options.browserbaseCdpUrl) {
-    const existing = context.pages().find(isReusableBrowserbasePage);
+  if (options.remoteCdpUrl) {
+    const existing = context.pages().find(isReusableRemotePage);
     if (existing) {
       await existing.bringToFront().catch(() => undefined);
       return existing;
@@ -1340,8 +1340,8 @@ async function clickSubmit(page) {
 }
 
 async function pauseForOperator(page, options) {
-  if (options.browserbaseCdpUrl) {
-    console.log("[runner] Browserbase page remains open for review. Close the live-view tab page when done.");
+  if (options.remoteCdpUrl) {
+    console.log("[runner] Remote browser page remains open for review. Close the live-view tab page when done.");
     while (!page.isClosed()) {
       await new Promise((resolve) => setTimeout(resolve, 1000));
     }
@@ -1367,8 +1367,8 @@ async function waitForQueueReviewPages(options, reviewPages) {
     return;
   }
 
-  if (options.browserbaseCdpUrl) {
-    console.log(`[runner] ${reviewPages.length} Browserbase review page${reviewPages.length === 1 ? " is" : "s are"} open. Close review tabs when done.`);
+  if (options.remoteCdpUrl) {
+    console.log(`[runner] ${reviewPages.length} remote browser review page${reviewPages.length === 1 ? " is" : "s are"} open. Close review tabs when done.`);
   } else {
     console.log(reviewPagesOpenMessage(reviewPages.length));
   }

@@ -63,6 +63,7 @@ import {
   loadColorTheme,
   loadQueueScheduleSettings,
   normalizeQueueScheduleSettings,
+  normalizeRunnerSettings,
   loadQueueDefinitions,
   loadRunnerSettings,
   loadStoredState,
@@ -458,7 +459,7 @@ function App() {
             ? backendSettings.tagProfiles
             : tagProfiles,
         );
-        setRunnerSettings(backendSettings.runnerSettings ? { ...runnerSettings, ...backendSettings.runnerSettings } : runnerSettings);
+        setRunnerSettings(backendSettings.runnerSettings ? normalizeRunnerSettings({ ...runnerSettings, ...backendSettings.runnerSettings }) : runnerSettings);
         setQueueScheduleSettings(
           backendSettings.queueScheduleSettings
             ? normalizeQueueScheduleSettings(backendSettings.queueScheduleSettings)
@@ -1146,7 +1147,7 @@ function App() {
   async function checkTumblrAccountHealth(account: TumblrAccount) {
     const response = await checkTumblrLogin(account.id);
     const fallbackStatus: TumblrAccount["status"] =
-      response.login.mode === "remote" && response.login.loggedIn ? "connected" : "needs-login";
+      response.login.mode === "remote" ? (response.login.loggedIn ? "connected" : "needs-login") : account.status;
     const checked = response.login.mode === "remote" && response.login.account
       ? fromApiTumblrAccount(response.login.account)
       : {

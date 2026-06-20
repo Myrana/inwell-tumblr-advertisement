@@ -132,7 +132,6 @@ export function TumblrAccountsWorkspace({
                 }
               >
                 <option value="none">Local desktop</option>
-                <option value="browserbase">Browserbase</option>
                 <option value="browserless">Browserless</option>
                 <option value="custom">Custom live browser URL</option>
               </select>

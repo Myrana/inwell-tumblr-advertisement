@@ -86,7 +86,7 @@ function defaultRunnerSettings(): RunnerSettings {
 }
 
 function normalizeRemoteBrowserProvider(value: unknown): RemoteBrowserProvider {
-  return value === "browserbase" || value === "browserless" || value === "custom" ? value : "none";
+  return value === "browserless" || value === "custom" ? value : "none";
 }
 
 export function loadTumblrAccounts(): TumblrAccount[] {

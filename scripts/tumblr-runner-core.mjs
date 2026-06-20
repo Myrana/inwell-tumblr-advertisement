@@ -36,8 +36,8 @@ export function parseArgs(argv) {
     runId: "",
     workspaceId: "",
     apiToken: "",
-    browserbaseCdpUrl: "",
-    browserbaseLiveUrl: "",
+    remoteCdpUrl: "",
+    remoteLiveUrl: "",
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -68,10 +68,10 @@ export function parseArgs(argv) {
       options.workspaceId = String(argv[++index] ?? "");
     } else if (arg === "--api-token") {
       options.apiToken = String(argv[++index] ?? "");
-    } else if (arg === "--browserbase-cdp-url") {
-      options.browserbaseCdpUrl = String(argv[++index] ?? "");
-    } else if (arg === "--browserbase-live-url") {
-      options.browserbaseLiveUrl = String(argv[++index] ?? "");
+    } else if (arg === "--remote-cdp-url") {
+      options.remoteCdpUrl = String(argv[++index] ?? "");
+    } else if (arg === "--remote-live-url") {
+      options.remoteLiveUrl = String(argv[++index] ?? "");
     } else if (!arg.startsWith("--") && !options.planPath) {
       options.planPath = arg;
     } else {
@@ -183,7 +183,7 @@ export function shouldDeferReadyReview(options) {
   return !options.submit && !options.headless && !options.noPause;
 }
 
-export function isReusableBrowserbasePage(page) {
+export function isReusableRemotePage(page) {
   if (!page || typeof page.isClosed !== "function" || page.isClosed()) {
     return false;
   }
