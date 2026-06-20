@@ -34,7 +34,8 @@ test("site background uses CSS overlays without remote image artifacts", () => {
   assert.match(styles, /html\[data-theme="dark"\]\s+\.app-shell::after\s*\{/);
   assert.match(styles, /\.queue-workspace::before\s*\{/);
   assert.match(styles, /html\[data-theme="dark"\]\s+\.queue-workspace::before\s*\{/);
-  assert.match(styles, /ellipse 112px 620px/);
+  assert.match(styles, /ellipse 240px 110px/);
+  assert.match(styles, /linear-gradient\(180deg, rgba\(0, 0, 0, 0\.36\)/);
 });
 
 function stopProcessTree(childProcess) {
