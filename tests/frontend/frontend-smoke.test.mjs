@@ -350,12 +350,17 @@ test("content library rows can queue a saved submission", { timeout: 40000 }, as
   await page.getByLabel("Batch prep assistant").getByText("2 ready to queue - 1 need edits").waitFor();
   await page.getByLabel("Duplicate content check").getByText("2 possible duplicates in 1 group").waitFor();
   assert.equal(await page.locator(".duplicate-pill").count(), 2);
+  await savedRow.getByLabel("Select saved item").check();
+  await page.getByLabel("Saved bulk editor").getByLabel("Campaign").fill("Fall campaign");
+  await page.getByLabel("Saved bulk editor").getByLabel("Add tag").fill("archive");
+  await page.getByLabel("Saved bulk editor").getByRole("button", { name: "Update 1" }).click();
+  await savedRow.getByText("Fall campaign").waitFor();
   await page.getByLabel("Batch queue destination").selectOption("Want ads");
   await page.getByRole("button", { name: "Queue ready drafts" }).click();
   await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
   await page.getByText("Queued Second saved post in Want ads.").waitFor();
   assert.deepEqual(savedQueueItems.map((item) => item.ad_id).sort(), ["saved-ad", "saved-ad-two"]);
-  assert.equal(JSON.parse(savedQueueItems.find((item) => item.ad_id === "saved-ad").runner_payload).advertisement.campaignName, "Summer campaign");
+  assert.equal(JSON.parse(savedQueueItems.find((item) => item.ad_id === "saved-ad").runner_payload).advertisement.campaignName, "Fall campaign");
   assert.equal(JSON.parse(savedQueueItems.find((item) => item.ad_id === "saved-ad").runner_payload).targetProfile.name, "All Things Roleplay ads");
   assert.equal(
     JSON.parse(savedQueueItems.find((item) => item.ad_id === "saved-ad").runner_payload).targetProfile.postingRules,
@@ -1668,6 +1673,8 @@ test("running the queue prepares the local runner and shows failure explanations
   await page.locator(".queue-management-row", { hasText: "Default queue" }).getByRole("button", { name: "Open queue" }).click();
   await page.getByLabel("Post history archive").getByText("allthingsroleplay archive").waitFor();
   await page.getByLabel("Post history archive").getByRole("link", { name: "Posted Tumblr link" }).waitFor();
+  await page.getByLabel("Queue bulk editor").getByText("Select all pending items").waitFor();
+  await page.locator(".queue-item", { hasText: "allthingsroleplay" }).getByLabel("Select queue item").waitFor();
   await page.getByText("Local runner online: Default queue").waitFor();
   await page.getByLabel("Local runner activity").getByText("Watching", { exact: true }).waitFor();
   await page.getByLabel("Local runner activity").getByText("Runner is watching Default queue.").waitFor();

@@ -12,6 +12,7 @@ type SavedSubmissionsViewProps = {
   activeQueueName: string;
   queueOptions: QueueDefinition[];
   onDeleteDraft: (id: string) => void;
+  onBulkUpdateDrafts: (ids: string[], patch: { campaignName?: string; tag?: string }) => void;
   onQueueDraft: (id: string, queueName: string) => void;
   onSelectDraft: (id: string) => void;
 };
@@ -22,6 +23,7 @@ export function SavedSubmissionsView({
   activeQueueName,
   queueOptions,
   onDeleteDraft,
+  onBulkUpdateDrafts,
   onQueueDraft,
   onSelectDraft,
 }: SavedSubmissionsViewProps) {
@@ -34,6 +36,23 @@ export function SavedSubmissionsView({
   const [queuePickerAdId, setQueuePickerAdId] = useState("");
   const [selectedQueueName, setSelectedQueueName] = useState(activeQueueName);
   const [batchQueueName, setBatchQueueName] = useState(activeQueueName || queueOptions[0]?.name || "");
+  const [selectedDraftIds, setSelectedDraftIds] = useState<string[]>([]);
+  const [bulkCampaignName, setBulkCampaignName] = useState("");
+  const [bulkTag, setBulkTag] = useState("");
+  const selectedLibraryCount = selectedDraftIds.filter((id) => libraryAds.some((ad) => ad.id === id)).length;
+
+  function toggleDraftSelection(adId: string, selected: boolean) {
+    setSelectedDraftIds((current) => (selected ? Array.from(new Set([...current, adId])) : current.filter((id) => id !== adId)));
+  }
+
+  function applyBulkDraftUpdate() {
+    const selectedIds = selectedDraftIds.filter((id) => libraryAds.some((ad) => ad.id === id));
+    if (!selectedIds.length) {
+      return;
+    }
+
+    onBulkUpdateDrafts(selectedIds, { campaignName: bulkCampaignName, tag: bulkTag });
+  }
 
   function startQueue(adId: string) {
     if (queueOptions.length > 1) {
@@ -86,6 +105,29 @@ export function SavedSubmissionsView({
           </button>
         </div>
       ) : null}
+      {libraryAds.length ? (
+        <div className="bulk-edit-panel" aria-label="Saved bulk editor">
+          <label className="bulk-select">
+            <input
+              checked={selectedLibraryCount === libraryAds.length}
+              type="checkbox"
+              onChange={(event) => setSelectedDraftIds(event.target.checked ? libraryAds.map((ad) => ad.id) : [])}
+            />
+            Select all saved items
+          </label>
+          <label>
+            Campaign
+            <input value={bulkCampaignName} onChange={(event) => setBulkCampaignName(event.target.value)} placeholder="Campaign name" />
+          </label>
+          <label>
+            Add tag
+            <input value={bulkTag} onChange={(event) => setBulkTag(event.target.value)} placeholder="wanted" />
+          </label>
+          <button className="secondary compact-button" type="button" onClick={applyBulkDraftUpdate} disabled={!selectedLibraryCount}>
+            Update {selectedLibraryCount || "selected"}
+          </button>
+        </div>
+      ) : null}
       {libraryAds.length ? null : (
         <div className="library-empty">
           <strong>No content saved yet</strong>
@@ -99,6 +141,14 @@ export function SavedSubmissionsView({
         return (
           <article className={ad.id === activeAdId ? "draft-row selected" : "draft-row"} key={ad.id}>
           <div className="draft-row-summary">
+            <label className="bulk-select row-select">
+              <input
+                checked={selectedDraftIds.includes(ad.id)}
+                type="checkbox"
+                onChange={(event) => toggleDraftSelection(ad.id, event.target.checked)}
+              />
+              Select saved item
+            </label>
             <strong>{ad.title || "Untitled submission"}</strong>
             <div className="draft-row-meta">
               {duplicateMatch ? (
