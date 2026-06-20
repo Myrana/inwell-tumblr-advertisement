@@ -78,3 +78,44 @@ test("local companion grants private network access for deployed app preflight",
     child.kill();
   }
 });
+
+test("local companion accepts headless run requests", async () => {
+  const port = 20000 + Math.floor(Math.random() * 1000);
+  const child = spawn(
+    process.execPath,
+    [
+      "scripts/tumblr-local-runner.mjs",
+      "--serve",
+      "--companion-port",
+      String(port),
+      "--api-base",
+      "https://inkwell-production-f037.up.railway.app/api",
+      "--workspace-id",
+      "workspace-test",
+      "--queue",
+      "Adverts",
+      "--token",
+      "test-token",
+    ],
+    { cwd: process.cwd(), stdio: ["ignore", "pipe", "pipe"] },
+  );
+
+  try {
+    await waitForOutput(child, /Companion server listening/);
+    const response = await fetch(`http://127.0.0.1:${port}/run`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: "http://127.0.0.1:8123",
+      },
+      body: JSON.stringify({ queueName: "Adverts", headless: true }),
+    });
+
+    assert.equal(response.status, 202);
+    const payload = await response.json();
+    assert.equal(payload.accepted, true);
+    assert.equal(payload.running, true);
+  } finally {
+    child.kill();
+  }
+});

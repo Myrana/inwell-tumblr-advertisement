@@ -1206,6 +1206,31 @@ pre {
   background: #f8fafb;
 }
 
+.runner-activity-panel {
+  margin-top: 10px;
+  padding: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid #b8ded4;
+  border-left: 4px solid var(--green);
+  border-radius: 8px;
+  background: #f5fbf8;
+}
+
+.runner-activity-panel strong,
+.runner-activity-panel span {
+  display: block;
+}
+
+.runner-activity-panel span {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
 .runner-submit-toggle {
   min-height: 64px;
   grid-template-columns: 16px 1fr;
@@ -1217,6 +1242,16 @@ pre {
   width: 14px;
   height: 14px;
   padding: 0;
+}
+
+.runner-headless-toggle {
+  min-height: 42px;
+  min-width: 150px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
 }
 
 .runner-state {
@@ -1954,6 +1989,7 @@ html[data-theme="dark"] .workflow-section-body,
 html[data-theme="dark"] .setup-panel,
 html[data-theme="dark"] .save-next-step,
 html[data-theme="dark"] .runner-control-panel,
+html[data-theme="dark"] .runner-activity-panel,
 html[data-theme="dark"] .queue-selector-panel,
 html[data-theme="dark"] .queue-management-form,
 html[data-theme="dark"] .queue-monitor-stat,
@@ -2145,6 +2181,7 @@ html[data-theme="dark"] .selected-tags button {
 
   .topbar,
   .account-ready-panel,
+  .runner-activity-panel,
   .account-session-row,
   .media-row,
   .queue-management-row {

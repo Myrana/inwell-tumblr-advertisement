@@ -184,6 +184,33 @@ function App() {
       ? `Local runner online${localRunner.queue_name ? `: ${localRunner.queue_name}` : ""}`
       : "Local runner offline";
   }, [localCompanion, runnerState]);
+  const runnerActivity = useMemo(() => {
+    if (localCompanion?.ok) {
+      return {
+        status: localCompanion.running ? "Running" : localCompanion.status === "error" ? "Needs attention" : localCompanion.watching ? "Watching" : "Connected",
+        detail: localCompanion.running
+          ? `Working through ${localCompanion.queueName || activeQueueName}.`
+          : localCompanion.status === "error"
+            ? localCompanion.lastError || "Last local run failed. Check the latest queue item notes."
+            : localCompanion.watching
+              ? `Ready for new items in ${localCompanion.queueName || activeQueueName}.`
+              : "Connected on this computer.",
+      };
+    }
+    const localRunner = runnerState?.local_runner;
+    if (localRunner?.online) {
+      return {
+        status: localRunner.status === "running" ? "Running" : localRunner.watching ? "Watching" : "Online",
+        detail: localRunner.watching
+          ? `Runner is watching ${localRunner.queue_name || activeQueueName}.`
+          : "Runner heartbeat is online.",
+      };
+    }
+    return {
+      status: "Offline",
+      detail: runnerSettings.headless ? "Headless mode is enabled. Start the local runner to run in the background." : "Start the local runner on this computer.",
+    };
+  }, [activeQueueName, localCompanion, runnerSettings.headless, runnerState]);
   const canLaunchLocalRunner = !localCompanion?.ok;
   const localCompanionQueueStatus = (status: LocalCompanionStatus) => {
     if (status.running) {
@@ -1086,11 +1113,13 @@ function App() {
     try {
       const companion = localCompanion ?? await refreshLocalCompanionStatus({ quiet: true });
       if (companion?.ok) {
-        const run = await runLocalCompanion(activeQueueName);
+        const run = await runLocalCompanion(activeQueueName, { headless: runnerSettings.headless });
         setLocalCompanion(run);
         setQueueStatus(
           run.accepted
-            ? "Local companion started the runner on this computer. You can leave this page open while it works."
+            ? runnerSettings.headless
+              ? "Local companion started the runner headless. Watch this page for queue progress."
+              : "Local companion started the runner on this computer. You can leave this page open while it works."
             : run.error || "Local companion could not start the runner.",
         );
         [2500, 6000].forEach((delay) => {
@@ -1341,6 +1370,8 @@ function App() {
             queueStatus={queueStatus}
             queueScheduleSettings={queueScheduleSettings}
             runnerConnectionLabel={runnerConnectionLabel}
+            runnerActivity={runnerActivity}
+            runnerHeadless={runnerSettings.headless}
             runnerLogs={runnerLogs}
             targetOptions={targetOptions}
             onClearQueue={clearQueueItems}
@@ -1353,6 +1384,7 @@ function App() {
             onDownloadLocalRunner={downloadLocalRunnerInstaller}
             onLaunchLocalRunner={launchLocalRunnerProtocol}
             onStartRunner={startRunner}
+            onRunnerHeadlessChange={(headless) => setRunnerSettings((current) => ({ ...current, headless }))}
             showLaunchLocalRunner={canLaunchLocalRunner}
             onUpdateQueueItem={updateQueueItem}
           />
