@@ -997,9 +997,11 @@ function App() {
       const tokenWarning = localRunner.tokenConfigured ? "" : "Railway is missing INWELL_LOCAL_RUNNER_TOKEN. ";
       const copyMessage = copied ? `${target === "setup" ? "Local runner setup command" : "Local runner command"} copied. ` : "";
       if (localRunner.usesDeviceToken) {
-        const actionMessage = copied
-          ? "Keep the copied command private."
-          : "Use Run locally or Copy setup command to copy a fresh private device-token command.";
+        const actionMessage = copied && target === "setup"
+          ? "Open PowerShell in the repo folder, paste it, and press Enter to install the Windows login task. Keep the copied command private."
+          : copied
+            ? "Open PowerShell in the repo folder, paste it, and press Enter to start the local runner. Keep the copied command private."
+            : "Use Run locally or Copy setup command to copy a fresh private device-token command.";
         setQueueStatus(`${copyMessage}${localRunner.message} ${actionMessage}`);
         return;
       }
