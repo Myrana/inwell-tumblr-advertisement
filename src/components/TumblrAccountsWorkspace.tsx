@@ -43,6 +43,7 @@ export function TumblrAccountsWorkspace({
   onRunnerSettingsChange,
   onSelectAccount,
 }: TumblrAccountsWorkspaceProps) {
+  const connectedAccounts = accounts.filter((account) => account.status === "connected");
   const selectedAccount = accounts.find((account) => account.id === selectedAccountId);
   const connectedAccount = selectedAccount?.status === "connected"
     ? selectedAccount
@@ -83,9 +84,28 @@ export function TumblrAccountsWorkspace({
         <section className="runner-browser-settings" aria-label="Runner browser settings">
           <div className="queue-command-heading">
             <strong>Runner browser</strong>
-            <span>{runnerSettings.remoteBrowserProvider === "none" ? "Local desktop" : runnerSettings.remoteBrowserProvider}</span>
+            <span>
+              {connectedAccounts.length
+                ? `${connectedAccounts.length} connected account${connectedAccounts.length === 1 ? "" : "s"} available`
+                : "Connect an account before queue runs"}
+            </span>
           </div>
           <div className="queue-management-form runner-browser-form">
+            <label>
+              Runner account
+              <select
+                value={selectedAccount?.status === "connected" ? selectedAccount.id : ""}
+                onChange={(event) => onSelectAccount(event.target.value)}
+                disabled={!connectedAccounts.length}
+              >
+                <option value="">{connectedAccounts.length ? "Choose connected account" : "No connected accounts"}</option>
+                {connectedAccounts.map((account) => (
+                  <option key={account.id} value={account.id}>
+                    {account.displayName}
+                  </option>
+                ))}
+              </select>
+            </label>
             <label>
               Browser provider
               <select
@@ -113,6 +133,9 @@ export function TumblrAccountsWorkspace({
               </label>
             ) : null}
           </div>
+          {!connectedAccounts.length ? (
+            <p className="queue-empty">Connect a Tumblr account below before selecting one for the runner.</p>
+          ) : null}
         </section>
       </div>
 
@@ -138,11 +161,11 @@ export function TumblrAccountsWorkspace({
               className={account.id === selectedAccountId ? "account-session-row selected" : "account-session-row"}
               key={account.id}
             >
-              <button className="account-session-summary" type="button" onClick={() => onSelectAccount(account.id)}>
+              <div className="account-session-summary">
                 <span className={`account-status-pill account-status-${account.status}`}>{accountStatusLabel(account)}</span>
                 <strong>{account.displayName}</strong>
                 <span>{account.blogName || account.id}</span>
-              </button>
+              </div>
               <div className="queue-item-actions">
                 {account.status === "connected" ? null : (
                   <button className="secondary" type="button" onClick={() => onLaunchLogin(account.id)}>

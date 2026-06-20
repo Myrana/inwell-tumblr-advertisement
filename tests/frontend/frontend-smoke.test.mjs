@@ -802,6 +802,9 @@ test("tumblr accounts can be saved and selected for queue runs", { timeout: 4000
   await page.getByText("Added Myrana Tumblr.").waitFor();
   assert.equal(savedAccount?.id, "snowleopardx");
   assert.equal(savedAccount?.status, "needs-login");
+  await page.getByText("Connect a Tumblr account below before selecting one for the runner.").waitFor();
+  assert.equal(await page.getByLabel("Runner account").inputValue(), "");
+  assert.equal(await page.getByLabel("Runner account").isDisabled(), true);
 
   await page.getByRole("button", { name: "Connect", exact: true }).click();
   await page.getByText("Login helper opened in process 9191.").waitFor();
@@ -809,6 +812,9 @@ test("tumblr accounts can be saved and selected for queue runs", { timeout: 4000
 
   await page.getByRole("button", { name: "Mark connected" }).click();
   await page.getByText("Myrana Tumblr is ready").waitFor();
+  await page.getByLabel("Runner account").selectOption("snowleopardx");
+  await page.getByText("Selected Myrana Tumblr for queue runs.").waitFor();
+  assert.equal(await page.getByLabel("Runner account").inputValue(), "snowleopardx");
   const connectedAccountRow = page.locator(".account-session-row", { hasText: "Myrana Tumblr" });
   await connectedAccountRow.locator(".account-status-pill", { hasText: "Connected" }).waitFor();
   assert.equal(await connectedAccountRow.getByRole("button", { name: "Connect", exact: true }).count(), 0);
