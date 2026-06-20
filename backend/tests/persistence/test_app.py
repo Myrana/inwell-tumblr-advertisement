@@ -581,8 +581,9 @@ class FakePostgresConnection:
                     "name": params[2],
                     "content": params[3],
                     "forum_url": params[4],
-                    "created_at": params[5],
-                    "updated_at": params[6],
+                    "queue_name": params[5],
+                    "created_at": params[6],
+                    "updated_at": params[7],
                 }
             else:
                 row = {
@@ -591,6 +592,7 @@ class FakePostgresConnection:
                     "name": params[1],
                     "content": params[2],
                     "forum_url": params[3],
+                    "queue_name": "",
                     "created_at": params[4],
                     "updated_at": params[5],
                 }
@@ -906,11 +908,13 @@ class PersistenceTests(unittest.TestCase):
                 "name": "Custom template",
                 "content": "Reusable advertisement copy",
                 "forum_url": "https://custom.example.test",
+                "queue_name": "Wanted Ads",
                 "tags": ["#custom"],
             },
         )
 
         self.assertEqual(saved["name"], "Custom template")
+        self.assertEqual(saved["queue_name"], "Wanted Ads")
         self.assertEqual(saved["tags"], ["#custom"])
         self.assertEqual(
             [row["tag"] for row in self.connection.template_tags.values() if row["template_id"] == "template-custom"],

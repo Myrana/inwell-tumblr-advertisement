@@ -232,6 +232,7 @@ def initialize(connection: ConnectionLike) -> None:
             name TEXT NOT NULL,
             content TEXT NOT NULL DEFAULT '',
             forum_url TEXT NOT NULL DEFAULT '',
+            queue_name TEXT NOT NULL DEFAULT '',
             created_at TIMESTAMPTZ NOT NULL,
             updated_at TIMESTAMPTZ NOT NULL
         )
@@ -440,6 +441,7 @@ def initialize(connection: ConnectionLike) -> None:
         "settings_audit_events",
     ):
         connection.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS workspace_id TEXT NOT NULL DEFAULT 'default'")
+    connection.execute("ALTER TABLE templates ADD COLUMN IF NOT EXISTS queue_name TEXT NOT NULL DEFAULT ''")
     connection.execute("ALTER TABLE submission_queue ADD COLUMN IF NOT EXISTS queue_name TEXT NOT NULL DEFAULT 'Default queue'")
     connection.execute("ALTER TABLE submission_queue ADD COLUMN IF NOT EXISTS tumblr_account_id TEXT NOT NULL DEFAULT ''")
     connection.execute("ALTER TABLE runner_settings ADD COLUMN IF NOT EXISTS tumblr_account_id TEXT NOT NULL DEFAULT ''")
@@ -1065,6 +1067,7 @@ def row_to_advertisement(row: Any, tags: list[str] | None = None) -> dict[str, A
 def row_to_template(row: Any, tags: list[str] | None = None) -> dict[str, Any]:
     data = row_to_dict(row)
     data["workspace_id"] = str(data.get("workspace_id") or "default")
+    data["queue_name"] = str(data.get("queue_name") or "").strip()
     data["tags"] = tags if tags is not None else parse_tags(data.get("tags", []))
     return data
 
@@ -1140,6 +1143,7 @@ def template_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "name": str(payload.get("name", "")).strip(),
         "content": str(payload.get("content", "")),
         "forum_url": str(payload.get("forum_url", "")).strip(),
+        "queue_name": str(payload.get("queue_name") or payload.get("queueName") or "").strip(),
         "tags": parse_tags(payload.get("tags", [])),
     }
 
@@ -1800,13 +1804,14 @@ def upsert_template(connection: ConnectionLike, payload: dict[str, Any]) -> dict
 
     connection.execute(
         """
-        INSERT INTO templates (id, workspace_id, name, content, forum_url, created_at, updated_at)
-        VALUES (%s, %s, %s, %s, %s, %s, %s)
+        INSERT INTO templates (id, workspace_id, name, content, forum_url, queue_name, created_at, updated_at)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT(id) DO UPDATE SET
             workspace_id = excluded.workspace_id,
             name = excluded.name,
             content = excluded.content,
             forum_url = excluded.forum_url,
+            queue_name = excluded.queue_name,
             updated_at = excluded.updated_at
         """,
         (
@@ -1815,6 +1820,7 @@ def upsert_template(connection: ConnectionLike, payload: dict[str, Any]) -> dict
             template["name"],
             template["content"],
             template["forum_url"],
+            template["queue_name"],
             created_at,
             now,
         ),

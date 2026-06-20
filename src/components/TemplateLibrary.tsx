@@ -19,6 +19,7 @@ export function TemplateLibrary({ actionLabel = "Click to apply", emptyText, tem
             <button className="template-card-main" type="button" onClick={() => onApplyTemplate(template)}>
               <strong>{template.name}</strong>
               <span>{actionLabel} - {formatDate(template.updatedAt)}</span>
+              {template.queueName ? <span>Default queue: {template.queueName}</span> : null}
               <div
                 className="template-preview"
                 dangerouslySetInnerHTML={{ __html: template.content || "<p>No reusable content saved yet.</p>" }}
