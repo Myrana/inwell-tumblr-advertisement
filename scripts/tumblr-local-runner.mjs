@@ -134,6 +134,7 @@ async function runPlan(options, plan) {
   }
 
   await postHeartbeat(options, "running").catch(() => undefined);
+  const userDataDir = String(plan.userDataDir || options.userDataDir || "").trim() || options.userDataDir;
   const planPath = path.join(os.tmpdir(), `inwell-local-runner-${plan.runId}.json`);
   await fs.writeFile(planPath, JSON.stringify(plan, null, 2), "utf8");
   console.log(`[local-runner] Running ${plan.items.length} item(s) from ${options.queueName}.`);
@@ -154,7 +155,7 @@ async function runPlan(options, plan) {
     "--workspace-id",
     options.workspaceId,
     "--user-data-dir",
-    options.userDataDir,
+    userDataDir,
   ];
   if (options.mediaDir) {
     runnerArgs.push("--media-dir", options.mediaDir);

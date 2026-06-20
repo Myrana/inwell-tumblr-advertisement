@@ -1505,6 +1505,17 @@ class PersistenceTests(unittest.TestCase):
         self.assertIsNone(validate_local_runner_token(self.connection, token, "", require_workspace=True))
 
     def test_local_runner_plan_returns_runnable_workspace_queue_items(self) -> None:
+        upsert_tumblr_account(
+            self.connection,
+            {
+                "id": "snowleopardx",
+                "workspace_id": "workspace-local",
+                "display_name": "Snow Leopard",
+                "blog_name": "snowleopardx",
+                "status": "connected",
+                "user_data_dir": "C:/sessions/snowleopardx",
+            },
+        )
         upsert_queue_item(
             self.connection,
             {
@@ -1516,6 +1527,7 @@ class PersistenceTests(unittest.TestCase):
                 "queue_name": "Local queue",
                 "submit_url": "https://inkwell-test.tumblr.com/submit",
                 "post_type": "photo",
+                "tumblr_account_id": "snowleopardx",
                 "status": "queued",
                 "runner_payload": "{\"fields\":{\"body\":\"Local body\"}}",
             },
@@ -1534,11 +1546,26 @@ class PersistenceTests(unittest.TestCase):
                 "runner_payload": "{}",
             },
         )
+        upsert_queue_item(
+            self.connection,
+            {
+                "id": "local-queue-3",
+                "workspace_id": "workspace-local",
+                "ad_id": "ad-3",
+                "target_id": "target-3",
+                "target_name": "review",
+                "queue_name": "Local queue",
+                "submit_url": "https://review.tumblr.com/submit",
+                "status": "needs-review",
+                "runner_payload": "{}",
+            },
+        )
 
         plan = local_runner_plan(self.connection, "workspace-local", "Local queue")
 
         self.assertEqual(plan["workflow"], "tumblr-submission-queue")
         self.assertEqual(plan["workspaceId"], "workspace-local")
+        self.assertEqual(plan["userDataDir"], "C:/sessions/snowleopardx")
         self.assertEqual(len(plan["items"]), 1)
         self.assertEqual(plan["items"][0]["id"], "local-queue-1")
         self.assertEqual(plan["items"][0]["targetName"], "inkwell-test")
