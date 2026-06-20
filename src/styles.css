@@ -58,8 +58,9 @@ button {
   display: grid;
   grid-template-columns: 280px minmax(0, 1fr);
   background:
-    radial-gradient(circle at 78% 10%, rgba(111, 181, 196, 0.18), transparent 28%),
-    radial-gradient(circle at 24% 82%, rgba(217, 101, 82, 0.14), transparent 28%),
+    radial-gradient(ellipse at 72% 0%, rgba(27, 30, 36, 0.16), transparent 34%),
+    radial-gradient(ellipse at 34% 3%, rgba(46, 143, 163, 0.16), transparent 32%),
+    radial-gradient(circle at 24% 82%, rgba(217, 101, 82, 0.09), transparent 28%),
     linear-gradient(180deg, rgba(244, 247, 248, 0.9), rgba(244, 247, 248, 0.96));
 }
 
@@ -70,11 +71,26 @@ button {
   z-index: 0;
   pointer-events: none;
   background:
-    linear-gradient(125deg, transparent 0 16%, rgba(95, 179, 197, 0.11) 16% 18%, transparent 18% 44%, rgba(217, 101, 82, 0.08) 44% 46%, transparent 46%),
-    linear-gradient(48deg, transparent 0 24%, rgba(116, 199, 157, 0.09) 24% 26%, transparent 26% 62%, rgba(168, 111, 32, 0.07) 62% 64%, transparent 64%),
-    radial-gradient(circle at 68% 14%, rgba(46, 143, 163, 0.14), transparent 34%),
-    radial-gradient(circle at 18% 80%, rgba(217, 101, 82, 0.1), transparent 30%);
-  opacity: 0.6;
+    radial-gradient(ellipse 72px 420px at 74% 0%, rgba(27, 30, 36, 0.2), transparent 72%),
+    radial-gradient(ellipse 52px 320px at 38% 0%, rgba(46, 143, 163, 0.16), transparent 72%),
+    radial-gradient(ellipse 34px 210px at 56% 0%, rgba(217, 101, 82, 0.11), transparent 72%),
+    radial-gradient(circle at 74% 1%, rgba(27, 30, 36, 0.17), transparent 8%),
+    radial-gradient(circle at 38% 1%, rgba(46, 143, 163, 0.13), transparent 7%);
+  opacity: 0.72;
+}
+
+.app-shell::after {
+  content: "";
+  position: fixed;
+  inset: 0 0 0 280px;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(27, 30, 36, 0.08), transparent 46%) 70% 0 / 16px 64% no-repeat,
+    linear-gradient(180deg, rgba(46, 143, 163, 0.1), transparent 52%) 41% 0 / 10px 58% no-repeat,
+    linear-gradient(180deg, rgba(217, 101, 82, 0.07), transparent 42%) 58% 0 / 8px 42% no-repeat;
+  filter: blur(10px);
+  opacity: 0.45;
 }
 
 .app-shell > * {
@@ -2128,18 +2144,28 @@ html[data-theme="dark"] body {
 
 html[data-theme="dark"] .app-shell {
   background:
-    radial-gradient(circle at 78% 10%, rgba(95, 179, 197, 0.14), transparent 28%),
-    radial-gradient(circle at 24% 82%, rgba(240, 128, 103, 0.09), transparent 28%),
+    radial-gradient(ellipse at 72% 0%, rgba(0, 0, 0, 0.26), transparent 34%),
+    radial-gradient(ellipse at 34% 3%, rgba(95, 179, 197, 0.13), transparent 32%),
+    radial-gradient(circle at 24% 82%, rgba(240, 128, 103, 0.06), transparent 28%),
     linear-gradient(180deg, rgba(15, 21, 29, 0.96), rgba(16, 28, 29, 0.98));
 }
 
 html[data-theme="dark"] .app-shell::before {
   background:
-    linear-gradient(125deg, transparent 0 16%, rgba(95, 179, 197, 0.09) 16% 18%, transparent 18% 44%, rgba(240, 128, 103, 0.06) 44% 46%, transparent 46%),
-    linear-gradient(48deg, transparent 0 24%, rgba(116, 199, 157, 0.07) 24% 26%, transparent 26% 62%, rgba(224, 166, 73, 0.05) 62% 64%, transparent 64%),
-    radial-gradient(circle at 68% 14%, rgba(95, 179, 197, 0.14), transparent 34%),
-    radial-gradient(circle at 18% 80%, rgba(240, 128, 103, 0.08), transparent 30%);
-  opacity: 0.52;
+    radial-gradient(ellipse 72px 420px at 74% 0%, rgba(0, 0, 0, 0.24), transparent 72%),
+    radial-gradient(ellipse 52px 320px at 38% 0%, rgba(95, 179, 197, 0.12), transparent 72%),
+    radial-gradient(ellipse 34px 210px at 56% 0%, rgba(240, 128, 103, 0.07), transparent 72%),
+    radial-gradient(circle at 74% 1%, rgba(0, 0, 0, 0.22), transparent 8%),
+    radial-gradient(circle at 38% 1%, rgba(95, 179, 197, 0.11), transparent 7%);
+  opacity: 0.66;
+}
+
+html[data-theme="dark"] .app-shell::after {
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, 0.16), transparent 46%) 70% 0 / 16px 64% no-repeat,
+    linear-gradient(180deg, rgba(95, 179, 197, 0.08), transparent 52%) 41% 0 / 10px 58% no-repeat,
+    linear-gradient(180deg, rgba(240, 128, 103, 0.05), transparent 42%) 58% 0 / 8px 42% no-repeat;
+  opacity: 0.38;
 }
 
 html[data-theme="dark"] .workspace-saved {
@@ -2488,6 +2514,10 @@ html[data-theme="dark"] .selected-tags button {
   }
 
   .app-shell::before {
+    inset: 0;
+  }
+
+  .app-shell::after {
     inset: 0;
   }
 
