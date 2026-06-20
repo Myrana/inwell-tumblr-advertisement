@@ -889,24 +889,6 @@ function App() {
     setQueueStatus(`Created queue ${name}.`);
   }
 
-  function clearQueueItems(queueName: string, completedOnly: boolean) {
-    const completedStatuses: SubmissionStatus[] = ["submitted", "posted", "failed"];
-    const removable = submissionQueue.filter(
-      (item) => item.queueName === queueName && (!completedOnly || completedStatuses.includes(item.status)),
-    );
-    setSubmissionQueue((current) =>
-      current.filter((item) => item.queueName !== queueName || (completedOnly && !completedStatuses.includes(item.status))),
-    );
-    removable.forEach((item) => {
-      void removeQueueItem(item.id).catch(() => setApiAvailable(false));
-    });
-    setQueueStatus(
-      completedOnly
-        ? `Cleared completed entries from ${queueName}.`
-        : `Cleared all entries from ${queueName}.`,
-    );
-  }
-
   function syncTumblrAccount(account: TumblrAccount) {
     void saveTumblrAccount(account)
       .then((saved) => {
@@ -1397,7 +1379,6 @@ function App() {
           <QueueWorkspace
             activeQueue={activeQueue}
             activeQueueName={activeQueueName}
-            activeSubmitTarget={activeSubmitTarget}
             queueOptions={queueOptions}
             queueStatus={queueStatus}
             queueScheduleSettings={queueScheduleSettings}
@@ -1405,10 +1386,7 @@ function App() {
             runnerActivity={runnerActivity}
             runnerHeadless={runnerSettings.headless}
             runnerLogs={runnerLogs}
-            targetOptions={targetOptions}
-            onClearQueue={clearQueueItems}
             onEditQueueItem={editQueuedSubmission}
-            onQueueTargets={queueTargets}
             onRenameQueue={renameQueueDefinition}
             onSelectQueue={setSelectedQueueName}
             onQueueScheduleSettingsChange={(patch) => setQueueScheduleSettings((current) => ({ ...current, ...patch }))}

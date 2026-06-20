@@ -1,4 +1,4 @@
-import { ChevronDown, Download, List, Pencil, Play, PlugZap, Plus, Send, Terminal, Trash2 } from "lucide-react";
+import { ChevronDown, Download, Pencil, Play, PlugZap, Send, Terminal } from "lucide-react";
 import { useState } from "react";
 import { formatDate, formatSubmissionStatus } from "../domain/format";
 import { queueLogGroups, runnerLogExplanation, visibleRunnerLogs } from "../domain/runnerLogs";
@@ -9,7 +9,6 @@ import {
   RunnerLog,
   SubmissionQueueItem,
   SubmissionStatus,
-  TumblrSubmitTarget,
 } from "../domain/types";
 
 type RunnerActivity = {
@@ -19,7 +18,6 @@ type RunnerActivity = {
 
 type QueueWorkspaceProps = {
   activeQueue: SubmissionQueueItem[];
-  activeSubmitTarget: TumblrSubmitTarget;
   activeQueueName: string;
   queueOptions: QueueDefinition[];
   queueStatus: string;
@@ -28,10 +26,7 @@ type QueueWorkspaceProps = {
   runnerActivity: RunnerActivity;
   runnerHeadless: boolean;
   runnerLogs: RunnerLog[];
-  targetOptions: TumblrSubmitTarget[];
-  onClearQueue: (queueName: string, completedOnly: boolean) => void;
   onEditQueueItem: (id: string) => void;
-  onQueueTargets: (targets: TumblrSubmitTarget[]) => void;
   onRenameQueue: (currentName: string, nextName: string) => void;
   onSelectQueue: (queueName: string) => void;
   onQueueScheduleSettingsChange: (patch: Partial<QueueScheduleSettings>) => void;
@@ -48,7 +43,6 @@ type QueueSectionKey = "overview" | "schedule" | "submissions";
 
 export function QueueWorkspace({
   activeQueue,
-  activeSubmitTarget,
   activeQueueName,
   queueOptions,
   queueStatus,
@@ -57,10 +51,7 @@ export function QueueWorkspace({
   runnerActivity,
   runnerHeadless,
   runnerLogs,
-  targetOptions,
-  onClearQueue,
   onEditQueueItem,
-  onQueueTargets,
   onRenameQueue,
   onSelectQueue,
   onQueueScheduleSettingsChange,
@@ -84,7 +75,6 @@ export function QueueWorkspace({
   const scopedLogs = visibleRunnerLogs(runnerLogs, false);
   const logGroups = queueLogGroups(activeQueue, scopedLogs);
   const nextRunAt = queueScheduleSettings.enabled ? nextDailyRunAt(queueScheduleSettings) : "";
-  const completedCount = statusCounts.submitted + statusCounts.posted + statusCounts.failed;
 
   function queueItemExplanation(item: SubmissionQueueItem) {
     const logs = logGroups.find((group) => group.item.id === item.id)?.logs ?? [];
@@ -207,31 +197,6 @@ export function QueueWorkspace({
 
       <section className="queue-command-panel" aria-label="Queue actions">
         <div className="queue-command-group">
-          <div className="queue-command-heading">
-            <strong>Queue</strong>
-            <span>{activeQueue.length ? `${activeQueue.length} item${activeQueue.length === 1 ? "" : "s"}` : "No queued submissions"}</span>
-          </div>
-          <div className="queue-action-row">
-            <button className="secondary" type="button" onClick={() => onQueueTargets([activeSubmitTarget])}>
-              <Plus size={18} />
-              Current
-            </button>
-            <button className="secondary" type="button" onClick={() => onQueueTargets(targetOptions)}>
-              <List size={18} />
-              Queue all
-            </button>
-            <button className="secondary" type="button" onClick={() => onClearQueue(activeQueueName, true)} disabled={!completedCount}>
-              <Trash2 size={16} />
-              Clear done
-            </button>
-            <button className="secondary" type="button" onClick={() => onClearQueue(activeQueueName, false)} disabled={!activeQueue.length}>
-              <Trash2 size={16} />
-              Clear queue
-            </button>
-          </div>
-        </div>
-
-        <div className="queue-command-group runner-command-group">
           <div className="queue-command-heading">
             <strong>Local runner</strong>
             <span>{runnerConnectionLabel}</span>
