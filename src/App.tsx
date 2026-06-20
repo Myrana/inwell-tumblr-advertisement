@@ -173,6 +173,7 @@ function App() {
       ? `Local runner online${localRunner.queue_name ? `: ${localRunner.queue_name}` : ""}`
       : "Local runner offline";
   }, [localCompanion, runnerState]);
+  const canLaunchLocalRunner = !localCompanion?.ok;
   const activeDestinationBlogRef = useRef(activeAd.destinationBlog);
   const activeBlogTags = tagProfiles[activeAd.destinationBlog] ?? defaultTagProfiles[activeAd.destinationBlog] ?? [];
   const checklistTags = uniqueTags([...activeBlogTags, ...activeAd.tags]);
@@ -1079,6 +1080,14 @@ function App() {
     });
   }
 
+  function launchLocalRunnerProtocol() {
+    window.location.href = "inkwell-runner://start";
+    setQueueStatus("Opening the installed local runner. If Windows asks, allow Inkwell Local Runner, then click Run locally again.");
+    window.setTimeout(() => {
+      void refreshLocalCompanionStatus({ quiet: true });
+    }, 2500);
+  }
+
   async function downloadLocalRunnerInstaller() {
     try {
       const { blob, filename } = await downloadLocalRunnerPackage(activeQueueName);
@@ -1308,7 +1317,9 @@ function App() {
             onQueueScheduleSettingsChange={(patch) => setQueueScheduleSettings((current) => ({ ...current, ...patch }))}
             onCopyLocalRunnerSetup={copyLocalRunnerSetup}
             onDownloadLocalRunner={downloadLocalRunnerInstaller}
+            onLaunchLocalRunner={launchLocalRunnerProtocol}
             onStartRunner={startRunner}
+            showLaunchLocalRunner={canLaunchLocalRunner}
             onUpdateQueueItem={updateQueueItem}
           />
         ) : null}

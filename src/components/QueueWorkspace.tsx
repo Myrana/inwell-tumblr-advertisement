@@ -1,4 +1,4 @@
-import { ChevronDown, Download, List, Pencil, Play, Plus, Send, Terminal, Trash2 } from "lucide-react";
+import { ChevronDown, Download, List, Pencil, Play, PlugZap, Plus, Send, Terminal, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { formatDate, formatSubmissionStatus } from "../domain/format";
 import { queueLogGroups, runnerLogExplanation, visibleRunnerLogs } from "../domain/runnerLogs";
@@ -30,7 +30,9 @@ type QueueWorkspaceProps = {
   onQueueScheduleSettingsChange: (patch: Partial<QueueScheduleSettings>) => void;
   onCopyLocalRunnerSetup: () => void;
   onDownloadLocalRunner: () => void;
+  onLaunchLocalRunner: () => void;
   onStartRunner: () => void;
+  showLaunchLocalRunner: boolean;
   onUpdateQueueItem: (id: string, status: SubmissionStatus, notes: string) => void;
 };
 
@@ -54,7 +56,9 @@ export function QueueWorkspace({
   onQueueScheduleSettingsChange,
   onCopyLocalRunnerSetup,
   onDownloadLocalRunner,
+  onLaunchLocalRunner,
   onStartRunner,
+  showLaunchLocalRunner,
   onUpdateQueueItem,
 }: QueueWorkspaceProps) {
   const [openSections, setOpenSections] = useState<Record<QueueSectionKey, boolean>>({
@@ -208,6 +212,12 @@ export function QueueWorkspace({
                 <Download size={18} />
                 Download runner
               </button>
+              {showLaunchLocalRunner ? (
+                <button className="secondary" type="button" onClick={onLaunchLocalRunner}>
+                  <PlugZap size={18} />
+                  Start local runner
+                </button>
+              ) : null}
               <button className="secondary" type="button" onClick={onCopyLocalRunnerSetup} disabled={!activeQueue.length}>
                 <Terminal size={18} />
                 Copy setup command
