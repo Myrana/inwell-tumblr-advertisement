@@ -1,4 +1,4 @@
-import { Activity, Archive, ClipboardCheck, FileText, Gauge, ListChecks, ShieldCheck } from "lucide-react";
+import { Activity, Archive, BookOpenText, ClipboardCheck, FileText, Gauge, ListChecks, ShieldCheck } from "lucide-react";
 import { AuthUser, WorkspaceView } from "../domain/types";
 
 type AppSidebarProps = {
@@ -63,6 +63,10 @@ export function AppSidebar({
         <button className={activeView === "logs" ? "active" : ""} type="button" onClick={() => onViewChange("logs")}>
           <Activity size={18} />
           Runner Logs
+        </button>
+        <button className={activeView === "docs" ? "active" : ""} type="button" onClick={() => onViewChange("docs")}>
+          <BookOpenText size={18} />
+          Docs
         </button>
       </nav>
 
