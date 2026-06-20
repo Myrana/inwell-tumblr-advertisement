@@ -1060,7 +1060,7 @@ function App() {
           ? "Open PowerShell in the repo folder, paste it, and press Enter to install the Windows login task. Keep the copied command private."
           : copied
             ? "Open PowerShell in the repo folder, paste it, and press Enter to start the local runner. Keep the copied command private."
-            : "Use Run locally or Copy setup command to copy a fresh private device-token command.";
+            : "Use Run or Setup to copy a fresh private device-token command.";
         setQueueStatus(`${copyMessage}${fallbackMessage}${localRunner.message} ${actionMessage}`);
         return;
       }
@@ -1134,7 +1134,7 @@ function App() {
       link.remove();
       URL.revokeObjectURL(url);
       setApiAvailable(true);
-      setQueueStatus("Local runner installer downloaded. Unzip it, double-click install.cmd once, then Run locally will connect to this computer.");
+      setQueueStatus("Local runner installer downloaded. Unzip it, double-click install.cmd once, then Run will connect to this computer.");
     } catch (error) {
       setApiAvailable(false);
       const message = error instanceof ApiError ? error.message : "Could not download the local runner installer.";

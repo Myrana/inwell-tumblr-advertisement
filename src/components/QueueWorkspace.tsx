@@ -36,7 +36,7 @@ type QueueWorkspaceProps = {
   onUpdateQueueItem: (id: string, status: SubmissionStatus, notes: string) => void;
 };
 
-type QueueSectionKey = "overview" | "schedule" | "actions" | "submissions";
+type QueueSectionKey = "overview" | "schedule" | "submissions";
 
 export function QueueWorkspace({
   activeQueue,
@@ -64,7 +64,6 @@ export function QueueWorkspace({
   const [openSections, setOpenSections] = useState<Record<QueueSectionKey, boolean>>({
     overview: true,
     schedule: false,
-    actions: false,
     submissions: true,
   });
   const statusCounts = activeQueue.reduce<Record<SubmissionStatus, number>>(
@@ -195,59 +194,58 @@ export function QueueWorkspace({
         ) : null}
       </section>
 
-      <section className="workflow-section queue-workflow-section">
-        <div className="workflow-section-header">
-          {sectionToggle("actions", "Queue actions", activeQueue.length ? "Run, set up, add, or clear queue items" : "Add submissions before running")}
-          <span className={activeQueue.length ? "section-state ready" : "section-state warning"}>{activeQueue.length ? "Ready" : "Empty"}</span>
+      <section className="queue-command-panel" aria-label="Queue actions">
+        <div className="queue-command-group">
+          <div className="queue-command-heading">
+            <strong>Queue</strong>
+            <span>{activeQueue.length ? `${activeQueue.length} item${activeQueue.length === 1 ? "" : "s"}` : "No queued submissions"}</span>
+          </div>
+          <div className="queue-action-row">
+            <button className="secondary" type="button" onClick={() => onQueueTargets([activeSubmitTarget])}>
+              <Plus size={18} />
+              Current
+            </button>
+            <button className="secondary" type="button" onClick={() => onQueueTargets(targetOptions)}>
+              <List size={18} />
+              Queue all
+            </button>
+            <button className="secondary" type="button" onClick={() => onClearQueue(activeQueueName, true)} disabled={!completedCount}>
+              <Trash2 size={16} />
+              Clear done
+            </button>
+            <button className="secondary" type="button" onClick={() => onClearQueue(activeQueueName, false)} disabled={!activeQueue.length}>
+              <Trash2 size={16} />
+              Clear queue
+            </button>
+          </div>
         </div>
 
-        {openSections.actions ? (
-          <div className="workflow-section-body">
-            <div className="queue-actions">
-              <button className="primary" type="button" onClick={onStartRunner} disabled={!activeQueue.length}>
-                <Play size={18} />
-                Run locally
-              </button>
-              <button className="secondary" type="button" onClick={onDownloadLocalRunner}>
-                <Download size={18} />
-                Download runner
-              </button>
-              {showLaunchLocalRunner ? (
-                <button className="secondary" type="button" onClick={onLaunchLocalRunner}>
-                  <PlugZap size={18} />
-                  Start local runner
-                </button>
-              ) : null}
-              <button className="secondary" type="button" onClick={onCopyLocalRunnerSetup} disabled={!activeQueue.length}>
-                <Terminal size={18} />
-                Copy setup command
-              </button>
-              <span className="runner-state">
-                {runnerConnectionLabel}
-              </span>
-            </div>
-            <div className="queue-actions queue-maintenance-actions">
-              <button className="secondary" type="button" onClick={() => onQueueTargets([activeSubmitTarget])}>
-                <Plus size={18} />
-                Queue current
-              </button>
-              <button className="secondary" type="button" onClick={() => onQueueTargets(targetOptions)}>
-                <List size={18} />
-                Queue all targets
-              </button>
-            </div>
-            <div className="queue-actions queue-maintenance-actions" aria-label="Queue maintenance">
-              <button className="secondary" type="button" onClick={() => onClearQueue(activeQueueName, true)} disabled={!completedCount}>
-                <Trash2 size={16} />
-                Clear completed
-              </button>
-              <button className="secondary" type="button" onClick={() => onClearQueue(activeQueueName, false)} disabled={!activeQueue.length}>
-                <Trash2 size={16} />
-                Clear queue
-              </button>
-            </div>
+        <div className="queue-command-group runner-command-group">
+          <div className="queue-command-heading">
+            <strong>Local runner</strong>
+            <span>{runnerConnectionLabel}</span>
           </div>
-        ) : null}
+          <div className="queue-action-row">
+            <button className="primary" type="button" onClick={onStartRunner} disabled={!activeQueue.length}>
+              <Play size={18} />
+              Run
+            </button>
+            {showLaunchLocalRunner ? (
+              <button className="secondary" type="button" onClick={onLaunchLocalRunner}>
+                <PlugZap size={18} />
+                Start
+              </button>
+            ) : null}
+            <button className="secondary" type="button" onClick={onDownloadLocalRunner}>
+              <Download size={18} />
+              Download
+            </button>
+            <button className="secondary" type="button" onClick={onCopyLocalRunnerSetup} disabled={!activeQueue.length}>
+              <Terminal size={18} />
+              Setup
+            </button>
+          </div>
+        </div>
       </section>
 
       {queueStatus ? <p className="queue-status">{queueStatus}</p> : null}

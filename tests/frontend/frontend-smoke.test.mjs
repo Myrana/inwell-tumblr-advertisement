@@ -443,7 +443,7 @@ test("templates can be saved and applied from their own workspace", { timeout: 4
   await page.getByRole("button", { name: "Add queue" }).click();
   await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
   assert.equal(await page.getByLabel("Active queue").inputValue(), "Want ads");
-  await page.locator(".workflow-section", { hasText: "Queue actions" }).locator(".section-state.warning", { hasText: "Empty" }).waitFor();
+  await page.getByLabel("Queue actions").getByText("No queued submissions").waitFor();
   assert.equal(await page.getByLabel("Media folder").count(), 0);
   await page.locator(".workflow-section", { hasText: "Schedule" }).locator(".section-state.warning", { hasText: "Off" }).waitFor();
 
@@ -472,9 +472,8 @@ test("templates can be saved and applied from their own workspace", { timeout: 4
   await wantAdsRow.getByRole("button", { name: "Open queue" }).click();
   await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
   assert.equal(await page.getByLabel("Active queue").inputValue(), "Want ads");
-  await page.getByRole("button", { name: "Toggle queue actions section" }).click();
-  await page.getByRole("button", { name: "Queue all targets" }).waitFor();
-  await page.getByRole("button", { name: "Run locally" }).waitFor();
+  await page.getByLabel("Queue actions").getByRole("button", { name: "Queue all" }).waitFor();
+  await page.getByLabel("Queue actions").getByRole("button", { name: "Run" }).waitFor();
   await page.getByRole("button", { name: "Toggle schedule section" }).click();
   await page.getByLabel("Run this queue daily").check();
   await page.getByLabel("Daily run time").fill("09:30");
@@ -503,8 +502,7 @@ test("templates can be saved and applied from their own workspace", { timeout: 4
   await page.getByRole("button", { name: "Queues", exact: true }).click();
   await siteAdsRow.getByRole("button", { name: "Open queue" }).click();
   await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
-  await page.getByRole("button", { name: "Toggle queue actions section" }).click();
-  await page.getByRole("button", { name: "Clear queue" }).click();
+  await page.getByLabel("Queue actions").getByRole("button", { name: "Clear queue" }).click();
   await page.getByRole("button", { name: "Queues", exact: true }).click();
   await siteAdsRow.getByText("0 items - 0 complete").waitFor();
   await siteAdsRow.getByRole("button", { name: "Delete queue" }).click();
@@ -1353,14 +1351,13 @@ test("running the queue prepares the local runner and shows failure explanations
   await page.goto(appUrl);
   await page.getByLabel("Workspace views").getByRole("button", { name: "Queues", exact: true }).click();
   await page.locator(".queue-management-row", { hasText: "Default queue" }).getByRole("button", { name: "Open queue" }).click();
-  await page.getByRole("button", { name: "Toggle queue actions section" }).click();
   await page.getByText("Local runner online: Default queue").waitFor();
-  await page.getByRole("button", { name: "Start local runner" }).click();
+  await page.getByLabel("Queue actions").getByRole("button", { name: "Start" }).click();
   await page.getByText("Opening the installed local runner.").waitFor();
-  await page.getByRole("button", { name: "Download runner" }).click();
+  await page.getByLabel("Queue actions").getByRole("button", { name: "Download" }).click();
   await page.getByText("Local runner installer downloaded.").waitFor();
   assert.equal(localPackageRequested, true);
-  await page.getByRole("button", { name: "Run locally" }).click();
+  await page.getByLabel("Queue actions").getByRole("button", { name: "Run" }).click();
   await page.getByText("Local runner command copied.").waitFor();
   await page.getByText("Local companion was not detected on this computer, so the command was copied instead.").waitFor();
   assert.equal(localCommandRequested, true);
@@ -1372,7 +1369,7 @@ test("running the queue prepares the local runner and shows failure explanations
   assert.match(copiedText, /--token 'ilr_private_token'/);
   await page.getByText(/paste it, and press Enter to start the local runner/).waitFor();
   await page.getByText(/ilr_private_token/).waitFor({ state: "detached" });
-  await page.getByRole("button", { name: "Copy setup command" }).click();
+  await page.getByLabel("Queue actions").getByRole("button", { name: "Setup" }).click();
   await page.getByText("Local runner setup command copied.").waitFor();
   copiedText = await page.evaluate(() => window.__copiedText);
   assert.match(copiedText, /tumblr:runner:install-autostart/);
@@ -1425,7 +1422,7 @@ test("running the queue prepares the local runner and shows failure explanations
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
   await page.getByText("Local companion is watching Default queue.").waitFor();
   await page.getByText("Local companion was not detected on this computer", { exact: false }).waitFor({ state: "detached" });
-  await page.getByRole("button", { name: "Run locally" }).click();
+  await page.getByLabel("Queue actions").getByRole("button", { name: "Run" }).click();
   await page.getByText("Local companion started the runner on this computer.").waitFor();
   assert.equal(companionRunRequested, true);
   assert.deepEqual(await page.evaluate(() => window.__openedUrls), []);

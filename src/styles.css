@@ -1148,6 +1148,54 @@ pre {
   gap: 8px;
 }
 
+.queue-command-panel {
+  margin-top: 10px;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafb;
+}
+
+.queue-command-group {
+  display: grid;
+  grid-template-columns: minmax(150px, 220px) minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+}
+
+.runner-command-group {
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.queue-command-heading {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.queue-command-heading strong,
+.queue-command-heading span {
+  display: block;
+}
+
+.queue-command-heading span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.queue-action-row {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .runner-control-panel {
   margin-bottom: 12px;
   padding: 12px;
@@ -2113,17 +2161,24 @@ html[data-theme="dark"] .selected-tags button {
     align-items: stretch;
   }
 
+  .queue-command-group {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
   .queue-readiness-actions {
     width: 100%;
   }
 
-  .queue-confirmation-actions {
+  .queue-confirmation-actions,
+  .queue-action-row {
     width: 100%;
   }
 
   .queue-destination-select,
   .queue-readiness-actions > button,
-  .queue-confirmation-actions > button {
+  .queue-confirmation-actions > button,
+  .queue-action-row > button {
     flex: 1;
   }
 
