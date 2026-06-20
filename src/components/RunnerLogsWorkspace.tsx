@@ -1,4 +1,4 @@
-import { Activity, ChevronDown, ChevronRight, History, RefreshCw, Trash2 } from "lucide-react";
+import { Activity, ChevronDown, ChevronRight, History, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { formatDate } from "../domain/format";
 import {
@@ -15,7 +15,6 @@ type RunnerLogsWorkspaceProps = {
   runnerLogs: RunnerLog[];
   runnerState: RunnerStatus | null;
   onClearRunnerLogs: () => void;
-  onRefreshRunnerStatus: () => void;
 };
 
 export function RunnerLogsWorkspace({
@@ -23,7 +22,6 @@ export function RunnerLogsWorkspace({
   runnerLogs,
   runnerState,
   onClearRunnerLogs,
-  onRefreshRunnerStatus,
 }: RunnerLogsWorkspaceProps) {
   const [showLogHistory, setShowLogHistory] = useState(false);
   const [openRunIds, setOpenRunIds] = useState<Set<string>>(new Set());
@@ -72,10 +70,6 @@ export function RunnerLogsWorkspace({
 
       <div className="runner-control-panel" aria-label="Runner log controls">
         <div className="queue-actions queue-log-actions">
-          <button className="secondary" type="button" onClick={onRefreshRunnerStatus}>
-            <RefreshCw size={18} />
-            Refresh logs
-          </button>
           <button className="secondary" type="button" onClick={() => setShowLogHistory((current) => !current)}>
             <History size={18} />
             {showLogHistory ? "Show latest run" : "Show all history"}

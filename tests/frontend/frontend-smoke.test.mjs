@@ -600,9 +600,7 @@ test("shared app settings load from and save to the backend", { timeout: 40000 }
   await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
   assert.equal(await page.getByLabel("Active queue").inputValue(), "Backend queue");
   assert.equal(await page.getByLabel("Media folder").count(), 0);
-  await page.getByRole("button", { name: "Toggle runner settings section" }).click();
-  assert.equal(await page.getByLabel("Slow motion").inputValue(), "900");
-  assert.equal(await page.getByLabel("Click Submit after filling").isChecked(), true);
+  assert.equal(await page.getByRole("button", { name: "Toggle runner settings section" }).count(), 0);
   await page.getByRole("button", { name: "Toggle schedule section" }).click();
   assert.equal(await page.getByLabel("Run this queue daily").isChecked(), true);
   assert.equal(await page.getByLabel("Daily run time").inputValue(), "07:45");
@@ -1342,7 +1340,6 @@ test("running the queue prepares the local runner and shows failure explanations
   await page.getByLabel("Workspace views").getByRole("button", { name: "Queues", exact: true }).click();
   await page.locator(".queue-management-row", { hasText: "Default queue" }).getByRole("button", { name: "Open queue" }).click();
   await page.getByRole("button", { name: "Toggle queue actions section" }).click();
-  await page.getByRole("button", { name: "Refresh runner status" }).click();
   await page.getByText("Local runner online: Default queue").waitFor();
   await page.getByRole("button", { name: "Run locally" }).click();
   await page.getByText("Local runner command copied.").waitFor();
