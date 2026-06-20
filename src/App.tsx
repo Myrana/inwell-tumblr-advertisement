@@ -1326,7 +1326,7 @@ function App() {
         onViewChange={setActiveView}
       />
 
-      <section className="workspace">
+      <section className={activeView === "saved" ? "workspace workspace-saved" : "workspace"}>
         <WorkspaceTopbar
           actionsVisible={activeView === "editor"}
           eyebrow={pageTitles[activeView].eyebrow}
