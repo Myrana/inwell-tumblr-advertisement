@@ -71,6 +71,20 @@ export function normalizeSubmissionStatus(value: unknown): SubmissionStatus {
   return "queued";
 }
 
+export function isCompletedQueueItem(item: SubmissionQueueItem) {
+  return item.status === "posted" || item.status === "submitted";
+}
+
+export function postHistoryArchiveItems(items: SubmissionQueueItem[]) {
+  return items
+    .filter(isCompletedQueueItem)
+    .sort((left, right) => {
+      const leftTime = left.postedAt || left.updatedAt || left.createdAt;
+      const rightTime = right.postedAt || right.updatedAt || right.createdAt;
+      return rightTime.localeCompare(leftTime);
+    });
+}
+
 export function loadSubmissionQueue() {
   try {
     const raw = localStorage.getItem(submissionQueueStorageKey);

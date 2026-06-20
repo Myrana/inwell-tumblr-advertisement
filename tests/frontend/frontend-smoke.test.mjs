@@ -1454,6 +1454,25 @@ test("running the queue prepares the local runner and shows failure explanations
     notes: "Runner failed: browserContext.newPage: Target page, context or browser has been closed",
     runner_payload: JSON.stringify({ fields: { body: "Queue body" } }),
   };
+  const postedQueueItem = {
+    id: "queue-posted-allthingsroleplay",
+    ad_id: "ad-run",
+    target_id: "allthingsroleplay",
+    target_name: "allthingsroleplay archive",
+    tumblr_account_id: "snowleopardx",
+    submit_url: "https://allthingsroleplay.tumblr.com/submit",
+    post_type: "photo",
+    status: "posted",
+    scheduled_for: null,
+    timezone: "America/New_York",
+    created_at: "2026-06-18T20:00:00.000Z",
+    updated_at: "2026-06-18T20:30:00.000Z",
+    last_run_at: "2026-06-18T20:25:00.000Z",
+    posted_at: "2026-06-18T20:30:00.000Z",
+    failed_at: null,
+    notes: "Posted by the local runner.",
+    runner_payload: JSON.stringify({ fields: { body: "Archived queue body" } }),
+  };
 
   page.on("pageerror", (error) => pageErrors.push(error));
   const unavailableCompanionStatus = (route) => route.abort();
@@ -1532,6 +1551,16 @@ test("running the queue prepares the local runner and shows failure explanations
             details: { error: "browserContext.newPage: Target page, context or browser has been closed" },
             created_at: "2026-06-18T21:04:00.000Z",
           },
+          {
+            id: "log-posted",
+            run_id: "run-posted",
+            queue_item_id: "queue-posted-allthingsroleplay",
+            target_name: "allthingsroleplay archive",
+            level: "info",
+            message: "Submit button clicked.",
+            details: { postedUrl: "https://allthingsroleplay.tumblr.com/post/456/archive-post" },
+            created_at: "2026-06-18T20:30:00.000Z",
+          },
         ],
       }),
     }),
@@ -1564,7 +1593,7 @@ test("running the queue prepares the local runner and shows failure explanations
     route.fulfill({
       contentType: "application/json",
       headers: apiHeaders,
-      body: JSON.stringify({ queue: [queueItem] }),
+      body: JSON.stringify({ queue: [queueItem, postedQueueItem] }),
     }),
   );
   await page.route("http://127.0.0.1:8021/api/advertisements", (route) =>
@@ -1637,6 +1666,8 @@ test("running the queue prepares the local runner and shows failure explanations
   await page.goto(appUrl);
   await page.getByLabel("Workspace views").getByRole("button", { name: "Queues", exact: true }).click();
   await page.locator(".queue-management-row", { hasText: "Default queue" }).getByRole("button", { name: "Open queue" }).click();
+  await page.getByLabel("Post history archive").getByText("allthingsroleplay archive").waitFor();
+  await page.getByLabel("Post history archive").getByRole("link", { name: "Posted Tumblr link" }).waitFor();
   await page.getByText("Local runner online: Default queue").waitFor();
   await page.getByLabel("Local runner activity").getByText("Watching", { exact: true }).waitFor();
   await page.getByLabel("Local runner activity").getByText("Runner is watching Default queue.").waitFor();

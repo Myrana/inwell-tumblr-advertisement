@@ -1,6 +1,7 @@
-import { ChevronDown, Download, Pencil, Play, PlugZap, Send, Terminal, TestTube2 } from "lucide-react";
+import { Archive, ChevronDown, Download, Pencil, Play, PlugZap, Send, Terminal, TestTube2 } from "lucide-react";
 import { useState } from "react";
 import { formatDate, formatSubmissionStatus } from "../domain/format";
+import { isCompletedQueueItem, postHistoryArchiveItems } from "../domain/queue";
 import { queueLogGroups, runnerLogExplanation, runnerLogPostedUrl, visibleRunnerLogs } from "../domain/runnerLogs";
 import { formatEasternRun, nextDailyRunAt, scheduleSummary } from "../domain/schedule";
 import {
@@ -39,7 +40,7 @@ type QueueWorkspaceProps = {
   onUpdateQueueItem: (id: string, status: SubmissionStatus, notes: string) => void;
 };
 
-type QueueSectionKey = "overview" | "schedule" | "submissions";
+type QueueSectionKey = "overview" | "schedule" | "submissions" | "history";
 
 const schedulePresets = [
   { label: "Morning", value: "09:00" },
@@ -77,6 +78,7 @@ export function QueueWorkspace({
     overview: true,
     schedule: false,
     submissions: true,
+    history: true,
   });
   const statusCounts = activeQueue.reduce<Record<SubmissionStatus, number>>(
     (counts, item) => ({ ...counts, [item.status]: counts[item.status] + 1 }),
@@ -84,7 +86,10 @@ export function QueueWorkspace({
   );
   const scopedLogs = visibleRunnerLogs(runnerLogs, false);
   const logGroups = queueLogGroups(activeQueue, scopedLogs);
+  const allLogGroups = queueLogGroups(activeQueue, runnerLogs);
   const nextRunAt = queueScheduleSettings.enabled ? nextDailyRunAt(queueScheduleSettings) : "";
+  const activeSubmissionItems = activeQueue.filter((item) => !isCompletedQueueItem(item));
+  const postHistoryItems = postHistoryArchiveItems(activeQueue);
 
   function queueItemExplanation(item: SubmissionQueueItem) {
     const logs = logGroups.find((group) => group.item.id === item.id)?.logs ?? [];
@@ -93,7 +98,7 @@ export function QueueWorkspace({
   }
 
   function queueItemPostedUrl(item: SubmissionQueueItem) {
-    const logs = logGroups.find((group) => group.item.id === item.id)?.logs ?? [];
+    const logs = allLogGroups.find((group) => group.item.id === item.id)?.logs ?? [];
     const postedLog = [...logs].reverse().find((log) => runnerLogPostedUrl(log));
     return postedLog ? runnerLogPostedUrl(postedLog) : "";
   }
@@ -240,11 +245,11 @@ export function QueueWorkspace({
             <span>{runnerConnectionLabel}</span>
           </div>
           <div className="queue-action-row">
-            <button className="primary" type="button" onClick={() => onStartRunner()} disabled={!activeQueue.length}>
+            <button className="primary" type="button" onClick={() => onStartRunner()} disabled={!activeSubmissionItems.length}>
               <Play size={18} />
               Run
             </button>
-            <button className="secondary" type="button" onClick={onStartTestRun} disabled={!activeQueue.length}>
+            <button className="secondary" type="button" onClick={onStartTestRun} disabled={!activeSubmissionItems.length}>
               <TestTube2 size={18} />
               Test run
             </button>
@@ -258,7 +263,7 @@ export function QueueWorkspace({
               <Download size={18} />
               Download
             </button>
-            <button className="secondary" type="button" onClick={onCopyLocalRunnerSetup} disabled={!activeQueue.length}>
+            <button className="secondary" type="button" onClick={onCopyLocalRunnerSetup} disabled={!activeSubmissionItems.length}>
               <Terminal size={18} />
               Setup
             </button>
@@ -293,15 +298,15 @@ export function QueueWorkspace({
 
       <section className="workflow-section queue-workflow-section">
         <div className="workflow-section-header">
-          {sectionToggle("submissions", "Queued submissions", `${activeQueue.length} item${activeQueue.length === 1 ? "" : "s"}`)}
-          <span className={activeQueue.length ? "section-state ready" : "section-state warning"}>{activeQueue.length ? "Ready" : "Empty"}</span>
+          {sectionToggle("submissions", "Queued submissions", `${activeSubmissionItems.length} active item${activeSubmissionItems.length === 1 ? "" : "s"}`)}
+          <span className={activeSubmissionItems.length ? "section-state ready" : "section-state warning"}>{activeSubmissionItems.length ? "Ready" : "Empty"}</span>
         </div>
 
         {openSections.submissions ? (
           <div className="workflow-section-body">
             <div className="queue-list">
-              {activeQueue.length ? (
-                activeQueue.map((item) => (
+              {activeSubmissionItems.length ? (
+                activeSubmissionItems.map((item) => (
                   <article className="queue-item" key={item.id}>
                     {(() => {
                       const postedUrl = queueItemPostedUrl(item);
@@ -377,6 +382,57 @@ export function QueueWorkspace({
                 <p className="queue-empty">Queue one or more Tumblr blogs into {activeQueueName}, then run the automation step.</p>
               )}
             </div>
+          </div>
+        ) : null}
+      </section>
+
+      <section className="workflow-section queue-workflow-section" aria-label="Post history archive">
+        <div className="workflow-section-header">
+          {sectionToggle("history", "Post history", `${postHistoryItems.length} completed item${postHistoryItems.length === 1 ? "" : "s"}`)}
+          <span className={postHistoryItems.length ? "section-state ready" : "section-state warning"}>{postHistoryItems.length ? "Archived" : "Empty"}</span>
+        </div>
+
+        {openSections.history ? (
+          <div className="workflow-section-body">
+            {postHistoryItems.length ? (
+              <div className="post-history-list">
+                {postHistoryItems.map((item) => {
+                  const postedUrl = queueItemPostedUrl(item);
+                  const completedAt = item.postedAt || item.updatedAt;
+
+                  return (
+                    <article className="post-history-item" key={item.id}>
+                      <div className="post-history-heading">
+                        <Archive size={18} />
+                        <div>
+                          <strong>{item.targetName}</strong>
+                          <span>{formatSubmissionStatus(item.status)} - {formatDate(completedAt)}</span>
+                        </div>
+                      </div>
+                      <div className="post-history-meta">
+                        <span><b>Type</b>{item.postType}</span>
+                        <span><b>Queue</b>{item.queueName}</span>
+                        <span><b>Updated</b>{formatDate(item.updatedAt)}</span>
+                      </div>
+                      {item.notes ? <p>{item.notes}</p> : null}
+                      <div className="post-history-actions">
+                        {postedUrl ? (
+                          <a className="queue-posted-link" href={postedUrl} target="_blank" rel="noreferrer">
+                            Posted Tumblr link
+                          </a>
+                        ) : null}
+                        <button className="secondary compact-button" type="button" onClick={() => onEditQueueItem(item.id)}>
+                          <Pencil size={16} />
+                          Edit archived post
+                        </button>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="queue-empty">Completed Tumblr submissions will appear here after they are marked submitted or posted.</p>
+            )}
           </div>
         ) : null}
       </section>
