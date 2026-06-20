@@ -292,17 +292,18 @@ class FakePostgresConnection:
                 "workspace_id": params[1],
                 "post_type": params[2],
                 "title": params[3],
-                "content": params[4],
-                "destination_blog": params[5],
-                "forum_url": params[6],
-                "image_caption": params[7],
-                "image_name": params[8],
-                "image_data_url": params[9],
-                "video_url": params[10],
-                "video_name": params[11],
-                "status": params[12],
-                "created_at": params[13],
-                "updated_at": params[14],
+                "campaign_name": params[4],
+                "content": params[5],
+                "destination_blog": params[6],
+                "forum_url": params[7],
+                "image_caption": params[8],
+                "image_name": params[9],
+                "image_data_url": params[10],
+                "video_url": params[11],
+                "video_name": params[12],
+                "status": params[13],
+                "created_at": params[14],
+                "updated_at": params[15],
             }
             self.advertisements[str(params[0])] = row
             return FakeCursor()
@@ -829,6 +830,7 @@ class PersistenceTests(unittest.TestCase):
                 "id": "ad-1",
                 "post_type": "video",
                 "title": "Open canons",
+                "campaign_name": "Summer campaign",
                 "content": "<p>Optional copy</p>",
                 "destination_blog": "inwell-ads",
                 "forum_url": "https://forum.example.test",
@@ -844,6 +846,7 @@ class PersistenceTests(unittest.TestCase):
 
         self.assertEqual(saved["id"], "ad-1")
         self.assertEqual(saved["post_type"], "video")
+        self.assertEqual(saved["campaign_name"], "Summer campaign")
         self.assertEqual(saved["content"], "<p>Optional copy</p>")
         self.assertEqual(saved["tags"], ["#jcink", "#forum rp"])
         self.assertEqual([row["tag"] for row in self.connection.advertisement_tags.values()], ["#jcink", "#forum rp"])

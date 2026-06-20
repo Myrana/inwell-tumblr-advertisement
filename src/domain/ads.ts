@@ -17,6 +17,7 @@ export const emptyAd = (destinationBlog = blogs[0] ?? ""): Advertisement => ({
   id: createId(),
   postType: "photo",
   title: "",
+  campaignName: "",
   content: "",
   destinationBlog,
   forumUrl: "",
@@ -63,6 +64,7 @@ export function fromApiAdvertisement(value: ApiAdvertisement): Advertisement {
     id: value.id,
     postType: value.post_type,
     title: value.title,
+    campaignName: value.campaign_name ?? "",
     content: value.content,
     destinationBlog: value.destination_blog,
     forumUrl: value.forum_url,
@@ -82,6 +84,7 @@ export function toApiAdvertisement(advertisement: Advertisement): ApiAdvertiseme
     id: advertisement.id,
     post_type: advertisement.postType,
     title: advertisement.title,
+    campaign_name: advertisement.campaignName,
     content: advertisement.content,
     destination_blog: advertisement.destinationBlog,
     forum_url: advertisement.forumUrl,
@@ -103,6 +106,7 @@ export function composerContentFor(advertisement: Advertisement) {
 export function hasLibraryContent(advertisement: Advertisement) {
   return Boolean(
     advertisement.title.trim() ||
+      advertisement.campaignName.trim() ||
       htmlToPlainText(composerContentFor(advertisement)) ||
       advertisement.destinationBlog.trim() ||
       advertisement.forumUrl.trim() ||

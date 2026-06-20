@@ -266,6 +266,7 @@ test("content library rows can queue a saved submission", { timeout: 40000 }, as
             id: "saved-ad",
             postType: "text",
             title: "Saved queue post",
+            campaignName: "Summer campaign",
             content: "<p>Saved content</p>",
             destinationBlog: "allthingsroleplay",
             forumUrl: "https://forum.example/thread",
@@ -341,6 +342,7 @@ test("content library rows can queue a saved submission", { timeout: 40000 }, as
   await page.getByRole("button", { name: "Content Library" }).click();
   const savedRow = page.locator(".draft-row", { hasText: "Saved queue post" });
   await savedRow.getByText("Type").waitFor();
+  await savedRow.getByText("Summer campaign").waitFor();
   await savedRow.getByText("Target").waitFor();
   await savedRow.getByText("Updated").waitFor();
   await page.getByLabel("Batch prep assistant").getByText("2 ready to queue - 1 need edits").waitFor();
@@ -349,6 +351,7 @@ test("content library rows can queue a saved submission", { timeout: 40000 }, as
   await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
   await page.getByText("Queued Second saved post in Want ads.").waitFor();
   assert.deepEqual(savedQueueItems.map((item) => item.ad_id).sort(), ["saved-ad", "saved-ad-two"]);
+  assert.equal(JSON.parse(savedQueueItems.find((item) => item.ad_id === "saved-ad").runner_payload).advertisement.campaignName, "Summer campaign");
   assert.equal(savedQueueItems.every((item) => item.target_id === "allthingsroleplay"), true);
   assert.equal(savedQueueItems.every((item) => item.queue_name === "Want ads"), true);
   assert.equal(await page.getByLabel("Active queue").inputValue(), "Want ads");
