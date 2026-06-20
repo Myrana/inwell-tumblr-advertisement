@@ -28,6 +28,7 @@ export function RunnerLogsWorkspace({
   const latestRunId = latestRunnerRunId(runnerLogs);
   const scopedLogs = useMemo(() => visibleRunnerLogs(runnerLogs, showLogHistory), [runnerLogs, showLogHistory]);
   const runGroups = useMemo(() => runnerLogRunGroups(scopedLogs), [scopedLogs]);
+  const latestRunGroup = runGroups[0] ?? null;
   const outsideQueueLogs = runnerLogsOutsideQueue(activeQueue, scopedLogs);
   const logScopeLabel = showLogHistory ? "All history" : latestRunId ? `Latest run ${latestRunId}` : "Latest logs";
 
@@ -88,6 +89,39 @@ export function RunnerLogsWorkspace({
 
       {scopedLogs.length ? (
         <div className="runner-log-run-list">
+          {latestRunGroup ? (
+            <section className={`runner-latest-summary ${latestRunGroup.errorCount ? "runner-latest-summary-failed" : ""}`} aria-label="Latest runner summary">
+              <div className="runner-latest-heading">
+                <div>
+                  <strong>{latestRunGroup.errorCount ? "Latest run failed" : latestRunGroup.warningCount ? "Latest run needs review" : "Latest run summary"}</strong>
+                  <span>{latestRunGroup.runId ? `Run ${latestRunGroup.runId}` : "Untracked run"} - {formatDate(latestRunGroup.latestAt)}</span>
+                </div>
+                <span className="runner-latest-count">
+                  {latestRunGroup.targetSummaries.length || latestRunGroup.targetNames.length || latestRunGroup.logs.length}
+                  {" "}
+                  target{(latestRunGroup.targetSummaries.length || latestRunGroup.targetNames.length || latestRunGroup.logs.length) === 1 ? "" : "s"}
+                </span>
+              </div>
+              {latestRunGroup.targetSummaries.length ? (
+                <div className="runner-target-summary-list compact" aria-label="Latest run target summaries">
+                  {latestRunGroup.targetSummaries.map((summary) => (
+                    <div className={`runner-target-summary runner-target-summary-${summary.status}`} key={summary.id}>
+                      <strong>{summary.name}</strong>
+                      <span>{targetSummaryLabel(summary.status)}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+              {latestRunGroup.failureExplanations.length ? (
+                <div className="runner-failure-summary" role="status">
+                  <strong>{latestRunGroup.errorCount ? "Why it failed" : "Why it needs review"}</strong>
+                  {latestRunGroup.failureExplanations.map((explanation) => (
+                    <span key={explanation}>{explanation}</span>
+                  ))}
+                </div>
+              ) : null}
+            </section>
+          ) : null}
           {runGroups.map((group, index) => {
             const isOpen = openRunIds.has(group.id);
             const groupTitle = group.runId ? `Run ${group.runId}` : "Untracked runner logs";

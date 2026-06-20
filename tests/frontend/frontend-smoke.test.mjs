@@ -1108,6 +1108,9 @@ test("runner logs are grouped by expandable queue run", { timeout: 40000 }, asyn
   await page.goto(appUrl);
   await page.getByRole("button", { name: "Runner Logs" }).click();
   await page.getByRole("heading", { name: "Runner logs", level: 1 }).waitFor();
+  await page.getByLabel("Latest runner summary").getByText("Latest run summary").waitFor();
+  await page.getByLabel("Latest run target summaries").getByText("allthingsroleplay").waitFor();
+  await page.getByLabel("Latest run target summaries").getByText("jcinktinder").waitFor();
   await page.getByRole("button", { name: /Latest run run-new/ }).waitFor();
   assert.equal(await page.locator(".queue-log strong", { hasText: "Fields filled and ready for manual review." }).count(), 1);
   await page.getByLabel("Run run-new target summaries").getByText("allthingsroleplay").waitFor();

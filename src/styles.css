@@ -1562,6 +1562,47 @@ pre {
   gap: 10px;
 }
 
+.runner-latest-summary {
+  padding: 14px;
+  display: grid;
+  gap: 12px;
+  border: 1px solid #b8ded4;
+  border-left: 4px solid var(--green);
+  border-radius: 8px;
+  background: #f5fbf8;
+}
+
+.runner-latest-summary-failed {
+  border-color: #ffd2c8;
+  border-left-color: var(--red);
+  background: #fff7f5;
+}
+
+.runner-latest-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.runner-latest-heading strong,
+.runner-latest-heading span {
+  display: block;
+}
+
+.runner-latest-heading span,
+.runner-latest-count {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.runner-latest-count {
+  margin-top: 0;
+  white-space: nowrap;
+}
+
 .runner-log-run {
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -1660,6 +1701,10 @@ pre {
 .runner-target-summary-list {
   display: grid;
   gap: 8px;
+}
+
+.runner-target-summary-list.compact {
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
 }
 
 .runner-target-summary {
@@ -1978,6 +2023,7 @@ html[data-theme="dark"] .template-composer,
 html[data-theme="dark"] .queue-management-row,
 html[data-theme="dark"] .account-session-row,
 html[data-theme="dark"] .runner-log-run,
+html[data-theme="dark"] .runner-latest-summary,
 html[data-theme="dark"] .queue-item,
 html[data-theme="dark"] .queue-log {
   background: var(--surface);
