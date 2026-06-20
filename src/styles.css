@@ -929,6 +929,41 @@ textarea:focus {
   background: #fff;
 }
 
+.tumblr-submit-shell.preview-mobile {
+  max-width: 430px;
+  margin-inline: auto;
+}
+
+.tumblr-submit-shell.preview-compact {
+  max-width: 340px;
+  margin-inline: auto;
+}
+
+.preview-mode-switcher {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  padding: 0.65rem;
+  border-bottom: 1px solid var(--line);
+  background: #f5f9fa;
+}
+
+.preview-mode-switcher button {
+  min-height: 32px;
+  padding: 0 0.75rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.preview-mode-switcher button.active {
+  border-color: rgba(42, 109, 132, 0.34);
+  background: #e8f5f7;
+  color: var(--text);
+}
+
 .tumblr-composer-header {
   min-height: 40px;
   display: grid;
@@ -2662,6 +2697,7 @@ html[data-theme="dark"] .template-card-actions,
 html[data-theme="dark"] .target-profile-editor,
 html[data-theme="dark"] .media-library-panel,
 html[data-theme="dark"] .media-library-asset,
+html[data-theme="dark"] .preview-mode-switcher,
 html[data-theme="dark"] .tumblr-tag-panel,
 html[data-theme="dark"] .tumblr-photo-stage,
 html[data-theme="dark"] .tumblr-body-field,
@@ -2692,6 +2728,12 @@ html[data-theme="dark"] .secondary,
 html[data-theme="dark"] .icon-button,
 html[data-theme="dark"] .tumblr-file-button {
   background: #243241;
+  color: var(--ink);
+}
+
+html[data-theme="dark"] .preview-mode-switcher button.active {
+  border-color: #375c6b;
+  background: #183242;
   color: var(--ink);
 }
 
