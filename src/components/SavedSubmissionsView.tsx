@@ -3,7 +3,7 @@ import { useState } from "react";
 import { hasLibraryContent } from "../domain/ads";
 import { findDuplicateContentMatches, mapDuplicateMatchesByAdId } from "../domain/duplicates";
 import { formatDate, formatStatus } from "../domain/format";
-import { validateAdvertisement } from "../domain/post";
+import { scoreDraftReadiness, validateAdvertisement } from "../domain/post";
 import { Advertisement, QueueDefinition } from "../domain/types";
 
 type SavedSubmissionsViewProps = {
@@ -137,6 +137,7 @@ export function SavedSubmissionsView({
       {libraryAds.map((ad) => {
         const duplicateMatch = duplicateMatchesByAdId.get(ad.id);
         const duplicatePeerNames = duplicateMatch?.labels.filter((label, index) => duplicateMatch.adIds[index] !== ad.id) ?? [];
+        const readiness = scoreDraftReadiness(ad);
 
         return (
           <article className={ad.id === activeAdId ? "draft-row selected" : "draft-row"} key={ad.id}>
@@ -160,6 +161,9 @@ export function SavedSubmissionsView({
               ) : null}
               <span><b>Type</b>{ad.postType}</span>
               <span><b>Status</b>{formatStatus(ad.status)}</span>
+              <span className={readiness.percent === 100 ? "readiness-pill ready" : "readiness-pill"}>
+                <b>Readiness</b>{readiness.label}
+              </span>
               {ad.campaignName ? <span><b>Campaign</b>{ad.campaignName}</span> : null}
               <span><b>Target</b>{ad.destinationBlog || "No target"}</span>
               <span><b>Updated</b>{formatDate(ad.updatedAt)}</span>

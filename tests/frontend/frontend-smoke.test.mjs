@@ -347,6 +347,7 @@ test("content library rows can queue a saved submission", { timeout: 40000 }, as
   await savedRow.getByText("Summer campaign").waitFor();
   await savedRow.getByText("Target").waitFor();
   await savedRow.getByText("Updated").waitFor();
+  await savedRow.getByText("100% ready").waitFor();
   await page.getByLabel("Batch prep assistant").getByText("2 ready to queue - 1 need edits").waitFor();
   await page.getByLabel("Duplicate content check").getByText("2 possible duplicates in 1 group").waitFor();
   assert.equal(await page.locator(".duplicate-pill").count(), 2);
@@ -476,6 +477,7 @@ test("custom blog submission flow does not blank the editor", { timeout: 40000 }
   await page.goto(appUrl);
   await assert.doesNotReject(() => page.getByRole("heading", { name: "Custom target ad" }).waitFor());
   await page.getByLabel("Content quality checklist").getByText("6 of 6 ready").waitFor();
+  await page.getByLabel("Content quality checklist").getByText("100% ready").waitFor();
   assert.equal(await page.getByRole("button", { name: "Log out" }).count(), 1);
   assert.equal(await page.getByLabel("Advertisement counts").count(), 0);
   await page.getByRole("button", { name: "Dark mode" }).click();
