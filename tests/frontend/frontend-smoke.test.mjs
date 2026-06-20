@@ -424,6 +424,22 @@ test("custom blog submission flow does not blank the editor", { timeout: 40000 }
             status: "draft",
             updatedAt: "2026-06-17T00:00:00.000Z",
           },
+          {
+            id: "media-source",
+            postType: "photo",
+            title: "Reusable media source",
+            content: "<p>Source body</p>",
+            destinationBlog: "allthingsroleplay",
+            forumUrl: "https://forum.example",
+            tags: [],
+            imageCaption: "",
+            imageName: "forum-banner.png",
+            imageDataUrl: "data:image/png;base64,iVBORw0KGgo=",
+            videoUrl: "",
+            videoName: "",
+            status: "draft",
+            updatedAt: "2026-06-18T00:00:00.000Z",
+          },
         ],
       }),
     );
@@ -500,6 +516,9 @@ test("custom blog submission flow does not blank the editor", { timeout: 40000 }
   assert.equal(await page.getByLabel("Queue destination").inputValue(), "Want ads");
   await page.getByRole("button", { name: "Toggle post content section" }).click();
   await page.locator(".tumblr-rich-editor strong", { hasText: "Quick saved copy" }).waitFor();
+  await page.getByLabel("Reusable media library").getByText("forum-banner.png").waitFor();
+  await page.getByRole("button", { name: "Use forum-banner.png" }).click();
+  await page.locator(".tumblr-photo-stage strong", { hasText: "forum-banner.png" }).waitFor();
   assert.equal(await page.getByText("Import this blog's tags from a screenshot").count(), 0);
   assert.equal(await page.getByLabel("jcink site").count(), 0);
   await page.getByPlaceholder("custom tag").fill("manual test tag");

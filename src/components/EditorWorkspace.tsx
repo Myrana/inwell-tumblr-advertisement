@@ -2,6 +2,7 @@ import { Editor, EditorContent } from "@tiptap/react";
 import { CheckCircle2, ChevronDown, Eye, ImagePlus, Plus, Send, Tags, Video } from "lucide-react";
 import { ChangeEvent, FormEvent, ReactNode, useState } from "react";
 import { postTypes } from "../domain/constants";
+import { MediaLibraryAsset } from "../domain/mediaLibrary";
 import { validateAdvertisement } from "../domain/post";
 import { Advertisement, PostType, QueueDefinition, SavedTemplate, TumblrSubmitTarget } from "../domain/types";
 import { TemplateLibrary } from "./TemplateLibrary";
@@ -26,6 +27,7 @@ type EditorWorkspaceProps = {
   checklistTags: string[];
   customTag: string;
   editor: Editor | null;
+  mediaLibraryAssets: MediaLibraryAsset[];
   newSubmitUrl: string;
   queueOptions: QueueDefinition[];
   queueConfirmation: QueueConfirmation | null;
@@ -38,6 +40,7 @@ type EditorWorkspaceProps = {
   validation: string[];
   onAddCustomTag: (event: FormEvent) => void;
   onAddSubmitTarget: (event: FormEvent) => void;
+  onApplyMediaAsset: (asset: MediaLibraryAsset) => void;
   onImageUpload: (event: ChangeEvent<HTMLInputElement>) => void;
   onApplyTemplate: (template: SavedTemplate) => void;
   onQueueTargets: (targets: TumblrSubmitTarget[]) => void;
@@ -60,6 +63,7 @@ export function EditorWorkspace({
   checklistTags,
   customTag,
   editor,
+  mediaLibraryAssets,
   newSubmitUrl,
   queueConfirmation,
   queueOptions,
@@ -72,6 +76,7 @@ export function EditorWorkspace({
   validation,
   onAddCustomTag,
   onAddSubmitTarget,
+  onApplyMediaAsset,
   onApplyTemplate,
   onImageUpload,
   onQueueTargets,
@@ -388,6 +393,36 @@ export function EditorWorkspace({
                           <input type="file" accept="video/*" onChange={onVideoUpload} />
                         </label>
                       </div>
+                    ) : null}
+
+                    {mediaLibraryAssets.length ? (
+                      <section className="media-library-panel" aria-label="Reusable media library">
+                        <div className="media-library-heading">
+                          <strong>Reusable media</strong>
+                          <span>{mediaLibraryAssets.length} saved asset{mediaLibraryAssets.length === 1 ? "" : "s"}</span>
+                        </div>
+                        <div className="media-library-grid">
+                          {mediaLibraryAssets.map((asset) => (
+                            <button
+                              key={asset.id}
+                              className="media-library-asset"
+                              type="button"
+                              aria-label={`Use ${asset.name}`}
+                              onClick={() => onApplyMediaAsset(asset)}
+                            >
+                              {asset.kind === "photo" && asset.imageDataUrl ? (
+                                <img src={asset.imageDataUrl} alt="" />
+                              ) : (
+                                <span className="media-library-icon">{asset.kind === "photo" ? <ImagePlus size={20} /> : <Video size={20} />}</span>
+                              )}
+                              <span>
+                                <strong>{asset.name}</strong>
+                                <small>{asset.sourceTitle}</small>
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      </section>
                     ) : null}
 
                     <div className="tumblr-editor-tools" aria-label="Editor tools">
