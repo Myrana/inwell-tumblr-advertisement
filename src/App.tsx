@@ -1047,31 +1047,72 @@ function App() {
     setAccountStatus(`Checking saved Tumblr login for ${account.displayName}...`);
 
     try {
-      const response = await checkTumblrLogin(id);
-      const fallbackStatus: TumblrAccount["status"] =
-        response.login.mode === "remote" && response.login.loggedIn ? "connected" : "needs-login";
-      const checked = response.login.mode === "remote" && response.login.account
-        ? fromApiTumblrAccount(response.login.account)
-        : {
-            ...account,
-            status: fallbackStatus,
-            lastCheckedAt: new Date().toISOString(),
-            notes: response.login.message,
-          };
+      const checked = await checkTumblrAccountHealth(account);
       setTumblrAccounts((current) => upsertTumblrAccount(current, checked));
       if (checked.status === "connected") {
         setRunnerSettings((current) => ({ ...current, tumblrAccountId: checked.id }));
       }
       setApiAvailable(true);
-      if (response.login.mode === "remote" && response.login.launchUrl) {
-        window.open(response.login.launchUrl, "_blank", "noopener,noreferrer");
-      }
-      setAccountStatus(response.login.message);
+      setAccountStatus(checked.notes);
     } catch (error) {
       setApiAvailable(false);
       const message = error instanceof ApiError ? error.message : "Could not check saved Tumblr login. Start the Python API and try again.";
       setAccountStatus(message);
     }
+  }
+
+  async function checkTumblrAccountHealth(account: TumblrAccount) {
+    const response = await checkTumblrLogin(account.id);
+    const fallbackStatus: TumblrAccount["status"] =
+      response.login.mode === "remote" && response.login.loggedIn ? "connected" : "needs-login";
+    const checked = response.login.mode === "remote" && response.login.account
+      ? fromApiTumblrAccount(response.login.account)
+      : {
+          ...account,
+          status: fallbackStatus,
+          lastCheckedAt: new Date().toISOString(),
+          notes: response.login.message,
+        };
+    if (response.login.mode === "remote" && response.login.launchUrl) {
+      window.open(response.login.launchUrl, "_blank", "noopener,noreferrer");
+    }
+    return checked;
+  }
+
+  async function checkAllTumblrAccountLogins() {
+    if (!tumblrAccounts.length) {
+      setAccountStatus("Add a Tumblr account before checking saved logins.");
+      return;
+    }
+
+    setAccountStatus(`Checking ${tumblrAccounts.length} saved Tumblr login${tumblrAccounts.length === 1 ? "" : "s"}...`);
+    let connectedCount = 0;
+    let checkedCount = 0;
+
+    for (const account of tumblrAccounts) {
+      try {
+        const checked = await checkTumblrAccountHealth(account);
+        checkedCount += 1;
+        if (checked.status === "connected") {
+          connectedCount += 1;
+          setRunnerSettings((current) => current.tumblrAccountId ? current : { ...current, tumblrAccountId: checked.id });
+        }
+        setTumblrAccounts((current) => upsertTumblrAccount(current, checked));
+        setApiAvailable(true);
+      } catch {
+        const failed: TumblrAccount = {
+          ...account,
+          status: "needs-login",
+          lastCheckedAt: new Date().toISOString(),
+          notes: "Saved Tumblr login could not be verified.",
+        };
+        checkedCount += 1;
+        setTumblrAccounts((current) => upsertTumblrAccount(current, failed));
+        syncTumblrAccount(failed);
+      }
+    }
+
+    setAccountStatus(`Checked ${checkedCount} account${checkedCount === 1 ? "" : "s"}: ${connectedCount} connected.`);
   }
 
   function markTumblrAccountConnected(id: string) {
@@ -1553,6 +1594,7 @@ function App() {
             onCreateAccount={createTumblrAccount}
             onDeleteAccount={deleteTumblrAccount}
             onDraftChange={(patch) => setAccountDraft((current) => ({ ...current, ...patch }))}
+            onCheckAllLogins={checkAllTumblrAccountLogins}
             onCheckLogin={checkTumblrAccountLogin}
             onLaunchLogin={launchTumblrAccountLogin}
             onMarkConnected={markTumblrAccountConnected}

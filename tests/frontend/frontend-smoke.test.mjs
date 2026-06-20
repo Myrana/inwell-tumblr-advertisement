@@ -781,6 +781,7 @@ test("tumblr accounts can be saved and selected for queue runs", { timeout: 4000
   };
   let savedAccount = null;
   let loginPayload = null;
+  const loginCheckPayloads = [];
 
   page.on("pageerror", (error) => pageErrors.push(error));
   await page.route("http://127.0.0.1:8021/api/**", (route) => route.abort());
@@ -834,6 +835,32 @@ test("tumblr accounts can be saved and selected for queue runs", { timeout: 4000
       }),
     });
   });
+  await page.route("http://127.0.0.1:8021/api/tumblr/login-check", (route) => {
+    const payload = route.request().postDataJSON();
+    loginCheckPayloads.push(payload);
+    return route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({
+        login: {
+          mode: "remote",
+          loggedIn: true,
+          message: "Saved Tumblr login is healthy.",
+          account: {
+            id: payload.accountId,
+            display_name: "Myrana Tumblr",
+            blog_name: "snowleopardx",
+            user_data_dir: "",
+            status: "connected",
+            last_checked_at: "2026-06-20T12:00:00.000Z",
+            last_login_at: "2026-06-20T12:00:00.000Z",
+            notes: "Saved Tumblr login is healthy.",
+            updated_at: "2026-06-20T12:00:00.000Z",
+          },
+        },
+      }),
+    });
+  });
 
   await page.goto(appUrl);
   await page.getByRole("button", { name: "Tumblr Accounts" }).click();
@@ -847,6 +874,8 @@ test("tumblr accounts can be saved and selected for queue runs", { timeout: 4000
   assert.equal(savedAccount?.id, "snowleopardx");
   assert.equal(savedAccount?.status, "needs-login");
   await page.getByText("Connect a Tumblr account below before selecting one for the runner.").waitFor();
+  await page.getByLabel("Tumblr account health").getByText("1 need attention out of 1").waitFor();
+  await page.getByLabel("Tumblr account health").getByText("Stale check").waitFor();
   assert.equal(await page.getByLabel("Runner account").inputValue(), "");
   assert.equal(await page.getByLabel("Runner account").isDisabled(), true);
 
@@ -861,6 +890,11 @@ test("tumblr accounts can be saved and selected for queue runs", { timeout: 4000
   assert.equal(await page.getByLabel("Runner account").inputValue(), "snowleopardx");
   const connectedAccountRow = page.locator(".account-session-row", { hasText: "Myrana Tumblr" });
   await connectedAccountRow.locator(".account-status-pill", { hasText: "Connected" }).waitFor();
+  await page.getByRole("button", { name: "Check all saved logins" }).click();
+  await page.getByText("Checked 1 account: 1 connected.").waitFor();
+  assert.equal(loginCheckPayloads[0]?.accountId, "snowleopardx");
+  await page.getByLabel("Tumblr account health").getByText("0 need attention out of 1").waitFor();
+  await connectedAccountRow.getByText("Last checked").waitFor();
   assert.equal(await connectedAccountRow.getByRole("button", { name: "Connect", exact: true }).count(), 0);
   assert.equal(await connectedAccountRow.getByRole("button", { name: "Mark connected", exact: true }).count(), 0);
   assert.doesNotMatch(

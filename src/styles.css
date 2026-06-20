@@ -1528,6 +1528,24 @@ pre {
   overflow-wrap: anywhere;
 }
 
+.account-health-panel {
+  margin: 16px 0;
+  padding: 14px;
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafb;
+}
+
+.account-health-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.account-health-panel > button {
+  justify-self: start;
+}
+
 .queue-monitor-grid {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
@@ -2417,6 +2435,10 @@ html[data-theme="dark"] .draft-row.selected,
 html[data-theme="dark"] .tag-check.selected {
   border-color: #4da0b0;
   background: #12252b;
+}
+
+html[data-theme="dark"] .account-health-panel {
+  background: #101a21;
 }
 
 html[data-theme="dark"] .workspace-saved .draft-row {
