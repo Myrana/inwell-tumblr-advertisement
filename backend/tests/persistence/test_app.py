@@ -1602,6 +1602,12 @@ class PersistenceTests(unittest.TestCase):
         self.assertIn("HKCU:\\Software\\Classes\\inkwell-runner", script)
         self.assertIn("inkwell-runner://start", script)
         self.assertIn("GetFolderPath(\"Startup\")", script)
+        self.assertIn("Install-RunnerPackage", script)
+        self.assertIn('Join-Path $launcherRoot "runner"', script)
+        self.assertIn("Copy-Item -LiteralPath", script)
+        self.assertIn('Start-Transcript -Path $logPath -Append', script)
+        self.assertIn('"runner.log"', script)
+        self.assertIn("Local runner exited with code $LASTEXITCODE", script)
         self.assertIn("Could not register scheduled task", script)
         self.assertIn("-WindowStyle Hidden", script)
 
