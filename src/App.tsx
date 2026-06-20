@@ -917,6 +917,12 @@ function App() {
     }
   }
 
+  async function retryQueueItemTestRun(id: string) {
+    updateQueueItem(id, "queued", "Requeued for a dry-run recovery attempt.");
+    setQueueStatus("Starting a recovery test run. It will prepare Tumblr without submitting.");
+    await startRunner({ submit: false });
+  }
+
   function editQueuedSubmission(id: string) {
     const item = submissionQueue.find((queueItem) => queueItem.id === id);
     if (!item) {
@@ -1555,6 +1561,7 @@ function App() {
             onRunnerHeadlessChange={(headless) => setRunnerSettings((current) => ({ ...current, headless }))}
             onRunnerSubmitApprovedChange={(submit) => setRunnerSettings((current) => ({ ...current, submit }))}
             showLaunchLocalRunner={canLaunchLocalRunner}
+            onRetryQueueItemTestRun={retryQueueItemTestRun}
             onUpdateQueueItem={updateQueueItem}
           />
         ) : null}

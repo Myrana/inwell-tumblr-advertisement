@@ -1675,10 +1675,14 @@ test("running the queue prepares the local runner and shows failure explanations
   await page.getByText("Local companion connected; last run failed").waitFor();
   await page.getByText("Why this failed").waitFor();
   await page.getByText("The Playwright browser or tab closed before the runner finished.").waitFor();
+  await page.getByText("Use Retry test run after fixing the blocker.").waitFor();
   assert.equal(await page.getByRole("button", { name: "Running" }).count(), 0);
   assert.equal(await page.getByRole("button", { name: "Needs review" }).count(), 0);
   await page.getByRole("button", { name: "Requeue" }).waitFor();
   await page.getByRole("button", { name: "Mark posted" }).waitFor();
+  await page.getByRole("button", { name: "Retry test run" }).click();
+  await page.getByText("Local companion started a test run.").waitFor();
+  assert.deepEqual(companionRunPayloads.at(-1), { queueName: "Default queue", headless: true, submit: false });
   assert.equal(await page.getByText("Manual override").count(), 0);
   assert.equal(await page.getByRole("button", { name: "Mark failed" }).count(), 0);
   await page.getByRole("button", { name: "Runner Logs" }).click();
