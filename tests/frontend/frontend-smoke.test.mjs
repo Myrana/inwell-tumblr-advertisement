@@ -1423,6 +1423,27 @@ test("running the queue prepares the local runner and shows failure explanations
   await page.getByText("Local companion started the runner on this computer.").waitFor();
   assert.equal(companionRunRequested, true);
   assert.deepEqual(await page.evaluate(() => window.__openedUrls), []);
+  await page.unroute("http://127.0.0.1:17842/status");
+  await page.route("http://127.0.0.1:17842/status", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        version: "local-runner-test",
+        apiBaseUrl: "https://inkwell-production-f037.up.railway.app/api",
+        workspaceId: "workspace-test",
+        queueName: "Default queue",
+        watching: true,
+        running: false,
+        status: "error",
+        lastStartedAt: "2026-06-20T01:00:00.000Z",
+        lastFinishedAt: "2026-06-20T01:00:10.000Z",
+        lastExitCode: 1,
+        lastError: "",
+      }),
+    }),
+  );
+  await page.getByText("Local companion connected; last run failed").waitFor();
   await page.getByText("Why this failed").waitFor();
   await page.getByText("The Playwright browser or tab closed before the runner finished.").waitFor();
   assert.equal(await page.getByRole("button", { name: "Running" }).count(), 0);

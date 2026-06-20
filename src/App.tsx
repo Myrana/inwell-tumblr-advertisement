@@ -166,7 +166,18 @@ function App() {
   const activeQueue = submissionQueue.filter((item) => item.queueName === activeQueueName);
   const runnerConnectionLabel = useMemo(() => {
     if (localCompanion?.ok) {
-      return localCompanion.running ? "Local companion running" : "Local companion connected";
+      if (localCompanion.running) {
+        return "Local companion running";
+      }
+      if (localCompanion.status === "error") {
+        return localCompanion.lastError
+          ? `Local companion connected: ${localCompanion.lastError}`
+          : "Local companion connected; last run failed";
+      }
+      if (localCompanion.status === "watching") {
+        return localCompanion.queueName ? `Local companion watching: ${localCompanion.queueName}` : "Local companion watching";
+      }
+      return "Local companion connected";
     }
     const localRunner = runnerState?.local_runner;
     return localRunner?.online
@@ -1066,6 +1077,11 @@ function App() {
             ? "Local companion started the runner on this computer. You can leave this page open while it works."
             : run.error || "Local companion could not start the runner.",
         );
+        [2500, 6000].forEach((delay) => {
+          window.setTimeout(() => {
+            void refreshLocalCompanionStatus({ quiet: true });
+          }, delay);
+        });
         void refreshRunnerStatus({ quiet: true });
         return;
       }
@@ -1082,10 +1098,12 @@ function App() {
 
   function launchLocalRunnerProtocol() {
     window.location.href = "inkwell-runner://start";
-    setQueueStatus("Opening the installed local runner. If Windows asks, allow Inkwell Local Runner, then click Run locally again.");
-    window.setTimeout(() => {
-      void refreshLocalCompanionStatus({ quiet: true });
-    }, 2500);
+    setQueueStatus("Opening the installed local runner. If Windows asks, allow Inkwell Local Runner.");
+    [1000, 2500, 5000, 8000].forEach((delay) => {
+      window.setTimeout(() => {
+        void refreshLocalCompanionStatus({ quiet: true });
+      }, delay);
+    });
   }
 
   async function downloadLocalRunnerInstaller() {
