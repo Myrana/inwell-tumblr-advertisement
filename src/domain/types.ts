@@ -17,6 +17,7 @@ export type Advertisement = {
   id: string;
   postType: PostType;
   title: string;
+  campaignName: string;
   content: string;
   destinationBlog: string;
   forumUrl: string;
@@ -169,6 +170,7 @@ export type ApiAdvertisement = {
   id: string;
   post_type?: PostType;
   title: string;
+  campaign_name?: string;
   content: string;
   destination_blog: string;
   forum_url: string;

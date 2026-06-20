@@ -202,6 +202,16 @@ export function EditorWorkspace({
                 </label>
 
                 <label>
+                  Campaign
+                  <input
+                    value={activeAd.campaignName}
+                    onChange={(event) => onUpdateActiveAd({ campaignName: event.target.value })}
+                    placeholder="Summer wanted ads"
+                  />
+                  <span className="field-hint">Groups related submissions and queue runs.</span>
+                </label>
+
+                <label>
                   Target Tumblr blog
                   <select value={activeAd.destinationBlog} onChange={(event) => onSelectSubmitTarget(event.target.value)}>
                     <option value="">No blog selected</option>

@@ -97,6 +97,7 @@ export function buildRunnerPayload(advertisement: Advertisement, target: TumblrS
       advertisement: {
         id: advertisement.id,
         savedOptionName: advertisement.title,
+        campaignName: advertisement.campaignName,
         postType: advertisement.postType,
         forumUrl: advertisement.forumUrl,
         tags: advertisement.tags,

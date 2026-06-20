@@ -89,6 +89,7 @@ export function SavedSubmissionsView({
             <div className="draft-row-meta">
               <span><b>Type</b>{ad.postType}</span>
               <span><b>Status</b>{formatStatus(ad.status)}</span>
+              {ad.campaignName ? <span><b>Campaign</b>{ad.campaignName}</span> : null}
               <span><b>Target</b>{ad.destinationBlog || "No target"}</span>
               <span><b>Updated</b>{formatDate(ad.updatedAt)}</span>
             </div>

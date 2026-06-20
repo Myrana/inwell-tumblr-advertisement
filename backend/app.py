@@ -210,6 +210,7 @@ def initialize(connection: ConnectionLike) -> None:
             workspace_id TEXT NOT NULL DEFAULT 'default',
             post_type TEXT NOT NULL DEFAULT 'photo',
             title TEXT NOT NULL DEFAULT '',
+            campaign_name TEXT NOT NULL DEFAULT '',
             content TEXT NOT NULL DEFAULT '',
             destination_blog TEXT NOT NULL DEFAULT '',
             forum_url TEXT NOT NULL DEFAULT '',
@@ -428,6 +429,7 @@ def initialize(connection: ConnectionLike) -> None:
     connection.execute("ALTER TABLE tumblr_accounts ADD COLUMN IF NOT EXISTS browserbase_session_expires_at TIMESTAMPTZ")
     for table in ("advertisements", "templates", "submission_queue", "tumblr_accounts", "runner_logs"):
         connection.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS workspace_id TEXT NOT NULL DEFAULT 'default'")
+    connection.execute("ALTER TABLE advertisements ADD COLUMN IF NOT EXISTS campaign_name TEXT NOT NULL DEFAULT ''")
     for table in (
         "advertisement_tags",
         "template_tags",
@@ -1123,6 +1125,7 @@ def advertisement_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "workspace_id": str(payload.get("workspace_id") or "default"),
         "post_type": post_type,
         "title": str(payload.get("title", "")).strip(),
+        "campaign_name": str(payload.get("campaign_name") or payload.get("campaignName") or "").strip(),
         "content": str(payload.get("content", "")),
         "destination_blog": str(payload.get("destination_blog", "")).strip(),
         "forum_url": str(payload.get("forum_url", "")).strip(),
@@ -1738,15 +1741,16 @@ def upsert_advertisement(connection: ConnectionLike, payload: dict[str, Any]) ->
     connection.execute(
         """
         INSERT INTO advertisements (
-            id, workspace_id, post_type, title, content, destination_blog, forum_url,
+            id, workspace_id, post_type, title, campaign_name, content, destination_blog, forum_url,
             image_caption, image_name, image_data_url, video_url, video_name,
             status, created_at, updated_at
         )
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT(id) DO UPDATE SET
             workspace_id = excluded.workspace_id,
             post_type = excluded.post_type,
             title = excluded.title,
+            campaign_name = excluded.campaign_name,
             content = excluded.content,
             destination_blog = excluded.destination_blog,
             forum_url = excluded.forum_url,
@@ -1763,6 +1767,7 @@ def upsert_advertisement(connection: ConnectionLike, payload: dict[str, Any]) ->
             advertisement["workspace_id"],
             advertisement["post_type"],
             advertisement["title"],
+            advertisement["campaign_name"],
             advertisement["content"],
             advertisement["destination_blog"],
             advertisement["forum_url"],
