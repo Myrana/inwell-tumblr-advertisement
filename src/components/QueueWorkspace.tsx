@@ -6,15 +6,11 @@ import { formatEasternRun, nextDailyRunAt, scheduleSummary } from "../domain/sch
 import {
   QueueDefinition,
   QueueSchedulePreference,
+  RunnerActivity,
   RunnerLog,
   SubmissionQueueItem,
   SubmissionStatus,
 } from "../domain/types";
-
-type RunnerActivity = {
-  status: string;
-  detail: string;
-};
 
 type QueueWorkspaceProps = {
   activeQueue: SubmissionQueueItem[];

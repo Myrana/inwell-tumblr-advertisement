@@ -334,6 +334,10 @@ test("content library rows can queue a saved submission", { timeout: 40000 }, as
   });
 
   await page.goto(appUrl);
+  await page.getByRole("button", { name: "Operations" }).click();
+  await page.getByRole("heading", { name: "Operations dashboard", level: 1 }).waitFor();
+  await page.getByLabel("Operations dashboard").getByText("3 saved drafts").waitFor();
+  await page.getByLabel("Operations dashboard").getByText("Local runner offline").waitFor();
   await page.getByRole("button", { name: "Content Library" }).click();
   const savedRow = page.locator(".draft-row", { hasText: "Saved queue post" });
   await savedRow.getByText("Type").waitFor();
