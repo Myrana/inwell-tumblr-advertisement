@@ -205,6 +205,92 @@ test("login lockout shows a wait message", { timeout: 40000 }, async (t) => {
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
 });
 
+test("content library rows can queue a saved submission", { timeout: 40000 }, async (t) => {
+  const server = spawn("npx vite --host 127.0.0.1 --port 8123 --strictPort", {
+    cwd: process.cwd(),
+    shell: true,
+    stdio: "ignore",
+  });
+
+  t.after(() => {
+    stopProcessTree(server);
+  });
+
+  await waitForServer(appUrl);
+
+  const browser = await chromium.launch();
+  t.after(async () => {
+    await browser.close();
+  });
+
+  const page = await browser.newPage();
+  const pageErrors = [];
+  let savedQueueItem = null;
+  page.on("pageerror", (error) => pageErrors.push(error));
+  await page.route("http://127.0.0.1:8021/api/**", (route) => route.abort());
+  await routeAuthenticatedSession(page);
+  await routeEmptyWorkspaceApis(page);
+  await page.route("http://127.0.0.1:8021/api/queue/**", (route) => {
+    savedQueueItem = route.request().postDataJSON();
+    return route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({ queue_item: savedQueueItem }),
+    });
+  });
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      "inwell-ad-assistant-state",
+      JSON.stringify({
+        activeAdId: "saved-ad",
+        ads: [
+          {
+            id: "saved-ad",
+            postType: "text",
+            title: "Saved queue post",
+            content: "<p>Saved content</p>",
+            destinationBlog: "allthingsroleplay",
+            forumUrl: "https://forum.example/thread",
+            tags: ["wanted"],
+            imageCaption: "",
+            imageName: "",
+            imageDataUrl: "",
+            videoUrl: "",
+            videoName: "",
+            status: "draft",
+            updatedAt: "2026-06-20T12:00:00.000Z",
+          },
+        ],
+      }),
+    );
+    localStorage.setItem(
+      "inwell-tumblr-submit-targets",
+      JSON.stringify([
+        {
+          id: "allthingsroleplay",
+          name: "allthingsroleplay",
+          submitUrl: "https://allthingsroleplay.tumblr.com/submit",
+          forumUrl: "https://forum.example/thread",
+        },
+      ]),
+    );
+    localStorage.setItem(
+      "inwell-tumblr-queue-definitions",
+      JSON.stringify([{ id: "default-queue", name: "Default queue" }]),
+    );
+  });
+
+  await page.goto(appUrl);
+  await page.getByRole("button", { name: "Content Library" }).click();
+  await page.locator(".draft-row", { hasText: "Saved queue post" }).getByRole("button", { name: "Queue" }).click();
+  await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
+  await page.getByText("Queued Saved queue post in Default queue.").waitFor();
+  assert.equal(savedQueueItem?.ad_id, "saved-ad");
+  assert.equal(savedQueueItem?.target_id, "allthingsroleplay");
+  assert.equal(savedQueueItem?.queue_name, "Default queue");
+  assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
+});
+
 test("custom blog submission flow does not blank the editor", { timeout: 40000 }, async (t) => {
   const server = spawn("npx vite --host 127.0.0.1 --port 8123 --strictPort", {
     cwd: process.cwd(),
