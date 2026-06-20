@@ -48,6 +48,7 @@ function parseLocalArgs(argv) {
     userDataDir: ".tumblr-runner-profile-local",
     mediaDir: "",
     slowMo: "500",
+    headless: false,
     submit: false,
     watch: false,
     noPause: false,
@@ -75,6 +76,8 @@ function parseLocalArgs(argv) {
       options.slowMo = String(argv[++index] ?? "500");
     } else if (arg === "--limit") {
       options.limit = String(argv[++index] ?? "");
+    } else if (arg === "--headless") {
+      options.headless = true;
     } else if (arg === "--submit") {
       options.submit = true;
     } else if (arg === "--watch") {
@@ -163,6 +166,9 @@ async function runPlan(options, plan) {
   }
   if (options.submit) {
     runnerArgs.push("--submit");
+  }
+  if (options.headless) {
+    runnerArgs.push("--headless");
   }
   if (options.noPause) {
     runnerArgs.push("--no-pause");
@@ -288,6 +294,9 @@ function startCompanionServer(options, state) {
       const runOptions = { ...options };
       if (payload && typeof payload === "object" && "queueName" in payload) {
         runOptions.queueName = String(payload.queueName || options.queueName) || options.queueName;
+      }
+      if (payload && typeof payload === "object" && "headless" in payload) {
+        runOptions.headless = Boolean(payload.headless);
       }
       void executeLocalRun(runOptions, state).catch((error) => {
         console.error(`[local-runner:error] ${error instanceof Error ? error.message : String(error)}`);

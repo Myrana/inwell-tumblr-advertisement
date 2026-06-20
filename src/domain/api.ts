@@ -261,12 +261,12 @@ export async function loadLocalCompanionStatus() {
   return localCompanionRequest<LocalCompanionStatus>("/status", { method: "GET" }, 350);
 }
 
-export async function runLocalCompanion(queueName: string) {
+export async function runLocalCompanion(queueName: string, options: { headless?: boolean } = {}) {
   return localCompanionRequest<LocalCompanionStatus>(
     "/run",
     {
       method: "POST",
-      body: JSON.stringify({ queueName }),
+      body: JSON.stringify({ queueName, headless: Boolean(options.headless) }),
     },
     1500,
   );

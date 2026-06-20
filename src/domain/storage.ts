@@ -57,6 +57,7 @@ export function loadRunnerSettings(): RunnerSettings {
     return {
       mediaDir: typeof parsed.mediaDir === "string" ? parsed.mediaDir : "",
       slowMo: typeof parsed.slowMo === "number" ? parsed.slowMo : 500,
+      headless: Boolean(parsed.headless),
       submit: Boolean(parsed.submit),
       tumblrAccountId: typeof parsed.tumblrAccountId === "string" ? parsed.tumblrAccountId : "",
       remoteBrowserProvider: provider,
@@ -71,6 +72,7 @@ function defaultRunnerSettings(): RunnerSettings {
   return {
     mediaDir: "",
     slowMo: 500,
+    headless: false,
     submit: false,
     tumblrAccountId: "",
     remoteBrowserProvider: "none",

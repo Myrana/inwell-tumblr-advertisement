@@ -1299,7 +1299,7 @@ test("running the queue prepares the local runner and shows failure explanations
     route.fulfill({
       contentType: "application/json",
       headers: apiHeaders,
-      body: JSON.stringify({ settings: { runnerSettings: { mediaDir: "", slowMo: 500, submit: false, tumblrAccountId: "snowleopardx" } } }),
+      body: JSON.stringify({ settings: { runnerSettings: { mediaDir: "", slowMo: 500, headless: false, submit: false, tumblrAccountId: "snowleopardx" } } }),
     }),
   );
   await page.addInitScript(() => {
@@ -1352,6 +1352,8 @@ test("running the queue prepares the local runner and shows failure explanations
   await page.getByLabel("Workspace views").getByRole("button", { name: "Queues", exact: true }).click();
   await page.locator(".queue-management-row", { hasText: "Default queue" }).getByRole("button", { name: "Open queue" }).click();
   await page.getByText("Local runner online: Default queue").waitFor();
+  await page.getByLabel("Local runner activity").getByText("Watching", { exact: true }).waitFor();
+  await page.getByLabel("Local runner activity").getByText("Runner is watching Default queue.").waitFor();
   await page.getByLabel("Queue actions").getByRole("button", { name: "Start" }).click();
   await page.getByText("Opening the installed local runner.").waitFor();
   await page.getByLabel("Queue actions").getByRole("button", { name: "Download" }).click();
@@ -1378,6 +1380,7 @@ test("running the queue prepares the local runner and shows failure explanations
   await page.getByText(/ilr_private_token/).waitFor({ state: "detached" });
 
   let companionRunRequested = false;
+  let companionRunPayload = null;
   await page.unroute("http://127.0.0.1:17842/status", unavailableCompanionStatus);
   await page.route("http://127.0.0.1:17842/status", (route) =>
     route.fulfill({
@@ -1398,8 +1401,9 @@ test("running the queue prepares the local runner and shows failure explanations
       }),
     }),
   );
-  await page.route("http://127.0.0.1:17842/run", (route) => {
+  await page.route("http://127.0.0.1:17842/run", async (route) => {
     companionRunRequested = true;
+    companionRunPayload = route.request().postDataJSON();
     return route.fulfill({
       contentType: "application/json",
       body: JSON.stringify({
@@ -1422,9 +1426,13 @@ test("running the queue prepares the local runner and shows failure explanations
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
   await page.getByText("Local companion is watching Default queue.").waitFor();
   await page.getByText("Local companion was not detected on this computer", { exact: false }).waitFor({ state: "detached" });
+  await page.getByLabel("Local runner activity").getByLabel("Run headless").check();
   await page.getByLabel("Queue actions").getByRole("button", { name: "Run" }).click();
-  await page.getByText("Local companion started the runner on this computer.").waitFor();
+  await page.getByText("Local companion started the runner headless.").waitFor();
   assert.equal(companionRunRequested, true);
+  assert.deepEqual(companionRunPayload, { queueName: "Default queue", headless: true });
+  await page.getByLabel("Local runner activity").getByText("Running", { exact: true }).waitFor();
+  await page.getByLabel("Local runner activity").getByText("Working through Default queue.").waitFor();
   assert.deepEqual(await page.evaluate(() => window.__openedUrls), []);
   await page.unroute("http://127.0.0.1:17842/status");
   await page.route("http://127.0.0.1:17842/status", (route) =>

@@ -84,6 +84,7 @@ export type RemoteBrowserProvider = "none" | "browserbase" | "browserless" | "cu
 export type RunnerSettings = {
   mediaDir: string;
   slowMo: number;
+  headless: boolean;
   submit: boolean;
   tumblrAccountId: string;
   remoteBrowserProvider: RemoteBrowserProvider;

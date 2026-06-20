@@ -12,6 +12,11 @@ import {
   TumblrSubmitTarget,
 } from "../domain/types";
 
+type RunnerActivity = {
+  status: string;
+  detail: string;
+};
+
 type QueueWorkspaceProps = {
   activeQueue: SubmissionQueueItem[];
   activeSubmitTarget: TumblrSubmitTarget;
@@ -20,6 +25,8 @@ type QueueWorkspaceProps = {
   queueStatus: string;
   queueScheduleSettings: QueueScheduleSettings;
   runnerConnectionLabel: string;
+  runnerActivity: RunnerActivity;
+  runnerHeadless: boolean;
   runnerLogs: RunnerLog[];
   targetOptions: TumblrSubmitTarget[];
   onClearQueue: (queueName: string, completedOnly: boolean) => void;
@@ -32,6 +39,7 @@ type QueueWorkspaceProps = {
   onDownloadLocalRunner: () => void;
   onLaunchLocalRunner: () => void;
   onStartRunner: () => void;
+  onRunnerHeadlessChange: (headless: boolean) => void;
   showLaunchLocalRunner: boolean;
   onUpdateQueueItem: (id: string, status: SubmissionStatus, notes: string) => void;
 };
@@ -46,6 +54,8 @@ export function QueueWorkspace({
   queueStatus,
   queueScheduleSettings,
   runnerConnectionLabel,
+  runnerActivity,
+  runnerHeadless,
   runnerLogs,
   targetOptions,
   onClearQueue,
@@ -58,6 +68,7 @@ export function QueueWorkspace({
   onDownloadLocalRunner,
   onLaunchLocalRunner,
   onStartRunner,
+  onRunnerHeadlessChange,
   showLaunchLocalRunner,
   onUpdateQueueItem,
 }: QueueWorkspaceProps) {
@@ -246,6 +257,21 @@ export function QueueWorkspace({
             </button>
           </div>
         </div>
+      </section>
+
+      <section className="runner-activity-panel" aria-label="Local runner activity">
+        <div>
+          <strong>{runnerActivity.status}</strong>
+          <span>{runnerActivity.detail}</span>
+        </div>
+        <label className="runner-submit-toggle runner-headless-toggle">
+          <input
+            checked={runnerHeadless}
+            type="checkbox"
+            onChange={(event) => onRunnerHeadlessChange(event.target.checked)}
+          />
+          Run headless
+        </label>
       </section>
 
       {queueStatus ? <p className="queue-status">{queueStatus}</p> : null}
