@@ -7,11 +7,9 @@ import {
   QueueDefinition,
   QueueScheduleSettings,
   RunnerLog,
-  RunnerSettings,
   RunnerStatus,
   SubmissionQueueItem,
   SubmissionStatus,
-  TumblrAccount,
   TumblrSubmitTarget,
 } from "../domain/types";
 
@@ -22,11 +20,9 @@ type QueueWorkspaceProps = {
   queueOptions: QueueDefinition[];
   queueStatus: string;
   queueScheduleSettings: QueueScheduleSettings;
-  runnerSettings: RunnerSettings;
   runnerState: RunnerStatus | null;
   runnerLogs: RunnerLog[];
   targetOptions: TumblrSubmitTarget[];
-  tumblrAccounts: TumblrAccount[];
   onClearQueue: (queueName: string, completedOnly: boolean) => void;
   onEditQueueItem: (id: string) => void;
   onQueueTargets: (targets: TumblrSubmitTarget[]) => void;
@@ -34,13 +30,11 @@ type QueueWorkspaceProps = {
   onSelectQueue: (queueName: string) => void;
   onQueueScheduleSettingsChange: (patch: Partial<QueueScheduleSettings>) => void;
   onCopyLocalRunnerSetup: () => void;
-  onRefreshRunnerStatus: () => void;
-  onRunnerSettingsChange: (patch: Partial<RunnerSettings>) => void;
   onStartRunner: () => void;
   onUpdateQueueItem: (id: string, status: SubmissionStatus, notes: string) => void;
 };
 
-type QueueSectionKey = "overview" | "schedule" | "runner" | "actions" | "submissions";
+type QueueSectionKey = "overview" | "schedule" | "actions" | "submissions";
 
 export function QueueWorkspace({
   activeQueue,
@@ -49,11 +43,9 @@ export function QueueWorkspace({
   queueOptions,
   queueStatus,
   queueScheduleSettings,
-  runnerSettings,
   runnerState,
   runnerLogs,
   targetOptions,
-  tumblrAccounts,
   onClearQueue,
   onEditQueueItem,
   onQueueTargets,
@@ -61,15 +53,12 @@ export function QueueWorkspace({
   onSelectQueue,
   onQueueScheduleSettingsChange,
   onCopyLocalRunnerSetup,
-  onRefreshRunnerStatus,
-  onRunnerSettingsChange,
   onStartRunner,
   onUpdateQueueItem,
 }: QueueWorkspaceProps) {
   const [openSections, setOpenSections] = useState<Record<QueueSectionKey, boolean>>({
     overview: true,
     schedule: false,
-    runner: false,
     actions: false,
     submissions: true,
   });
@@ -207,56 +196,7 @@ export function QueueWorkspace({
 
       <section className="workflow-section queue-workflow-section">
         <div className="workflow-section-header">
-          {sectionToggle("runner", "Runner settings", runnerSettings.tumblrAccountId ? "Tumblr account selected" : "Select a Tumblr account before running")}
-          <span className={runnerSettings.tumblrAccountId ? "section-state ready" : "section-state"}>{runnerSettings.tumblrAccountId ? "Ready" : "Needs info"}</span>
-        </div>
-
-        {openSections.runner ? (
-          <div className="workflow-section-body">
-            <div className="runner-control-panel" aria-label="Local Tumblr runner controls">
-              <div className="field-grid two">
-                <label>
-                  Tumblr account
-                  <select
-                    value={runnerSettings.tumblrAccountId}
-                    onChange={(event) => onRunnerSettingsChange({ tumblrAccountId: event.target.value })}
-                  >
-                    <option value="">Select account</option>
-                    {tumblrAccounts.map((account) => (
-                      <option key={account.id} value={account.id}>
-                        {account.displayName}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Slow motion
-                  <input
-                    min={0}
-                    max={5000}
-                    step={100}
-                    type="number"
-                    value={runnerSettings.slowMo}
-                    onChange={(event) => onRunnerSettingsChange({ slowMo: Number(event.target.value) || 0 })}
-                  />
-                </label>
-                <label className="runner-submit-toggle">
-                  <input
-                    checked={runnerSettings.submit}
-                    type="checkbox"
-                    onChange={(event) => onRunnerSettingsChange({ submit: event.target.checked })}
-                  />
-                  Click Submit after filling
-                </label>
-              </div>
-            </div>
-          </div>
-        ) : null}
-      </section>
-
-      <section className="workflow-section queue-workflow-section">
-        <div className="workflow-section-header">
-          {sectionToggle("actions", "Queue actions", activeQueue.length ? "Run, add, or clear queue items" : "Add submissions before running")}
+          {sectionToggle("actions", "Queue actions", activeQueue.length ? "Run, set up, add, or clear queue items" : "Add submissions before running")}
           <span className={activeQueue.length ? "section-state ready" : "section-state warning"}>{activeQueue.length ? "Ready" : "Empty"}</span>
         </div>
 
@@ -266,9 +206,6 @@ export function QueueWorkspace({
               <button className="primary" type="button" onClick={onStartRunner} disabled={!activeQueue.length}>
                 <Play size={18} />
                 Run locally
-              </button>
-              <button className="secondary" type="button" onClick={onRefreshRunnerStatus}>
-                Refresh runner status
               </button>
               <button className="secondary" type="button" onClick={onCopyLocalRunnerSetup} disabled={!activeQueue.length}>
                 <Terminal size={18} />

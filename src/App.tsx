@@ -395,6 +395,7 @@ function App() {
       return;
     }
 
+    void refreshRunnerStatus({ quiet: true });
     const intervalId = window.setInterval(() => {
       void refreshRunnerStatus({ quiet: true });
     }, runnerState?.running ? 3000 : 15000);
@@ -1216,11 +1217,9 @@ function App() {
             queueOptions={queueOptions}
             queueStatus={queueStatus}
             queueScheduleSettings={queueScheduleSettings}
-            runnerSettings={runnerSettings}
             runnerState={runnerState}
             runnerLogs={runnerLogs}
             targetOptions={targetOptions}
-            tumblrAccounts={tumblrAccounts}
             onClearQueue={clearQueueItems}
             onEditQueueItem={editQueuedSubmission}
             onQueueTargets={queueTargets}
@@ -1228,8 +1227,6 @@ function App() {
             onSelectQueue={setSelectedQueueName}
             onQueueScheduleSettingsChange={(patch) => setQueueScheduleSettings((current) => ({ ...current, ...patch }))}
             onCopyLocalRunnerSetup={copyLocalRunnerSetup}
-            onRefreshRunnerStatus={refreshRunnerStatus}
-            onRunnerSettingsChange={(patch) => setRunnerSettings((current) => ({ ...current, ...patch }))}
             onStartRunner={startRunner}
             onUpdateQueueItem={updateQueueItem}
           />
@@ -1256,7 +1253,6 @@ function App() {
             runnerLogs={runnerLogs}
             runnerState={runnerState}
             onClearRunnerLogs={clearRunnerLogHistory}
-            onRefreshRunnerStatus={refreshRunnerStatus}
           />
         ) : null}
 
