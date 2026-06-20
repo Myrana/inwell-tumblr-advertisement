@@ -126,6 +126,7 @@ function App() {
   const [backendStateLoaded, setBackendStateLoaded] = useState(false);
   const [customTag, setCustomTag] = useState("");
   const [templateDraft, setTemplateDraft] = useState({ name: "", content: "" });
+  const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
   const [templateStatus, setTemplateStatus] = useState("");
   const [saveStatus, setSaveStatus] = useState("");
   const [newSubmitUrl, setNewSubmitUrl] = useState("");
@@ -564,22 +565,41 @@ function App() {
     const template = templateFromAdvertisement(activeAd);
     setTemplates((current) => [template, ...current]);
     syncTemplate(template);
+    setEditingTemplateId(template.id);
+    setTemplateDraft({ name: template.name, content: template.content });
     setTemplateStatus(`Saved ${template.name} as a reusable template.`);
   }
 
-  function createTemplate(event: FormEvent, contentHtml = templateDraft.content) {
+  function clearTemplateDraft() {
+    setEditingTemplateId(null);
+    setTemplateDraft({ name: "", content: "" });
+    setTemplateStatus("");
+  }
+
+  function editTemplate(template: SavedTemplate) {
+    setEditingTemplateId(template.id);
+    setTemplateDraft({ name: template.name, content: template.content });
+    setTemplateStatus(`Editing ${template.name}.`);
+  }
+
+  function saveTemplateDraft(event: FormEvent, contentHtml = templateDraft.content) {
     event.preventDefault();
+    const existingTemplate = editingTemplateId ? templates.find((template) => template.id === editingTemplateId) : null;
     const template = normalizeTemplate({
+      ...existingTemplate,
+      id: editingTemplateId ?? undefined,
       name: templateDraft.name,
       content: contentHtml,
-      forumUrl: "",
-      tags: [],
+      updatedAt: new Date().toISOString(),
     });
 
-    setTemplates((current) => [template, ...current]);
+    setTemplates((current) =>
+      editingTemplateId ? current.map((item) => (item.id === editingTemplateId ? template : item)) : [template, ...current],
+    );
     syncTemplate(template);
-    setTemplateDraft({ name: "", content: "" });
-    setTemplateStatus(`Saved ${template.name}.`);
+    setEditingTemplateId(template.id);
+    setTemplateDraft({ name: template.name, content: template.content });
+    setTemplateStatus(editingTemplateId ? `Updated ${template.name}.` : `Saved ${template.name}.`);
   }
 
   function applyTemplate(template: SavedTemplate) {
@@ -590,6 +610,9 @@ function App() {
 
   function deleteTemplate(id: string) {
     setTemplates((current) => current.filter((template) => template.id !== id));
+    if (editingTemplateId === id) {
+      clearTemplateDraft();
+    }
     void removeTemplate(id)
       .then(() => setApiAvailable(true))
       .catch(() => setApiAvailable(false));
@@ -1446,12 +1469,14 @@ function App() {
         {activeView === "templates" ? (
           <TemplatesWorkspace
             draft={templateDraft}
+            editingTemplateId={editingTemplateId}
             status={templateStatus}
             templates={templates}
-            onApplyTemplate={applyTemplate}
-            onCreateTemplate={createTemplate}
+            onClearTemplateDraft={clearTemplateDraft}
             onDeleteTemplate={deleteTemplate}
+            onEditTemplate={editTemplate}
             onDraftChange={(patch) => setTemplateDraft((current) => ({ ...current, ...patch }))}
+            onSaveTemplate={saveTemplateDraft}
             onSaveCurrentAsTemplate={saveCurrentAsTemplate}
           />
         ) : null}

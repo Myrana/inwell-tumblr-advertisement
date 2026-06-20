@@ -425,7 +425,7 @@ test("custom blog submission flow does not blank the editor", { timeout: 40000 }
   assert.match((await page.locator("main").textContent()) ?? "", /Submission workspace/);
 });
 
-test("templates can be saved and applied from their own workspace", { timeout: 40000 }, async (t) => {
+test("templates can be edited on their page and applied from the submission workspace", { timeout: 40000 }, async (t) => {
   const server = spawn("npx vite --host 127.0.0.1 --port 8123 --strictPort", {
     cwd: process.cwd(),
     shell: true,
@@ -506,11 +506,22 @@ test("templates can be saved and applied from their own workspace", { timeout: 4
   await page.getByText("Saved Reusable premium ad.").waitFor();
   await page.locator(".template-preview strong", { hasText: "Template bold copy" }).waitFor();
   await page.getByRole("button", { name: /Reusable premium ad/ }).click();
+  await page.getByText("Editing Reusable premium ad.").waitFor();
+  await page.getByLabel("Template name").fill("Reusable premium ad updated");
+  await page.locator(".template-rich-editor").click();
+  await page.keyboard.press(process.platform === "darwin" ? "Meta+A" : "Control+A");
+  await page.keyboard.type("Edited template copy");
+  await page.getByRole("button", { name: "Update template" }).click();
+  await page.getByText("Updated Reusable premium ad updated.").waitFor();
+  await page.locator(".template-card", { hasText: "Reusable premium ad updated" }).locator(".template-preview", { hasText: "Edited template copy" }).waitFor();
+  assert.equal(await page.locator(".template-card", { hasText: "Reusable premium ad updated" }).count(), 1);
 
+  await page.getByRole("button", { name: "New Submission" }).click();
   await page.getByRole("heading", { name: "All Things Roleplay" }).waitFor();
+  await page.getByRole("button", { name: "Toggle reusable copy section" }).click();
+  await page.getByRole("button", { name: /Reusable premium ad updated/ }).click();
   await page.getByRole("button", { name: "Toggle post content section" }).click();
-  assert.match((await page.locator(".tumblr-rich-editor").textContent()) ?? "", /Template bold copy/);
-  await page.locator(".tumblr-rich-editor strong", { hasText: "Template bold copy" }).waitFor();
+  assert.match((await page.locator(".tumblr-rich-editor").textContent()) ?? "", /Edited template copy/);
   assert.equal(await page.getByLabel("Forum link").inputValue(), "https://forum.example/original");
   assert.equal(await page.getByLabel("jcink site").isChecked(), true);
   assert.equal(await page.getByLabel("premium jcink").count(), 0);
