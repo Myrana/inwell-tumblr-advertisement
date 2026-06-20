@@ -922,6 +922,49 @@ textarea:focus {
   font-size: 0.86rem;
 }
 
+.quality-checklist {
+  display: grid;
+  gap: 0.85rem;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.quality-checklist > div:first-child {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.quality-checklist span {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.quality-checklist-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.quality-check {
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 0.7rem;
+  border: 1px solid rgba(141, 67, 47, 0.2);
+  border-radius: 999px;
+  background: #fff4f1;
+  color: #8d432f;
+}
+
+.quality-check.ready {
+  border-color: rgba(62, 125, 93, 0.24);
+  background: #edf8f2;
+  color: #2f6c4e;
+}
+
 .tumblr-submit-shell {
   overflow: hidden;
   border: 1px solid var(--line);
@@ -2695,6 +2738,7 @@ html[data-theme="dark"] .runner-log-run-summary,
 html[data-theme="dark"] .template-form,
 html[data-theme="dark"] .template-card-actions,
 html[data-theme="dark"] .target-profile-editor,
+html[data-theme="dark"] .quality-checklist,
 html[data-theme="dark"] .media-library-panel,
 html[data-theme="dark"] .media-library-asset,
 html[data-theme="dark"] .preview-mode-switcher,
@@ -2752,10 +2796,17 @@ html[data-theme="dark"] .account-ready-panel {
 }
 
 html[data-theme="dark"] .section-state,
+html[data-theme="dark"] .quality-check,
 html[data-theme="dark"] .account-status-needs-login,
 html[data-theme="dark"] .account-status-expired {
   background: #3a241a;
   color: #ffb08d;
+}
+
+html[data-theme="dark"] .quality-check.ready {
+  border-color: #315f4d;
+  background: #10231d;
+  color: #8ee0b3;
 }
 
 html[data-theme="dark"] .section-state.ready,
