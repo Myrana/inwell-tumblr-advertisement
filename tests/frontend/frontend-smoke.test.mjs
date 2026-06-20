@@ -622,6 +622,8 @@ test("templates can be edited on their page and applied from the submission work
   await page.locator(".workflow-section", { hasText: "Schedule" }).locator(".section-state.warning", { hasText: "Off" }).waitFor();
 
   await page.getByRole("button", { name: "Queues", exact: true }).click();
+  await page.getByLabel("Content calendar").getByText("Want ads").waitFor();
+  await page.getByLabel("Content calendar").getByText("Not scheduled").waitFor();
   await page.getByLabel("New queue name").fill("Site ads");
   await page.getByRole("button", { name: "Add queue" }).click();
   await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
