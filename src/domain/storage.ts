@@ -16,7 +16,7 @@ import { loadSubmitTargets } from "./submitTargets";
 import { loadTagProfiles } from "./tags";
 import { normalizeTemplate } from "./templates";
 import { normalizeTumblrAccount } from "./tumblrAccounts";
-import { ColorTheme, QueueDefinition, QueueScheduleSettings, RemoteBrowserProvider, RunnerSettings, SavedTemplate, StoredState, TumblrAccount } from "./types";
+import { ColorTheme, QueueDefinition, QueueSchedulePreference, QueueScheduleSettings, RemoteBrowserProvider, RunnerSettings, SavedTemplate, StoredState, TumblrAccount } from "./types";
 
 export { loadSubmissionQueue, loadSubmitTargets, loadTagProfiles };
 
@@ -100,15 +100,42 @@ export function loadQueueScheduleSettings(): QueueScheduleSettings {
   try {
     const raw = localStorage.getItem(queueScheduleSettingsStorageKey);
     const parsed = raw ? (JSON.parse(raw) as Partial<QueueScheduleSettings>) : {};
-    const dailyTime = typeof parsed.dailyTime === "string" && /^\d{2}:\d{2}$/.test(parsed.dailyTime) ? parsed.dailyTime : "09:00";
-    return {
-      enabled: Boolean(parsed.enabled),
-      dailyTime,
-      timezone: "America/New_York",
-    };
+    return normalizeQueueScheduleSettings(parsed);
   } catch {
-    return { enabled: false, dailyTime: "09:00", timezone: "America/New_York" };
+    return defaultQueueScheduleSettings();
   }
+}
+
+export function normalizeQueueScheduleSettings(value: unknown): QueueScheduleSettings {
+  const parsed = value && typeof value === "object" ? (value as Partial<QueueScheduleSettings>) : {};
+  const fallback = normalizeQueueSchedulePreference(parsed);
+  const perQueue: Record<string, QueueSchedulePreference> = {};
+  if (parsed.perQueue && typeof parsed.perQueue === "object") {
+    Object.entries(parsed.perQueue).forEach(([queueName, queueSettings]) => {
+      const name = queueName.trim();
+      if (name) {
+        perQueue[name] = normalizeQueueSchedulePreference(queueSettings);
+      }
+    });
+  }
+  return {
+    ...fallback,
+    perQueue,
+  };
+}
+
+function normalizeQueueSchedulePreference(value: unknown): QueueSchedulePreference {
+  const parsed = value && typeof value === "object" ? (value as Partial<QueueSchedulePreference>) : {};
+  const dailyTime = typeof parsed.dailyTime === "string" && /^\d{2}:\d{2}$/.test(parsed.dailyTime) ? parsed.dailyTime : "09:00";
+  return {
+    enabled: Boolean(parsed.enabled),
+    dailyTime,
+    timezone: "America/New_York",
+  };
+}
+
+function defaultQueueScheduleSettings(): QueueScheduleSettings {
+  return { enabled: false, dailyTime: "09:00", timezone: "America/New_York", perQueue: {} };
 }
 
 export function loadTemplates(): SavedTemplate[] {

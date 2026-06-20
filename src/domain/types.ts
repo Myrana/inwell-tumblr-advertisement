@@ -109,10 +109,14 @@ export type TumblrAccount = {
   updatedAt: string;
 };
 
-export type QueueScheduleSettings = {
+export type QueueSchedulePreference = {
   enabled: boolean;
   dailyTime: string;
   timezone: "America/New_York";
+};
+
+export type QueueScheduleSettings = QueueSchedulePreference & {
+  perQueue: Record<string, QueueSchedulePreference>;
 };
 
 export type AppSettings = {

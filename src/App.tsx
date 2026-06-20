@@ -59,6 +59,7 @@ import { createQueueItem as createSubmissionQueueItem, queueIdFromName, uniqueQu
 import {
   loadColorTheme,
   loadQueueScheduleSettings,
+  normalizeQueueScheduleSettings,
   loadQueueDefinitions,
   loadRunnerSettings,
   loadStoredState,
@@ -94,6 +95,7 @@ import {
   ApiAdvertisement,
   AuthUser,
   ColorTheme,
+  QueueSchedulePreference,
   QueueScheduleSettings,
   QueueDefinition,
   RunnerLog,
@@ -166,6 +168,17 @@ function App() {
   const queueOptions = useMemo(() => uniqueQueueDefinitions(queueDefinitions, submissionQueue), [queueDefinitions, submissionQueue]);
   const activeQueueName = queueOptions.some((queue) => queue.name === selectedQueueName) ? selectedQueueName : queueOptions[0]?.name ?? "";
   const activeQueue = submissionQueue.filter((item) => item.queueName === activeQueueName);
+  const defaultQueueScheduleSettings: QueueSchedulePreference = useMemo(
+    () => ({
+      enabled: queueScheduleSettings.enabled,
+      dailyTime: queueScheduleSettings.dailyTime,
+      timezone: queueScheduleSettings.timezone,
+    }),
+    [queueScheduleSettings.dailyTime, queueScheduleSettings.enabled, queueScheduleSettings.timezone],
+  );
+  const activeQueueScheduleSettings = activeQueueName
+    ? queueScheduleSettings.perQueue[activeQueueName] ?? defaultQueueScheduleSettings
+    : defaultQueueScheduleSettings;
   const runnerConnectionLabel = useMemo(() => {
     if (localCompanion?.ok) {
       if (localCompanion.running) {
@@ -439,7 +452,11 @@ function App() {
             : tagProfiles,
         );
         setRunnerSettings(backendSettings.runnerSettings ? { ...runnerSettings, ...backendSettings.runnerSettings } : runnerSettings);
-        setQueueScheduleSettings(backendSettings.queueScheduleSettings ?? queueScheduleSettings);
+        setQueueScheduleSettings(
+          backendSettings.queueScheduleSettings
+            ? normalizeQueueScheduleSettings(backendSettings.queueScheduleSettings)
+            : queueScheduleSettings,
+        );
         setRunnerLogs(backendLogs);
         if (backendTumblrAccounts.length) {
           setTumblrAccounts(backendTumblrAccounts);
@@ -831,6 +848,19 @@ function App() {
         return renamedItem;
       }),
     );
+    setQueueScheduleSettings((current) => {
+      const { [currentName]: currentQueueSettings, [nextName]: _existingNextSettings, ...remainingPerQueue } = current.perQueue;
+      if (!currentQueueSettings) {
+        return current;
+      }
+      return {
+        ...current,
+        perQueue: {
+          ...remainingPerQueue,
+          [nextName]: currentQueueSettings,
+        },
+      };
+    });
     if (selectedQueueName === currentName) {
       setSelectedQueueName(nextName);
     }
@@ -846,6 +876,13 @@ function App() {
 
     setQueueDefinitions(remainingDefinitions);
     setSubmissionQueue(remainingItems);
+    setQueueScheduleSettings((current) => {
+      if (!current.perQueue[queueName]) {
+        return current;
+      }
+      const { [queueName]: _removedQueueSettings, ...remainingPerQueue } = current.perQueue;
+      return { ...current, perQueue: remainingPerQueue };
+    });
     setSelectedQueueName(nextSelectedQueue);
     removableItems.forEach((item) => {
       void removeQueueItem(item.id).catch(() => setApiAvailable(false));
@@ -1058,6 +1095,35 @@ function App() {
 
   function runnableQueueItems() {
     return activeQueue.filter((item) => !["submitted", "posted", "running"].includes(item.status));
+  }
+
+  function updateActiveQueueScheduleSettings(patch: Partial<QueueSchedulePreference>) {
+    setQueueScheduleSettings((current) => {
+      if (!activeQueueName) {
+        return {
+          ...current,
+          ...patch,
+          timezone: "America/New_York",
+        };
+      }
+
+      const currentQueueSettings = current.perQueue[activeQueueName] ?? {
+        enabled: current.enabled,
+        dailyTime: current.dailyTime,
+        timezone: current.timezone,
+      };
+      return {
+        ...current,
+        perQueue: {
+          ...current.perQueue,
+          [activeQueueName]: {
+            ...currentQueueSettings,
+            ...patch,
+            timezone: "America/New_York",
+          },
+        },
+      };
+    });
   }
 
   async function refreshLocalCompanionStatus(options: { quiet?: boolean } = {}) {
@@ -1430,7 +1496,7 @@ function App() {
             activeQueueName={activeQueueName}
             queueOptions={queueOptions}
             queueStatus={queueStatus}
-            queueScheduleSettings={queueScheduleSettings}
+            queueScheduleSettings={activeQueueScheduleSettings}
             runnerConnectionLabel={runnerConnectionLabel}
             runnerActivity={runnerActivity}
             runnerHeadless={runnerSettings.headless}
@@ -1439,7 +1505,7 @@ function App() {
             onEditQueueItem={editQueuedSubmission}
             onRenameQueue={renameQueueDefinition}
             onSelectQueue={setSelectedQueueName}
-            onQueueScheduleSettingsChange={(patch) => setQueueScheduleSettings((current) => ({ ...current, ...patch }))}
+            onQueueScheduleSettingsChange={updateActiveQueueScheduleSettings}
             onCopyLocalRunnerSetup={copyLocalRunnerSetup}
             onDownloadLocalRunner={downloadLocalRunnerInstaller}
             onLaunchLocalRunner={launchLocalRunnerProtocol}

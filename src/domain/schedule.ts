@@ -1,4 +1,4 @@
-import { QueueScheduleSettings } from "./types";
+import { QueueSchedulePreference } from "./types";
 
 const easternTimeZone = "America/New_York";
 
@@ -6,7 +6,7 @@ export function normalizeDailyTime(value: string) {
   return /^\d{2}:\d{2}$/.test(value) ? value : "09:00";
 }
 
-export function nextDailyRunAt(settings: QueueScheduleSettings, now = new Date()) {
+export function nextDailyRunAt(settings: QueueSchedulePreference, now = new Date()) {
   const dailyTime = normalizeDailyTime(settings.dailyTime);
   const [hour, minute] = dailyTime.split(":").map((part) => Number(part));
   const easternParts = easternDateParts(now);
@@ -21,7 +21,7 @@ export function nextDailyRunAt(settings: QueueScheduleSettings, now = new Date()
   return zonedDateTimeToUtc(tomorrowParts.year, tomorrowParts.month, tomorrowParts.day, hour, minute).toISOString();
 }
 
-export function scheduleSummary(settings: QueueScheduleSettings, now = new Date()) {
+export function scheduleSummary(settings: QueueSchedulePreference, now = new Date()) {
   if (!settings.enabled) {
     return "Daily automation is off.";
   }
