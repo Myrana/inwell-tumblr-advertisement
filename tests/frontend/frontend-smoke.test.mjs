@@ -1557,10 +1557,10 @@ test("running the queue prepares the local runner and shows failure explanations
   await page.getByText("The Playwright browser or tab closed before the runner finished.").waitFor();
   assert.equal(await page.getByRole("button", { name: "Running" }).count(), 0);
   assert.equal(await page.getByRole("button", { name: "Needs review" }).count(), 0);
-  await page.getByText("Manual override").click();
   await page.getByRole("button", { name: "Requeue" }).waitFor();
   await page.getByRole("button", { name: "Mark posted" }).waitFor();
-  await page.getByRole("button", { name: "Mark failed" }).waitFor();
+  assert.equal(await page.getByText("Manual override").count(), 0);
+  assert.equal(await page.getByRole("button", { name: "Mark failed" }).count(), 0);
   await page.getByRole("button", { name: "Runner Logs" }).click();
   await page.getByRole("button", { name: /Latest run run-visible/ }).waitFor();
   await page.getByText("Why this run failed").waitFor();
