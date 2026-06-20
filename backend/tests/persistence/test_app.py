@@ -1586,9 +1586,17 @@ class PersistenceTests(unittest.TestCase):
 
         self.assertIn("Double-click `install.cmd`", readme)
         self.assertIn("npm.cmd run tumblr:install-browsers", install_ps1)
+        self.assertIn("Invoke-CheckedCommand", install_ps1)
+        self.assertIn("Windows startup task install", install_ps1)
         self.assertIn("-RunnerToken 'ilr_secret'", install_ps1)
         self.assertIn("-WorkspaceId 'workspace-local'", install_ps1)
         self.assertIn("-Queue 'Local queue'", install_ps1)
+
+    def test_local_runner_autostart_script_uses_valid_windows_run_level(self) -> None:
+        script = (Path(__file__).parents[3] / "scripts" / "install-local-runner-autostart.ps1").read_text(encoding="utf-8")
+
+        self.assertIn("-RunLevel Limited", script)
+        self.assertNotIn("-RunLevel LeastPrivilege", script)
 
     def test_local_runner_heartbeat_reports_online_for_matching_workspace(self) -> None:
         app.LOCAL_RUNNER_HEARTBEAT.clear()

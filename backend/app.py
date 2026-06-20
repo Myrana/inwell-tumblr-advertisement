@@ -2302,11 +2302,17 @@ This folder installs the Windows companion that lets Inkwell run your Tumblr que
 After setup, the local companion starts at Windows login. Keep this folder private because it includes a device token.
 """
     install_ps1 = f"""$ErrorActionPreference = "Stop"
+function Invoke-CheckedCommand([string]$Label, [scriptblock]$Command) {{
+  & $Command
+  if ($LASTEXITCODE -ne 0) {{
+    throw "$Label failed with exit code $LASTEXITCODE."
+  }}
+}}
 $repoRoot = $PSScriptRoot
 Set-Location -LiteralPath $repoRoot
-npm.cmd install
-npm.cmd run tumblr:install-browsers
-{install_command}
+Invoke-CheckedCommand "npm install" {{ npm.cmd install }}
+Invoke-CheckedCommand "Playwright browser install" {{ npm.cmd run tumblr:install-browsers }}
+Invoke-CheckedCommand "Windows startup task install" {{ {install_command} }}
 Write-Host "Inkwell Local Runner installed."
 Write-Host "Return to Inkwell and click Run locally."
 """
