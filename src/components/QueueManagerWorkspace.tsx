@@ -1,11 +1,13 @@
 import { FormEvent } from "react";
-import { ListChecks, Plus, Trash2 } from "lucide-react";
-import { QueueDefinition, SubmissionQueueItem } from "../domain/types";
+import { CalendarDays, ListChecks, Plus, Trash2 } from "lucide-react";
+import { formatEasternRun, nextDailyRunAt } from "../domain/schedule";
+import { QueueDefinition, QueueScheduleSettings, SubmissionQueueItem } from "../domain/types";
 
 type QueueManagerWorkspaceProps = {
   activeQueueName: string;
   queueNameDraft: string;
   queueOptions: QueueDefinition[];
+  queueScheduleSettings: QueueScheduleSettings;
   queueStatus: string;
   submissionQueue: SubmissionQueueItem[];
   onCreateQueue: (event: FormEvent) => void;
@@ -20,6 +22,7 @@ export function QueueManagerWorkspace({
   activeQueueName,
   queueNameDraft,
   queueOptions,
+  queueScheduleSettings,
   queueStatus,
   submissionQueue,
   onCreateQueue,
@@ -27,6 +30,12 @@ export function QueueManagerWorkspace({
   onQueueNameDraftChange,
   onSelectQueue,
 }: QueueManagerWorkspaceProps) {
+  const defaultSchedule = {
+    enabled: queueScheduleSettings.enabled,
+    dailyTime: queueScheduleSettings.dailyTime,
+    timezone: queueScheduleSettings.timezone,
+  };
+
   return (
     <section className="submission-queue-panel queue-workspace" aria-label="Queue management">
       <div className="panel-heading">
@@ -50,6 +59,32 @@ export function QueueManagerWorkspace({
       </form>
 
       {queueStatus ? <p className="queue-status">{queueStatus}</p> : null}
+
+      {queueOptions.length ? (
+        <section className="content-calendar-panel" aria-label="Content calendar">
+          <div className="panel-heading">
+            <h2>Content calendar</h2>
+            <CalendarDays size={18} />
+          </div>
+          <div className="content-calendar-grid">
+            {queueOptions.map((queue) => {
+              const schedule = queueScheduleSettings.perQueue[queue.name] ?? defaultSchedule;
+              const items = submissionQueue.filter((item) => item.queueName === queue.name && !completedStatuses.has(item.status));
+              const nextRun = schedule.enabled ? formatEasternRun(nextDailyRunAt(schedule)) : "Not scheduled";
+
+              return (
+                <article className="content-calendar-card" key={queue.id}>
+                  <strong>{queue.name}</strong>
+                  <span>{nextRun}</span>
+                  <small>
+                    {items.length} queued item{items.length === 1 ? "" : "s"}
+                  </small>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
 
       <div className="queue-management-list">
         {queueOptions.length ? queueOptions.map((queue) => {

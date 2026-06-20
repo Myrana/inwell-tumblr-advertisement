@@ -2042,6 +2042,46 @@ pre {
   font-weight: 800;
 }
 
+.content-calendar-panel {
+  margin: 16px 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafb;
+}
+
+.content-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.content-calendar-card {
+  padding: 12px;
+  display: grid;
+  gap: 5px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--cyan);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.content-calendar-card strong,
+.content-calendar-card span,
+.content-calendar-card small {
+  overflow-wrap: anywhere;
+}
+
+.content-calendar-card span {
+  color: #315f6c;
+  font-weight: 900;
+}
+
+.content-calendar-card small {
+  color: var(--muted);
+  font-weight: 700;
+}
+
 .operations-dashboard {
   display: grid;
   gap: 16px;
@@ -2446,6 +2486,20 @@ html[data-theme="dark"] .workspace-saved .batch-prep-panel span {
   color: #a9c4ca;
 }
 
+html[data-theme="dark"] .content-calendar-panel,
+html[data-theme="dark"] .content-calendar-card {
+  border-color: rgba(95, 179, 197, 0.18);
+  background: rgba(17, 26, 35, 0.82);
+}
+
+html[data-theme="dark"] .content-calendar-card span {
+  color: #9fd8e6;
+}
+
+html[data-theme="dark"] .content-calendar-card small {
+  color: #a9c4ca;
+}
+
 html[data-theme="dark"] .operation-card {
   border-color: rgba(95, 179, 197, 0.2);
   background: rgba(17, 26, 35, 0.86);
@@ -2834,6 +2888,10 @@ html[data-theme="dark"] .selected-tags button {
   .operations-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .content-calendar-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 720px) {
@@ -2894,6 +2952,7 @@ html[data-theme="dark"] .selected-tags button {
 
   .field-grid.two,
   .field-grid.three,
+  .content-calendar-grid,
   .operations-grid,
   .account-settings-grid,
   .queue-management-form,

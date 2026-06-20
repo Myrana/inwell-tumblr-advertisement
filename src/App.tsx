@@ -1589,6 +1589,7 @@ function App() {
             activeQueueName={activeQueueName}
             queueNameDraft={queueNameDraft}
             queueOptions={queueOptions}
+            queueScheduleSettings={queueScheduleSettings}
             queueStatus={queueStatus}
             submissionQueue={submissionQueue}
             onCreateQueue={createQueueDefinition}
