@@ -603,9 +603,14 @@ test("templates can be edited on their page and applied from the submission work
   assert.equal(await page.getByLabel("Queue actions").getByRole("button", { name: "Queue all" }).count(), 0);
   await page.getByLabel("Queue actions").getByRole("button", { name: "Run", exact: true }).waitFor();
   await page.getByRole("button", { name: "Toggle schedule section" }).click();
+  assert.equal(await page.getByLabel("Daily run time").isDisabled(), true);
   await page.getByLabel("Run this queue daily").check();
+  assert.equal(await page.getByLabel("Daily run time").isDisabled(), false);
+  await page.getByLabel("Schedule presets").getByRole("button", { name: "Afternoon" }).click();
+  assert.equal(await page.getByLabel("Daily run time").inputValue(), "13:00");
   await page.getByLabel("Daily run time").fill("09:30");
   await page.getByLabel("Daily automation schedule").getByText("Daily automation is on.").waitFor();
+  await page.getByText("This schedule applies only to Want ads.").waitFor();
   await page.getByText("Next queued local run:").waitFor();
   const persistedSchedule = await page.evaluate(() => JSON.parse(localStorage.getItem("inwell-queue-schedule-settings") ?? "{}"));
   assert.equal(persistedSchedule.perQueue["Want ads"].enabled, true);
@@ -617,6 +622,7 @@ test("templates can be edited on their page and applied from the submission work
   await page.getByRole("button", { name: "Toggle schedule section" }).click();
   assert.equal(await page.getByLabel("Run this queue daily").isChecked(), false);
   assert.equal(await page.getByLabel("Daily run time").inputValue(), "09:00");
+  await page.getByLabel("Run this queue daily").check();
   await page.getByLabel("Daily run time").fill("11:45");
   await page.getByLabel("Active queue").selectOption("Want ads");
   assert.equal(await page.getByLabel("Run this queue daily").isChecked(), true);

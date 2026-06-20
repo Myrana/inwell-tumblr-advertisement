@@ -45,6 +45,12 @@ type QueueWorkspaceProps = {
 
 type QueueSectionKey = "overview" | "schedule" | "submissions";
 
+const schedulePresets = [
+  { label: "Morning", value: "09:00" },
+  { label: "Afternoon", value: "13:00" },
+  { label: "Evening", value: "18:00" },
+];
+
 export function QueueWorkspace({
   activeQueue,
   activeQueueName,
@@ -199,6 +205,7 @@ export function QueueWorkspace({
                 <label>
                   Daily run time
                   <input
+                    disabled={!queueScheduleSettings.enabled}
                     type="time"
                     value={queueScheduleSettings.dailyTime}
                     onChange={(event) => onQueueScheduleSettingsChange({ dailyTime: event.target.value })}
@@ -209,7 +216,21 @@ export function QueueWorkspace({
                   <input readOnly value="America/New_York" />
                 </label>
               </div>
+              <div className="schedule-preset-row" aria-label="Schedule presets">
+                {schedulePresets.map((preset) => (
+                  <button
+                    className={queueScheduleSettings.dailyTime === preset.value ? "secondary active" : "secondary"}
+                    disabled={!queueScheduleSettings.enabled}
+                    key={preset.value}
+                    type="button"
+                    onClick={() => onQueueScheduleSettingsChange({ dailyTime: preset.value })}
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
               <p className="queue-schedule-summary">{scheduleSummary(queueScheduleSettings)}</p>
+              <p className="queue-empty">This schedule applies only to {activeQueueName || "the selected queue"}.</p>
               {nextRunAt ? <p className="queue-empty">Next queued local run: {formatEasternRun(nextRunAt)} ET</p> : null}
             </div>
           </div>
