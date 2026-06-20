@@ -210,6 +210,7 @@ export async function loadLocalRunnerCommand(queueName: string) {
   const response = await apiRequest<{
     localRunner: {
       command: string;
+      autoStartCommand?: string;
       tokenConfigured: boolean;
       tokenEnv: string;
       message: string;

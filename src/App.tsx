@@ -391,13 +391,13 @@ function App() {
   }, [authUser]);
 
   useEffect(() => {
-    if (!["queue", "logs"].includes(activeView) || !runnerState?.running) {
+    if (!["queue", "logs"].includes(activeView)) {
       return;
     }
 
     const intervalId = window.setInterval(() => {
       void refreshRunnerStatus({ quiet: true });
-    }, 3000);
+    }, runnerState?.running ? 3000 : 15000);
 
     return () => window.clearInterval(intervalId);
   }, [activeView, runnerState?.running]);
@@ -993,7 +993,8 @@ function App() {
       const copied = options.copy ? await copyTextToClipboard(localRunner.command).catch(() => false) : false;
       const tokenWarning = localRunner.tokenConfigured ? "" : "Railway is missing INWELL_LOCAL_RUNNER_TOKEN. ";
       const copyMessage = copied ? "Local runner command copied. " : "";
-      setQueueStatus(`${copyMessage}${localRunner.message} ${tokenWarning}Command: ${localRunner.command}`);
+      const autoStartMessage = localRunner.autoStartCommand ? ` Auto-start: ${localRunner.autoStartCommand}` : "";
+      setQueueStatus(`${copyMessage}${localRunner.message} ${tokenWarning}Command: ${localRunner.command}${autoStartMessage}`);
     } catch (error) {
       setApiAvailable(false);
       const message =

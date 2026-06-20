@@ -65,6 +65,7 @@ function parseLocalArgs(argv) {
 }
 
 async function fetchRunnerPlan(options) {
+  await postHeartbeat(options, "polling").catch(() => undefined);
   const url = new URL(`${options.apiBaseUrl}/runner/local-plan`);
   url.searchParams.set("workspaceId", options.workspaceId);
   url.searchParams.set("queueName", options.queueName);
@@ -87,9 +88,11 @@ async function fetchRunnerPlan(options) {
 async function runPlan(options, plan) {
   if (!plan?.items?.length) {
     console.log(`[local-runner] No runnable items in ${options.queueName}.`);
+    await postHeartbeat(options, options.watch ? "watching" : "idle").catch(() => undefined);
     return 0;
   }
 
+  await postHeartbeat(options, "running").catch(() => undefined);
   const planPath = path.join(os.tmpdir(), `inwell-local-runner-${plan.runId}.json`);
   await fs.writeFile(planPath, JSON.stringify(plan, null, 2), "utf8");
   console.log(`[local-runner] Running ${plan.items.length} item(s) from ${options.queueName}.`);
@@ -122,7 +125,28 @@ async function runPlan(options, plan) {
 
   const child = spawn(process.execPath, runnerArgs, { stdio: "inherit" });
   const code = await new Promise((resolve) => child.on("close", resolve));
+  await postHeartbeat(options, Number(code) ? "error" : options.watch ? "watching" : "idle").catch(() => undefined);
   return Number(code) || 0;
+}
+
+async function postHeartbeat(options, status) {
+  const response = await fetch(`${options.apiBaseUrl}/runner/local-heartbeat`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${options.token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      workspace_id: options.workspaceId,
+      queue_name: options.queueName,
+      watching: options.watch,
+      status,
+      version: "local-runner-1",
+    }),
+  });
+  if (!response.ok) {
+    throw new Error(`Could not send local runner heartbeat: ${response.status}`);
+  }
 }
 
 function wait(ms) {

@@ -11,6 +11,7 @@
     "tumblr:install-browsers": "playwright install chromium",
     "tumblr:inspect": "node scripts/tumblr-inspect.mjs",
     "tumblr:login": "node scripts/tumblr-login.mjs",
+    "tumblr:runner:install-autostart": "powershell -ExecutionPolicy Bypass -File scripts/install-local-runner-autostart.ps1",
     "tumblr:runner:local": "node scripts/tumblr-local-runner.mjs",
     "tumblr:runner": "node scripts/tumblr-runner.mjs",
     "test": "npm run test:runner && npm run test:frontend && npm run test:backend",

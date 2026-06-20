@@ -79,6 +79,10 @@ export function QueueWorkspace({
   );
   const scopedLogs = visibleRunnerLogs(runnerLogs, false);
   const logGroups = queueLogGroups(activeQueue, scopedLogs);
+  const localRunner = runnerState?.local_runner;
+  const localRunnerLabel = localRunner?.online
+    ? `Local runner online${localRunner.queue_name ? `: ${localRunner.queue_name}` : ""}`
+    : "Local runner offline";
   const nextRunAt = queueScheduleSettings.enabled ? nextDailyRunAt(queueScheduleSettings) : "";
   const completedCount = statusCounts.submitted + statusCounts.posted + statusCounts.failed;
 
@@ -272,7 +276,7 @@ export function QueueWorkspace({
               </button>
               {runnerState ? (
                 <span className="runner-state">
-                  {runnerState.running ? `Running: ${runnerState.pid}` : "Not running"}
+                  {localRunnerLabel}
                 </span>
               ) : null}
             </div>

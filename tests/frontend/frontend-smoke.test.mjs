@@ -1209,6 +1209,8 @@ test("running the queue prepares the local runner and shows failure explanations
         localRunner: {
           command:
             "npm.cmd run tumblr:runner:local -- --api-base 'https://inkwell-production-f037.up.railway.app/api' --workspace-id 'workspace-test' --queue 'Default queue' --user-data-dir .tumblr-runner-profile-local --watch --no-pause --submit",
+          autoStartCommand:
+            "npm.cmd run tumblr:runner:install-autostart -- -ApiBase 'https://inkwell-production-f037.up.railway.app/api' -WorkspaceId 'workspace-test' -Queue 'Default queue'",
           tokenConfigured: true,
           tokenEnv: "INWELL_LOCAL_RUNNER_TOKEN",
           message: "Run this on your Windows computer from the repo checkout. Keep INWELL_LOCAL_RUNNER_TOKEN set locally and in Railway.",
@@ -1240,7 +1242,24 @@ test("running the queue prepares the local runner and shows failure explanations
     route.fulfill({
       contentType: "application/json",
       headers: apiHeaders,
-      body: JSON.stringify({ runner: { running: false, pid: null, plan_path: "", command: [], run_id: "" } }),
+      body: JSON.stringify({
+        runner: {
+          running: false,
+          pid: null,
+          plan_path: "",
+          command: [],
+          run_id: "",
+          local_runner: {
+            online: true,
+            last_seen_at: "2026-06-19T22:00:00.000Z",
+            workspace_id: "workspace-test",
+            queue_name: "Default queue",
+            watching: true,
+            status: "watching",
+            version: "local-runner-test",
+          },
+        },
+      }),
     }),
   );
   await page.route("http://127.0.0.1:8021/api/queue", (route) =>
@@ -1322,6 +1341,8 @@ test("running the queue prepares the local runner and shows failure explanations
   await page.getByLabel("Workspace views").getByRole("button", { name: "Queues", exact: true }).click();
   await page.locator(".queue-management-row", { hasText: "Default queue" }).getByRole("button", { name: "Open queue" }).click();
   await page.getByRole("button", { name: "Toggle queue actions section" }).click();
+  await page.getByRole("button", { name: "Refresh runner status" }).click();
+  await page.getByText("Local runner online: Default queue").waitFor();
   await page.getByRole("button", { name: "Run locally" }).click();
   await page.getByText("Local runner command copied.").waitFor();
   assert.equal(localCommandRequested, true);
@@ -1329,6 +1350,7 @@ test("running the queue prepares the local runner and shows failure explanations
   assert.match(copiedText, /tumblr:runner:local/);
   assert.match(copiedText, /--watch/);
   assert.match(copiedText, /--no-pause/);
+  await page.getByText(/tumblr:runner:install-autostart/).waitFor();
   assert.deepEqual(await page.evaluate(() => window.__openedUrls), []);
   await page.getByText("Why this failed").waitFor();
   await page.getByText("The Playwright browser or tab closed before the runner finished.").waitFor();
