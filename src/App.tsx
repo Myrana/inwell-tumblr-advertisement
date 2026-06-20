@@ -977,7 +977,7 @@ function App() {
     return true;
   }
 
-  async function prepareLocalRunnerCommand(options: { copy?: boolean } = {}) {
+  async function prepareLocalRunnerCommand(options: { copy?: boolean; target?: "run" | "setup" } = {}) {
     const items = runnableQueueItems();
     if (!items.length) {
       setQueueStatus("Queue at least one target before starting the runner.");
@@ -990,13 +990,16 @@ function App() {
       setRunnerLogs(logs);
       setSubmissionQueue(backendQueue);
       setApiAvailable(true);
-      const copied = options.copy ? await copyTextToClipboard(localRunner.command).catch(() => false) : false;
+      const target = options.target ?? "run";
+      const commandToCopy = target === "setup" ? localRunner.autoStartCommand || localRunner.command : localRunner.command;
+      const copied = options.copy ? await copyTextToClipboard(commandToCopy).catch(() => false) : false;
       const tokenWarning = localRunner.tokenConfigured ? "" : "Railway is missing INWELL_LOCAL_RUNNER_TOKEN. ";
-      const copyMessage = copied ? "Local runner command copied. " : "";
+      const copyMessage = copied ? `${target === "setup" ? "Local runner setup command" : "Local runner command"} copied. ` : "";
       if (localRunner.usesDeviceToken) {
-        const autoStartMessage = copied && localRunner.autoStartCommand ? " Auto-start command was also prepared with the same device token." : "";
-        const actionMessage = copied ? "Keep the copied command private." : "Use Run locally to copy a fresh private device-token command.";
-        setQueueStatus(`${copyMessage}${localRunner.message} ${actionMessage}${autoStartMessage}`);
+        const actionMessage = copied
+          ? "Keep the copied command private."
+          : "Use Run locally or Copy setup command to copy a fresh private device-token command.";
+        setQueueStatus(`${copyMessage}${localRunner.message} ${actionMessage}`);
         return;
       }
       const autoStartMessage = localRunner.autoStartCommand ? ` Auto-start: ${localRunner.autoStartCommand}` : "";
@@ -1012,11 +1015,11 @@ function App() {
   }
 
   async function startRunner() {
-    await prepareLocalRunnerCommand({ copy: true });
+    await prepareLocalRunnerCommand({ copy: true, target: "run" });
   }
 
-  async function showLocalRunnerCommand() {
-    await prepareLocalRunnerCommand();
+  async function copyLocalRunnerSetup() {
+    await prepareLocalRunnerCommand({ copy: true, target: "setup" });
   }
 
   async function clearRunnerLogHistory() {
@@ -1224,9 +1227,9 @@ function App() {
             onRenameQueue={renameQueueDefinition}
             onSelectQueue={setSelectedQueueName}
             onQueueScheduleSettingsChange={(patch) => setQueueScheduleSettings((current) => ({ ...current, ...patch }))}
+            onCopyLocalRunnerSetup={copyLocalRunnerSetup}
             onRefreshRunnerStatus={refreshRunnerStatus}
             onRunnerSettingsChange={(patch) => setRunnerSettings((current) => ({ ...current, ...patch }))}
-            onShowLocalRunnerCommand={showLocalRunnerCommand}
             onStartRunner={startRunner}
             onUpdateQueueItem={updateQueueItem}
           />
