@@ -130,6 +130,17 @@ export type RunnerStatus = {
   run_id?: string;
   browser_provider?: string;
   live_url?: string;
+  local_runner?: LocalRunnerStatus;
+};
+
+export type LocalRunnerStatus = {
+  online: boolean;
+  last_seen_at: string;
+  workspace_id: string;
+  queue_name: string;
+  watching: boolean;
+  status: string;
+  version: string;
 };
 
 export type RunnerLog = {

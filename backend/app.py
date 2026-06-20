@@ -55,6 +55,8 @@ RUNNER_LAST_RUN_ID = ""
 RUNNER_LAST_BROWSER_PROVIDER = "local"
 RUNNER_LAST_LIVE_URL = ""
 LOCAL_RUNNER_TOKEN_ENV = "INWELL_LOCAL_RUNNER_TOKEN"
+LOCAL_RUNNER_HEARTBEAT_TIMEOUT_SECONDS = 60
+LOCAL_RUNNER_HEARTBEAT: dict[str, Any] = {}
 
 SEED_TEMPLATES = [
     {
@@ -1931,7 +1933,42 @@ def touch_queue_item_status(
     upsert_queue_item(connection, data)
 
 
-def runner_status() -> dict[str, Any]:
+def local_runner_status(workspace_id: str = "") -> dict[str, Any]:
+    heartbeat = dict(LOCAL_RUNNER_HEARTBEAT)
+    last_seen = heartbeat.get("last_seen_at")
+    matches_workspace = not workspace_id or heartbeat.get("workspace_id") in {"", workspace_id}
+    online = bool(
+        matches_workspace
+        and isinstance(last_seen, datetime)
+        and (utc_now() - last_seen).total_seconds() <= LOCAL_RUNNER_HEARTBEAT_TIMEOUT_SECONDS
+    )
+    return {
+        "online": online,
+        "last_seen_at": last_seen.isoformat() if isinstance(last_seen, datetime) else "",
+        "workspace_id": str(heartbeat.get("workspace_id") or ""),
+        "queue_name": str(heartbeat.get("queue_name") or ""),
+        "watching": bool(heartbeat.get("watching")),
+        "status": str(heartbeat.get("status") or ("online" if online else "offline")),
+        "version": str(heartbeat.get("version") or ""),
+    }
+
+
+def record_local_runner_heartbeat(payload: dict[str, Any]) -> dict[str, Any]:
+    LOCAL_RUNNER_HEARTBEAT.clear()
+    LOCAL_RUNNER_HEARTBEAT.update(
+        {
+            "last_seen_at": utc_now(),
+            "workspace_id": str(payload.get("workspace_id") or payload.get("workspaceId") or "").strip(),
+            "queue_name": str(payload.get("queue_name") or payload.get("queueName") or "").strip(),
+            "watching": bool(payload.get("watching")),
+            "status": str(payload.get("status") or "watching").strip() or "watching",
+            "version": str(payload.get("version") or "").strip(),
+        }
+    )
+    return local_runner_status(str(LOCAL_RUNNER_HEARTBEAT.get("workspace_id") or ""))
+
+
+def runner_status(workspace_id: str = "") -> dict[str, Any]:
     running = RUNNER_PROCESS is not None and RUNNER_PROCESS.poll() is None
     return {
         "running": running,
@@ -1941,6 +1978,7 @@ def runner_status() -> dict[str, Any]:
         "run_id": RUNNER_LAST_RUN_ID,
         "browser_provider": RUNNER_LAST_BROWSER_PROVIDER,
         "live_url": RUNNER_LAST_LIVE_URL,
+        "local_runner": local_runner_status(workspace_id),
     }
 
 
@@ -2007,8 +2045,15 @@ def local_runner_command(api_base_url: str, workspace_id: str, queue_name: str) 
         f"--queue {powershell_quote(queue_arg)} "
         "--user-data-dir .tumblr-runner-profile-local --watch --no-pause --submit"
     )
+    autostart_command = (
+        "npm.cmd run tumblr:runner:install-autostart -- "
+        f"-ApiBase {powershell_quote(api_base_url)} "
+        f"-WorkspaceId {powershell_quote(workspace_id)} "
+        f"-Queue {powershell_quote(queue_arg)}"
+    )
     return {
         "command": command,
+        "autoStartCommand": autostart_command,
         "tokenConfigured": local_runner_token_configured(),
         "tokenEnv": LOCAL_RUNNER_TOKEN_ENV,
         "message": (
@@ -2588,13 +2633,21 @@ class Handler(BaseHTTPRequestHandler):
                 self.respond({"plan": local_runner_plan(connection, workspace_id, queue_name, limit)})
             return
 
+        if collection == "runner/local-heartbeat" and item_id is None:
+            token = bearer_token_from_header(self.headers.get("Authorization"))
+            if not local_runner_token_valid(token):
+                self.respond({"error": "Local runner token is required"}, HTTPStatus.UNAUTHORIZED)
+                return
+            self.respond({"localRunner": record_local_runner_heartbeat(self.read_json())}, HTTPStatus.CREATED)
+            return
+
         auth = self.require_auth()
         if not auth:
             return
         workspace_id = auth["workspace_id"]
 
         if collection == "runner/status" and item_id is None:
-            self.respond({"runner": runner_status()})
+            self.respond({"runner": runner_status(workspace_id)})
             return
 
         if collection == "runner/local-command" and item_id is None:

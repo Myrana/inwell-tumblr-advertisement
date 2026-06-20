@@ -38,7 +38,9 @@ from app import (
     get_app_settings,
     local_runner_command,
     local_runner_plan,
+    local_runner_status,
     local_runner_token_valid,
+    record_local_runner_heartbeat,
     remote_tumblr_login_launch,
     unsupported_tumblr_helper_message,
     verify_password,
@@ -1478,6 +1480,31 @@ class PersistenceTests(unittest.TestCase):
         self.assertIn("--no-pause", result["command"])
         self.assertIn("--submit", result["command"])
         self.assertNotIn("<paste", result["command"])
+        self.assertIn("tumblr:runner:install-autostart", result["autoStartCommand"])
+        self.assertIn("-ApiBase 'https://example.test/api'", result["autoStartCommand"])
+        self.assertIn("-WorkspaceId 'workspace-local'", result["autoStartCommand"])
+        self.assertIn("-Queue 'Local queue'", result["autoStartCommand"])
+
+    def test_local_runner_heartbeat_reports_online_for_matching_workspace(self) -> None:
+        app.LOCAL_RUNNER_HEARTBEAT.clear()
+        try:
+            status = record_local_runner_heartbeat(
+                {
+                    "workspace_id": "workspace-local",
+                    "queue_name": "Adverts",
+                    "watching": True,
+                    "status": "watching",
+                    "version": "local-runner-test",
+                }
+            )
+
+            self.assertTrue(status["online"])
+            self.assertEqual(status["queue_name"], "Adverts")
+            self.assertEqual(status["version"], "local-runner-test")
+            self.assertTrue(local_runner_status("workspace-local")["online"])
+            self.assertFalse(local_runner_status("other-workspace")["online"])
+        finally:
+            app.LOCAL_RUNNER_HEARTBEAT.clear()
 
     def test_start_runner_writes_plan_and_launches_known_command(self) -> None:
         temp_plan = Path("backend-test-runner-plan.json")
