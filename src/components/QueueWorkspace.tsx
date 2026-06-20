@@ -1,4 +1,4 @@
-import { ChevronDown, Download, Pencil, Play, PlugZap, Send, Terminal } from "lucide-react";
+import { ChevronDown, Download, Pencil, Play, PlugZap, Send, Terminal, TestTube2 } from "lucide-react";
 import { useState } from "react";
 import { formatDate, formatSubmissionStatus } from "../domain/format";
 import { queueLogGroups, runnerLogExplanation, visibleRunnerLogs } from "../domain/runnerLogs";
@@ -34,6 +34,7 @@ type QueueWorkspaceProps = {
   onDownloadLocalRunner: () => void;
   onLaunchLocalRunner: () => void;
   onStartRunner: () => void;
+  onStartTestRun: () => void;
   onRunnerHeadlessChange: (headless: boolean) => void;
   showLaunchLocalRunner: boolean;
   onUpdateQueueItem: (id: string, status: SubmissionStatus, notes: string) => void;
@@ -59,6 +60,7 @@ export function QueueWorkspace({
   onDownloadLocalRunner,
   onLaunchLocalRunner,
   onStartRunner,
+  onStartTestRun,
   onRunnerHeadlessChange,
   showLaunchLocalRunner,
   onUpdateQueueItem,
@@ -202,9 +204,13 @@ export function QueueWorkspace({
             <span>{runnerConnectionLabel}</span>
           </div>
           <div className="queue-action-row">
-            <button className="primary" type="button" onClick={onStartRunner} disabled={!activeQueue.length}>
+            <button className="primary" type="button" onClick={() => onStartRunner()} disabled={!activeQueue.length}>
               <Play size={18} />
               Run
+            </button>
+            <button className="secondary" type="button" onClick={onStartTestRun} disabled={!activeQueue.length}>
+              <TestTube2 size={18} />
+              Test run
             </button>
             {showLaunchLocalRunner ? (
               <button className="secondary" type="button" onClick={onLaunchLocalRunner}>

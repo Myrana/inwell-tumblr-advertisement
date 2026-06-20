@@ -79,7 +79,7 @@ test("local companion grants private network access for deployed app preflight",
   }
 });
 
-test("local companion accepts headless run requests", async () => {
+test("local companion accepts headless dry-run requests", async () => {
   const port = 20000 + Math.floor(Math.random() * 1000);
   const child = spawn(
     process.execPath,
@@ -96,6 +96,7 @@ test("local companion accepts headless run requests", async () => {
       "Adverts",
       "--token",
       "test-token",
+      "--submit",
     ],
     { cwd: process.cwd(), stdio: ["ignore", "pipe", "pipe"] },
   );
@@ -108,13 +109,14 @@ test("local companion accepts headless run requests", async () => {
         "Content-Type": "application/json",
         Origin: "http://127.0.0.1:8123",
       },
-      body: JSON.stringify({ queueName: "Adverts", headless: true }),
+      body: JSON.stringify({ queueName: "Adverts", headless: true, submit: false }),
     });
 
     assert.equal(response.status, 202);
     const payload = await response.json();
     assert.equal(payload.accepted, true);
     assert.equal(payload.running, true);
+    assert.equal(payload.submit, false);
   } finally {
     child.kill();
   }

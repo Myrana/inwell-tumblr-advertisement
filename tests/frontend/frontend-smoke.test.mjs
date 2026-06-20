@@ -1,4 +1,4 @@
-﻿import assert from "node:assert/strict";
+import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -601,7 +601,7 @@ test("templates can be edited on their page and applied from the submission work
   await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
   assert.equal(await page.getByLabel("Active queue").inputValue(), "Want ads");
   assert.equal(await page.getByLabel("Queue actions").getByRole("button", { name: "Queue all" }).count(), 0);
-  await page.getByLabel("Queue actions").getByRole("button", { name: "Run" }).waitFor();
+  await page.getByLabel("Queue actions").getByRole("button", { name: "Run", exact: true }).waitFor();
   await page.getByRole("button", { name: "Toggle schedule section" }).click();
   await page.getByLabel("Run this queue daily").check();
   await page.getByLabel("Daily run time").fill("09:30");
@@ -1332,13 +1332,16 @@ test("running the queue prepares the local runner and shows failure explanations
   );
   await page.route("http://127.0.0.1:8021/api/runner/local-command?**", async (route) => {
     localCommandRequested = true;
+    const url = new URL(route.request().url());
+    const submit = url.searchParams.get("submit") !== "false";
+    const submitArg = submit ? " --submit" : "";
     await route.fulfill({
       contentType: "application/json",
       headers: apiHeaders,
       body: JSON.stringify({
         localRunner: {
           command:
-            "npm.cmd run tumblr:runner:local -- --api-base 'https://inkwell-production-f037.up.railway.app/api' --token 'ilr_private_token' --workspace-id 'workspace-test' --queue 'Default queue' --user-data-dir .tumblr-runner-profile-local --watch --serve --submit",
+            `npm.cmd run tumblr:runner:local -- --api-base 'https://inkwell-production-f037.up.railway.app/api' --token 'ilr_private_token' --workspace-id 'workspace-test' --queue 'Default queue' --user-data-dir .tumblr-runner-profile-local --watch --serve${submitArg}`,
           autoStartCommand:
             "npm.cmd run tumblr:runner:install-autostart -- -ApiBase 'https://inkwell-production-f037.up.railway.app/api' -WorkspaceId 'workspace-test' -Queue 'Default queue' -RunnerToken 'ilr_private_token'",
           tokenConfigured: true,
@@ -1490,7 +1493,7 @@ test("running the queue prepares the local runner and shows failure explanations
   await page.getByLabel("Queue actions").getByRole("button", { name: "Download" }).click();
   await page.getByText("Local runner installer downloaded.").waitFor();
   assert.equal(localPackageRequested, true);
-  await page.getByLabel("Queue actions").getByRole("button", { name: "Run" }).click();
+  await page.getByLabel("Queue actions").getByRole("button", { name: "Run", exact: true }).click();
   await page.getByText("Local runner command copied.").waitFor();
   await page.getByText("Local companion was not detected on this computer, so the command was copied instead.").waitFor();
   assert.equal(localCommandRequested, true);
@@ -1500,8 +1503,17 @@ test("running the queue prepares the local runner and shows failure explanations
   assert.match(copiedText, /--serve/);
   assert.doesNotMatch(copiedText, /--no-pause/);
   assert.match(copiedText, /--token 'ilr_private_token'/);
+  assert.match(copiedText, /--submit/);
   await page.getByText(/paste it, and press Enter to start the local runner/).waitFor();
   await page.getByText(/ilr_private_token/).waitFor({ state: "detached" });
+  await page.getByLabel("Queue actions").getByRole("button", { name: "Test run" }).click();
+  await page.getByText("Local runner command copied.").waitFor();
+  await page.getByText(/start a test run that prepares Tumblr without submitting/).waitFor();
+  copiedText = await page.evaluate(() => window.__copiedText);
+  assert.match(copiedText, /tumblr:runner:local/);
+  assert.match(copiedText, /--watch/);
+  assert.match(copiedText, /--serve/);
+  assert.doesNotMatch(copiedText, /--submit/);
   await page.getByLabel("Queue actions").getByRole("button", { name: "Setup" }).click();
   await page.getByText("Local runner setup command copied.").waitFor();
   copiedText = await page.evaluate(() => window.__copiedText);
@@ -1511,7 +1523,7 @@ test("running the queue prepares the local runner and shows failure explanations
   await page.getByText(/ilr_private_token/).waitFor({ state: "detached" });
 
   let companionRunRequested = false;
-  let companionRunPayload = null;
+  const companionRunPayloads = [];
   await page.unroute("http://127.0.0.1:17842/status", unavailableCompanionStatus);
   await page.route("http://127.0.0.1:17842/status", (route) =>
     route.fulfill({
@@ -1534,7 +1546,7 @@ test("running the queue prepares the local runner and shows failure explanations
   );
   await page.route("http://127.0.0.1:17842/run", async (route) => {
     companionRunRequested = true;
-    companionRunPayload = route.request().postDataJSON();
+    companionRunPayloads.push(route.request().postDataJSON());
     return route.fulfill({
       contentType: "application/json",
       body: JSON.stringify({
@@ -1558,10 +1570,13 @@ test("running the queue prepares the local runner and shows failure explanations
   await page.getByText("Local companion is watching Default queue.").waitFor();
   await page.getByText("Local companion was not detected on this computer", { exact: false }).waitFor({ state: "detached" });
   await page.getByLabel("Local runner activity").getByLabel("Run headless").check();
-  await page.getByLabel("Queue actions").getByRole("button", { name: "Run" }).click();
+  await page.getByLabel("Queue actions").getByRole("button", { name: "Test run" }).click();
+  await page.getByText("Local companion started a test run.").waitFor();
+  assert.deepEqual(companionRunPayloads.at(-1), { queueName: "Default queue", headless: true, submit: false });
+  await page.getByLabel("Queue actions").getByRole("button", { name: "Run", exact: true }).click();
   await page.getByText("Local companion started the runner headless.").waitFor();
   assert.equal(companionRunRequested, true);
-  assert.deepEqual(companionRunPayload, { queueName: "Default queue", headless: true });
+  assert.deepEqual(companionRunPayloads.at(-1), { queueName: "Default queue", headless: true });
   await page.getByLabel("Local runner activity").getByText("Running", { exact: true }).waitFor();
   await page.getByLabel("Local runner activity").getByText("Working through Default queue.").waitFor();
   assert.deepEqual(await page.evaluate(() => window.__openedUrls), []);

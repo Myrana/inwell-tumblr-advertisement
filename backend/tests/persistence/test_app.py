@@ -1630,6 +1630,13 @@ class PersistenceTests(unittest.TestCase):
         self.assertTrue(result["tokenConfigured"])
         self.assertTrue(result["usesDeviceToken"])
 
+    def test_local_runner_command_can_disable_submit_for_dry_run(self) -> None:
+        result = local_runner_command("https://example.test/api", "workspace-local", "Local queue", "ilr_secret", submit=False)
+
+        self.assertIn("--watch", result["command"])
+        self.assertIn("--serve", result["command"])
+        self.assertNotIn("--submit", result["command"])
+
     def test_local_runner_package_includes_installer_assets(self) -> None:
         body, filename = local_runner_package("https://example.test/api", "workspace-local", "Local queue", "ilr_secret")
 

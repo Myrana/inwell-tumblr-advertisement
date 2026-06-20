@@ -1105,7 +1105,7 @@ function App() {
     return true;
   }
 
-  async function prepareLocalRunnerCommand(options: { copy?: boolean; target?: "run" | "setup"; fallbackReason?: string } = {}) {
+  async function prepareLocalRunnerCommand(options: { copy?: boolean; target?: "run" | "setup"; fallbackReason?: string; submit?: boolean } = {}) {
     const items = runnableQueueItems();
     if (!items.length) {
       setQueueStatus("Queue at least one target before starting the runner.");
@@ -1113,7 +1113,7 @@ function App() {
     }
 
     try {
-      const localRunner = await loadLocalRunnerCommand(activeQueueName);
+      const localRunner = await loadLocalRunnerCommand(activeQueueName, { submit: options.submit });
       const [logs, backendQueue] = await Promise.all([loadRunnerLogs(), loadBackendQueue()]);
       setRunnerLogs(logs);
       setSubmissionQueue(backendQueue);
@@ -1128,7 +1128,9 @@ function App() {
         const actionMessage = copied && target === "setup"
           ? "Open PowerShell in the repo folder, paste it, and press Enter to install the Windows login task. Keep the copied command private."
           : copied
-            ? "Open PowerShell in the repo folder, paste it, and press Enter to start the local runner. Keep the copied command private."
+            ? options.submit === false
+              ? "Open PowerShell in the repo folder, paste it, and press Enter to start a test run that prepares Tumblr without submitting. Keep the copied command private."
+              : "Open PowerShell in the repo folder, paste it, and press Enter to start the local runner. Keep the copied command private."
             : "Use Run or Setup to copy a fresh private device-token command.";
         setQueueStatus(`${copyMessage}${fallbackMessage}${localRunner.message} ${actionMessage}`);
         return;
@@ -1145,7 +1147,7 @@ function App() {
     }
   }
 
-  async function startRunner() {
+  async function startRunner(options: { submit?: boolean } = {}) {
     const items = runnableQueueItems();
     if (!items.length) {
       setQueueStatus("Queue at least one target before starting the runner.");
@@ -1155,11 +1157,16 @@ function App() {
     try {
       const companion = localCompanion ?? await refreshLocalCompanionStatus({ quiet: true });
       if (companion?.ok) {
-        const run = await runLocalCompanion(activeQueueName, { headless: runnerSettings.headless });
+        const run = await runLocalCompanion(activeQueueName, {
+          headless: runnerSettings.headless,
+          submit: options.submit,
+        });
         setLocalCompanion(run);
         setQueueStatus(
           run.accepted
-            ? runnerSettings.headless
+            ? options.submit === false
+              ? "Local companion started a test run. It will fill Tumblr and stop before submitting."
+              : runnerSettings.headless
               ? "Local companion started the runner headless. Watch this page for queue progress."
               : "Local companion started the runner on this computer. You can leave this page open while it works."
             : run.error || "Local companion could not start the runner.",
@@ -1179,8 +1186,13 @@ function App() {
     await prepareLocalRunnerCommand({
       copy: true,
       target: "run",
+      submit: options.submit,
       fallbackReason: "Local companion was not detected on this computer, so the command was copied instead.",
     });
+  }
+
+  async function startTestRunner() {
+    await startRunner({ submit: false });
   }
 
   function launchLocalRunnerProtocol() {
@@ -1422,6 +1434,7 @@ function App() {
             onDownloadLocalRunner={downloadLocalRunnerInstaller}
             onLaunchLocalRunner={launchLocalRunnerProtocol}
             onStartRunner={startRunner}
+            onStartTestRun={startTestRunner}
             onRunnerHeadlessChange={(headless) => setRunnerSettings((current) => ({ ...current, headless }))}
             showLaunchLocalRunner={canLaunchLocalRunner}
             onUpdateQueueItem={updateQueueItem}

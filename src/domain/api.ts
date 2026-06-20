@@ -212,6 +212,7 @@ export type LocalCompanionStatus = {
   apiBaseUrl: string;
   workspaceId: string;
   queueName: string;
+  submit?: boolean;
   watching: boolean;
   running: boolean;
   status: string;
@@ -261,12 +262,19 @@ export async function loadLocalCompanionStatus() {
   return localCompanionRequest<LocalCompanionStatus>("/status", { method: "GET" }, 350);
 }
 
-export async function runLocalCompanion(queueName: string, options: { headless?: boolean } = {}) {
+export async function runLocalCompanion(queueName: string, options: { headless?: boolean; submit?: boolean } = {}) {
+  const body: { queueName: string; headless: boolean; submit?: boolean } = {
+    queueName,
+    headless: Boolean(options.headless),
+  };
+  if (typeof options.submit === "boolean") {
+    body.submit = options.submit;
+  }
   return localCompanionRequest<LocalCompanionStatus>(
     "/run",
     {
       method: "POST",
-      body: JSON.stringify({ queueName, headless: Boolean(options.headless) }),
+      body: JSON.stringify(body),
     },
     1500,
   );
@@ -293,7 +301,11 @@ export async function downloadLocalRunnerPackage(queueName: string) {
   };
 }
 
-export async function loadLocalRunnerCommand(queueName: string) {
+export async function loadLocalRunnerCommand(queueName: string, options: { submit?: boolean } = {}) {
+  const params = new URLSearchParams({ queueName });
+  if (typeof options.submit === "boolean") {
+    params.set("submit", String(options.submit));
+  }
   const response = await apiRequest<{
     localRunner: {
       command: string;
@@ -303,7 +315,7 @@ export async function loadLocalRunnerCommand(queueName: string) {
       tokenEnv: string;
       message: string;
     };
-  }>(`/runner/local-command?queueName=${encodeURIComponent(queueName)}`);
+  }>(`/runner/local-command?${params.toString()}`);
   return response.localRunner;
 }
 
