@@ -56,56 +56,64 @@ export function TumblrAccountsWorkspace({
         <ShieldCheck size={18} />
       </div>
 
-      <form className="queue-management-form" onSubmit={onCreateAccount}>
-        <label>
-          Account name
-          <input
-            value={draft.displayName}
-            onChange={(event) => onDraftChange({ displayName: event.target.value })}
-            placeholder="Myrana Tumblr"
-          />
-        </label>
-        <label>
-          Tumblr blog name
-          <input
-            value={draft.blogName}
-            onChange={(event) => onDraftChange({ blogName: event.target.value })}
-            placeholder="snowleopardx"
-          />
-        </label>
-        <button className="secondary" type="submit">
-          <UserPlus size={18} />
-          Add account
-        </button>
-      </form>
-
-      <div className="queue-management-form">
-        <label>
-          Browser provider
-          <select
-            value={runnerSettings.remoteBrowserProvider}
-            onChange={(event) =>
-              onRunnerSettingsChange({
-                remoteBrowserProvider: event.target.value as RunnerSettings["remoteBrowserProvider"],
-              })
-            }
-          >
-            <option value="none">Local desktop</option>
-            <option value="browserbase">Browserbase</option>
-            <option value="browserless">Browserless</option>
-            <option value="custom">Custom live browser URL</option>
-          </select>
-        </label>
-        {runnerSettings.remoteBrowserProvider === "custom" || runnerSettings.remoteBrowserProvider === "browserless" ? (
+      <div className="account-settings-grid">
+        <form className="queue-management-form account-create-form" onSubmit={onCreateAccount}>
           <label>
-            Live browser URL
+            Account name
             <input
-              value={runnerSettings.remoteBrowserLaunchUrl}
-              onChange={(event) => onRunnerSettingsChange({ remoteBrowserLaunchUrl: event.target.value })}
-              placeholder="https://provider.example/live/session"
+              value={draft.displayName}
+              onChange={(event) => onDraftChange({ displayName: event.target.value })}
+              placeholder="Myrana Tumblr"
             />
           </label>
-        ) : null}
+          <label>
+            Tumblr blog name
+            <input
+              value={draft.blogName}
+              onChange={(event) => onDraftChange({ blogName: event.target.value })}
+              placeholder="snowleopardx"
+            />
+          </label>
+          <button className="secondary" type="submit">
+            <UserPlus size={18} />
+            Add account
+          </button>
+        </form>
+
+        <section className="runner-browser-settings" aria-label="Runner browser settings">
+          <div className="queue-command-heading">
+            <strong>Runner browser</strong>
+            <span>{runnerSettings.remoteBrowserProvider === "none" ? "Local desktop" : runnerSettings.remoteBrowserProvider}</span>
+          </div>
+          <div className="queue-management-form runner-browser-form">
+            <label>
+              Browser provider
+              <select
+                value={runnerSettings.remoteBrowserProvider}
+                onChange={(event) =>
+                  onRunnerSettingsChange({
+                    remoteBrowserProvider: event.target.value as RunnerSettings["remoteBrowserProvider"],
+                  })
+                }
+              >
+                <option value="none">Local desktop</option>
+                <option value="browserbase">Browserbase</option>
+                <option value="browserless">Browserless</option>
+                <option value="custom">Custom live browser URL</option>
+              </select>
+            </label>
+            {runnerSettings.remoteBrowserProvider === "custom" || runnerSettings.remoteBrowserProvider === "browserless" ? (
+              <label>
+                Live browser URL
+                <input
+                  value={runnerSettings.remoteBrowserLaunchUrl}
+                  onChange={(event) => onRunnerSettingsChange({ remoteBrowserLaunchUrl: event.target.value })}
+                  placeholder="https://provider.example/live/session"
+                />
+              </label>
+            ) : null}
+          </div>
+        </section>
       </div>
 
       {visibleStatus ? <p className="queue-status">{visibleStatus}</p> : null}
