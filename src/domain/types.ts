@@ -83,7 +83,7 @@ export type SubmissionQueueItem = {
   runnerPayload: string;
 };
 
-export type RemoteBrowserProvider = "none" | "browserbase" | "browserless" | "custom";
+export type RemoteBrowserProvider = "none" | "browserless" | "custom";
 
 export type RunnerSettings = {
   mediaDir: string;

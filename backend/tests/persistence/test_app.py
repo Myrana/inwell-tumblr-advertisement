@@ -35,8 +35,6 @@ from app import (
     upsert_queue_item,
     upsert_template,
     upsert_tumblr_account,
-    check_browserbase_tumblr_login,
-    create_browserbase_tumblr_login,
     create_local_runner_token,
     get_app_settings,
     local_runner_command,
@@ -1010,13 +1008,21 @@ class PersistenceTests(unittest.TestCase):
         self.assertEqual(saved["runnerSettings"]["remoteBrowserLaunchUrl"], "")
         self.assertEqual(saved["queueScheduleSettings"]["dailyTime"], "09:00")
 
-    def test_app_settings_uses_browserbase_env_as_default_provider(self) -> None:
+    def test_app_settings_uses_browserless_env_as_default_provider(self) -> None:
+        upsert_app_settings(self.connection, {"runnerSettings": {"remoteBrowserProvider": "none"}}, audit=False)
+
+        with patch.dict(os.environ, {"REMOTE_BROWSER_PROVIDER": "browserless"}, clear=True):
+            settings = get_app_settings(self.connection)
+
+        self.assertEqual(settings["runnerSettings"]["remoteBrowserProvider"], "browserless")
+
+    def test_app_settings_ignores_browserbase_env_provider(self) -> None:
         upsert_app_settings(self.connection, {"runnerSettings": {"remoteBrowserProvider": "none"}}, audit=False)
 
         with patch.dict(os.environ, {"REMOTE_BROWSER_PROVIDER": "browserbase"}, clear=True):
             settings = get_app_settings(self.connection)
 
-        self.assertEqual(settings["runnerSettings"]["remoteBrowserProvider"], "browserbase")
+        self.assertEqual(settings["runnerSettings"]["remoteBrowserProvider"], "none")
 
     def test_remote_tumblr_login_launch_requires_configured_url(self) -> None:
         self.assertIsNone(remote_tumblr_login_launch({"remoteBrowserProvider": "none"}))
@@ -1099,155 +1105,6 @@ class PersistenceTests(unittest.TestCase):
         self.assertEqual(saved["browserbase_session_id"], "session-123")
         self.assertEqual(saved["browserbase_live_url"], "https://browserbase.com/session/live")
         self.assertIsNotNone(saved["browserbase_session_expires_at"])
-
-    def test_create_browserbase_tumblr_login_creates_context_session_and_live_view(self) -> None:
-        account = upsert_tumblr_account(
-            self.connection,
-            {"displayName": "Snow", "blogName": "snowleopardx", "workspace_id": "workspace-test"},
-        )
-
-        def fake_browserbase_request(method: str, path: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
-            if method == "POST" and path == "/contexts":
-                self.assertEqual(payload["projectId"], "project-test")
-                return {"id": "ctx-new"}
-            if method == "POST" and path == "/sessions":
-                self.assertEqual(payload["projectId"], "project-test")
-                self.assertIs(payload["keepAlive"], True)
-                self.assertEqual(payload["browserSettings"]["context"], {"id": "ctx-new", "persist": True})
-                self.assertEqual(payload["userMetadata"]["tumblrAccountId"], "snowleopardx")
-                return {"id": "session-new", "connectUrl": "wss://connect.browserbase.com/session-new", "expiresAt": "2026-06-19T05:00:00Z"}
-            if method == "GET" and path == "/sessions/session-new/debug":
-                return {"debuggerFullscreenUrl": "https://browserbase.com/live/session-new"}
-            raise AssertionError(f"Unexpected Browserbase call: {method} {path}")
-
-        with patch.dict(os.environ, {"BROWSERBASE_API_KEY": "key-test", "BROWSERBASE_PROJECT_ID": "project-test"}, clear=True):
-            with patch("app.browserbase_request", side_effect=fake_browserbase_request):
-                with patch("app.browserbase_navigate_session") as navigate_session:
-                    login = create_browserbase_tumblr_login(self.connection, account, "workspace-test")
-
-        self.assertEqual(login["provider"], "browserbase")
-        self.assertEqual(login["sessionId"], "session-new")
-        self.assertEqual(login["contextId"], "ctx-new")
-        self.assertEqual(login["launchUrl"], "https://browserbase.com/live/session-new")
-        navigate_session.assert_called_once_with("wss://connect.browserbase.com/session-new", "https://www.tumblr.com/login")
-        stored = self.connection.tumblr_accounts["snowleopardx"]
-        self.assertEqual(stored["browserbase_context_id"], "ctx-new")
-        self.assertEqual(stored["browserbase_session_id"], "session-new")
-        self.assertEqual(stored["status"], "checking")
-
-    def test_create_browserbase_tumblr_login_requires_env(self) -> None:
-        account = upsert_tumblr_account(self.connection, {"displayName": "Snow", "blogName": "snowleopardx"})
-
-        with patch.dict(os.environ, {}, clear=True):
-            with self.assertRaisesRegex(ValueError, "BROWSERBASE_API_KEY"):
-                create_browserbase_tumblr_login(self.connection, account, "default")
-
-    def test_check_browserbase_tumblr_login_marks_saved_context_connected(self) -> None:
-        account = upsert_tumblr_account(
-            self.connection,
-            {
-                "displayName": "Snow",
-                "blogName": "snowleopardx",
-                "workspace_id": "workspace-test",
-                "browserbaseContextId": "ctx-saved",
-                "status": "checking",
-            },
-        )
-
-        def fake_browserbase_request(method: str, path: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
-            if method == "POST" and path == "/sessions":
-                self.assertEqual(payload["browserSettings"]["context"], {"id": "ctx-saved", "persist": True})
-                return {"id": "session-check", "connectUrl": "wss://connect.browserbase.com/session-check", "expiresAt": "2026-06-19T05:00:00Z"}
-            if method == "GET" and path == "/sessions/session-check/debug":
-                return {"debuggerFullscreenUrl": "https://browserbase.com/live/session-check"}
-            raise AssertionError(f"Unexpected Browserbase call: {method} {path}")
-
-        with patch.dict(os.environ, {"BROWSERBASE_API_KEY": "key-test", "BROWSERBASE_PROJECT_ID": "project-test"}, clear=True):
-            with patch("app.browserbase_request", side_effect=fake_browserbase_request):
-                with patch(
-                    "app.browserbase_page_state",
-                    return_value={"url": "https://www.tumblr.com/dashboard", "text": "Dashboard Following For you Activity Account"},
-                ) as page_state:
-                    login = check_browserbase_tumblr_login(self.connection, account, "workspace-test")
-
-        page_state.assert_called_once_with("wss://connect.browserbase.com/session-check", "https://www.tumblr.com/dashboard")
-        self.assertTrue(login["loggedIn"])
-        self.assertEqual(login["launchUrl"], "")
-        stored = self.connection.tumblr_accounts["snowleopardx"]
-        self.assertEqual(stored["status"], "connected")
-        self.assertIn("Saved Tumblr login is active", stored["notes"])
-        self.assertIsNotNone(stored["last_login_at"])
-
-    def test_check_browserbase_tumblr_login_returns_live_view_when_saved_context_needs_login(self) -> None:
-        account = upsert_tumblr_account(
-            self.connection,
-            {
-                "displayName": "Snow",
-                "blogName": "snowleopardx",
-                "workspace_id": "workspace-test",
-                "browserbaseContextId": "ctx-saved",
-                "status": "checking",
-            },
-        )
-
-        def fake_browserbase_request(method: str, path: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
-            if method == "POST" and path == "/sessions":
-                return {"id": "session-check", "connectUrl": "wss://connect.browserbase.com/session-check", "expiresAt": "2026-06-19T05:00:00Z"}
-            if method == "GET" and path == "/sessions/session-check/debug":
-                return {"debuggerFullscreenUrl": "https://browserbase.com/live/session-check"}
-            raise AssertionError(f"Unexpected Browserbase call: {method} {path}")
-
-        with patch.dict(os.environ, {"BROWSERBASE_API_KEY": "key-test", "BROWSERBASE_PROJECT_ID": "project-test"}, clear=True):
-            with patch("app.browserbase_request", side_effect=fake_browserbase_request):
-                with patch("app.browserbase_page_state", return_value={"url": "https://www.tumblr.com/login", "text": "Log in to continue"}):
-                    login = check_browserbase_tumblr_login(self.connection, account, "workspace-test")
-
-        self.assertFalse(login["loggedIn"])
-        self.assertEqual(login["launchUrl"], "https://browserbase.com/live/session-check")
-        stored = self.connection.tumblr_accounts["snowleopardx"]
-        self.assertEqual(stored["status"], "needs-login")
-        self.assertIn("Saved Tumblr login was not active", stored["notes"])
-
-    def test_check_browserbase_tumblr_login_requires_saved_context(self) -> None:
-        account = upsert_tumblr_account(self.connection, {"displayName": "Snow", "blogName": "snowleopardx"})
-
-        with self.assertRaisesRegex(ValueError, "Connect this Tumblr account once"):
-            check_browserbase_tumblr_login(self.connection, account, "default")
-
-    def test_browserbase_navigate_session_navigates_existing_page_to_tumblr(self) -> None:
-        connection = Mock()
-        commands: list[tuple[str, dict[str, Any] | None, str]] = []
-
-        def fake_cdp_command(
-            _connection: Any,
-            _command_id: int,
-            method: str,
-            params: dict[str, Any] | None = None,
-            session_id: str = "",
-        ) -> dict[str, Any]:
-            commands.append((method, params, session_id))
-            if method == "Target.getTargets":
-                return {"result": {"targetInfos": [{"type": "page", "targetId": "target-1"}]}}
-            if method == "Target.attachToTarget":
-                return {"result": {"sessionId": "cdp-session-1"}}
-            if method == "Page.navigate":
-                return {"result": {"frameId": "frame-1"}}
-            raise AssertionError(f"Unexpected CDP command: {method}")
-
-        with patch("app.websocket_open", return_value=connection) as websocket_open:
-            with patch("app.cdp_command", side_effect=fake_cdp_command):
-                app.browserbase_navigate_session("wss://connect.browserbase.com/session-new")
-
-        websocket_open.assert_called_once_with("wss://connect.browserbase.com/session-new")
-        self.assertEqual(
-            commands,
-            [
-                ("Target.getTargets", None, ""),
-                ("Target.attachToTarget", {"targetId": "target-1", "flatten": True}, ""),
-                ("Page.navigate", {"url": "https://www.tumblr.com/login"}, "cdp-session-1"),
-            ],
-        )
-        connection.close.assert_called_once()
 
     def test_visible_tumblr_helper_requires_desktop_display_on_non_windows(self) -> None:
         with patch("app.os.name", "posix"), patch.dict(os.environ, {}, clear=True):
@@ -1838,11 +1695,8 @@ class PersistenceTests(unittest.TestCase):
             else:
                 os.environ["RUNNER_API_BASE_URL"] = old_runner_api_base
 
-    def test_start_runner_uses_browserbase_without_visible_local_browser(self) -> None:
+    def test_start_runner_rejects_browserbase_provider(self) -> None:
         temp_plan = Path("backend-test-runner-plan.json")
-        process = Mock()
-        process.pid = 456
-        process.poll.return_value = None
         old_process = app.RUNNER_PROCESS
         old_command = app.RUNNER_LAST_COMMAND
         old_plan = app.RUNNER_PLAN_PATH
@@ -1853,33 +1707,10 @@ class PersistenceTests(unittest.TestCase):
         app.RUNNER_PLAN_PATH = temp_plan
         app.RUNNER_LAST_BROWSER_PROVIDER = "local"
         app.RUNNER_LAST_LIVE_URL = ""
-        upsert_tumblr_account(
-            self.connection,
-            {
-                "displayName": "Snow",
-                "blogName": "snowleopardx",
-                "workspace_id": "workspace-test",
-                "status": "connected",
-                "browserbaseContextId": "ctx-saved",
-            },
-        )
 
         try:
-            with (
-                patch("app.connect", return_value=ConnectionContext(self.connection)),
-                patch("app.visible_tumblr_helper_supported", return_value=False),
-                patch(
-                    "app.create_browserbase_session",
-                    return_value={
-                        "id": "session-run",
-                        "connectUrl": "wss://connect.browserbase.com/session-run",
-                        "expiresAt": "2026-06-19T05:00:00Z",
-                    },
-                ) as create_session,
-                patch("app.browserbase_live_view_url", return_value="https://browserbase.com/live/session-run"),
-                patch("app.subprocess.Popen", return_value=process) as popen,
-            ):
-                result = start_runner(
+            with self.assertRaisesRegex(ValueError, "local runner only"):
+                start_runner(
                     {
                         "workspace_id": "workspace-test",
                         "items": [{"id": "queue-1", "runnerPayload": "{}"}],
@@ -1887,17 +1718,6 @@ class PersistenceTests(unittest.TestCase):
                         "tumblrAccountId": "snowleopardx",
                     }
                 )
-
-            self.assertTrue(result["running"])
-            self.assertEqual(result["browser_provider"], "browserbase")
-            self.assertEqual(result["live_url"], "https://browserbase.com/live/session-run")
-            self.assertIn("--browserbase-cdp-url", result["command"])
-            self.assertIn("wss://connect.browserbase.com/session-run", result["command"])
-            self.assertIn("--browserbase-live-url", result["command"])
-            create_session.assert_called_once_with("ctx-saved", "snowleopardx", "workspace-test")
-            launched_command = popen.call_args.args[0]
-            self.assertEqual(launched_command[0], "npm.cmd" if os.name == "nt" else "npm")
-            self.assertEqual(self.connection.tumblr_accounts["snowleopardx"]["browserbase_session_id"], "session-run")
         finally:
             if temp_plan.exists():
                 temp_plan.unlink()

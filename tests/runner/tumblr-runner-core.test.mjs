@@ -8,7 +8,7 @@ import {
   fillRichTextEditorInDocument,
   frameCandidateScore,
   htmlToPlainText,
-  isReusableBrowserbasePage,
+  isReusableRemotePage,
   loginWaitMessage,
   manualActionReason,
   normalizeRunnerPlan,
@@ -48,10 +48,10 @@ test("parseArgs supports same-session login before queue execution", () => {
     "run-123",
     "--workspace-id",
     "workspace-local",
-    "--browserbase-cdp-url",
-    "wss://connect.browserbase.com/session-123",
-    "--browserbase-live-url",
-    "https://browserbase.com/live/session-123",
+    "--remote-cdp-url",
+    "wss://browser.example/session-123",
+    "--remote-live-url",
+    "https://browser.example/live/session-123",
   ]);
   assert.equal(options.planPath, "queue.json");
   assert.equal(options.loginFirst, true);
@@ -61,8 +61,8 @@ test("parseArgs supports same-session login before queue execution", () => {
   assert.equal(options.apiToken, "local-token");
   assert.equal(options.runId, "run-123");
   assert.equal(options.workspaceId, "workspace-local");
-  assert.equal(options.browserbaseCdpUrl, "wss://connect.browserbase.com/session-123");
-  assert.equal(options.browserbaseLiveUrl, "https://browserbase.com/live/session-123");
+  assert.equal(options.remoteCdpUrl, "wss://browser.example/session-123");
+  assert.equal(options.remoteLiveUrl, "https://browser.example/live/session-123");
 });
 
 test("normalizeRunnerPlan decodes queue item runner payload", () => {
@@ -219,14 +219,14 @@ test("ready queue pages defer review until the full queue is processed", () => {
   assert.equal(shouldDeferReadyReview({ submit: false, headless: false, noPause: true }), false);
 });
 
-test("Browserbase page reuse accepts open blank and Tumblr session pages", () => {
-  assert.equal(isReusableBrowserbasePage({ isClosed: () => false, url: () => "about:blank" }), true);
-  assert.equal(isReusableBrowserbasePage({ isClosed: () => false, url: () => "" }), true);
-  assert.equal(isReusableBrowserbasePage({ isClosed: () => false, url: () => "https://www.tumblr.com/dashboard" }), true);
-  assert.equal(isReusableBrowserbasePage({ isClosed: () => false, url: () => "https://www.tumblr.com/login?redirect_to=%2Fdashboard" }), true);
-  assert.equal(isReusableBrowserbasePage({ isClosed: () => false, url: () => "https://example.tumblr.com/submit" }), false);
-  assert.equal(isReusableBrowserbasePage({ isClosed: () => true, url: () => "about:blank" }), false);
-  assert.equal(isReusableBrowserbasePage(null), false);
+test("remote browser page reuse accepts open blank and Tumblr session pages", () => {
+  assert.equal(isReusableRemotePage({ isClosed: () => false, url: () => "about:blank" }), true);
+  assert.equal(isReusableRemotePage({ isClosed: () => false, url: () => "" }), true);
+  assert.equal(isReusableRemotePage({ isClosed: () => false, url: () => "https://www.tumblr.com/dashboard" }), true);
+  assert.equal(isReusableRemotePage({ isClosed: () => false, url: () => "https://www.tumblr.com/login?redirect_to=%2Fdashboard" }), true);
+  assert.equal(isReusableRemotePage({ isClosed: () => false, url: () => "https://example.tumblr.com/submit" }), false);
+  assert.equal(isReusableRemotePage({ isClosed: () => true, url: () => "about:blank" }), false);
+  assert.equal(isReusableRemotePage(null), false);
 });
 
 test("postTypeCandidateIndex prefers the visible unselected requested post type", () => {

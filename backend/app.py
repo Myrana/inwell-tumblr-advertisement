@@ -9,11 +9,7 @@ import mimetypes
 import os
 import re
 import secrets
-import socket
-import ssl
 import subprocess
-import struct
-import time
 import uuid
 import zipfile
 from datetime import date, datetime, timedelta, timezone
@@ -22,8 +18,6 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Protocol
 from urllib.parse import parse_qs, urlparse
-from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
 
 import psycopg
 from psycopg.rows import dict_row
@@ -43,11 +37,8 @@ AUTH_LOCK_WINDOW_MINUTES = 15
 AUTH_LOGIN_EMAIL_FAILURE_LIMIT = 5
 AUTH_LOGIN_CLIENT_FAILURE_LIMIT = 25
 AUTH_REGISTER_CLIENT_ATTEMPT_LIMIT = 8
-REMOTE_BROWSER_PROVIDERS = {"none", "browserbase", "browserless", "custom"}
-REMOTE_BROWSER_ACTIVE_PROVIDERS = {"browserbase", "browserless", "custom"}
-BROWSERBASE_API_URL = "https://api.browserbase.com/v1"
-TUMBLR_LOGIN_URL = "https://www.tumblr.com/login"
-TUMBLR_DASHBOARD_URL = "https://www.tumblr.com/dashboard"
+REMOTE_BROWSER_PROVIDERS = {"none", "browserless", "custom"}
+REMOTE_BROWSER_ACTIVE_PROVIDERS = {"browserless", "custom"}
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DIST_ROOT = REPO_ROOT / "dist"
 RUNNER_PLAN_PATH = REPO_ROOT / "tumblr-runner-plan.json"
@@ -2446,15 +2437,13 @@ def start_runner(payload: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("runner is already running")
 
     remote_browser_provider = str(payload.get("remoteBrowserProvider") or "none").strip().lower()
-    if remote_browser_provider not in {"none", "browserbase"}:
-        raise ValueError("Queue runner supports Browserbase remote sessions or a local visible browser.")
+    if remote_browser_provider != "none":
+        raise ValueError("Queue runner supports the local runner only. Use Tumblr Accounts to connect a local desktop session.")
 
-    if remote_browser_provider != "browserbase" and not visible_tumblr_helper_supported():
+    if not visible_tumblr_helper_supported():
         raise ValueError(unsupported_tumblr_helper_message())
 
     run_id = str(payload.get("runId") or f"run-{uuid.uuid4().hex}").strip()
-    browserbase_session = prepare_browserbase_runner_session(payload) if remote_browser_provider == "browserbase" else {}
-
     plan = {
         "version": 1,
         "workflow": "tumblr-submission-queue",
@@ -2470,7 +2459,7 @@ def start_runner(payload: dict[str, Any]) -> dict[str, Any]:
     submit = bool(payload.get("submit"))
     user_data_dir = str(payload.get("userDataDir") or "").strip()
     tumblr_account_id = str(payload.get("tumblrAccountId") or "").strip()
-    if remote_browser_provider != "browserbase" and tumblr_account_id and not user_data_dir:
+    if tumblr_account_id and not user_data_dir:
         with connect() as connection:
             account = connection.execute("SELECT * FROM tumblr_accounts WHERE id = %s", (tumblr_account_id,)).fetchone()
             if account:
@@ -2497,11 +2486,7 @@ def start_runner(payload: dict[str, Any]) -> dict[str, Any]:
         runner_args.extend(["--user-data-dir", user_data_dir])
     if submit:
         runner_args.append("--submit")
-    if browserbase_session:
-        runner_args.extend(["--browserbase-cdp-url", str(browserbase_session["connect_url"])])
-        runner_args.extend(["--browserbase-live-url", str(browserbase_session["live_url"])])
-
-    if os.name == "nt" and not browserbase_session:
+    if os.name == "nt":
         command = [
             "powershell.exe",
             "-NoExit",
@@ -2516,8 +2501,8 @@ def start_runner(payload: dict[str, Any]) -> dict[str, Any]:
 
     RUNNER_LAST_COMMAND = runner_args
     RUNNER_LAST_RUN_ID = run_id
-    RUNNER_LAST_BROWSER_PROVIDER = "browserbase" if browserbase_session else "local"
-    RUNNER_LAST_LIVE_URL = str(browserbase_session.get("live_url") or "")
+    RUNNER_LAST_BROWSER_PROVIDER = "local"
+    RUNNER_LAST_LIVE_URL = ""
     try:
         RUNNER_PROCESS = subprocess.Popen(command, cwd=REPO_ROOT, creationflags=creationflags)
     except OSError as error:
@@ -2539,416 +2524,8 @@ def unsupported_tumblr_helper_message() -> str:
     return "Tumblr login helper needs a visible browser on your local desktop. Railway cannot show that browser."
 
 
-def prepare_browserbase_runner_session(payload: dict[str, Any]) -> dict[str, str]:
-    workspace_id = str(payload.get("workspace_id") or "").strip()
-    account_id = str(payload.get("tumblrAccountId") or "").strip()
-    if not workspace_id:
-        raise ValueError("workspace_id is required for Browserbase queue runs")
-    if not account_id:
-        raise ValueError("Select a Tumblr account session before starting the Browserbase runner.")
-
-    with connect() as connection:
-        account = connection.execute("SELECT * FROM tumblr_accounts WHERE id = %s AND workspace_id = %s", (account_id, workspace_id)).fetchone()
-        if not account:
-            raise ValueError("Tumblr account not found")
-        account_data = row_to_tumblr_account(account)
-        context_id = str(account_data.get("browserbase_context_id") or "").strip()
-        if not context_id:
-            raise ValueError("Connect this Tumblr account with Browserbase before running the queue.")
-
-        session = create_browserbase_session(context_id, account_id, workspace_id)
-        session_id = str(session.get("id") or "").strip()
-        connect_url = str(session.get("connectUrl") or "").strip()
-        if not connect_url:
-            raise ValueError("Browserbase did not return a CDP connection URL.")
-        live_url = browserbase_live_view_url(session_id)
-        upsert_tumblr_account(
-            connection,
-            {
-                **account_data,
-                "workspace_id": workspace_id,
-                "status": account_data.get("status") or "connected",
-                "notes": "Browserbase queue runner session is active.",
-                "last_checked_at": utc_now(),
-                "browserbase_context_id": context_id,
-                "browserbase_session_id": session_id,
-                "browserbase_live_url": live_url,
-                "browserbase_session_expires_at": session.get("expiresAt"),
-            },
-        )
-
-    return {
-        "provider": "browserbase",
-        "context_id": context_id,
-        "session_id": session_id,
-        "connect_url": connect_url,
-        "live_url": live_url,
-    }
-
-
-def browserbase_credentials() -> tuple[str, str]:
-    api_key = os.environ.get("BROWSERBASE_API_KEY", "").strip()
-    project_id = os.environ.get("BROWSERBASE_PROJECT_ID", "").strip()
-    if not api_key:
-        raise ValueError("BROWSERBASE_API_KEY is not configured for the web service.")
-    if not project_id:
-        raise ValueError("BROWSERBASE_PROJECT_ID is not configured for the web service.")
-    return api_key, project_id
-
-
-def browserbase_request(method: str, path: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
-    api_key, _project_id = browserbase_credentials()
-    body = json.dumps(payload or {}).encode("utf-8") if payload is not None else None
-    request = Request(
-        f"{BROWSERBASE_API_URL}{path}",
-        data=body,
-        method=method,
-        headers={
-            "Content-Type": "application/json",
-            "X-BB-API-Key": api_key,
-        },
-    )
-
-    try:
-        with urlopen(request, timeout=20) as response:
-            raw = response.read().decode("utf-8")
-    except HTTPError as error:
-        raw_error = error.read().decode("utf-8", errors="replace")
-        message = f"Browserbase request failed with HTTP {error.code}."
-        try:
-            error_payload = json.loads(raw_error)
-            detail = error_payload.get("message") or error_payload.get("error")
-            if detail:
-                message = f"Browserbase request failed: {detail}"
-        except json.JSONDecodeError:
-            if raw_error:
-                message = f"Browserbase request failed with HTTP {error.code}."
-        raise ValueError(message) from error
-    except URLError as error:
-        raise ValueError("Could not reach Browserbase. Check Railway networking and Browserbase environment variables.") from error
-
-    try:
-        return json.loads(raw) if raw else {}
-    except json.JSONDecodeError as error:
-        raise ValueError("Browserbase returned an invalid response.") from error
-
-
-def create_browserbase_context() -> str:
-    _api_key, project_id = browserbase_credentials()
-    response = browserbase_request("POST", "/contexts", {"projectId": project_id})
-    context_id = str(response.get("id") or "").strip()
-    if not context_id:
-        raise ValueError("Browserbase did not return a context id.")
-    return context_id
-
-
-def create_browserbase_session(context_id: str, account_id: str, workspace_id: str) -> dict[str, Any]:
-    _api_key, project_id = browserbase_credentials()
-    payload = {
-        "projectId": project_id,
-        "keepAlive": True,
-        "browserSettings": {
-            "context": {
-                "id": context_id,
-                "persist": True,
-            }
-        },
-        "userMetadata": {
-            "app": "inkwell",
-            "tumblrAccountId": account_id,
-            "workspaceId": workspace_id,
-        },
-    }
-    response = browserbase_request("POST", "/sessions", payload)
-    session_id = str(response.get("id") or "").strip()
-    if not session_id:
-        raise ValueError("Browserbase did not return a session id.")
-    return response
-
-
-def browserbase_live_view_url(session_id: str) -> str:
-    response = browserbase_request("GET", f"/sessions/{session_id}/debug")
-    live_url = str(response.get("debuggerFullscreenUrl") or response.get("debuggerUrl") or "").strip()
-    if not live_url:
-        raise ValueError("Browserbase did not return a Live View URL.")
-    return live_url
-
-
-def websocket_read_exact(connection: socket.socket, size: int) -> bytes:
-    chunks: list[bytes] = []
-    remaining = size
-    while remaining:
-        chunk = connection.recv(remaining)
-        if not chunk:
-            raise ValueError("Browserbase CDP connection closed unexpectedly.")
-        chunks.append(chunk)
-        remaining -= len(chunk)
-    return b"".join(chunks)
-
-
-def websocket_send_json(connection: socket.socket, payload: dict[str, Any]) -> None:
-    data = json.dumps(payload, separators=(",", ":")).encode("utf-8")
-    header = bytearray([0x81])
-    length = len(data)
-    if length < 126:
-        header.append(0x80 | length)
-    elif length <= 0xFFFF:
-        header.extend((0x80 | 126, *struct.pack("!H", length)))
-    else:
-        header.extend((0x80 | 127, *struct.pack("!Q", length)))
-    mask = os.urandom(4)
-    masked = bytes(byte ^ mask[index % 4] for index, byte in enumerate(data))
-    connection.sendall(bytes(header) + mask + masked)
-
-
-def websocket_receive_json(connection: socket.socket) -> dict[str, Any]:
-    while True:
-        first, second = websocket_read_exact(connection, 2)
-        opcode = first & 0x0F
-        masked = bool(second & 0x80)
-        length = second & 0x7F
-        if length == 126:
-            length = struct.unpack("!H", websocket_read_exact(connection, 2))[0]
-        elif length == 127:
-            length = struct.unpack("!Q", websocket_read_exact(connection, 8))[0]
-        mask = websocket_read_exact(connection, 4) if masked else b""
-        payload = websocket_read_exact(connection, length) if length else b""
-        if masked:
-            payload = bytes(byte ^ mask[index % 4] for index, byte in enumerate(payload))
-        if opcode == 0x8:
-            raise ValueError("Browserbase CDP connection closed before navigation completed.")
-        if opcode == 0x9:
-            continue
-        if opcode != 0x1:
-            continue
-        try:
-            return json.loads(payload.decode("utf-8"))
-        except json.JSONDecodeError as error:
-            raise ValueError("Browserbase CDP returned an invalid response.") from error
-
-
-def websocket_open(url: str, timeout: int = 15) -> socket.socket:
-    parsed = urlparse(url)
-    if parsed.scheme not in {"ws", "wss"} or not parsed.hostname:
-        raise ValueError("Browserbase returned an invalid CDP connection URL.")
-    port = parsed.port or (443 if parsed.scheme == "wss" else 80)
-    raw_connection = socket.create_connection((parsed.hostname, port), timeout=timeout)
-    connection: socket.socket = raw_connection
-    if parsed.scheme == "wss":
-        connection = ssl.create_default_context().wrap_socket(raw_connection, server_hostname=parsed.hostname)
-    path = parsed.path or "/"
-    if parsed.query:
-        path = f"{path}?{parsed.query}"
-    key = base64.b64encode(os.urandom(16)).decode("ascii")
-    host = parsed.hostname if parsed.port is None else f"{parsed.hostname}:{parsed.port}"
-    request = (
-        f"GET {path} HTTP/1.1\r\n"
-        f"Host: {host}\r\n"
-        "Upgrade: websocket\r\n"
-        "Connection: Upgrade\r\n"
-        f"Sec-WebSocket-Key: {key}\r\n"
-        "Sec-WebSocket-Version: 13\r\n"
-        "\r\n"
-    )
-    connection.sendall(request.encode("ascii"))
-    response = b""
-    while b"\r\n\r\n" not in response:
-        chunk = connection.recv(4096)
-        if not chunk:
-            break
-        response += chunk
-        if len(response) > 8192:
-            break
-    header_text = response.decode("iso-8859-1", errors="replace")
-    header_lines = header_text.split("\r\n")
-    headers = {
-        name.strip().lower(): value.strip()
-        for line in header_lines[1:]
-        if ":" in line
-        for name, value in [line.split(":", 1)]
-    }
-    accept_source = f"{key}258EAFA5-E914-47DA-95CA-C5AB0DC85B11".encode("ascii")
-    expected_accept = base64.b64encode(hashlib.sha1(accept_source).digest()).decode("ascii")
-    if (
-        not response.startswith(b"HTTP/1.1 101")
-        and not response.startswith(b"HTTP/1.0 101")
-        or headers.get("sec-websocket-accept") != expected_accept
-    ):
-        connection.close()
-        raise ValueError("Browserbase CDP connection was not accepted.")
-    return connection
-
-
-def cdp_command(connection: socket.socket, command_id: int, method: str, params: dict[str, Any] | None = None, session_id: str = "") -> dict[str, Any]:
-    payload: dict[str, Any] = {"id": command_id, "method": method}
-    if params is not None:
-        payload["params"] = params
-    if session_id:
-        payload["sessionId"] = session_id
-    websocket_send_json(connection, payload)
-    while True:
-        response = websocket_receive_json(connection)
-        if response.get("id") != command_id:
-            continue
-        if "error" in response:
-            message = response["error"].get("message") if isinstance(response["error"], dict) else ""
-            raise ValueError(f"Browserbase CDP command failed: {message or method}")
-        return response
-
-
-def browserbase_open_page_session(connect_url: str) -> tuple[socket.socket, str]:
-    if not connect_url.strip():
-        raise ValueError("Browserbase did not return a CDP connection URL.")
-    connection = websocket_open(connect_url)
-    try:
-        targets_response = cdp_command(connection, 1, "Target.getTargets")
-        targets = targets_response.get("result", {}).get("targetInfos", [])
-        page_target = next((target for target in targets if target.get("type") == "page"), None)
-        target_id = page_target.get("targetId") if isinstance(page_target, dict) else ""
-        if not target_id:
-            created = cdp_command(connection, 2, "Target.createTarget", {"url": "about:blank"})
-            target_id = created.get("result", {}).get("targetId", "")
-        if not target_id:
-            raise ValueError("Browserbase CDP did not return a page target.")
-        attached = cdp_command(connection, 3, "Target.attachToTarget", {"targetId": target_id, "flatten": True})
-        session_id = str(attached.get("result", {}).get("sessionId") or "")
-        if not session_id:
-            raise ValueError("Browserbase CDP did not attach to the page target.")
-        return connection, session_id
-    except Exception:
-        connection.close()
-        raise
-
-
-def browserbase_navigate_session(connect_url: str, url: str = TUMBLR_LOGIN_URL) -> None:
-    connection, session_id = browserbase_open_page_session(connect_url)
-    try:
-        cdp_command(connection, 4, "Page.navigate", {"url": url}, session_id=session_id)
-    finally:
-        connection.close()
-
-
-def browserbase_page_state(connect_url: str, url: str) -> dict[str, str]:
-    connection, session_id = browserbase_open_page_session(connect_url)
-    try:
-        cdp_command(connection, 4, "Page.navigate", {"url": url}, session_id=session_id)
-        time.sleep(2)
-        response = cdp_command(
-            connection,
-            5,
-            "Runtime.evaluate",
-            {
-                "expression": "JSON.stringify({url: location.href, text: document.body ? document.body.innerText : ''})",
-                "returnByValue": True,
-            },
-            session_id=session_id,
-        )
-    finally:
-        connection.close()
-    value = response.get("result", {}).get("result", {}).get("value", "")
-    try:
-        parsed = json.loads(str(value))
-    except json.JSONDecodeError:
-        parsed = {}
-    return {"url": str(parsed.get("url") or ""), "text": str(parsed.get("text") or "")}
-
-
-def tumblr_page_appears_logged_in(page_state: dict[str, str]) -> bool:
-    url = page_state.get("url", "").lower()
-    text = page_state.get("text", "").lower()
-    if "/login" in url or "log in to continue" in text:
-        return False
-    if "tumblr.com/dashboard" in url and any(marker in text for marker in ("dashboard", "following", "for you", "activity", "account")):
-        return True
-    return False
-
-
-def create_browserbase_tumblr_login(connection: ConnectionLike, account_data: dict[str, Any], workspace_id: str) -> dict[str, Any]:
-    account_id = str(account_data["id"])
-    context_id = str(account_data.get("browserbase_context_id") or "").strip() or create_browserbase_context()
-    session = create_browserbase_session(context_id, account_id, workspace_id)
-    session_id = str(session["id"])
-    browserbase_navigate_session(str(session.get("connectUrl") or ""), TUMBLR_LOGIN_URL)
-    live_url = browserbase_live_view_url(session_id)
-    message = "Browserbase login session is ready. Complete Tumblr login in the opened browser."
-
-    updated = upsert_tumblr_account(
-        connection,
-        {
-            **account_data,
-            "workspace_id": workspace_id,
-            "status": "checking",
-            "notes": message,
-            "last_checked_at": utc_now(),
-            "browserbase_context_id": context_id,
-            "browserbase_session_id": session_id,
-            "browserbase_live_url": live_url,
-            "browserbase_session_expires_at": session.get("expiresAt"),
-        },
-    )
-
-    return {
-        "mode": "remote",
-        "provider": "browserbase",
-        "sessionId": session_id,
-        "contextId": context_id,
-        "launchUrl": live_url,
-        "message": message,
-        "account": updated,
-    }
-
-
-def check_browserbase_tumblr_login(connection: ConnectionLike, account_data: dict[str, Any], workspace_id: str) -> dict[str, Any]:
-    account_id = str(account_data["id"])
-    context_id = str(account_data.get("browserbase_context_id") or "").strip()
-    if not context_id:
-        raise ValueError("Connect this Tumblr account once before checking saved login.")
-
-    session = create_browserbase_session(context_id, account_id, workspace_id)
-    session_id = str(session["id"])
-    connect_url = str(session.get("connectUrl") or "")
-    page_state = browserbase_page_state(connect_url, TUMBLR_DASHBOARD_URL)
-    live_url = browserbase_live_view_url(session_id)
-    logged_in = tumblr_page_appears_logged_in(page_state)
-    message = (
-        "Saved Tumblr login is active. This account is ready for queue runs."
-        if logged_in
-        else "Saved Tumblr login was not active. Complete Tumblr login in the opened Browserbase session."
-    )
-    now = utc_now()
-
-    updated = upsert_tumblr_account(
-        connection,
-        {
-            **account_data,
-            "workspace_id": workspace_id,
-            "status": "connected" if logged_in else "needs-login",
-            "notes": message,
-            "last_checked_at": now,
-            "last_login_at": now if logged_in else account_data.get("last_login_at"),
-            "browserbase_context_id": context_id,
-            "browserbase_session_id": session_id,
-            "browserbase_live_url": live_url,
-            "browserbase_session_expires_at": session.get("expiresAt"),
-        },
-    )
-
-    return {
-        "mode": "remote",
-        "provider": "browserbase",
-        "loggedIn": logged_in,
-        "sessionId": session_id,
-        "contextId": context_id,
-        "launchUrl": "" if logged_in else live_url,
-        "message": message,
-        "account": updated,
-    }
-
-
 def remote_tumblr_login_launch(settings: dict[str, Any]) -> dict[str, str] | None:
     provider = str(settings.get("remoteBrowserProvider") or "none").strip().lower()
-    if provider == "browserbase":
-        return None
     if provider not in REMOTE_BROWSER_ACTIVE_PROVIDERS:
         return None
 
@@ -3253,12 +2830,27 @@ class Handler(BaseHTTPRequestHandler):
                         raise ValueError("Tumblr account not found")
                     account_data = row_to_tumblr_account(account)
                     if collection == "tumblr/login-check":
-                        self.respond({"login": check_browserbase_tumblr_login(connection, account_data, workspace_id)}, HTTPStatus.CREATED)
+                        message = "Local runner will verify the saved Tumblr login during the next test or queue run."
+                        update_tumblr_account_status(
+                            connection,
+                            account_id,
+                            str(account_data.get("status") or "needs-login"),
+                            message,
+                            utc_now(),
+                        )
+                        self.respond(
+                            {
+                                "login": {
+                                    "mode": "local",
+                                    "pid": 0,
+                                    "command": [],
+                                    "message": message,
+                                }
+                            },
+                            HTTPStatus.CREATED,
+                        )
                         return
                     runner_settings = get_app_settings(connection, workspace_id)["runnerSettings"]
-                    if runner_settings["remoteBrowserProvider"] == "browserbase":
-                        self.respond({"login": create_browserbase_tumblr_login(connection, account_data, workspace_id)}, HTTPStatus.CREATED)
-                        return
                     remote_launch = remote_tumblr_login_launch(runner_settings)
                     if remote_launch:
                         update_tumblr_account_status(

@@ -5,6 +5,7 @@ const docsSections = [
       "Use Download runner for the first install, then use Start local runner from the queue page after Windows registers the launcher.",
       "When headless mode is on, the browser window may not stay visible. Watch the runner status, activity text, queue item status, and runner logs on the website.",
       "Run locally processes the active queue. Test run keeps submit approval off so you can verify login, page loading, media fill, and failure handling without posting.",
+      "Browserbase is no longer part of the supported workflow. The supported Tumblr automation path is the local runner; Browserless or a custom live browser URL are advanced launch-link options only.",
     ],
   },
   {
@@ -28,7 +29,7 @@ const docsSections = [
     items: [
       "Tumblr Accounts is where browser sessions are named, checked, and selected for queue runs.",
       "Runner browser account choices should be kept to linked accounts so the run uses a session you recognize.",
-      "If an account needs login, launch the login helper, complete Tumblr login, then use Check login before running a real submit pass.",
+      "If an account needs login, launch the login helper, complete Tumblr login, then use a test run to verify the saved local session before running a real submit pass.",
     ],
   },
   {
