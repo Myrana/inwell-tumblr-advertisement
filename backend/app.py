@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import hmac
+import io
 import json
 import mimetypes
 import os
@@ -14,6 +15,7 @@ import subprocess
 import struct
 import time
 import uuid
+import zipfile
 from datetime import date, datetime, timedelta, timezone
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -2239,7 +2241,7 @@ def local_runner_command(api_base_url: str, workspace_id: str, queue_name: str, 
         f"{token_arg}"
         f"--workspace-id {powershell_quote(workspace_id)} "
         f"--queue {powershell_quote(queue_arg)} "
-        "--user-data-dir .tumblr-runner-profile-local --watch --no-pause --submit"
+        "--user-data-dir .tumblr-runner-profile-local --watch --serve --no-pause --submit"
     )
     autostart_command = (
         "npm.cmd run tumblr:runner:install-autostart -- "
@@ -2260,6 +2262,82 @@ def local_runner_command(api_base_url: str, workspace_id: str, queue_name: str, 
             else "Run this on your Windows computer from the repo checkout. Keep INWELL_LOCAL_RUNNER_TOKEN set locally and in Railway."
         ),
     }
+
+
+def local_runner_package(api_base_url: str, workspace_id: str, queue_name: str, token: str) -> tuple[bytes, str]:
+    package_name = "inkwell-local-runner"
+    queue_arg = queue_name or "Default queue"
+    install_command = (
+        "npm.cmd run tumblr:runner:install-autostart -- "
+        f"-ApiBase {powershell_quote(api_base_url)} "
+        f"-WorkspaceId {powershell_quote(workspace_id)} "
+        f"-Queue {powershell_quote(queue_arg)} "
+        f"-RunnerToken {powershell_quote(token)}"
+    )
+    package_json = {
+        "name": package_name,
+        "version": "0.1.0",
+        "private": True,
+        "type": "module",
+        "scripts": {
+            "tumblr:install-browsers": "playwright install chromium",
+            "tumblr:runner:install-autostart": "powershell -ExecutionPolicy Bypass -File scripts/install-local-runner-autostart.ps1",
+            "tumblr:runner:local": "node scripts/tumblr-local-runner.mjs",
+            "tumblr:runner": "node scripts/tumblr-runner.mjs",
+        },
+        "dependencies": {
+            "playwright": "^1.61.0",
+        },
+    }
+    readme = f"""# Inkwell Local Runner
+
+This folder installs the Windows companion that lets Inkwell run your Tumblr queue from this computer.
+
+## First run
+
+1. Install Node.js 20 or newer.
+2. Unzip this folder somewhere private on your computer.
+3. Double-click `install.cmd`.
+
+After setup, the local companion starts at Windows login. Keep this folder private because it includes a device token.
+"""
+    install_ps1 = f"""$ErrorActionPreference = "Stop"
+$repoRoot = $PSScriptRoot
+Set-Location -LiteralPath $repoRoot
+npm.cmd install
+npm.cmd run tumblr:install-browsers
+{install_command}
+Write-Host "Inkwell Local Runner installed."
+Write-Host "Return to Inkwell and click Run locally."
+"""
+    install_cmd = """@echo off
+setlocal
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0install.ps1"
+if errorlevel 1 (
+  echo.
+  echo Inkwell Local Runner setup failed.
+  pause
+  exit /b 1
+)
+echo.
+echo Inkwell Local Runner setup complete.
+pause
+"""
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr(f"{package_name}/package.json", json.dumps(package_json, indent=2))
+        archive.writestr(f"{package_name}/README.md", readme)
+        archive.writestr(f"{package_name}/install.ps1", install_ps1)
+        archive.writestr(f"{package_name}/install.cmd", install_cmd)
+        for script_name in (
+            "tumblr-local-runner.mjs",
+            "tumblr-runner.mjs",
+            "tumblr-runner-core.mjs",
+            "install-local-runner-autostart.ps1",
+        ):
+            script_path = REPO_ROOT / "scripts" / script_name
+            archive.write(script_path, f"{package_name}/scripts/{script_name}")
+    return buffer.getvalue(), f"{package_name}.zip"
 
 
 def start_runner(payload: dict[str, Any]) -> dict[str, Any]:
@@ -2861,6 +2939,15 @@ class Handler(BaseHTTPRequestHandler):
             )
             return
 
+        if collection == "runner/local-package" and item_id is None:
+            query = parse_qs(urlparse(self.path).query)
+            queue_name = str(query.get("queueName", ["Default queue"])[0] or "Default queue").strip() or "Default queue"
+            with connect() as connection:
+                device = create_local_runner_token(connection, workspace_id, f"Windows local runner installer - {queue_name}")
+            body, filename = local_runner_package(f"{self.request_base_url()}/api", workspace_id, queue_name, str(device["token"]))
+            self.respond_file(body, "application/zip", filename)
+            return
+
         with connect() as connection:
             if collection == "advertisements" and item_id is None:
                 rows = connection.execute("SELECT * FROM advertisements WHERE workspace_id = %s ORDER BY updated_at DESC", (workspace_id,)).fetchall()
@@ -3300,6 +3387,14 @@ class Handler(BaseHTTPRequestHandler):
     def respond_clear_cookie(self, payload: dict[str, Any], status: HTTPStatus = HTTPStatus.OK) -> None:
         self.respond_with_headers(payload, status, [f"{SESSION_COOKIE_NAME}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax"])
 
+    def respond_file(self, body: bytes, content_type: str, filename: str) -> None:
+        self.send_response(HTTPStatus.OK)
+        self.send_common_headers(content_type)
+        self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
     def respond_with_headers(
         self,
         payload: dict[str, Any],
@@ -3323,13 +3418,14 @@ class Handler(BaseHTTPRequestHandler):
         secure = " Secure;" if self.headers.get("X-Forwarded-Proto", "").lower() == "https" else ""
         return f"{SESSION_COOKIE_NAME}={token}; Path=/; Max-Age={SESSION_DAYS * 24 * 60 * 60}; HttpOnly;{secure} SameSite=Lax"
 
-    def send_common_headers(self) -> None:
-        self.send_header("Content-Type", "application/json")
+    def send_common_headers(self, content_type: str = "application/json") -> None:
+        self.send_header("Content-Type", content_type)
         origin = self.headers.get("Origin")
         self.send_header("Access-Control-Allow-Origin", origin or "*")
         self.send_header("Access-Control-Allow-Credentials", "true")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+        self.send_header("Access-Control-Expose-Headers", "Content-Disposition")
 
 
 def run(port: int | None = None, host: str | None = None) -> None:

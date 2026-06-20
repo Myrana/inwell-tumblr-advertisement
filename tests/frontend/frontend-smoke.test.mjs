@@ -1148,6 +1148,7 @@ test("running the queue prepares the local runner and shows failure explanations
   const page = await browser.newPage();
   const pageErrors = [];
   let localCommandRequested = false;
+  let localPackageRequested = false;
   const apiHeaders = {
     "Access-Control-Allow-Headers": "Content-Type",
     "Access-Control-Allow-Methods": "DELETE,GET,OPTIONS,POST,PUT",
@@ -1206,7 +1207,7 @@ test("running the queue prepares the local runner and shows failure explanations
       body: JSON.stringify({
         localRunner: {
           command:
-            "npm.cmd run tumblr:runner:local -- --api-base 'https://inkwell-production-f037.up.railway.app/api' --token 'ilr_private_token' --workspace-id 'workspace-test' --queue 'Default queue' --user-data-dir .tumblr-runner-profile-local --watch --no-pause --submit",
+            "npm.cmd run tumblr:runner:local -- --api-base 'https://inkwell-production-f037.up.railway.app/api' --token 'ilr_private_token' --workspace-id 'workspace-test' --queue 'Default queue' --user-data-dir .tumblr-runner-profile-local --watch --serve --no-pause --submit",
           autoStartCommand:
             "npm.cmd run tumblr:runner:install-autostart -- -ApiBase 'https://inkwell-production-f037.up.railway.app/api' -WorkspaceId 'workspace-test' -Queue 'Default queue' -RunnerToken 'ilr_private_token'",
           tokenConfigured: true,
@@ -1215,6 +1216,18 @@ test("running the queue prepares the local runner and shows failure explanations
           message: "Run this on your Windows computer from the repo checkout. The copied command includes a device token.",
         },
       }),
+    });
+  });
+  await page.route("http://127.0.0.1:8021/api/runner/local-package?**", async (route) => {
+    localPackageRequested = true;
+    await route.fulfill({
+      contentType: "application/zip",
+      headers: {
+        ...apiHeaders,
+        "Access-Control-Expose-Headers": "Content-Disposition",
+        "Content-Disposition": 'attachment; filename="inkwell-local-runner.zip"',
+      },
+      body: "fake zip",
     });
   });
   await page.route("http://127.0.0.1:8021/api/runner/logs", (route) =>
@@ -1341,12 +1354,17 @@ test("running the queue prepares the local runner and shows failure explanations
   await page.locator(".queue-management-row", { hasText: "Default queue" }).getByRole("button", { name: "Open queue" }).click();
   await page.getByRole("button", { name: "Toggle queue actions section" }).click();
   await page.getByText("Local runner online: Default queue").waitFor();
+  await page.getByRole("button", { name: "Download runner" }).click();
+  await page.getByText("Local runner installer downloaded.").waitFor();
+  assert.equal(localPackageRequested, true);
   await page.getByRole("button", { name: "Run locally" }).click();
   await page.getByText("Local runner command copied.").waitFor();
+  await page.getByText("Local companion was not detected on this computer, so the command was copied instead.").waitFor();
   assert.equal(localCommandRequested, true);
   let copiedText = await page.evaluate(() => window.__copiedText);
   assert.match(copiedText, /tumblr:runner:local/);
   assert.match(copiedText, /--watch/);
+  assert.match(copiedText, /--serve/);
   assert.match(copiedText, /--no-pause/);
   assert.match(copiedText, /--token 'ilr_private_token'/);
   await page.getByText(/paste it, and press Enter to start the local runner/).waitFor();

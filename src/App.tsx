@@ -32,6 +32,7 @@ import {
   loadBackendTemplates,
   loadBackendTumblrAccounts,
   loadAuthSession,
+  downloadLocalRunnerPackage,
   loadLocalCompanionStatus,
   loadLocalRunnerCommand,
   loadRunnerLogs,
@@ -1007,7 +1008,7 @@ function App() {
     return true;
   }
 
-  async function prepareLocalRunnerCommand(options: { copy?: boolean; target?: "run" | "setup" } = {}) {
+  async function prepareLocalRunnerCommand(options: { copy?: boolean; target?: "run" | "setup"; fallbackReason?: string } = {}) {
     const items = runnableQueueItems();
     if (!items.length) {
       setQueueStatus("Queue at least one target before starting the runner.");
@@ -1025,17 +1026,18 @@ function App() {
       const copied = options.copy ? await copyTextToClipboard(commandToCopy).catch(() => false) : false;
       const tokenWarning = localRunner.tokenConfigured ? "" : "Railway is missing INWELL_LOCAL_RUNNER_TOKEN. ";
       const copyMessage = copied ? `${target === "setup" ? "Local runner setup command" : "Local runner command"} copied. ` : "";
+      const fallbackMessage = options.fallbackReason ? `${options.fallbackReason} ` : "";
       if (localRunner.usesDeviceToken) {
         const actionMessage = copied && target === "setup"
           ? "Open PowerShell in the repo folder, paste it, and press Enter to install the Windows login task. Keep the copied command private."
           : copied
             ? "Open PowerShell in the repo folder, paste it, and press Enter to start the local runner. Keep the copied command private."
             : "Use Run locally or Copy setup command to copy a fresh private device-token command.";
-        setQueueStatus(`${copyMessage}${localRunner.message} ${actionMessage}`);
+        setQueueStatus(`${copyMessage}${fallbackMessage}${localRunner.message} ${actionMessage}`);
         return;
       }
       const autoStartMessage = localRunner.autoStartCommand ? ` Auto-start: ${localRunner.autoStartCommand}` : "";
-      setQueueStatus(`${copyMessage}${localRunner.message} ${tokenWarning}Command: ${localRunner.command}${autoStartMessage}`);
+      setQueueStatus(`${copyMessage}${fallbackMessage}${localRunner.message} ${tokenWarning}Command: ${localRunner.command}${autoStartMessage}`);
     } catch (error) {
       setApiAvailable(false);
       const message =
@@ -1070,7 +1072,31 @@ function App() {
       setLocalCompanion(null);
     }
 
-    await prepareLocalRunnerCommand({ copy: true, target: "run" });
+    await prepareLocalRunnerCommand({
+      copy: true,
+      target: "run",
+      fallbackReason: "Local companion was not detected on this computer, so the command was copied instead.",
+    });
+  }
+
+  async function downloadLocalRunnerInstaller() {
+    try {
+      const { blob, filename } = await downloadLocalRunnerPackage(activeQueueName);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      setApiAvailable(true);
+      setQueueStatus("Local runner installer downloaded. Unzip it, double-click install.cmd once, then Run locally will connect to this computer.");
+    } catch (error) {
+      setApiAvailable(false);
+      const message = error instanceof ApiError ? error.message : "Could not download the local runner installer.";
+      setQueueStatus(`Could not download local runner installer. ${message}`);
+    }
   }
 
   async function copyLocalRunnerSetup() {
@@ -1281,6 +1307,7 @@ function App() {
             onSelectQueue={setSelectedQueueName}
             onQueueScheduleSettingsChange={(patch) => setQueueScheduleSettings((current) => ({ ...current, ...patch }))}
             onCopyLocalRunnerSetup={copyLocalRunnerSetup}
+            onDownloadLocalRunner={downloadLocalRunnerInstaller}
             onStartRunner={startRunner}
             onUpdateQueueItem={updateQueueItem}
           />
