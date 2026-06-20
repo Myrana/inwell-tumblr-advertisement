@@ -2009,6 +2009,39 @@ pre {
   margin-top: 20px;
 }
 
+.batch-prep-panel {
+  margin-bottom: 14px;
+  padding: 12px;
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(190px, 260px) auto;
+  align-items: end;
+  gap: 12px;
+  border: 1px solid #b8ded4;
+  border-left: 4px solid var(--green);
+  border-radius: 8px;
+  background: #f5fbf8;
+}
+
+.batch-prep-panel strong,
+.batch-prep-panel span {
+  display: block;
+}
+
+.batch-prep-panel span {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.batch-prep-panel label {
+  display: grid;
+  gap: 6px;
+  color: #384151;
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
 .template-actions {
   margin-bottom: 16px;
   display: flex;
@@ -2336,6 +2369,20 @@ html[data-theme="dark"] .workspace-saved .draft-table {
   border-color: rgba(95, 179, 197, 0.24);
   background: rgba(18, 30, 39, 0.94);
   box-shadow: 0 18px 46px rgba(0, 0, 0, 0.28);
+}
+
+html[data-theme="dark"] .workspace-saved .batch-prep-panel {
+  border-color: rgba(116, 199, 157, 0.32);
+  border-left-color: var(--green);
+  background: rgba(18, 45, 42, 0.78);
+}
+
+html[data-theme="dark"] .workspace-saved .batch-prep-panel label {
+  color: #d7eef2;
+}
+
+html[data-theme="dark"] .workspace-saved .batch-prep-panel span {
+  color: #a9c4ca;
 }
 
 html[data-theme="dark"] .sidebar {
@@ -2730,6 +2777,11 @@ html[data-theme="dark"] .selected-tags button {
   }
 
   .queue-command-group {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .batch-prep-panel {
     grid-template-columns: 1fr;
     align-items: stretch;
   }
