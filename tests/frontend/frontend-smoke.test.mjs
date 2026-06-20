@@ -1,5 +1,6 @@
 ﻿import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import { chromium } from "playwright";
 
@@ -20,6 +21,14 @@ const authenticatedSession = {
     workspace: { id: "workspace-test", name: "Myrana workspace" },
   },
 };
+
+test("site background includes the soft image overlay in light and dark themes", () => {
+  const styles = readFileSync("src/styles.css", "utf8");
+
+  assert.match(styles, /--site-overlay-image:\s*url\("https:\/\/images\.rawpixel\.com\/image_png_800\//);
+  assert.match(styles, /\.app-shell::before\s*\{/);
+  assert.match(styles, /html\[data-theme="dark"\]\s+\.app-shell::before\s*\{/);
+});
 
 function stopProcessTree(childProcess) {
   if (!childProcess.pid) {
