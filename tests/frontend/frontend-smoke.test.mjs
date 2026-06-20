@@ -347,6 +347,43 @@ test("operations dashboard exports and imports workspace backups", { timeout: 40
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
 });
 
+test("documentation page explains recent workflow changes", { timeout: 40000 }, async (t) => {
+  const server = spawn("npx vite --host 127.0.0.1 --port 8123 --strictPort", {
+    cwd: process.cwd(),
+    shell: true,
+    stdio: "ignore",
+  });
+
+  t.after(() => {
+    stopProcessTree(server);
+  });
+
+  await waitForServer(appUrl);
+
+  const browser = await chromium.launch();
+  t.after(async () => {
+    await browser.close();
+  });
+
+  const page = await browser.newPage();
+  const pageErrors = [];
+  page.on("pageerror", (error) => pageErrors.push(error));
+  await page.route("http://127.0.0.1:8021/api/**", (route) => route.abort());
+  await routeAuthenticatedSession(page);
+  await routeEmptyWorkspaceApis(page);
+
+  await page.goto(appUrl);
+  await page.getByRole("heading", { name: "Tumblr accounts", level: 1 }).waitFor();
+  await page.getByRole("button", { name: "Docs" }).click();
+  await page.getByRole("heading", { name: "Testing and change guide", level: 1 }).waitFor();
+  await page.getByLabel("Inkwell documentation").getByRole("heading", { name: "Local runner" }).waitFor();
+  await page.getByLabel("Inkwell documentation").getByRole("heading", { name: "Import and export" }).waitFor();
+  await page.getByLabel("Inkwell documentation").getByRole("heading", { name: "Suggested testing flow" }).waitFor();
+  await page.getByText("Only turn Submit approved on when the queue looks right and you are ready for real Tumblr submission.").waitFor();
+
+  assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
+});
+
 test("login lockout shows a wait message", { timeout: 40000 }, async (t) => {
   const server = spawn("npx vite --host 127.0.0.1 --port 8123 --strictPort", {
     cwd: process.cwd(),

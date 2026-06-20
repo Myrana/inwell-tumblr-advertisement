@@ -15,6 +15,7 @@ import { AppSidebar } from "./components/AppSidebar";
 import { EditorWorkspace } from "./components/EditorWorkspace";
 import { QueueWorkspace } from "./components/QueueWorkspace";
 import { QueueManagerWorkspace } from "./components/QueueManagerWorkspace";
+import { DocumentationWorkspace } from "./components/DocumentationWorkspace";
 import { LoginWorkspace } from "./components/LoginWorkspace";
 import { OperationsDashboard } from "./components/OperationsDashboard";
 import { RunnerLogsWorkspace } from "./components/RunnerLogsWorkspace";
@@ -1566,6 +1567,7 @@ function App() {
     "queue-settings": { eyebrow: "Tumblr automation", title: "Queues" },
     accounts: { eyebrow: "Tumblr automation", title: "Tumblr accounts" },
     logs: { eyebrow: "Tumblr automation", title: "Runner logs" },
+    docs: { eyebrow: "Reference", title: "Testing and change guide" },
   };
   const toolbarButtons = [
     {
@@ -1778,6 +1780,10 @@ function App() {
             runnerState={runnerState}
             onClearRunnerLogs={clearRunnerLogHistory}
           />
+        ) : null}
+
+        {activeView === "docs" ? (
+          <DocumentationWorkspace />
         ) : null}
 
         {activeView === "accounts" ? (
