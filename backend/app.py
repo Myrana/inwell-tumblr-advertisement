@@ -2205,6 +2205,18 @@ def queue_item_to_runner_plan_item(item: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def local_runner_user_data_dir(user_data_dir: str) -> str:
+    value = str(user_data_dir or "").strip()
+    if not value:
+        return ""
+
+    normalized = value.replace("\\", "/")
+    repo_normalized = str(REPO_ROOT).replace("\\", "/")
+    if normalized.startswith("/app/") or normalized.startswith(f"{repo_normalized}/"):
+        return ""
+    return value
+
+
 def local_runner_plan(connection: ConnectionLike, workspace_id: str, queue_name: str = "", limit: int = 0) -> dict[str, Any]:
     rows = connection.execute(
         "SELECT * FROM submission_queue WHERE workspace_id = %s ORDER BY updated_at DESC",
@@ -2221,7 +2233,7 @@ def local_runner_plan(connection: ConnectionLike, workspace_id: str, queue_name:
         if not user_data_dir and item.get("tumblr_account_id"):
             account = connection.execute("SELECT * FROM tumblr_accounts WHERE id = %s", (item["tumblr_account_id"],)).fetchone()
             if account:
-                user_data_dir = str(row_to_tumblr_account(account).get("user_data_dir") or "")
+                user_data_dir = local_runner_user_data_dir(str(row_to_tumblr_account(account).get("user_data_dir") or ""))
         items.append(queue_item_to_runner_plan_item(item))
         if limit and len(items) >= limit:
             break
@@ -2247,7 +2259,7 @@ def local_runner_command(api_base_url: str, workspace_id: str, queue_name: str, 
         f"{token_arg}"
         f"--workspace-id {powershell_quote(workspace_id)} "
         f"--queue {powershell_quote(queue_arg)} "
-        "--user-data-dir .tumblr-runner-profile-local --watch --serve --no-pause --submit"
+        "--user-data-dir .tumblr-runner-profile-local --watch --serve --submit"
     )
     autostart_command = (
         "npm.cmd run tumblr:runner:install-autostart -- "
