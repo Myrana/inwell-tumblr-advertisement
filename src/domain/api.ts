@@ -280,8 +280,12 @@ export async function runLocalCompanion(queueName: string, options: { headless?:
   );
 }
 
-export async function downloadLocalRunnerPackage(queueName: string) {
-  const response = await fetch(`${apiBaseUrl}/runner/local-package?queueName=${encodeURIComponent(queueName)}`, {
+export async function downloadLocalRunnerPackage(queueName: string, options: { submit?: boolean } = {}) {
+  const params = new URLSearchParams({ queueName });
+  if (typeof options.submit === "boolean") {
+    params.set("submit", String(options.submit));
+  }
+  const response = await fetch(`${apiBaseUrl}/runner/local-package?${params.toString()}`, {
     credentials: "include",
   });
   if (!response.ok) {

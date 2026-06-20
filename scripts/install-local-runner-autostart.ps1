@@ -10,7 +10,8 @@ param(
   [string]$UserDataDir = ".tumblr-runner-profile-local",
   [int]$IntervalSeconds = 15,
   [int]$CompanionPort = 17842,
-  [string]$RunnerToken = ""
+  [string]$RunnerToken = "",
+  [switch]$Submit
 )
 
 $ErrorActionPreference = "Stop"
@@ -63,6 +64,7 @@ function Install-RunnerPackage {
 
 Install-RunnerPackage
 $repoRoot = Resolve-Path $installRoot
+$submitArg = if ($Submit) { " --submit" } else { "" }
 
 function Install-RunnerLauncher {
   New-Item -ItemType Directory -Force -Path $launcherRoot | Out-Null
@@ -73,7 +75,7 @@ function Install-RunnerLauncher {
     'try {',
     '  $env:INWELL_LOCAL_RUNNER_TOKEN = [Environment]::GetEnvironmentVariable("INWELL_LOCAL_RUNNER_TOKEN", "User")',
     "  Set-Location -LiteralPath $(Quote-PowerShell $repoRoot.Path)",
-    "  npm.cmd run tumblr:runner:local -- --api-base $(Quote-PowerShell $ApiBase) --workspace-id $(Quote-PowerShell $WorkspaceId) --queue $(Quote-PowerShell $Queue) --user-data-dir $(Quote-PowerShell $UserDataDir) --watch --serve --companion-port $CompanionPort --submit --interval-seconds $IntervalSeconds",
+    "  npm.cmd run tumblr:runner:local -- --api-base $(Quote-PowerShell $ApiBase) --workspace-id $(Quote-PowerShell $WorkspaceId) --queue $(Quote-PowerShell $Queue) --user-data-dir $(Quote-PowerShell $UserDataDir) --watch --serve --companion-port $CompanionPort$submitArg --interval-seconds $IntervalSeconds",
     '  if ($LASTEXITCODE -ne 0) { throw "Local runner exited with code $LASTEXITCODE." }',
     '} finally {',
     '  try { Stop-Transcript | Out-Null } catch {}',

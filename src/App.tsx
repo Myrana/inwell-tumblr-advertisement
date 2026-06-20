@@ -138,6 +138,7 @@ function App() {
   const [selectedQueueName, setSelectedQueueName] = useState("");
   const [queueScheduleSettings, setQueueScheduleSettings] = useState<QueueScheduleSettings>(() => loadQueueScheduleSettings());
   const [runnerSettings, setRunnerSettings] = useState<RunnerSettings>(() => loadRunnerSettings());
+  const runnerSettingsRef = useRef(runnerSettings);
   const [runnerState, setRunnerState] = useState<RunnerStatus | null>(null);
   const [localCompanion, setLocalCompanion] = useState<LocalCompanionStatus | null>(null);
   const [runnerLogs, setRunnerLogs] = useState<RunnerLog[]>([]);
@@ -318,6 +319,7 @@ function App() {
   }, [tumblrAccounts]);
 
   useEffect(() => {
+    runnerSettingsRef.current = runnerSettings;
     saveRunnerSettings(runnerSettings);
   }, [runnerSettings]);
 
@@ -1105,7 +1107,7 @@ function App() {
     return true;
   }
 
-  async function prepareLocalRunnerCommand(options: { copy?: boolean; target?: "run" | "setup"; fallbackReason?: string; submit?: boolean } = {}) {
+  async function prepareLocalRunnerCommand(options: { copy?: boolean; target?: "run" | "setup"; fallbackReason?: string; submit?: boolean; testRun?: boolean } = {}) {
     const items = runnableQueueItems();
     if (!items.length) {
       setQueueStatus("Queue at least one target before starting the runner.");
@@ -1128,8 +1130,10 @@ function App() {
         const actionMessage = copied && target === "setup"
           ? "Open PowerShell in the repo folder, paste it, and press Enter to install the Windows login task. Keep the copied command private."
           : copied
-            ? options.submit === false
+            ? options.testRun
               ? "Open PowerShell in the repo folder, paste it, and press Enter to start a test run that prepares Tumblr without submitting. Keep the copied command private."
+              : options.submit === false
+                ? "Open PowerShell in the repo folder, paste it, and press Enter to prepare Tumblr without submitting. Turn on Approve live posting when you want the runner to submit. Keep the copied command private."
               : "Open PowerShell in the repo folder, paste it, and press Enter to start the local runner. Keep the copied command private."
             : "Use Run or Setup to copy a fresh private device-token command.";
         setQueueStatus(`${copyMessage}${fallbackMessage}${localRunner.message} ${actionMessage}`);
@@ -1148,6 +1152,8 @@ function App() {
   }
 
   async function startRunner(options: { submit?: boolean } = {}) {
+    const submit = options.submit ?? runnerSettingsRef.current.submit;
+    const testRun = options.submit === false;
     const items = runnableQueueItems();
     if (!items.length) {
       setQueueStatus("Queue at least one target before starting the runner.");
@@ -1159,13 +1165,15 @@ function App() {
       if (companion?.ok) {
         const run = await runLocalCompanion(activeQueueName, {
           headless: runnerSettings.headless,
-          submit: options.submit,
+          submit,
         });
         setLocalCompanion(run);
         setQueueStatus(
           run.accepted
-            ? options.submit === false
+            ? testRun
               ? "Local companion started a test run. It will fill Tumblr and stop before submitting."
+              : !submit
+                ? "Live posting is not approved, so the local companion will prepare Tumblr without submitting."
               : runnerSettings.headless
               ? "Local companion started the runner headless. Watch this page for queue progress."
               : "Local companion started the runner on this computer. You can leave this page open while it works."
@@ -1186,7 +1194,8 @@ function App() {
     await prepareLocalRunnerCommand({
       copy: true,
       target: "run",
-      submit: options.submit,
+      submit,
+      testRun,
       fallbackReason: "Local companion was not detected on this computer, so the command was copied instead.",
     });
   }
@@ -1207,7 +1216,7 @@ function App() {
 
   async function downloadLocalRunnerInstaller() {
     try {
-      const { blob, filename } = await downloadLocalRunnerPackage(activeQueueName);
+      const { blob, filename } = await downloadLocalRunnerPackage(activeQueueName, { submit: runnerSettings.submit });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
@@ -1226,7 +1235,7 @@ function App() {
   }
 
   async function copyLocalRunnerSetup() {
-    await prepareLocalRunnerCommand({ copy: true, target: "setup" });
+    await prepareLocalRunnerCommand({ copy: true, target: "setup", submit: runnerSettings.submit });
   }
 
   async function clearRunnerLogHistory() {
@@ -1425,6 +1434,7 @@ function App() {
             runnerConnectionLabel={runnerConnectionLabel}
             runnerActivity={runnerActivity}
             runnerHeadless={runnerSettings.headless}
+            runnerSubmitApproved={runnerSettings.submit}
             runnerLogs={runnerLogs}
             onEditQueueItem={editQueuedSubmission}
             onRenameQueue={renameQueueDefinition}
@@ -1436,6 +1446,7 @@ function App() {
             onStartRunner={startRunner}
             onStartTestRun={startTestRunner}
             onRunnerHeadlessChange={(headless) => setRunnerSettings((current) => ({ ...current, headless }))}
+            onRunnerSubmitApprovedChange={(submit) => setRunnerSettings((current) => ({ ...current, submit }))}
             showLaunchLocalRunner={canLaunchLocalRunner}
             onUpdateQueueItem={updateQueueItem}
           />
