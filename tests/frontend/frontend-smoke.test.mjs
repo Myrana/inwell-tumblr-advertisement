@@ -22,11 +22,12 @@ const authenticatedSession = {
   },
 };
 
-test("site background includes the soft image overlay in light and dark themes", () => {
+test("site background uses CSS overlays without remote image artifacts", () => {
   const styles = readFileSync("src/styles.css", "utf8");
 
-  assert.match(styles, /--site-overlay-image:\s*url\("https:\/\/images\.rawpixel\.com\/image_png_800\//);
+  assert.doesNotMatch(styles, /rawpixel|site-overlay-image|image_png_800/);
   assert.match(styles, /\.app-shell::before\s*\{/);
+  assert.match(styles, /\.app-shell\s*\{[\s\S]*radial-gradient/);
   assert.match(styles, /html\[data-theme="dark"\]\s+\.app-shell::before\s*\{/);
 });
 
