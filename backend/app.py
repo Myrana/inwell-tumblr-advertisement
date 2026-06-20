@@ -2211,12 +2211,17 @@ def local_runner_plan(connection: ConnectionLike, workspace_id: str, queue_name:
         (workspace_id,),
     ).fetchall()
     items = []
+    user_data_dir = ""
     for row in rows:
         item = row_to_queue_item(row, load_runner_payload(connection, str(row["id"])))
         if queue_name and item["queue_name"] != queue_name:
             continue
-        if item["status"] in {"submitted", "posted", "running"}:
+        if item["status"] not in {"queued", "scheduled"}:
             continue
+        if not user_data_dir and item.get("tumblr_account_id"):
+            account = connection.execute("SELECT * FROM tumblr_accounts WHERE id = %s", (item["tumblr_account_id"],)).fetchone()
+            if account:
+                user_data_dir = str(row_to_tumblr_account(account).get("user_data_dir") or "")
         items.append(queue_item_to_runner_plan_item(item))
         if limit and len(items) >= limit:
             break
@@ -2228,6 +2233,7 @@ def local_runner_plan(connection: ConnectionLike, workspace_id: str, queue_name:
         "runId": run_id,
         "workspaceId": workspace_id,
         "queueName": queue_name,
+        "userDataDir": user_data_dir,
         "generatedAt": utc_now().isoformat(),
         "items": items,
     }
