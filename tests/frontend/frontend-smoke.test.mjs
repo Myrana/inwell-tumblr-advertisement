@@ -1349,13 +1349,14 @@ test("running the queue prepares the local runner and shows failure explanations
   assert.match(copiedText, /--watch/);
   assert.match(copiedText, /--no-pause/);
   assert.match(copiedText, /--token 'ilr_private_token'/);
-  await page.getByText(/Keep the copied command private/).waitFor();
+  await page.getByText(/paste it, and press Enter to start the local runner/).waitFor();
   await page.getByText(/ilr_private_token/).waitFor({ state: "detached" });
   await page.getByRole("button", { name: "Copy setup command" }).click();
   await page.getByText("Local runner setup command copied.").waitFor();
   copiedText = await page.evaluate(() => window.__copiedText);
   assert.match(copiedText, /tumblr:runner:install-autostart/);
   assert.match(copiedText, /-RunnerToken 'ilr_private_token'/);
+  await page.getByText(/paste it, and press Enter to install the Windows login task/).waitFor();
   await page.getByText(/ilr_private_token/).waitFor({ state: "detached" });
   assert.deepEqual(await page.evaluate(() => window.__openedUrls), []);
   await page.getByText("Why this failed").waitFor();
