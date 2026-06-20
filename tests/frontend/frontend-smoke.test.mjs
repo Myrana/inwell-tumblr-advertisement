@@ -242,13 +242,14 @@ test("content library rows can queue a saved submission", { timeout: 40000 }, as
 
   const page = await browser.newPage();
   const pageErrors = [];
-  let savedQueueItem = null;
+  const savedQueueItems = [];
   page.on("pageerror", (error) => pageErrors.push(error));
   await page.route("http://127.0.0.1:8021/api/**", (route) => route.abort());
   await routeAuthenticatedSession(page);
   await routeEmptyWorkspaceApis(page);
   await page.route("http://127.0.0.1:8021/api/queue/**", (route) => {
-    savedQueueItem = route.request().postDataJSON();
+    const savedQueueItem = route.request().postDataJSON();
+    savedQueueItems.push(savedQueueItem);
     return route.fulfill({
       contentType: "application/json",
       headers: apiHeaders,
@@ -276,6 +277,38 @@ test("content library rows can queue a saved submission", { timeout: 40000 }, as
             videoName: "",
             status: "draft",
             updatedAt: "2026-06-20T12:00:00.000Z",
+          },
+          {
+            id: "saved-ad-two",
+            postType: "text",
+            title: "Second saved post",
+            content: "<p>Second saved content</p>",
+            destinationBlog: "allthingsroleplay",
+            forumUrl: "https://forum.example/thread-two",
+            tags: ["wanted"],
+            imageCaption: "",
+            imageName: "",
+            imageDataUrl: "",
+            videoUrl: "",
+            videoName: "",
+            status: "draft",
+            updatedAt: "2026-06-20T12:05:00.000Z",
+          },
+          {
+            id: "saved-ad-needs-work",
+            postType: "text",
+            title: "Needs forum link",
+            content: "<p>Missing forum URL</p>",
+            destinationBlog: "allthingsroleplay",
+            forumUrl: "",
+            tags: [],
+            imageCaption: "",
+            imageName: "",
+            imageDataUrl: "",
+            videoUrl: "",
+            videoName: "",
+            status: "draft",
+            updatedAt: "2026-06-20T12:10:00.000Z",
           },
         ],
       }),
@@ -306,14 +339,14 @@ test("content library rows can queue a saved submission", { timeout: 40000 }, as
   await savedRow.getByText("Type").waitFor();
   await savedRow.getByText("Target").waitFor();
   await savedRow.getByText("Updated").waitFor();
-  await savedRow.getByRole("button", { name: "Queue" }).click();
-  await savedRow.getByLabel("Queue destination").selectOption("Want ads");
-  await savedRow.getByRole("button", { name: "Queue here" }).click();
+  await page.getByLabel("Batch prep assistant").getByText("2 ready to queue - 1 need edits").waitFor();
+  await page.getByLabel("Batch queue destination").selectOption("Want ads");
+  await page.getByRole("button", { name: "Queue ready drafts" }).click();
   await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
-  await page.getByText("Queued Saved queue post in Want ads.").waitFor();
-  assert.equal(savedQueueItem?.ad_id, "saved-ad");
-  assert.equal(savedQueueItem?.target_id, "allthingsroleplay");
-  assert.equal(savedQueueItem?.queue_name, "Want ads");
+  await page.getByText("Queued Second saved post in Want ads.").waitFor();
+  assert.deepEqual(savedQueueItems.map((item) => item.ad_id).sort(), ["saved-ad", "saved-ad-two"]);
+  assert.equal(savedQueueItems.every((item) => item.target_id === "allthingsroleplay"), true);
+  assert.equal(savedQueueItems.every((item) => item.queue_name === "Want ads"), true);
   assert.equal(await page.getByLabel("Active queue").inputValue(), "Want ads");
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
 });

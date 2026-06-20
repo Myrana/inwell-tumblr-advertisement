@@ -2,6 +2,7 @@ import { Archive, Link, Send, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { hasLibraryContent } from "../domain/ads";
 import { formatDate, formatStatus } from "../domain/format";
+import { validateAdvertisement } from "../domain/post";
 import { Advertisement, QueueDefinition } from "../domain/types";
 
 type SavedSubmissionsViewProps = {
@@ -24,8 +25,11 @@ export function SavedSubmissionsView({
   onSelectDraft,
 }: SavedSubmissionsViewProps) {
   const libraryAds = ads.filter(hasLibraryContent);
+  const readyAds = libraryAds.filter((ad) => validateAdvertisement(ad).length === 0);
+  const needsWorkCount = libraryAds.length - readyAds.length;
   const [queuePickerAdId, setQueuePickerAdId] = useState("");
   const [selectedQueueName, setSelectedQueueName] = useState(activeQueueName);
+  const [batchQueueName, setBatchQueueName] = useState(activeQueueName || queueOptions[0]?.name || "");
 
   function startQueue(adId: string) {
     if (queueOptions.length > 1) {
@@ -37,12 +41,41 @@ export function SavedSubmissionsView({
     onQueueDraft(adId, activeQueueName || queueOptions[0]?.name || "");
   }
 
+  function queueReadyDrafts() {
+    const queueName = batchQueueName || activeQueueName || queueOptions[0]?.name || "";
+    readyAds.forEach((ad) => onQueueDraft(ad.id, queueName));
+  }
+
   return (
     <section className="draft-table" aria-label="Content library">
       <div className="panel-heading">
         <h2>Content library</h2>
         <Archive size={18} />
       </div>
+      {libraryAds.length ? (
+        <div className="batch-prep-panel" aria-label="Batch prep assistant">
+          <div>
+            <strong>Batch prep assistant</strong>
+            <span>
+              {readyAds.length} ready to queue - {needsWorkCount} need edits
+            </span>
+          </div>
+          <label>
+            Batch queue destination
+            <select value={batchQueueName} onChange={(event) => setBatchQueueName(event.target.value)}>
+              {queueOptions.map((queue) => (
+                <option key={queue.id} value={queue.name}>
+                  {queue.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button className="primary compact-button" type="button" onClick={queueReadyDrafts} disabled={!readyAds.length || !batchQueueName}>
+            <Send size={16} />
+            Queue ready drafts
+          </button>
+        </div>
+      ) : null}
       {libraryAds.length ? null : (
         <div className="library-empty">
           <strong>No content saved yet</strong>
