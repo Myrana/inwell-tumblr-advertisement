@@ -899,6 +899,29 @@ textarea:focus {
   font-weight: 600;
 }
 
+.target-profile-editor {
+  display: grid;
+  gap: 0.85rem;
+  padding: 1rem;
+  border: 1px solid rgba(42, 109, 132, 0.28);
+  border-radius: 8px;
+  background: rgba(229, 246, 248, 0.5);
+}
+
+.target-profile-editor > div:first-child {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.target-profile-editor strong {
+  color: var(--text);
+}
+
+.target-profile-editor span {
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
 .tumblr-submit-shell {
   overflow: hidden;
   border: 1px solid var(--line);
@@ -2562,6 +2585,7 @@ html[data-theme="dark"] .queue-monitor-stat,
 html[data-theme="dark"] .runner-log-run-summary,
 html[data-theme="dark"] .template-form,
 html[data-theme="dark"] .template-card-actions,
+html[data-theme="dark"] .target-profile-editor,
 html[data-theme="dark"] .tumblr-tag-panel,
 html[data-theme="dark"] .tumblr-photo-stage,
 html[data-theme="dark"] .tumblr-body-field,

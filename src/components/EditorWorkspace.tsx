@@ -49,6 +49,7 @@ type EditorWorkspaceProps = {
   onUpdateCustomTag: (value: string) => void;
   onUpdateForumUrl: (value: string) => void;
   onUpdateNewSubmitUrl: (value: string) => void;
+  onUpdateSubmitTargetProfile: (patch: Partial<Pick<TumblrSubmitTarget, "profileName" | "postingRules">>) => void;
   onViewQueue: () => void;
   onVideoUpload: (event: ChangeEvent<HTMLInputElement>) => void;
 };
@@ -82,6 +83,7 @@ export function EditorWorkspace({
   onUpdateCustomTag,
   onUpdateForumUrl,
   onUpdateNewSubmitUrl,
+  onUpdateSubmitTargetProfile,
   onViewQueue,
   onVideoUpload,
 }: EditorWorkspaceProps) {
@@ -252,6 +254,34 @@ export function EditorWorkspace({
                 </button>
                 {submitTargetStatus ? <p>{submitTargetStatus}</p> : null}
               </form>
+
+              {activeSubmitTarget.id ? (
+                <div className="target-profile-editor" aria-label="Target profile">
+                  <div>
+                    <strong>Target profile</strong>
+                    <span>Saved with {activeSubmitTarget.name} and included in queued runner packages.</span>
+                  </div>
+                  <div className="field-grid two">
+                    <label>
+                      Profile label
+                      <input
+                        value={activeSubmitTarget.profileName}
+                        onChange={(event) => onUpdateSubmitTargetProfile({ profileName: event.target.value })}
+                        placeholder={`${activeSubmitTarget.name} rules`}
+                      />
+                    </label>
+                    <label>
+                      Posting rules
+                      <textarea
+                        value={activeSubmitTarget.postingRules}
+                        onChange={(event) => onUpdateSubmitTargetProfile({ postingRules: event.target.value })}
+                        placeholder="Example: credit the forum, avoid mature tags, use photo posts only."
+                        rows={3}
+                      />
+                    </label>
+                  </div>
+                </div>
+              ) : null}
             </div>
           ) : null}
         </section>

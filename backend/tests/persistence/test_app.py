@@ -355,10 +355,12 @@ class FakePostgresConnection:
                 "id": params[0],
                 "workspace_id": params[1],
                 "name": params[2],
-                "submit_url": params[3],
-                "forum_url": params[4],
-                "created_at": params[5],
-                "updated_at": params[6],
+                "profile_name": params[3],
+                "submit_url": params[4],
+                "forum_url": params[5],
+                "posting_rules": params[6],
+                "created_at": params[7],
+                "updated_at": params[8],
             }
             self.submit_targets[str(params[0])] = row
             return FakeCursor()
@@ -932,8 +934,10 @@ class PersistenceTests(unittest.TestCase):
                     {
                         "id": "AllThingsRoleplay",
                         "name": "allthingsroleplay",
+                        "profileName": "All Things Roleplay ads",
                         "submitUrl": "https://allthingsroleplay.tumblr.com/submit",
                         "forumUrl": "https://forum.example",
+                        "postingRules": "Use photo posts and credit the forum.",
                     }
                 ],
                 "queueDefinitions": [{"id": "daily-adverts", "name": "Daily adverts"}],
@@ -956,7 +960,9 @@ class PersistenceTests(unittest.TestCase):
         )
 
         self.assertEqual(saved["submitTargets"][0]["id"], "allthingsroleplay")
+        self.assertEqual(saved["submitTargets"][0]["profileName"], "All Things Roleplay ads")
         self.assertEqual(saved["submitTargets"][0]["forumUrl"], "https://forum.example")
+        self.assertEqual(saved["submitTargets"][0]["postingRules"], "Use photo posts and credit the forum.")
         self.assertEqual(saved["queueDefinitions"][0]["name"], "Daily adverts")
         self.assertEqual(saved["tagProfiles"]["allthingsroleplay"], ["jcink site", "premium jcink"])
         self.assertEqual(
@@ -973,6 +979,8 @@ class PersistenceTests(unittest.TestCase):
         self.assertEqual(saved["queueScheduleSettings"]["dailyTime"], "08:30")
         self.assertEqual(saved["queueScheduleSettings"]["perQueue"]["Daily adverts"]["dailyTime"], "10:15")
         self.assertEqual(self.connection.submit_targets["allthingsroleplay"]["submit_url"], "https://allthingsroleplay.tumblr.com/submit")
+        self.assertEqual(self.connection.submit_targets["allthingsroleplay"]["profile_name"], "All Things Roleplay ads")
+        self.assertEqual(self.connection.submit_targets["allthingsroleplay"]["posting_rules"], "Use photo posts and credit the forum.")
         self.assertEqual(self.connection.queue_definitions["daily-adverts"]["name"], "Daily adverts")
         self.assertEqual(self.connection.runner_settings["default"]["slow_mo"], 750)
         self.assertEqual(self.connection.runner_settings["default"]["tumblr_account_id"], "snowleopardx")
