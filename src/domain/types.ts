@@ -1,7 +1,7 @@
 export type Status = "draft" | "ready" | "submitted";
 export type PostType = "text" | "photo" | "video";
 export type ColorTheme = "light" | "dark";
-export type WorkspaceView = "editor" | "saved" | "templates" | "queue" | "queue-settings" | "accounts" | "logs";
+export type WorkspaceView = "dashboard" | "editor" | "saved" | "templates" | "queue" | "queue-settings" | "accounts" | "logs";
 
 export type AuthUser = {
   id: string;
@@ -137,6 +137,11 @@ export type RunnerStatus = {
   browser_provider?: string;
   live_url?: string;
   local_runner?: LocalRunnerStatus;
+};
+
+export type RunnerActivity = {
+  status: string;
+  detail: string;
 };
 
 export type LocalRunnerStatus = {

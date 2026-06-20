@@ -16,6 +16,7 @@ import { EditorWorkspace } from "./components/EditorWorkspace";
 import { QueueWorkspace } from "./components/QueueWorkspace";
 import { QueueManagerWorkspace } from "./components/QueueManagerWorkspace";
 import { LoginWorkspace } from "./components/LoginWorkspace";
+import { OperationsDashboard } from "./components/OperationsDashboard";
 import { RunnerLogsWorkspace } from "./components/RunnerLogsWorkspace";
 import { SavedSubmissionsView } from "./components/SavedSubmissionsView";
 import { TemplatesWorkspace } from "./components/TemplatesWorkspace";
@@ -52,7 +53,7 @@ import {
   registerInkwellUser,
   type LocalCompanionStatus,
 } from "./domain/api";
-import { composerContentFor, emptyAd, fromApiAdvertisement, normalizeStoredState } from "./domain/ads";
+import { composerContentFor, emptyAd, fromApiAdvertisement, hasLibraryContent, normalizeStoredState } from "./domain/ads";
 import { defaultTagProfiles, postTypes } from "./domain/constants";
 import { buildPreparedPost, validateAdvertisement } from "./domain/post";
 import { createQueueItem as createSubmissionQueueItem, queueIdFromName, uniqueQueueDefinitions } from "./domain/queue";
@@ -478,7 +479,7 @@ function App() {
   }, [authUser]);
 
   useEffect(() => {
-    if (!["queue", "logs"].includes(activeView)) {
+    if (!["dashboard", "queue", "logs"].includes(activeView)) {
       return;
     }
 
@@ -1394,6 +1395,7 @@ function App() {
 
   const submissionComplete = activeAd.status === "submitted";
   const pageTitles: Record<WorkspaceView, { eyebrow: string; title: string }> = {
+    dashboard: { eyebrow: "Operations", title: "Operations dashboard" },
     editor: { eyebrow: "Submission workspace", title: activeAd.title || "Untitled submission" },
     saved: { eyebrow: "Content library", title: "Content library" },
     templates: { eyebrow: "Reusable copy library", title: "Saved templates" },
@@ -1539,6 +1541,19 @@ function App() {
             onUpdateNewSubmitUrl={setNewSubmitUrl}
             onViewQueue={() => setActiveView("queue")}
             onVideoUpload={handleVideoUpload}
+          />
+        ) : null}
+        {activeView === "dashboard" ? (
+          <OperationsDashboard
+            activeQueueName={activeQueueName}
+            queueItems={submissionQueue}
+            queueOptions={queueOptions}
+            runnerActivity={runnerActivity}
+            runnerConnectionLabel={runnerConnectionLabel}
+            savedDraftCount={stored.ads.filter(hasLibraryContent).length}
+            templateCount={templates.length}
+            tumblrAccounts={tumblrAccounts}
+            onNavigate={setActiveView}
           />
         ) : null}
         {activeView === "queue" ? (
