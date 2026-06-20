@@ -55,6 +55,7 @@ import {
 } from "./domain/api";
 import { composerContentFor, emptyAd, fromApiAdvertisement, hasLibraryContent, normalizeStoredState } from "./domain/ads";
 import { defaultTagProfiles, postTypes } from "./domain/constants";
+import { MediaLibraryAsset, mediaLibraryFromAdvertisements } from "./domain/mediaLibrary";
 import { buildPreparedPost, validateAdvertisement } from "./domain/post";
 import { createQueueItem as createSubmissionQueueItem, queueIdFromName, uniqueQueueDefinitions } from "./domain/queue";
 import {
@@ -246,6 +247,7 @@ function App() {
   const activeDestinationBlogRef = useRef(activeAd.destinationBlog);
   const activeBlogTags = tagProfiles[activeAd.destinationBlog] ?? defaultTagProfiles[activeAd.destinationBlog] ?? [];
   const checklistTags = uniqueTags([...activeBlogTags, ...activeAd.tags]);
+  const mediaLibraryAssets = useMemo(() => mediaLibraryFromAdvertisements(stored.ads, activeAd.id), [activeAd.id, stored.ads]);
   const editor = useEditor(
     {
       extensions: [
@@ -1402,6 +1404,27 @@ function App() {
     updateActiveAd({ videoName: file.name });
   }
 
+  function applyMediaAsset(asset: MediaLibraryAsset) {
+    if (asset.kind === "photo") {
+      updateActiveAd({
+        postType: "photo",
+        imageName: asset.imageName,
+        imageDataUrl: asset.imageDataUrl,
+        videoName: "",
+        videoUrl: "",
+      });
+      return;
+    }
+
+    updateActiveAd({
+      postType: "video",
+      imageName: "",
+      imageDataUrl: "",
+      videoName: asset.videoName,
+      videoUrl: asset.videoUrl,
+    });
+  }
+
   const submissionComplete = activeAd.status === "submitted";
   const pageTitles: Record<WorkspaceView, { eyebrow: string; title: string }> = {
     dashboard: { eyebrow: "Operations", title: "Operations dashboard" },
@@ -1522,6 +1545,7 @@ function App() {
             checklistTags={checklistTags}
             customTag={customTag}
             editor={editor}
+            mediaLibraryAssets={mediaLibraryAssets}
             newSubmitUrl={newSubmitUrl}
             queueConfirmation={editorQueueConfirmation}
             queueOptions={queueOptions}
@@ -1537,6 +1561,7 @@ function App() {
             onApplyTemplate={applyTemplate}
             onDismissQueueConfirmation={() => setEditorQueueConfirmation(null)}
             onImageUpload={handleImageUpload}
+            onApplyMediaAsset={applyMediaAsset}
             onQueueTargets={queueTargets}
             onSelectQueue={(queueName) => {
               setSelectedQueueName(queueName);

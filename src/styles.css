@@ -1002,6 +1002,80 @@ textarea:focus {
   max-width: 360px;
 }
 
+.media-library-panel {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.9rem;
+  border-bottom: 1px solid var(--line);
+  background: rgba(244, 250, 251, 0.72);
+}
+
+.media-library-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  color: var(--text);
+}
+
+.media-library-heading span {
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.media-library-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.65rem;
+}
+
+.media-library-asset {
+  min-height: 66px;
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr);
+  gap: 0.65rem;
+  align-items: center;
+  padding: 0.45rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--text);
+  text-align: left;
+}
+
+.media-library-asset img,
+.media-library-icon {
+  width: 54px;
+  height: 54px;
+  border-radius: 6px;
+  object-fit: cover;
+  background: #e9f3f5;
+}
+
+.media-library-icon {
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+}
+
+.media-library-asset span:last-child {
+  min-width: 0;
+  display: grid;
+  gap: 0.15rem;
+}
+
+.media-library-asset strong,
+.media-library-asset small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.media-library-asset small {
+  color: var(--muted);
+  font-weight: 700;
+}
+
 .tumblr-file-button {
   width: fit-content;
   min-height: 34px;
@@ -2586,6 +2660,8 @@ html[data-theme="dark"] .runner-log-run-summary,
 html[data-theme="dark"] .template-form,
 html[data-theme="dark"] .template-card-actions,
 html[data-theme="dark"] .target-profile-editor,
+html[data-theme="dark"] .media-library-panel,
+html[data-theme="dark"] .media-library-asset,
 html[data-theme="dark"] .tumblr-tag-panel,
 html[data-theme="dark"] .tumblr-photo-stage,
 html[data-theme="dark"] .tumblr-body-field,
