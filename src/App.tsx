@@ -754,6 +754,35 @@ function App() {
       .catch(() => setApiAvailable(false));
   }
 
+  function bulkUpdateSavedDrafts(ids: string[], patch: { campaignName?: string; tag?: string }) {
+    const selectedIds = new Set(ids);
+    const campaignName = patch.campaignName?.trim();
+    const tag = patch.tag?.trim();
+    const timestamp = new Date().toISOString();
+    const updatedAds: Advertisement[] = [];
+
+    setStored((current) => ({
+      ...current,
+      ads: current.ads.map((ad) => {
+        if (!selectedIds.has(ad.id)) {
+          return ad;
+        }
+        const nextTags = tag && !ad.tags.includes(tag) ? [...ad.tags, tag] : ad.tags;
+        const next = {
+          ...ad,
+          campaignName: campaignName || ad.campaignName,
+          tags: nextTags,
+          updatedAt: timestamp,
+        };
+        updatedAds.push(next);
+        return next;
+      }),
+    }));
+
+    updatedAds.forEach(syncAdvertisement);
+    setSaveStatus(`Updated ${updatedAds.length} saved item${updatedAds.length === 1 ? "" : "s"}.`);
+  }
+
   function saveDraft() {
     updateActiveAd({ status: "draft" });
     setValidation([]);
@@ -931,6 +960,34 @@ function App() {
     if (nextItem) {
       syncQueueItem(nextItem);
     }
+  }
+
+  function bulkUpdateQueueItems(ids: string[], status: SubmissionStatus, notes: string) {
+    const selectedIds = new Set(ids);
+    const timestamp = new Date().toISOString();
+    const updatedItems: SubmissionQueueItem[] = [];
+
+    setSubmissionQueue((current) =>
+      current.map((item) => {
+        if (!selectedIds.has(item.id)) {
+          return item;
+        }
+        const nextItem = {
+          ...item,
+          status,
+          notes,
+          updatedAt: timestamp,
+          lastRunAt: status === "running" ? timestamp : status === "queued" ? "" : item.lastRunAt,
+          postedAt: status === "posted" ? timestamp : status === "queued" ? "" : item.postedAt,
+          failedAt: status === "failed" ? timestamp : status === "queued" ? "" : item.failedAt,
+        };
+        updatedItems.push(nextItem);
+        return nextItem;
+      }),
+    );
+
+    updatedItems.forEach(syncQueueItem);
+    setQueueStatus(`Updated ${updatedItems.length} queued submission${updatedItems.length === 1 ? "" : "s"}.`);
   }
 
   async function retryQueueItemTestRun(id: string) {
@@ -1616,6 +1673,7 @@ function App() {
             onRunnerSubmitApprovedChange={(submit) => setRunnerSettings((current) => ({ ...current, submit }))}
             showLaunchLocalRunner={canLaunchLocalRunner}
             onRetryQueueItemTestRun={retryQueueItemTestRun}
+            onBulkUpdateQueueItems={bulkUpdateQueueItems}
             onUpdateQueueItem={updateQueueItem}
           />
         ) : null}
@@ -1687,6 +1745,7 @@ function App() {
             activeQueueName={activeQueueName}
             queueOptions={queueOptions}
             onDeleteDraft={deleteDraft}
+            onBulkUpdateDrafts={bulkUpdateSavedDrafts}
             onQueueDraft={queueSavedDraft}
             onSelectDraft={(id) => {
               setStored((current) => ({ ...current, activeAdId: id }));

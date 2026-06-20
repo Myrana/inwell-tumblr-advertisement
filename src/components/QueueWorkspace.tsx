@@ -37,6 +37,7 @@ type QueueWorkspaceProps = {
   onRunnerSubmitApprovedChange: (submit: boolean) => void;
   showLaunchLocalRunner: boolean;
   onRetryQueueItemTestRun: (id: string) => void;
+  onBulkUpdateQueueItems: (ids: string[], status: SubmissionStatus, notes: string) => void;
   onUpdateQueueItem: (id: string, status: SubmissionStatus, notes: string) => void;
 };
 
@@ -72,6 +73,7 @@ export function QueueWorkspace({
   onRunnerSubmitApprovedChange,
   showLaunchLocalRunner,
   onRetryQueueItemTestRun,
+  onBulkUpdateQueueItems,
   onUpdateQueueItem,
 }: QueueWorkspaceProps) {
   const [openSections, setOpenSections] = useState<Record<QueueSectionKey, boolean>>({
@@ -80,6 +82,9 @@ export function QueueWorkspace({
     submissions: true,
     history: true,
   });
+  const [selectedQueueItemIds, setSelectedQueueItemIds] = useState<string[]>([]);
+  const [bulkQueueStatus, setBulkQueueStatus] = useState<SubmissionStatus>("queued");
+  const [bulkQueueNotes, setBulkQueueNotes] = useState("Bulk updated from queue workspace.");
   const statusCounts = activeQueue.reduce<Record<SubmissionStatus, number>>(
     (counts, item) => ({ ...counts, [item.status]: counts[item.status] + 1 }),
     { queued: 0, scheduled: 0, running: 0, submitted: 0, posted: 0, "needs-review": 0, failed: 0 },
@@ -90,6 +95,7 @@ export function QueueWorkspace({
   const nextRunAt = queueScheduleSettings.enabled ? nextDailyRunAt(queueScheduleSettings) : "";
   const activeSubmissionItems = activeQueue.filter((item) => !isCompletedQueueItem(item));
   const postHistoryItems = postHistoryArchiveItems(activeQueue);
+  const selectedActiveQueueCount = selectedQueueItemIds.filter((id) => activeSubmissionItems.some((item) => item.id === id)).length;
 
   function queueItemExplanation(item: SubmissionQueueItem) {
     const logs = logGroups.find((group) => group.item.id === item.id)?.logs ?? [];
@@ -112,6 +118,19 @@ export function QueueWorkspace({
 
   function setSectionOpen(section: QueueSectionKey, open: boolean) {
     setOpenSections((current) => ({ ...current, [section]: open }));
+  }
+
+  function toggleQueueItemSelection(itemId: string, selected: boolean) {
+    setSelectedQueueItemIds((current) => (selected ? Array.from(new Set([...current, itemId])) : current.filter((id) => id !== itemId)));
+  }
+
+  function applyBulkQueueUpdate() {
+    const selectedIds = selectedQueueItemIds.filter((id) => activeSubmissionItems.some((item) => item.id === id));
+    if (!selectedIds.length) {
+      return;
+    }
+
+    onBulkUpdateQueueItems(selectedIds, bulkQueueStatus, bulkQueueNotes);
   }
 
   function sectionToggle(section: QueueSectionKey, title: string, summary: string) {
@@ -304,6 +323,36 @@ export function QueueWorkspace({
 
         {openSections.submissions ? (
           <div className="workflow-section-body">
+            {activeSubmissionItems.length ? (
+              <div className="bulk-edit-panel" aria-label="Queue bulk editor">
+                <label className="bulk-select">
+                  <input
+                    checked={selectedActiveQueueCount === activeSubmissionItems.length}
+                    type="checkbox"
+                    onChange={(event) => setSelectedQueueItemIds(event.target.checked ? activeSubmissionItems.map((item) => item.id) : [])}
+                  />
+                  Select all pending items
+                </label>
+                <label>
+                  Status
+                  <select value={bulkQueueStatus} onChange={(event) => setBulkQueueStatus(event.target.value as SubmissionStatus)}>
+                    <option value="queued">Queued</option>
+                    <option value="scheduled">Scheduled</option>
+                    <option value="needs-review">Needs review</option>
+                    <option value="failed">Failed</option>
+                    <option value="posted">Posted</option>
+                    <option value="submitted">Submitted</option>
+                  </select>
+                </label>
+                <label>
+                  Notes
+                  <input value={bulkQueueNotes} onChange={(event) => setBulkQueueNotes(event.target.value)} />
+                </label>
+                <button className="secondary compact-button" type="button" onClick={applyBulkQueueUpdate} disabled={!selectedActiveQueueCount}>
+                  Update {selectedActiveQueueCount || "selected"}
+                </button>
+              </div>
+            ) : null}
             <div className="queue-list">
               {activeSubmissionItems.length ? (
                 activeSubmissionItems.map((item) => (
@@ -318,6 +367,14 @@ export function QueueWorkspace({
                     })()}
                     <div className="queue-item-header">
                       <div>
+                        <label className="bulk-select row-select">
+                          <input
+                            checked={selectedQueueItemIds.includes(item.id)}
+                            type="checkbox"
+                            onChange={(event) => toggleQueueItemSelection(item.id, event.target.checked)}
+                          />
+                          Select queue item
+                        </label>
                         <strong>{item.targetName}</strong>
                         <span>{item.postType} - {formatSubmissionStatus(item.status)} - {formatDate(item.updatedAt)}</span>
                         <a href={item.submitUrl} target="_blank" rel="noreferrer">

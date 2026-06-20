@@ -2292,6 +2292,38 @@ pre {
   font-weight: 800;
 }
 
+.bulk-edit-panel {
+  margin: 0 0 14px;
+  padding: 12px;
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) minmax(150px, 220px) minmax(150px, 220px) auto;
+  align-items: end;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafb;
+}
+
+.bulk-edit-panel label,
+.bulk-select {
+  display: grid;
+  gap: 6px;
+  color: #384151;
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.bulk-select {
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  align-content: center;
+}
+
+.row-select {
+  width: fit-content;
+  margin-bottom: 6px;
+}
+
 .content-calendar-panel {
   margin: 16px 0;
   padding: 14px;
@@ -2744,6 +2776,16 @@ html[data-theme="dark"] .workspace-saved .batch-prep-panel span {
 
 html[data-theme="dark"] .workspace-saved .batch-prep-panel .duplicate-check-summary {
   color: #f2c36d;
+}
+
+html[data-theme="dark"] .bulk-edit-panel {
+  border-color: rgba(95, 179, 197, 0.24);
+  background: rgba(15, 23, 32, 0.62);
+}
+
+html[data-theme="dark"] .bulk-edit-panel label,
+html[data-theme="dark"] .bulk-select {
+  color: #d7eef2;
 }
 
 html[data-theme="dark"] .content-calendar-panel,
@@ -3225,6 +3267,11 @@ html[data-theme="dark"] .selected-tags button {
   }
 
   .batch-prep-panel {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .bulk-edit-panel {
     grid-template-columns: 1fr;
     align-items: stretch;
   }
