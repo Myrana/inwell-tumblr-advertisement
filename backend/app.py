@@ -2262,12 +2262,14 @@ def local_runner_command(api_base_url: str, workspace_id: str, queue_name: str, 
         f"--queue {powershell_quote(queue_arg)} "
         f"--user-data-dir .tumblr-runner-profile-local --watch --serve{submit_arg}"
     )
+    submit_install_arg = " -Submit" if submit else ""
     autostart_command = (
         "npm.cmd run tumblr:runner:install-autostart -- "
         f"-ApiBase {powershell_quote(api_base_url)} "
         f"-WorkspaceId {powershell_quote(workspace_id)} "
         f"-Queue {powershell_quote(queue_arg)}"
         + (f" -RunnerToken {powershell_quote(token)}" if token else "")
+        + submit_install_arg
     )
     return {
         "command": command,
@@ -2283,7 +2285,7 @@ def local_runner_command(api_base_url: str, workspace_id: str, queue_name: str, 
     }
 
 
-def local_runner_package(api_base_url: str, workspace_id: str, queue_name: str, token: str) -> tuple[bytes, str]:
+def local_runner_package(api_base_url: str, workspace_id: str, queue_name: str, token: str, submit: bool = False) -> tuple[bytes, str]:
     package_name = "inkwell-local-runner"
     queue_arg = queue_name or "Default queue"
     install_command = (
@@ -2292,6 +2294,7 @@ def local_runner_package(api_base_url: str, workspace_id: str, queue_name: str, 
         f"-WorkspaceId {powershell_quote(workspace_id)} "
         f"-Queue {powershell_quote(queue_arg)} "
         f"-RunnerToken {powershell_quote(token)}"
+        + (" -Submit" if submit else "")
     )
     package_json = {
         "name": package_name,
@@ -2969,9 +2972,10 @@ class Handler(BaseHTTPRequestHandler):
         if collection == "runner/local-package" and item_id is None:
             query = parse_qs(urlparse(self.path).query)
             queue_name = str(query.get("queueName", ["Default queue"])[0] or "Default queue").strip() or "Default queue"
+            submit = str(query.get("submit", ["false"])[0] or "false").lower() in {"1", "true", "yes", "on"}
             with connect() as connection:
                 device = create_local_runner_token(connection, workspace_id, f"Windows local runner installer - {queue_name}")
-            body, filename = local_runner_package(f"{self.request_base_url()}/api", workspace_id, queue_name, str(device["token"]))
+            body, filename = local_runner_package(f"{self.request_base_url()}/api", workspace_id, queue_name, str(device["token"]), submit=submit)
             self.respond_file(body, "application/zip", filename)
             return
 

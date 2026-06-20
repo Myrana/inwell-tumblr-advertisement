@@ -25,6 +25,7 @@ type QueueWorkspaceProps = {
   runnerConnectionLabel: string;
   runnerActivity: RunnerActivity;
   runnerHeadless: boolean;
+  runnerSubmitApproved: boolean;
   runnerLogs: RunnerLog[];
   onEditQueueItem: (id: string) => void;
   onRenameQueue: (currentName: string, nextName: string) => void;
@@ -36,6 +37,7 @@ type QueueWorkspaceProps = {
   onStartRunner: () => void;
   onStartTestRun: () => void;
   onRunnerHeadlessChange: (headless: boolean) => void;
+  onRunnerSubmitApprovedChange: (submit: boolean) => void;
   showLaunchLocalRunner: boolean;
   onUpdateQueueItem: (id: string, status: SubmissionStatus, notes: string) => void;
 };
@@ -51,6 +53,7 @@ export function QueueWorkspace({
   runnerConnectionLabel,
   runnerActivity,
   runnerHeadless,
+  runnerSubmitApproved,
   runnerLogs,
   onEditQueueItem,
   onRenameQueue,
@@ -62,6 +65,7 @@ export function QueueWorkspace({
   onStartRunner,
   onStartTestRun,
   onRunnerHeadlessChange,
+  onRunnerSubmitApprovedChange,
   showLaunchLocalRunner,
   onUpdateQueueItem,
 }: QueueWorkspaceProps) {
@@ -242,6 +246,14 @@ export function QueueWorkspace({
             onChange={(event) => onRunnerHeadlessChange(event.target.checked)}
           />
           Run headless
+        </label>
+        <label className="runner-submit-toggle runner-headless-toggle">
+          <input
+            checked={runnerSubmitApproved}
+            type="checkbox"
+            onChange={(event) => onRunnerSubmitApprovedChange(event.target.checked)}
+          />
+          Approve live posting
         </label>
       </section>
 

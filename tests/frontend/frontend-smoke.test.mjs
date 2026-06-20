@@ -1278,6 +1278,7 @@ test("running the queue prepares the local runner and shows failure explanations
   const pageErrors = [];
   let localCommandRequested = false;
   let localPackageRequested = false;
+  let localPackageSubmit = null;
   const apiHeaders = {
     "Access-Control-Allow-Headers": "Content-Type",
     "Access-Control-Allow-Methods": "DELETE,GET,OPTIONS,POST,PUT",
@@ -1354,6 +1355,7 @@ test("running the queue prepares the local runner and shows failure explanations
   });
   await page.route("http://127.0.0.1:8021/api/runner/local-package?**", async (route) => {
     localPackageRequested = true;
+    localPackageSubmit = new URL(route.request().url()).searchParams.get("submit");
     await route.fulfill({
       contentType: "application/zip",
       headers: {
@@ -1493,6 +1495,8 @@ test("running the queue prepares the local runner and shows failure explanations
   await page.getByLabel("Queue actions").getByRole("button", { name: "Download" }).click();
   await page.getByText("Local runner installer downloaded.").waitFor();
   assert.equal(localPackageRequested, true);
+  assert.equal(localPackageSubmit, "false");
+  assert.equal(await page.getByLabel("Local runner activity").getByLabel("Approve live posting").isChecked(), false);
   await page.getByLabel("Queue actions").getByRole("button", { name: "Run", exact: true }).click();
   await page.getByText("Local runner command copied.").waitFor();
   await page.getByText("Local companion was not detected on this computer, so the command was copied instead.").waitFor();
@@ -1503,6 +1507,20 @@ test("running the queue prepares the local runner and shows failure explanations
   assert.match(copiedText, /--serve/);
   assert.doesNotMatch(copiedText, /--no-pause/);
   assert.match(copiedText, /--token 'ilr_private_token'/);
+  assert.doesNotMatch(copiedText, /--submit/);
+  await page.getByText(/prepare Tumblr without submitting/).waitFor();
+  await page.getByLabel("Local runner activity").getByLabel("Approve live posting").check();
+  await page.waitForFunction(() => JSON.parse(localStorage.getItem("inwell-tumblr-runner-settings") ?? "{}").submit === true);
+  const approvedCommandResponse = page.waitForResponse((response) => {
+    if (!response.url().includes("/api/runner/local-command")) {
+      return false;
+    }
+    return new URL(response.url()).searchParams.get("submit") === "true";
+  });
+  await page.getByLabel("Queue actions").getByRole("button", { name: "Run", exact: true }).click();
+  await approvedCommandResponse;
+  await page.waitForFunction(() => /--submit/.test(window.__copiedText || ""));
+  copiedText = await page.evaluate(() => window.__copiedText);
   assert.match(copiedText, /--submit/);
   await page.getByText(/paste it, and press Enter to start the local runner/).waitFor();
   await page.getByText(/ilr_private_token/).waitFor({ state: "detached" });
@@ -1576,7 +1594,7 @@ test("running the queue prepares the local runner and shows failure explanations
   await page.getByLabel("Queue actions").getByRole("button", { name: "Run", exact: true }).click();
   await page.getByText("Local companion started the runner headless.").waitFor();
   assert.equal(companionRunRequested, true);
-  assert.deepEqual(companionRunPayloads.at(-1), { queueName: "Default queue", headless: true });
+  assert.deepEqual(companionRunPayloads.at(-1), { queueName: "Default queue", headless: true, submit: true });
   await page.getByLabel("Local runner activity").getByText("Running", { exact: true }).waitFor();
   await page.getByLabel("Local runner activity").getByText("Working through Default queue.").waitFor();
   assert.deepEqual(await page.evaluate(() => window.__openedUrls), []);

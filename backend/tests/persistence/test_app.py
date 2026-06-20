@@ -1621,6 +1621,7 @@ class PersistenceTests(unittest.TestCase):
         self.assertIn("-ApiBase 'https://example.test/api'", result["autoStartCommand"])
         self.assertIn("-WorkspaceId 'workspace-local'", result["autoStartCommand"])
         self.assertIn("-Queue 'Local queue'", result["autoStartCommand"])
+        self.assertIn("-Submit", result["autoStartCommand"])
 
     def test_local_runner_command_can_include_device_token(self) -> None:
         result = local_runner_command("https://example.test/api", "workspace-local", "Local queue", "ilr_secret")
@@ -1636,6 +1637,7 @@ class PersistenceTests(unittest.TestCase):
         self.assertIn("--watch", result["command"])
         self.assertIn("--serve", result["command"])
         self.assertNotIn("--submit", result["command"])
+        self.assertNotIn("-Submit", result["autoStartCommand"])
 
     def test_local_runner_package_includes_installer_assets(self) -> None:
         body, filename = local_runner_package("https://example.test/api", "workspace-local", "Local queue", "ilr_secret")
