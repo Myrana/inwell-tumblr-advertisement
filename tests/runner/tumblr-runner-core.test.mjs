@@ -22,12 +22,13 @@ import {
 } from "../../scripts/tumblr-runner-core.mjs";
 
 test("parseArgs accepts a plan and safety defaults", () => {
-  const options = parseArgs(["--plan", "queue.json", "--no-pause"]);
+  const options = parseArgs(["--plan", "queue.json", "--no-pause", "--no-review-pause"]);
   assert.equal(options.planPath, "queue.json");
   assert.equal(options.submit, false);
   assert.equal(options.headless, false);
   assert.equal(options.loginFirst, false);
   assert.equal(options.noPause, true);
+  assert.equal(options.noReviewPause, true);
 });
 
 test("parseArgs supports same-session login before queue execution", () => {

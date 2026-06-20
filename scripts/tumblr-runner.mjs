@@ -1340,7 +1340,7 @@ async function pauseForOperator(page, options) {
     return;
   }
 
-  if (options.headless || options.noPause) {
+  if (options.headless || options.noPause || options.noReviewPause) {
     await page.close().catch(() => undefined);
     return;
   }
@@ -1354,7 +1354,7 @@ async function pauseForOperator(page, options) {
 }
 
 async function waitForQueueReviewPages(options, reviewPages) {
-  if (options.headless || options.noPause) {
+  if (options.headless || options.noPause || options.noReviewPause) {
     await Promise.all(reviewPages.map((page) => page.close().catch(() => undefined)));
     return;
   }
