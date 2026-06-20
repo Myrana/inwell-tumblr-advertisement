@@ -1607,9 +1607,10 @@ class PersistenceTests(unittest.TestCase):
         self.assertIn("Copy-Item -LiteralPath", script)
         self.assertIn('Start-Transcript -Path $logPath -Append', script)
         self.assertIn('"runner.log"', script)
+        self.assertIn("runner-launcher.log", script)
         self.assertIn("Local runner exited with code $LASTEXITCODE", script)
         self.assertIn("Could not register scheduled task", script)
-        self.assertIn("-WindowStyle Hidden", script)
+        self.assertNotIn('start "" powershell.exe', script)
 
     def test_local_runner_heartbeat_reports_online_for_matching_workspace(self) -> None:
         app.LOCAL_RUNNER_HEARTBEAT.clear()
