@@ -40,7 +40,9 @@ from app import (
     local_runner_command,
     local_runner_plan,
     local_runner_status,
+    latest_local_runner_status,
     local_runner_token_valid,
+    record_persistent_local_runner_heartbeat,
     record_local_runner_heartbeat,
     remote_tumblr_login_launch,
     unsupported_tumblr_helper_message,
@@ -213,6 +215,18 @@ class FakePostgresConnection:
             rows = [row for row in self.local_runner_tokens.values() if row["token_hash"] == params[0]]
             return FakeCursor(rows)
 
+        if normalized.startswith("select * from local_runner_tokens where id"):
+            row = self.local_runner_tokens.get(str(params[0]))
+            return FakeCursor([row] if row else [])
+
+        if normalized.startswith("select * from local_runner_tokens where workspace_id"):
+            rows = [
+                row
+                for row in self.local_runner_tokens.values()
+                if row["workspace_id"] == params[0] and row.get("revoked_at") is None and row.get("last_seen_at") is not None
+            ]
+            return FakeCursor(sorted(rows, key=lambda row: row["last_seen_at"], reverse=True)[:1])
+
         if normalized.startswith("insert into local_runner_tokens"):
             self.local_runner_tokens[str(params[0])] = {
                 "id": params[0],
@@ -221,8 +235,24 @@ class FakePostgresConnection:
                 "token_hash": params[3],
                 "created_at": params[4],
                 "last_used_at": params[5],
+                "last_seen_at": None,
+                "queue_name": "",
+                "watching": False,
+                "status": "",
+                "version": "",
                 "revoked_at": params[6],
             }
+            return FakeCursor()
+
+        if normalized.startswith("update local_runner_tokens set") and "last_seen_at" in normalized:
+            row = self.local_runner_tokens.get(str(params[6]))
+            if row:
+                row["last_used_at"] = params[0]
+                row["last_seen_at"] = params[1]
+                row["queue_name"] = params[2]
+                row["watching"] = params[3]
+                row["status"] = params[4]
+                row["version"] = params[5]
             return FakeCursor()
 
         if normalized.startswith("update local_runner_tokens set last_used_at"):
@@ -1555,6 +1585,31 @@ class PersistenceTests(unittest.TestCase):
             self.assertFalse(local_runner_status("other-workspace")["online"])
         finally:
             app.LOCAL_RUNNER_HEARTBEAT.clear()
+
+    def test_persistent_local_runner_heartbeat_updates_device_status(self) -> None:
+        created = create_local_runner_token(self.connection, "workspace-local", "Mandy laptop")
+        token_record = validate_local_runner_token(self.connection, created["token"], "workspace-local", require_workspace=True)
+        self.assertIsNotNone(token_record)
+
+        status = record_persistent_local_runner_heartbeat(
+            self.connection,
+            token_record,
+            {
+                "workspace_id": "workspace-local",
+                "queue_name": "Adverts",
+                "watching": True,
+                "status": "watching",
+                "version": "local-runner-test",
+            },
+        )
+
+        self.assertTrue(status["online"])
+        self.assertEqual(status["queue_name"], "Adverts")
+        self.assertEqual(status["version"], "local-runner-test")
+        latest = latest_local_runner_status(self.connection, "workspace-local")
+        self.assertTrue(latest["online"])
+        self.assertEqual(latest["queue_name"], "Adverts")
+        self.assertFalse(latest_local_runner_status(self.connection, "other-workspace")["online"])
 
     def test_start_runner_writes_plan_and_launches_known_command(self) -> None:
         temp_plan = Path("backend-test-runner-plan.json")

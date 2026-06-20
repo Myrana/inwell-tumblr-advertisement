@@ -180,6 +180,11 @@ def initialize(connection: ConnectionLike) -> None:
             token_hash TEXT NOT NULL UNIQUE,
             created_at TIMESTAMPTZ NOT NULL,
             last_used_at TIMESTAMPTZ,
+            last_seen_at TIMESTAMPTZ,
+            queue_name TEXT NOT NULL DEFAULT '',
+            watching BOOLEAN NOT NULL DEFAULT FALSE,
+            status TEXT NOT NULL DEFAULT '',
+            version TEXT NOT NULL DEFAULT '',
             revoked_at TIMESTAMPTZ
         )
         """
@@ -438,6 +443,11 @@ def initialize(connection: ConnectionLike) -> None:
     connection.execute("ALTER TABLE runner_settings ADD COLUMN IF NOT EXISTS tumblr_account_id TEXT NOT NULL DEFAULT ''")
     connection.execute("ALTER TABLE runner_settings ADD COLUMN IF NOT EXISTS remote_browser_provider TEXT NOT NULL DEFAULT 'none'")
     connection.execute("ALTER TABLE runner_settings ADD COLUMN IF NOT EXISTS remote_browser_launch_url TEXT NOT NULL DEFAULT ''")
+    connection.execute("ALTER TABLE local_runner_tokens ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMPTZ")
+    connection.execute("ALTER TABLE local_runner_tokens ADD COLUMN IF NOT EXISTS queue_name TEXT NOT NULL DEFAULT ''")
+    connection.execute("ALTER TABLE local_runner_tokens ADD COLUMN IF NOT EXISTS watching BOOLEAN NOT NULL DEFAULT FALSE")
+    connection.execute("ALTER TABLE local_runner_tokens ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT ''")
+    connection.execute("ALTER TABLE local_runner_tokens ADD COLUMN IF NOT EXISTS version TEXT NOT NULL DEFAULT ''")
     connection.execute("CREATE INDEX IF NOT EXISTS idx_advertisement_tags_tag ON advertisement_tags(tag)")
     connection.execute("CREATE INDEX IF NOT EXISTS idx_template_tags_tag ON template_tags(tag)")
     connection.execute("CREATE INDEX IF NOT EXISTS idx_runner_log_details_key ON runner_log_details(detail_key)")
@@ -1968,6 +1978,43 @@ def local_runner_status(workspace_id: str = "") -> dict[str, Any]:
     }
 
 
+def local_runner_status_from_row(row: dict[str, Any] | None, workspace_id: str = "") -> dict[str, Any]:
+    if not row:
+        return local_runner_status(workspace_id)
+    data = row_to_dict(row)
+    last_seen = parse_optional_datetime(data.get("last_seen_at"))
+    matches_workspace = not workspace_id or data.get("workspace_id") == workspace_id
+    online = bool(
+        matches_workspace
+        and isinstance(last_seen, datetime)
+        and (utc_now() - last_seen).total_seconds() <= LOCAL_RUNNER_HEARTBEAT_TIMEOUT_SECONDS
+    )
+    return {
+        "online": online,
+        "last_seen_at": last_seen.isoformat() if isinstance(last_seen, datetime) else "",
+        "workspace_id": str(data.get("workspace_id") or ""),
+        "queue_name": str(data.get("queue_name") or ""),
+        "watching": bool(data.get("watching")),
+        "status": str(data.get("status") or ("online" if online else "offline")),
+        "version": str(data.get("version") or ""),
+    }
+
+
+def latest_local_runner_status(connection: ConnectionLike, workspace_id: str) -> dict[str, Any]:
+    row = connection.execute(
+        """
+        SELECT * FROM local_runner_tokens
+        WHERE workspace_id = %s
+          AND revoked_at IS NULL
+          AND last_seen_at IS NOT NULL
+        ORDER BY last_seen_at DESC
+        LIMIT 1
+        """,
+        (workspace_id,),
+    ).fetchone()
+    return local_runner_status_from_row(row, workspace_id)
+
+
 def record_local_runner_heartbeat(payload: dict[str, Any]) -> dict[str, Any]:
     LOCAL_RUNNER_HEARTBEAT.clear()
     LOCAL_RUNNER_HEARTBEAT.update(
@@ -1983,7 +2030,41 @@ def record_local_runner_heartbeat(payload: dict[str, Any]) -> dict[str, Any]:
     return local_runner_status(str(LOCAL_RUNNER_HEARTBEAT.get("workspace_id") or ""))
 
 
-def runner_status(workspace_id: str = "") -> dict[str, Any]:
+def record_persistent_local_runner_heartbeat(
+    connection: ConnectionLike,
+    token_record: dict[str, Any],
+    payload: dict[str, Any],
+) -> dict[str, Any]:
+    if token_record.get("source") != "device":
+        return record_local_runner_heartbeat(payload)
+
+    now = utc_now()
+    connection.execute(
+        """
+        UPDATE local_runner_tokens
+        SET last_used_at = %s,
+            last_seen_at = %s,
+            queue_name = %s,
+            watching = %s,
+            status = %s,
+            version = %s
+        WHERE id = %s
+        """,
+        (
+            now,
+            now,
+            str(payload.get("queue_name") or payload.get("queueName") or "").strip(),
+            bool(payload.get("watching")),
+            str(payload.get("status") or "watching").strip() or "watching",
+            str(payload.get("version") or "").strip(),
+            token_record["id"],
+        ),
+    )
+    row = connection.execute("SELECT * FROM local_runner_tokens WHERE id = %s", (token_record["id"],)).fetchone()
+    return local_runner_status_from_row(row, str(token_record.get("workspace_id") or ""))
+
+
+def runner_status(workspace_id: str = "", local_runner: dict[str, Any] | None = None) -> dict[str, Any]:
     running = RUNNER_PROCESS is not None and RUNNER_PROCESS.poll() is None
     return {
         "running": running,
@@ -1993,7 +2074,7 @@ def runner_status(workspace_id: str = "") -> dict[str, Any]:
         "run_id": RUNNER_LAST_RUN_ID,
         "browser_provider": RUNNER_LAST_BROWSER_PROVIDER,
         "live_url": RUNNER_LAST_LIVE_URL,
-        "local_runner": local_runner_status(workspace_id),
+        "local_runner": local_runner or local_runner_status(workspace_id),
     }
 
 
@@ -2014,6 +2095,11 @@ def row_to_local_runner_token(row: dict[str, Any]) -> dict[str, Any]:
         "device_name": str(row.get("device_name") or ""),
         "created_at": normalize_datetime(row.get("created_at")) or "",
         "last_used_at": normalize_datetime(row.get("last_used_at")) or "",
+        "last_seen_at": normalize_datetime(row.get("last_seen_at")) or "",
+        "queue_name": str(row.get("queue_name") or ""),
+        "watching": bool(row.get("watching")),
+        "status": str(row.get("status") or ""),
+        "version": str(row.get("version") or ""),
         "revoked_at": normalize_datetime(row.get("revoked_at")) or "",
     }
 
@@ -2028,6 +2114,11 @@ def create_local_runner_token(connection: ConnectionLike, workspace_id: str, dev
         "token_hash": hash_session_token(token),
         "created_at": now,
         "last_used_at": None,
+        "last_seen_at": None,
+        "queue_name": "",
+        "watching": False,
+        "status": "",
+        "version": "",
         "revoked_at": None,
     }
     connection.execute(
@@ -2748,7 +2839,9 @@ class Handler(BaseHTTPRequestHandler):
         workspace_id = auth["workspace_id"]
 
         if collection == "runner/status" and item_id is None:
-            self.respond({"runner": runner_status(workspace_id)})
+            with connect() as connection:
+                local_runner = latest_local_runner_status(connection, workspace_id)
+            self.respond({"runner": runner_status(workspace_id, local_runner)})
             return
 
         if collection == "runner/local-command" and item_id is None:
@@ -2892,10 +2985,12 @@ class Handler(BaseHTTPRequestHandler):
             workspace_id = str(payload.get("workspace_id") or payload.get("workspaceId") or "").strip()
             token = bearer_token_from_header(self.headers.get("Authorization"))
             with connect() as connection:
-                if not validate_local_runner_token(connection, token, workspace_id, require_workspace=True):
+                runner_token = validate_local_runner_token(connection, token, workspace_id, require_workspace=True)
+                if not runner_token:
                     self.respond({"error": "Local runner token is required"}, HTTPStatus.UNAUTHORIZED)
                     return
-            self.respond({"localRunner": record_local_runner_heartbeat(payload)}, HTTPStatus.CREATED)
+                local_runner = record_persistent_local_runner_heartbeat(connection, runner_token, payload)
+            self.respond({"localRunner": local_runner}, HTTPStatus.CREATED)
             return
 
         if collection == "runner/logs":
