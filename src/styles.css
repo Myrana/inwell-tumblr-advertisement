@@ -1852,14 +1852,87 @@ pre {
   background: #f3faf6;
 }
 
-.runner-log-run .queue-log-list {
-  padding: 10px;
-}
+  .runner-log-run .queue-log-list {
+    padding: 10px;
+  }
 
-.queue-item-log-list {
-  display: grid;
-  gap: 6px;
-}
+  .runner-step-timeline {
+    display: grid;
+    gap: 0;
+    padding: 4px 0 8px;
+  }
+
+  .runner-step {
+    position: relative;
+    padding: 0 0 12px 28px;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .runner-step::before {
+    content: "";
+    position: absolute;
+    left: 8px;
+    top: 18px;
+    bottom: 0;
+    width: 2px;
+    background: var(--line);
+  }
+
+  .runner-step:last-child::before {
+    display: none;
+  }
+
+  .runner-step-marker {
+    position: absolute;
+    left: 2px;
+    top: 4px;
+    width: 14px;
+    height: 14px;
+    border: 3px solid var(--cyan);
+    border-radius: 999px;
+    background: var(--surface);
+  }
+
+  .runner-step-warning .runner-step-marker {
+    border-color: var(--amber);
+  }
+
+  .runner-step-error .runner-step-marker {
+    border-color: var(--coral);
+  }
+
+  .runner-step strong,
+  .runner-step span,
+  .runner-step p,
+  .runner-step a {
+    display: block;
+  }
+
+  .runner-step span,
+  .runner-step p {
+    margin: 2px 0 0;
+    color: var(--muted);
+    font-size: 0.8rem;
+    font-weight: 800;
+  }
+
+  .runner-step a {
+    width: max-content;
+    margin-top: 6px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--cyan);
+    font-size: 0.82rem;
+    font-weight: 900;
+  }
+
+  .queue-item-log-list {
+    display: grid;
+    gap: 6px;
+  }
 
 .queue-item-log-list .queue-log {
   padding: 8px;

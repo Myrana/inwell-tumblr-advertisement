@@ -1,4 +1,4 @@
-import { Activity, ChevronDown, ChevronRight, History, Trash2 } from "lucide-react";
+import { Activity, Camera, ChevronDown, ChevronRight, History, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { formatDate } from "../domain/format";
 import {
@@ -171,6 +171,26 @@ export function RunnerLogsWorkspace({
                         <strong>{group.errorCount ? "Why this run failed" : "Why this run needs review"}</strong>
                         {group.failureExplanations.map((explanation) => (
                           <span key={explanation}>{explanation}</span>
+                        ))}
+                      </div>
+                    ) : null}
+                    {group.timeline.length ? (
+                      <div className="runner-step-timeline" aria-label={`${groupTitle} step timeline`}>
+                        {group.timeline.map((step) => (
+                          <article className={`runner-step runner-step-${step.level}`} key={step.id}>
+                            <div className="runner-step-marker" aria-hidden="true" />
+                            <div>
+                              <strong>{step.label}</strong>
+                              <span>{step.targetName} - {formatDate(step.createdAt)}</span>
+                              <p>{step.message}</p>
+                              {step.screenshotUrl ? (
+                                <a href={step.screenshotUrl} target="_blank" rel="noreferrer">
+                                  <Camera size={14} />
+                                  Screenshot
+                                </a>
+                              ) : null}
+                            </div>
+                          </article>
                         ))}
                       </div>
                     ) : null}

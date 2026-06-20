@@ -1170,7 +1170,7 @@ test("runner logs are grouped by expandable queue run", { timeout: 40000 }, asyn
             target_name: "jcinktinder",
             level: "info",
             message: "Fields filled and ready for manual review.",
-            details: {},
+            details: { screenshotUrl: "https://example.test/screenshots/jcinktinder-ready.png" },
             created_at: "2026-06-18T21:30:00.000Z",
           },
           {
@@ -1244,6 +1244,9 @@ test("runner logs are grouped by expandable queue run", { timeout: 40000 }, asyn
   await page.getByLabel("Run run-new target summaries").getByText("allthingsroleplay").waitFor();
   await page.getByLabel("Run run-new target summaries").getByText("jcinktinder").waitFor();
   await page.getByLabel("Run run-new target summaries").getByText("Submitted").waitFor();
+  await page.getByLabel("Run run-new step timeline").getByText("Open submit page").waitFor();
+  await page.getByLabel("Run run-new step timeline").getByText("Fill form").waitFor();
+  await page.getByLabel("Run run-new step timeline").getByRole("link", { name: "Screenshot" }).waitFor();
   assert.equal(await page.getByLabel("Run run-new target summaries").getByText("Ready for manual review").count(), 1);
   assert.equal(await page.getByRole("button", { name: /Run run-old/ }).count(), 0);
 
