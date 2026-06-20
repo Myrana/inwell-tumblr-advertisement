@@ -1225,6 +1225,7 @@ pre {
 
 .runner-activity-panel {
   margin-top: 10px;
+  margin-bottom: 18px;
   padding: 12px;
   display: flex;
   align-items: center;
@@ -1489,16 +1490,16 @@ pre {
 .queue-status,
 .queue-empty,
 .queue-item p {
-  margin: 10px 0 0;
+  margin: 12px 0 0;
   color: var(--muted);
   font-size: 0.84rem;
   font-weight: 600;
 }
 
 .queue-list {
-  margin-top: 10px;
+  margin-top: 14px;
   display: grid;
-  gap: 10px;
+  gap: 12px;
 }
 
 .queue-item {
@@ -1552,19 +1553,8 @@ pre {
   overflow-wrap: anywhere;
 }
 
-.queue-item-overrides {
-  color: var(--muted);
-  font-size: 0.86rem;
-}
-
-.queue-item-overrides summary {
-  width: fit-content;
-  cursor: pointer;
-  font-weight: 800;
-}
-
-.queue-item-overrides .queue-item-actions {
-  margin-top: 8px;
+.queue-item-review-actions {
+  margin-top: 10px;
 }
 
 .queue-log-panel {
@@ -2311,6 +2301,47 @@ html[data-theme="dark"] .tag-check,
 html[data-theme="dark"] .type-picker,
 html[data-theme="dark"] .video-drop {
   background: #111a23;
+}
+
+html[data-theme="dark"] .queue-workspace {
+  background: #111b24;
+}
+
+html[data-theme="dark"] .queue-workspace .workflow-section {
+  border-color: #2d4352;
+}
+
+html[data-theme="dark"] .queue-workspace .queue-command-panel,
+html[data-theme="dark"] .queue-workspace .queue-selector-panel,
+html[data-theme="dark"] .queue-workspace .runner-control-panel {
+  background: #101923;
+  border-color: #2d4352;
+}
+
+html[data-theme="dark"] .queue-workspace .runner-activity-panel {
+  border-color: #315f4d;
+  border-left-color: var(--green);
+  background: #10231d;
+}
+
+html[data-theme="dark"] .queue-workspace .queue-monitor-stat,
+html[data-theme="dark"] .queue-workspace .queue-item {
+  border-color: #2d4352;
+  background: #121e28;
+}
+
+html[data-theme="dark"] .queue-workspace .queue-item a {
+  color: #8bcde0;
+}
+
+html[data-theme="dark"] .queue-workspace .queue-item-explanation {
+  display: grid;
+  gap: 10px;
+  border-color: #67423b;
+}
+
+html[data-theme="dark"] .queue-workspace .queue-item-explanation.warning {
+  border-color: #6f562c;
 }
 
 html[data-theme="dark"] .type-option {

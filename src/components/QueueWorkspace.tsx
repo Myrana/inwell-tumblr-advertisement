@@ -269,36 +269,28 @@ export function QueueWorkspace({
                     {item.status === "failed" || item.status === "needs-review" ? null : <p>{item.notes}</p>}
                     {item.status === "failed" || item.status === "needs-review" ? (
                       <div className={`queue-item-explanation ${item.status === "failed" ? "failed" : "warning"}`} role="status">
-                        <strong>{item.status === "failed" ? "Why this failed" : "Needs review because"}</strong>
-                        <span>{queueItemExplanation(item)}</span>
+                        <div>
+                          <strong>{item.status === "failed" ? "Why this failed" : "Needs review because"}</strong>
+                          <span>{queueItemExplanation(item)}</span>
+                        </div>
+                        <div className="queue-item-actions queue-item-review-actions">
+                          <button
+                            className="secondary"
+                            type="button"
+                            onClick={() => onUpdateQueueItem(item.id, "queued", "Requeued for the next automation run.")}
+                          >
+                            Requeue
+                          </button>
+                          <button
+                            className="secondary"
+                            type="button"
+                            onClick={() => onUpdateQueueItem(item.id, "posted", "Marked posted after Tumblr accepted the form.")}
+                          >
+                            Mark posted
+                          </button>
+                        </div>
                       </div>
                     ) : null}
-                    <details className="queue-item-overrides">
-                      <summary>Manual override</summary>
-                      <div className="queue-item-actions">
-                        <button
-                          className="secondary"
-                          type="button"
-                          onClick={() => onUpdateQueueItem(item.id, "queued", "Requeued for the next automation run.")}
-                        >
-                          Requeue
-                        </button>
-                        <button
-                          className="secondary"
-                          type="button"
-                          onClick={() => onUpdateQueueItem(item.id, "posted", "Marked posted after Tumblr accepted the form.")}
-                        >
-                          Mark posted
-                        </button>
-                        <button
-                          className="secondary"
-                          type="button"
-                          onClick={() => onUpdateQueueItem(item.id, "failed", "Marked failed for runner retry or review.")}
-                        >
-                          Mark failed
-                        </button>
-                      </div>
-                    </details>
                     {logGroups.find((group) => group.item.id === item.id)?.logs.length ? (
                       <div className="queue-item-log-list" aria-label={`Runner logs for ${item.targetName}`}>
                         {logGroups
