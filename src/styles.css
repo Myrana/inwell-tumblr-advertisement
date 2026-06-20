@@ -2396,6 +2396,10 @@ pre {
   background: #fffaf0;
 }
 
+.operation-card-wide {
+  grid-column: span 3;
+}
+
 .operation-card-icon {
   width: 36px;
   height: 36px;
@@ -2423,6 +2427,25 @@ pre {
   color: var(--muted);
   font-weight: 700;
   line-height: 1.35;
+}
+
+.operation-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.file-action-button {
+  position: relative;
+  cursor: pointer;
+}
+
+.file-action-button input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
 }
 
 .template-actions {
