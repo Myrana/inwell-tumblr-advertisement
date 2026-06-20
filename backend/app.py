@@ -2251,15 +2251,16 @@ def local_runner_plan(connection: ConnectionLike, workspace_id: str, queue_name:
     }
 
 
-def local_runner_command(api_base_url: str, workspace_id: str, queue_name: str, token: str = "") -> dict[str, Any]:
+def local_runner_command(api_base_url: str, workspace_id: str, queue_name: str, token: str = "", submit: bool = True) -> dict[str, Any]:
     queue_arg = queue_name or "Default queue"
     token_arg = f"--token {powershell_quote(token)} " if token else ""
+    submit_arg = " --submit" if submit else ""
     command = (
         f"npm.cmd run tumblr:runner:local -- --api-base {powershell_quote(api_base_url)} "
         f"{token_arg}"
         f"--workspace-id {powershell_quote(workspace_id)} "
         f"--queue {powershell_quote(queue_arg)} "
-        "--user-data-dir .tumblr-runner-profile-local --watch --serve --submit"
+        f"--user-data-dir .tumblr-runner-profile-local --watch --serve{submit_arg}"
     )
     autostart_command = (
         "npm.cmd run tumblr:runner:install-autostart -- "
@@ -2949,6 +2950,7 @@ class Handler(BaseHTTPRequestHandler):
         if collection == "runner/local-command" and item_id is None:
             query = parse_qs(urlparse(self.path).query)
             queue_name = str(query.get("queueName", ["Default queue"])[0] or "Default queue").strip() or "Default queue"
+            submit = str(query.get("submit", ["true"])[0] or "true").lower() not in {"0", "false", "no", "off"}
             with connect() as connection:
                 device = create_local_runner_token(connection, workspace_id, f"Windows local runner - {queue_name}")
             self.respond(
@@ -2958,6 +2960,7 @@ class Handler(BaseHTTPRequestHandler):
                         workspace_id,
                         queue_name,
                         str(device["token"]),
+                        submit=submit,
                     )
                 }
             )

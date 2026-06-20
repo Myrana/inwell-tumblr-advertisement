@@ -215,6 +215,7 @@ function companionStatus(options, state) {
     apiBaseUrl: options.apiBaseUrl,
     workspaceId: options.workspaceId,
     queueName: options.queueName,
+    submit: options.submit,
     watching: options.watch,
     running: state.running,
     status: state.running ? "running" : state.status || (options.watch ? "watching" : "idle"),
@@ -297,6 +298,9 @@ function startCompanionServer(options, state) {
       }
       if (payload && typeof payload === "object" && "headless" in payload) {
         runOptions.headless = Boolean(payload.headless);
+      }
+      if (payload && typeof payload === "object" && "submit" in payload) {
+        runOptions.submit = Boolean(payload.submit);
       }
       void executeLocalRun(runOptions, state).catch((error) => {
         console.error(`[local-runner:error] ${error instanceof Error ? error.message : String(error)}`);
