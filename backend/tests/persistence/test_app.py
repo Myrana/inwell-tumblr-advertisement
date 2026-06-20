@@ -1597,6 +1597,10 @@ class PersistenceTests(unittest.TestCase):
 
         self.assertIn("-RunLevel Limited", script)
         self.assertNotIn("-RunLevel LeastPrivilege", script)
+        self.assertIn("Install-StartupLauncher", script)
+        self.assertIn("GetFolderPath(\"Startup\")", script)
+        self.assertIn("Could not register scheduled task", script)
+        self.assertIn("-WindowStyle Hidden", script)
 
     def test_local_runner_heartbeat_reports_online_for_matching_workspace(self) -> None:
         app.LOCAL_RUNNER_HEARTBEAT.clear()
