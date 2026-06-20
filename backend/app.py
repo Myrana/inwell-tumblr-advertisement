@@ -173,6 +173,19 @@ def initialize(connection: ConnectionLike) -> None:
     )
     connection.execute(
         """
+        CREATE TABLE IF NOT EXISTS local_runner_tokens (
+            id TEXT PRIMARY KEY,
+            workspace_id TEXT NOT NULL,
+            device_name TEXT NOT NULL DEFAULT '',
+            token_hash TEXT NOT NULL UNIQUE,
+            created_at TIMESTAMPTZ NOT NULL,
+            last_used_at TIMESTAMPTZ,
+            revoked_at TIMESTAMPTZ
+        )
+        """
+    )
+    connection.execute(
+        """
         CREATE TABLE IF NOT EXISTS auth_attempts (
             id TEXT PRIMARY KEY,
             action TEXT NOT NULL,
@@ -432,6 +445,8 @@ def initialize(connection: ConnectionLike) -> None:
     connection.execute("CREATE INDEX IF NOT EXISTS idx_submission_queue_tumblr_account ON submission_queue(tumblr_account_id)")
     connection.execute("CREATE INDEX IF NOT EXISTS idx_tumblr_accounts_status ON tumblr_accounts(status)")
     connection.execute("CREATE INDEX IF NOT EXISTS idx_user_sessions_token_hash ON user_sessions(token_hash)")
+    connection.execute("CREATE INDEX IF NOT EXISTS idx_local_runner_tokens_token_hash ON local_runner_tokens(token_hash)")
+    connection.execute("CREATE INDEX IF NOT EXISTS idx_local_runner_tokens_workspace ON local_runner_tokens(workspace_id)")
     connection.execute("CREATE INDEX IF NOT EXISTS idx_auth_attempts_action_created ON auth_attempts(action, created_at)")
     connection.execute("CREATE INDEX IF NOT EXISTS idx_auth_attempts_email_created ON auth_attempts(email, created_at)")
     connection.execute("CREATE INDEX IF NOT EXISTS idx_auth_attempts_client_created ON auth_attempts(client_key, created_at)")
@@ -1992,6 +2007,94 @@ def local_runner_token_valid(value: str) -> bool:
     return bool(expected and token and hmac.compare_digest(expected, token))
 
 
+def row_to_local_runner_token(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": str(row.get("id") or ""),
+        "workspace_id": str(row.get("workspace_id") or ""),
+        "device_name": str(row.get("device_name") or ""),
+        "created_at": normalize_datetime(row.get("created_at")) or "",
+        "last_used_at": normalize_datetime(row.get("last_used_at")) or "",
+        "revoked_at": normalize_datetime(row.get("revoked_at")) or "",
+    }
+
+
+def create_local_runner_token(connection: ConnectionLike, workspace_id: str, device_name: str) -> dict[str, Any]:
+    now = utc_now()
+    token = f"ilr_{secrets.token_urlsafe(32)}"
+    row = {
+        "id": f"local-runner-token-{uuid.uuid4().hex}",
+        "workspace_id": workspace_id,
+        "device_name": str(device_name or "Local runner").strip()[:80] or "Local runner",
+        "token_hash": hash_session_token(token),
+        "created_at": now,
+        "last_used_at": None,
+        "revoked_at": None,
+    }
+    connection.execute(
+        """
+        INSERT INTO local_runner_tokens (
+            id, workspace_id, device_name, token_hash, created_at, last_used_at, revoked_at
+        )
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
+        """,
+        (
+            row["id"],
+            row["workspace_id"],
+            row["device_name"],
+            row["token_hash"],
+            row["created_at"],
+            row["last_used_at"],
+            row["revoked_at"],
+        ),
+    )
+    public_row = row_to_local_runner_token(row)
+    public_row["token"] = token
+    return public_row
+
+
+def validate_local_runner_token(
+    connection: ConnectionLike,
+    value: str,
+    workspace_id: str = "",
+    *,
+    require_workspace: bool = False,
+) -> dict[str, Any] | None:
+    token = str(value or "").strip()
+    if not token:
+        return None
+
+    if local_runner_token_valid(token):
+        return {
+            "id": "env-bootstrap",
+            "workspace_id": workspace_id,
+            "device_name": "Environment bootstrap token",
+            "source": "environment",
+        }
+
+    row = connection.execute(
+        "SELECT * FROM local_runner_tokens WHERE token_hash = %s",
+        (hash_session_token(token),),
+    ).fetchone()
+    if not row:
+        return None
+
+    data = row_to_dict(row)
+    if data.get("revoked_at"):
+        return None
+    token_workspace_id = str(data.get("workspace_id") or "")
+    if require_workspace and not workspace_id:
+        return None
+    if workspace_id and token_workspace_id != workspace_id:
+        return None
+
+    connection.execute(
+        "UPDATE local_runner_tokens SET last_used_at = %s WHERE id = %s",
+        (utc_now(), data["id"]),
+    )
+    data["source"] = "device"
+    return data
+
+
 def bearer_token_from_header(header: str | None) -> str:
     scheme, _, token = str(header or "").partition(" ")
     return token.strip() if scheme.lower() == "bearer" else ""
@@ -2037,10 +2140,12 @@ def local_runner_plan(connection: ConnectionLike, workspace_id: str, queue_name:
     }
 
 
-def local_runner_command(api_base_url: str, workspace_id: str, queue_name: str) -> dict[str, Any]:
+def local_runner_command(api_base_url: str, workspace_id: str, queue_name: str, token: str = "") -> dict[str, Any]:
     queue_arg = queue_name or "Default queue"
+    token_arg = f"--token {powershell_quote(token)} " if token else ""
     command = (
         f"npm.cmd run tumblr:runner:local -- --api-base {powershell_quote(api_base_url)} "
+        f"{token_arg}"
         f"--workspace-id {powershell_quote(workspace_id)} "
         f"--queue {powershell_quote(queue_arg)} "
         "--user-data-dir .tumblr-runner-profile-local --watch --no-pause --submit"
@@ -2050,14 +2155,18 @@ def local_runner_command(api_base_url: str, workspace_id: str, queue_name: str) 
         f"-ApiBase {powershell_quote(api_base_url)} "
         f"-WorkspaceId {powershell_quote(workspace_id)} "
         f"-Queue {powershell_quote(queue_arg)}"
+        + (f" -RunnerToken {powershell_quote(token)}" if token else "")
     )
     return {
         "command": command,
         "autoStartCommand": autostart_command,
-        "tokenConfigured": local_runner_token_configured(),
+        "tokenConfigured": bool(token) or local_runner_token_configured(),
+        "usesDeviceToken": bool(token),
         "tokenEnv": LOCAL_RUNNER_TOKEN_ENV,
         "message": (
-            "Run this on your Windows computer from the repo checkout. Keep INWELL_LOCAL_RUNNER_TOKEN set locally and in Railway."
+            "Run this on your Windows computer from the repo checkout. The copied command includes a device token."
+            if token
+            else "Run this on your Windows computer from the repo checkout. Keep INWELL_LOCAL_RUNNER_TOKEN set locally and in Railway."
         ),
     }
 
@@ -2619,9 +2728,6 @@ class Handler(BaseHTTPRequestHandler):
 
         if collection == "runner/local-plan" and item_id is None:
             token = bearer_token_from_header(self.headers.get("Authorization"))
-            if not local_runner_token_valid(token):
-                self.respond({"error": "Local runner token is required"}, HTTPStatus.UNAUTHORIZED)
-                return
             query = parse_qs(urlparse(self.path).query)
             workspace_id = str(query.get("workspaceId", [""])[0] or "").strip()
             queue_name = str(query.get("queueName", [""])[0] or "").strip()
@@ -2630,15 +2736,10 @@ class Handler(BaseHTTPRequestHandler):
                 self.respond({"error": "workspaceId is required"}, HTTPStatus.BAD_REQUEST)
                 return
             with connect() as connection:
+                if not validate_local_runner_token(connection, token, workspace_id, require_workspace=True):
+                    self.respond({"error": "Local runner token is required"}, HTTPStatus.UNAUTHORIZED)
+                    return
                 self.respond({"plan": local_runner_plan(connection, workspace_id, queue_name, limit)})
-            return
-
-        if collection == "runner/local-heartbeat" and item_id is None:
-            token = bearer_token_from_header(self.headers.get("Authorization"))
-            if not local_runner_token_valid(token):
-                self.respond({"error": "Local runner token is required"}, HTTPStatus.UNAUTHORIZED)
-                return
-            self.respond({"localRunner": record_local_runner_heartbeat(self.read_json())}, HTTPStatus.CREATED)
             return
 
         auth = self.require_auth()
@@ -2653,7 +2754,18 @@ class Handler(BaseHTTPRequestHandler):
         if collection == "runner/local-command" and item_id is None:
             query = parse_qs(urlparse(self.path).query)
             queue_name = str(query.get("queueName", ["Default queue"])[0] or "Default queue").strip() or "Default queue"
-            self.respond({"localRunner": local_runner_command(f"{self.request_base_url()}/api", workspace_id, queue_name)})
+            with connect() as connection:
+                device = create_local_runner_token(connection, workspace_id, f"Windows local runner - {queue_name}")
+            self.respond(
+                {
+                    "localRunner": local_runner_command(
+                        f"{self.request_base_url()}/api",
+                        workspace_id,
+                        queue_name,
+                        str(device["token"]),
+                    )
+                }
+            )
             return
 
         with connect() as connection:
@@ -2775,6 +2887,17 @@ class Handler(BaseHTTPRequestHandler):
             self.respond_clear_cookie({"authenticated": False})
             return
 
+        if collection == "runner/local-heartbeat":
+            payload = self.read_json()
+            workspace_id = str(payload.get("workspace_id") or payload.get("workspaceId") or "").strip()
+            token = bearer_token_from_header(self.headers.get("Authorization"))
+            with connect() as connection:
+                if not validate_local_runner_token(connection, token, workspace_id, require_workspace=True):
+                    self.respond({"error": "Local runner token is required"}, HTTPStatus.UNAUTHORIZED)
+                    return
+            self.respond({"localRunner": record_local_runner_heartbeat(payload)}, HTTPStatus.CREATED)
+            return
+
         if collection == "runner/logs":
             payload = self.read_json()
             if str(payload.get("run_id") or "") == RUNNER_LAST_RUN_ID:
@@ -2785,7 +2908,11 @@ class Handler(BaseHTTPRequestHandler):
                     self.respond({"error": str(error)}, HTTPStatus.BAD_REQUEST)
                 return
             token = bearer_token_from_header(self.headers.get("Authorization"))
-            if local_runner_token_valid(token):
+            workspace_id = str(payload.get("workspace_id") or payload.get("workspaceId") or "").strip()
+            with connect() as connection:
+                runner_token = validate_local_runner_token(connection, token, workspace_id, require_workspace=True)
+            if runner_token:
+                payload["workspace_id"] = str(runner_token.get("workspace_id") or workspace_id)
                 try:
                     with connect() as connection:
                         self.respond({"log": record_runner_log(connection, payload)}, HTTPStatus.CREATED)

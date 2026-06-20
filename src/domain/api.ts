@@ -212,6 +212,7 @@ export async function loadLocalRunnerCommand(queueName: string) {
       command: string;
       autoStartCommand?: string;
       tokenConfigured: boolean;
+      usesDeviceToken?: boolean;
       tokenEnv: string;
       message: string;
     };
