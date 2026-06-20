@@ -1839,6 +1839,17 @@ pre {
   background: #f8fafb;
 }
 
+.template-workspace-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.82fr) minmax(360px, 1.18fr);
+  align-items: start;
+  gap: 14px;
+}
+
+.template-library-panel {
+  min-width: 0;
+}
+
 .template-form textarea {
   min-height: 120px;
 }
@@ -1867,9 +1878,9 @@ pre {
 }
 
 .template-library {
-  margin-top: 16px;
+  margin-top: 0;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -2299,6 +2310,7 @@ html[data-theme="dark"] .selected-tags button {
   .tumblr-composer-header,
   .tumblr-tag-grid,
   .editor-template-panel .template-library,
+  .template-workspace-grid,
   .template-library {
     grid-template-columns: 1fr;
   }

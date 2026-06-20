@@ -93,113 +93,117 @@ export function TemplatesWorkspace({
         {status ? <p className="template-status">{status}</p> : null}
       </div>
 
-      <form className="template-form" onSubmit={(event) => onCreateTemplate(event, editor?.getHTML() ?? draft.content)}>
-        <label>
-          Template name
-          <input
-            value={draft.name}
-            onChange={(event) => onDraftChange({ name: event.target.value })}
-            placeholder="Premium supernatural ad"
-          />
-        </label>
-        <div className="template-editor-field">
-          <span>Body text under the image</span>
-          <div className="template-composer">
-            <div className="tumblr-editor-tools" aria-label="Template editor tools" onMouseDown={(event) => event.preventDefault()}>
-              <button
-                className={editor?.isActive("bold") ? "active" : ""}
-                type="button"
-                title="Bold"
-                aria-label="Bold"
-                onClick={() => editor?.chain().focus().toggleBold().run()}
-                disabled={!editor}
-              >
-                <Bold size={16} />
-              </button>
-              <button
-                className={editor?.isActive("italic") ? "active" : ""}
-                type="button"
-                title="Italic"
-                aria-label="Italic"
-                onClick={() => editor?.chain().focus().toggleItalic().run()}
-                disabled={!editor}
-              >
-                <Italic size={16} />
-              </button>
-              <button
-                className={editor?.isActive("strike") ? "active" : ""}
-                type="button"
-                title="Strikethrough"
-                aria-label="Strikethrough"
-                onClick={() => editor?.chain().focus().toggleStrike().run()}
-                disabled={!editor}
-              >
-                <Strikethrough size={16} />
-              </button>
-              <button
-                className={editor?.isActive("link") ? "active" : ""}
-                type="button"
-                title="Link"
-                aria-label="Link"
-                onClick={() => {
-                  const href = window.prompt("Link URL", editor?.getAttributes("link").href ?? "https://");
-                  if (!href) {
-                    return;
-                  }
+      <div className="template-workspace-grid">
+        <form className="template-form" onSubmit={(event) => onCreateTemplate(event, editor?.getHTML() ?? draft.content)}>
+          <label>
+            Template name
+            <input
+              value={draft.name}
+              onChange={(event) => onDraftChange({ name: event.target.value })}
+              placeholder="Premium supernatural ad"
+            />
+          </label>
+          <div className="template-editor-field">
+            <span>Body text under the image</span>
+            <div className="template-composer">
+              <div className="tumblr-editor-tools" aria-label="Template editor tools" onMouseDown={(event) => event.preventDefault()}>
+                <button
+                  className={editor?.isActive("bold") ? "active" : ""}
+                  type="button"
+                  title="Bold"
+                  aria-label="Bold"
+                  onClick={() => editor?.chain().focus().toggleBold().run()}
+                  disabled={!editor}
+                >
+                  <Bold size={16} />
+                </button>
+                <button
+                  className={editor?.isActive("italic") ? "active" : ""}
+                  type="button"
+                  title="Italic"
+                  aria-label="Italic"
+                  onClick={() => editor?.chain().focus().toggleItalic().run()}
+                  disabled={!editor}
+                >
+                  <Italic size={16} />
+                </button>
+                <button
+                  className={editor?.isActive("strike") ? "active" : ""}
+                  type="button"
+                  title="Strikethrough"
+                  aria-label="Strikethrough"
+                  onClick={() => editor?.chain().focus().toggleStrike().run()}
+                  disabled={!editor}
+                >
+                  <Strikethrough size={16} />
+                </button>
+                <button
+                  className={editor?.isActive("link") ? "active" : ""}
+                  type="button"
+                  title="Link"
+                  aria-label="Link"
+                  onClick={() => {
+                    const href = window.prompt("Link URL", editor?.getAttributes("link").href ?? "https://");
+                    if (!href) {
+                      return;
+                    }
 
-                  editor?.chain().focus().extendMarkRange("link").setLink({ href }).run();
-                }}
-                disabled={!editor}
-              >
-                <Link2 size={16} />
-              </button>
-              <button
-                type="button"
-                title="Unlink"
-                aria-label="Unlink"
-                onClick={() => editor?.chain().focus().unsetLink().run()}
-                disabled={!editor}
-              >
-                <Unlink size={16} />
-              </button>
-              <button
-                className={editor?.isActive("orderedList") ? "active" : ""}
-                type="button"
-                title="Ordered list"
-                aria-label="Ordered list"
-                onClick={() => editor?.chain().focus().toggleOrderedList().run()}
-                disabled={!editor}
-              >
-                <ListOrdered size={16} />
-              </button>
-              <button
-                className={editor?.isActive("bulletList") ? "active" : ""}
-                type="button"
-                title="Bulleted list"
-                aria-label="Bulleted list"
-                onClick={() => editor?.chain().focus().toggleBulletList().run()}
-                disabled={!editor}
-              >
-                <List size={16} />
-              </button>
-            </div>
-            <div className="template-body-field">
-              <EditorContent editor={editor} />
+                    editor?.chain().focus().extendMarkRange("link").setLink({ href }).run();
+                  }}
+                  disabled={!editor}
+                >
+                  <Link2 size={16} />
+                </button>
+                <button
+                  type="button"
+                  title="Unlink"
+                  aria-label="Unlink"
+                  onClick={() => editor?.chain().focus().unsetLink().run()}
+                  disabled={!editor}
+                >
+                  <Unlink size={16} />
+                </button>
+                <button
+                  className={editor?.isActive("orderedList") ? "active" : ""}
+                  type="button"
+                  title="Ordered list"
+                  aria-label="Ordered list"
+                  onClick={() => editor?.chain().focus().toggleOrderedList().run()}
+                  disabled={!editor}
+                >
+                  <ListOrdered size={16} />
+                </button>
+                <button
+                  className={editor?.isActive("bulletList") ? "active" : ""}
+                  type="button"
+                  title="Bulleted list"
+                  aria-label="Bulleted list"
+                  onClick={() => editor?.chain().focus().toggleBulletList().run()}
+                  disabled={!editor}
+                >
+                  <List size={16} />
+                </button>
+              </div>
+              <div className="template-body-field">
+                <EditorContent editor={editor} />
+              </div>
             </div>
           </div>
-        </div>
-        <button className="secondary" type="submit">
-          <FilePlus2 size={18} />
-          Save template
-        </button>
-      </form>
+          <button className="secondary" type="submit">
+            <FilePlus2 size={18} />
+            Save template
+          </button>
+        </form>
 
-      <TemplateLibrary
-        emptyText="Save a template, then apply it to any new submission."
-        templates={templates}
-        onApplyTemplate={onApplyTemplate}
-        onDeleteTemplate={onDeleteTemplate}
-      />
+        <div className="template-library-panel">
+          <TemplateLibrary
+            emptyText="Save a template, then apply it to any new submission."
+            templates={templates}
+            onApplyTemplate={onApplyTemplate}
+            onDeleteTemplate={onDeleteTemplate}
+          />
+        </div>
+      </div>
     </section>
   );
 }
