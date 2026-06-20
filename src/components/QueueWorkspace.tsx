@@ -39,6 +39,7 @@ type QueueWorkspaceProps = {
   onRunnerHeadlessChange: (headless: boolean) => void;
   onRunnerSubmitApprovedChange: (submit: boolean) => void;
   showLaunchLocalRunner: boolean;
+  onRetryQueueItemTestRun: (id: string) => void;
   onUpdateQueueItem: (id: string, status: SubmissionStatus, notes: string) => void;
 };
 
@@ -67,6 +68,7 @@ export function QueueWorkspace({
   onRunnerHeadlessChange,
   onRunnerSubmitApprovedChange,
   showLaunchLocalRunner,
+  onRetryQueueItemTestRun,
   onUpdateQueueItem,
 }: QueueWorkspaceProps) {
   const [openSections, setOpenSections] = useState<Record<QueueSectionKey, boolean>>({
@@ -86,6 +88,13 @@ export function QueueWorkspace({
     const logs = logGroups.find((group) => group.item.id === item.id)?.logs ?? [];
     const reviewLog = logs.find((log) => log.level === "error") ?? logs.find((log) => log.level === "warning");
     return reviewLog ? runnerLogExplanation(reviewLog) || reviewLog.message : item.notes;
+  }
+
+  function recoveryGuidance(item: SubmissionQueueItem) {
+    if (item.status === "failed") {
+      return "Use Retry test run after fixing the blocker. It will prepare Tumblr again without submitting.";
+    }
+    return "Review the open Tumblr page, then requeue or mark posted once the submission state is clear.";
   }
 
   function setSectionOpen(section: QueueSectionKey, open: boolean) {
@@ -290,8 +299,17 @@ export function QueueWorkspace({
                         <div>
                           <strong>{item.status === "failed" ? "Why this failed" : "Needs review because"}</strong>
                           <span>{queueItemExplanation(item)}</span>
+                          <small>{recoveryGuidance(item)}</small>
                         </div>
                         <div className="queue-item-actions queue-item-review-actions">
+                          <button
+                            className="secondary"
+                            type="button"
+                            onClick={() => onRetryQueueItemTestRun(item.id)}
+                          >
+                            <TestTube2 size={16} />
+                            Retry test run
+                          </button>
                           <button
                             className="secondary"
                             type="button"
