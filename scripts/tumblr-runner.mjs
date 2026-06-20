@@ -225,6 +225,7 @@ async function runQueueItem(context, item, options) {
   if (options.submit) {
     const submitResult = await clickSubmit(target);
     const submitted = submitResult.status === "clicked";
+    const postedUrl = submitted ? await postedUrlFromPage(page, item.submitUrl) : "";
     console.log(submitted ? `[submitted] ${item.targetName}: submit button clicked.` : `[manual-action] ${item.targetName}: ${submitResult.message}`);
     await reportRunnerEvent(
       options,
@@ -232,6 +233,7 @@ async function runQueueItem(context, item, options) {
       submitted ? "submitted" : "needs-review",
       submitResult.message,
       submitted ? "info" : "warning",
+      submitted ? { ...submitResult, postedUrl } : submitResult,
     );
   } else {
     console.log(`[ready] ${item.targetName}: fields filled where possible. Review the page, then submit manually or rerun with --submit.`);
@@ -244,6 +246,12 @@ async function runQueueItem(context, item, options) {
   }
 
   return { readyForReview: false };
+}
+
+async function postedUrlFromPage(page, submitUrl) {
+  await page.waitForLoadState("domcontentloaded", { timeout: 5000 }).catch(() => undefined);
+  const url = page.url();
+  return /^https?:\/\//i.test(url) && url !== submitUrl ? url : "";
 }
 
 async function runnerPage(context, options) {
