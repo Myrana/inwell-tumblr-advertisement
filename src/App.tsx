@@ -185,6 +185,20 @@ function App() {
       : "Local runner offline";
   }, [localCompanion, runnerState]);
   const canLaunchLocalRunner = !localCompanion?.ok;
+  const localCompanionQueueStatus = (status: LocalCompanionStatus) => {
+    if (status.running) {
+      return "Local companion is running the queue.";
+    }
+    if (status.status === "watching") {
+      return status.queueName ? `Local companion is watching ${status.queueName}.` : "Local companion is watching.";
+    }
+    return "Local companion is connected.";
+  };
+  const shouldReplaceStaleLocalRunnerStatus = (status: string) =>
+    status.includes("Local companion was not detected") ||
+    status.includes("Local runner command copied") ||
+    status.includes("Local runner setup command copied") ||
+    status.includes("Opening the installed local runner");
   const activeDestinationBlogRef = useRef(activeAd.destinationBlog);
   const activeBlogTags = tagProfiles[activeAd.destinationBlog] ?? defaultTagProfiles[activeAd.destinationBlog] ?? [];
   const checklistTags = uniqueTags([...activeBlogTags, ...activeAd.tags]);
@@ -980,7 +994,9 @@ function App() {
       const status = await loadLocalCompanionStatus();
       setLocalCompanion(status);
       if (!options.quiet) {
-        setQueueStatus(status.running ? "Local companion is running the queue." : "Local companion is connected.");
+        setQueueStatus(localCompanionQueueStatus(status));
+      } else if (status.ok) {
+        setQueueStatus((current) => shouldReplaceStaleLocalRunnerStatus(current) ? localCompanionQueueStatus(status) : current);
       }
       return status;
     } catch {

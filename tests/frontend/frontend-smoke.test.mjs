@@ -1422,6 +1422,9 @@ test("running the queue prepares the local runner and shows failure explanations
       }),
     });
   });
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await page.getByText("Local companion is watching Default queue.").waitFor();
+  await page.getByText("Local companion was not detected on this computer", { exact: false }).waitFor({ state: "detached" });
   await page.getByRole("button", { name: "Run locally" }).click();
   await page.getByText("Local companion started the runner on this computer.").waitFor();
   assert.equal(companionRunRequested, true);
