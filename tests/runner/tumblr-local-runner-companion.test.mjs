@@ -36,7 +36,7 @@ test("local companion grants private network access for deployed app preflight",
       "--companion-port",
       String(port),
       "--api-base",
-      "http://127.0.0.1:9/api",
+      "https://inkwell-production-f037.up.railway.app/api",
       "--workspace-id",
       "workspace-test",
       "--queue",
@@ -59,8 +59,21 @@ test("local companion grants private network access for deployed app preflight",
     });
 
     assert.equal(response.status, 204);
-    assert.equal(response.headers.get("access-control-allow-origin"), "*");
+    assert.equal(response.headers.get("access-control-allow-origin"), "https://inkwell-production-f037.up.railway.app");
     assert.equal(response.headers.get("access-control-allow-private-network"), "true");
+
+    const blocked = await fetch(`http://127.0.0.1:${port}/run`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: "https://example.invalid",
+        "Access-Control-Request-Private-Network": "true",
+      },
+      body: JSON.stringify({ queueName: "Adverts" }),
+    });
+
+    assert.equal(blocked.status, 403);
+    assert.equal(blocked.headers.get("access-control-allow-origin"), "null");
   } finally {
     child.kill();
   }

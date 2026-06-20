@@ -272,6 +272,27 @@ export async function runLocalCompanion(queueName: string) {
   );
 }
 
+export async function downloadLocalRunnerPackage(queueName: string) {
+  const response = await fetch(`${apiBaseUrl}/runner/local-package?queueName=${encodeURIComponent(queueName)}`, {
+    credentials: "include",
+  });
+  if (!response.ok) {
+    let payload: { error?: string } = {};
+    try {
+      payload = (await response.json()) as typeof payload;
+    } catch {
+      payload = {};
+    }
+    throw new ApiError(response.status, payload.error || `API request failed: ${response.status}`);
+  }
+  const disposition = response.headers.get("Content-Disposition") || "";
+  const match = /filename="([^"]+)"/.exec(disposition);
+  return {
+    blob: await response.blob(),
+    filename: match?.[1] || "inkwell-local-runner.zip",
+  };
+}
+
 export async function loadLocalRunnerCommand(queueName: string) {
   const response = await apiRequest<{
     localRunner: {

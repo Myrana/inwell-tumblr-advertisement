@@ -7,6 +7,38 @@ import { spawn } from "node:child_process";
 
 const LOCAL_COMPANION_VERSION = "local-runner-2";
 
+function companionAllowedOrigins(options) {
+  const origins = new Set([
+    "http://127.0.0.1:8020",
+    "http://localhost:8020",
+    "http://127.0.0.1:8123",
+    "http://localhost:8123",
+  ]);
+  try {
+    origins.add(new URL(options.apiBaseUrl).origin);
+  } catch {
+    // Keep the explicit local origins when apiBaseUrl is not parseable.
+  }
+  for (const origin of String(process.env.INWELL_LOCAL_COMPANION_ALLOWED_ORIGINS || "").split(",")) {
+    const trimmed = origin.trim().replace(/\/$/, "");
+    if (trimmed) {
+      origins.add(trimmed);
+    }
+  }
+  return origins;
+}
+
+function requestOrigin(request) {
+  return String(request.headers.origin || "").trim().replace(/\/$/, "");
+}
+
+function isTrustedCompanionOrigin(origin, allowedOrigins) {
+  if (!origin) {
+    return true;
+  }
+  return allowedOrigins.has(origin);
+}
+
 function parseLocalArgs(argv) {
   const options = {
     apiBaseUrl: "",
@@ -211,13 +243,15 @@ function readRequestJson(request) {
   });
 }
 
-function sendJson(response, status, payload) {
+function sendJson(response, status, payload, origin = "") {
+  const allowOrigin = origin || "null";
   response.writeHead(status, {
     "Access-Control-Allow-Headers": "Content-Type",
     "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Origin": allowOrigin,
     "Access-Control-Allow-Private-Network": "true",
     "Content-Type": "application/json",
+    "Vary": "Origin",
   });
   if (status === 204) {
     response.end();
@@ -227,19 +261,25 @@ function sendJson(response, status, payload) {
 }
 
 function startCompanionServer(options, state) {
+  const allowedOrigins = companionAllowedOrigins(options);
   const server = http.createServer(async (request, response) => {
     const url = new URL(request.url || "/", `http://${request.headers.host || "127.0.0.1"}`);
+    const origin = requestOrigin(request);
+    if (!isTrustedCompanionOrigin(origin, allowedOrigins)) {
+      sendJson(response, 403, { error: "Origin is not allowed." });
+      return;
+    }
     if (request.method === "OPTIONS") {
-      sendJson(response, 204, {});
+      sendJson(response, 204, {}, origin);
       return;
     }
     if (request.method === "GET" && url.pathname === "/status") {
-      sendJson(response, 200, companionStatus(options, state));
+      sendJson(response, 200, companionStatus(options, state), origin);
       return;
     }
     if (request.method === "POST" && url.pathname === "/run") {
       if (state.running) {
-        sendJson(response, 409, { ...companionStatus(options, state), accepted: false, error: "Local runner is already running." });
+        sendJson(response, 409, { ...companionStatus(options, state), accepted: false, error: "Local runner is already running." }, origin);
         return;
       }
       const payload = await readRequestJson(request).catch(() => ({}));
@@ -250,10 +290,10 @@ function startCompanionServer(options, state) {
       void executeLocalRun(runOptions, state).catch((error) => {
         console.error(`[local-runner:error] ${error instanceof Error ? error.message : String(error)}`);
       });
-      sendJson(response, 202, { ...companionStatus(runOptions, state), accepted: true });
+      sendJson(response, 202, { ...companionStatus(runOptions, state), accepted: true }, origin);
       return;
     }
-    sendJson(response, 404, { error: "Not found" });
+    sendJson(response, 404, { error: "Not found" }, origin);
   });
 
   server.listen(options.companionPort, "127.0.0.1", () => {

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import io
 import json
 import os
 import unittest
+import zipfile
 from pathlib import Path
 import sys
 from typing import Any
@@ -38,6 +40,7 @@ from app import (
     create_local_runner_token,
     get_app_settings,
     local_runner_command,
+    local_runner_package,
     local_runner_plan,
     local_runner_status,
     latest_local_runner_status,
@@ -1549,6 +1552,7 @@ class PersistenceTests(unittest.TestCase):
         self.assertIn("--workspace-id 'workspace-local'", result["command"])
         self.assertIn("--queue 'Local queue'", result["command"])
         self.assertIn("--watch", result["command"])
+        self.assertIn("--serve", result["command"])
         self.assertIn("--no-pause", result["command"])
         self.assertIn("--submit", result["command"])
         self.assertNotIn("<paste", result["command"])
@@ -1564,6 +1568,27 @@ class PersistenceTests(unittest.TestCase):
         self.assertIn("-RunnerToken 'ilr_secret'", result["autoStartCommand"])
         self.assertTrue(result["tokenConfigured"])
         self.assertTrue(result["usesDeviceToken"])
+
+    def test_local_runner_package_includes_installer_assets(self) -> None:
+        body, filename = local_runner_package("https://example.test/api", "workspace-local", "Local queue", "ilr_secret")
+
+        self.assertEqual(filename, "inkwell-local-runner.zip")
+        with zipfile.ZipFile(io.BytesIO(body)) as archive:
+            names = set(archive.namelist())
+            self.assertIn("inkwell-local-runner/package.json", names)
+            self.assertIn("inkwell-local-runner/README.md", names)
+            self.assertIn("inkwell-local-runner/install.ps1", names)
+            self.assertIn("inkwell-local-runner/install.cmd", names)
+            self.assertIn("inkwell-local-runner/scripts/tumblr-local-runner.mjs", names)
+            self.assertIn("inkwell-local-runner/scripts/install-local-runner-autostart.ps1", names)
+            readme = archive.read("inkwell-local-runner/README.md").decode("utf-8")
+            install_ps1 = archive.read("inkwell-local-runner/install.ps1").decode("utf-8")
+
+        self.assertIn("Double-click `install.cmd`", readme)
+        self.assertIn("npm.cmd run tumblr:install-browsers", install_ps1)
+        self.assertIn("-RunnerToken 'ilr_secret'", install_ps1)
+        self.assertIn("-WorkspaceId 'workspace-local'", install_ps1)
+        self.assertIn("-Queue 'Local queue'", install_ps1)
 
     def test_local_runner_heartbeat_reports_online_for_matching_workspace(self) -> None:
         app.LOCAL_RUNNER_HEARTBEAT.clear()
