@@ -1946,8 +1946,11 @@ pre {
   cursor: pointer;
 }
 
-.template-card-main:hover {
-  background: #f8fafb;
+.template-card-main:hover,
+.template-card-main:focus-visible {
+  background: #edf5f7;
+  color: var(--ink);
+  outline: none;
 }
 
 .template-card-main strong,
@@ -2413,6 +2416,19 @@ html[data-theme="dark"] .draft-row strong,
 html[data-theme="dark"] .queue-item strong,
 html[data-theme="dark"] .runner-log-run-summary {
   color: var(--ink);
+}
+
+html[data-theme="dark"] .template-card-main:hover,
+html[data-theme="dark"] .template-card-main:focus-visible {
+  background: #172633;
+  color: #eef4f7;
+}
+
+html[data-theme="dark"] .template-card-main:hover span,
+html[data-theme="dark"] .template-card-main:hover .template-preview,
+html[data-theme="dark"] .template-card-main:focus-visible span,
+html[data-theme="dark"] .template-card-main:focus-visible .template-preview {
+  color: #b8c8d2;
 }
 
 html[data-theme="dark"] .upload-button,
