@@ -30,7 +30,7 @@ export function submitTargetFromUrl(value: string, forumUrl = ""): TumblrSubmitT
   const blogName = hostname.replace(/\.tumblr\.com$/i, "");
   const id = blogName.toLowerCase();
 
-  return { id, name: blogName, submitUrl, forumUrl: forumUrl.trim() };
+  return { id, name: blogName, profileName: blogName, submitUrl, forumUrl: forumUrl.trim(), postingRules: "" };
 }
 
 export function fallbackTarget(id: string): TumblrSubmitTarget {
@@ -39,16 +39,20 @@ export function fallbackTarget(id: string): TumblrSubmitTarget {
     return {
       id: "",
       name: "Add a Tumblr blog",
+      profileName: "",
       submitUrl: "",
       forumUrl: "",
+      postingRules: "",
     };
   }
 
   return {
     id: targetId,
     name: targetId,
+    profileName: targetId,
     submitUrl: `https://${targetId}.tumblr.com/submit`,
     forumUrl: "",
+    postingRules: "",
   };
 }
 
@@ -64,7 +68,13 @@ export function uniqueSubmitTargets(targets: TumblrSubmitTarget[]) {
       return;
     }
 
-    seen.set(target.id, target);
+    seen.set(target.id, {
+      ...target,
+      name: target.name || target.id,
+      profileName: target.profileName || target.name || target.id,
+      forumUrl: target.forumUrl || "",
+      postingRules: target.postingRules || "",
+    });
   });
 
   return Array.from(seen.values());
@@ -83,8 +93,34 @@ export function upsertSubmitTarget(targets: TumblrSubmitTarget[], nextTarget: Tu
         ? {
             ...target,
             name: nextTarget.name || target.name,
+            profileName: nextTarget.profileName || target.profileName || nextTarget.name || target.name,
             submitUrl: nextTarget.submitUrl || target.submitUrl,
             forumUrl: nextTarget.forumUrl || target.forumUrl,
+            postingRules: nextTarget.postingRules || target.postingRules || "",
+          }
+        : target,
+    ),
+  );
+}
+
+export function upsertSubmitTargetProfile(
+  targets: TumblrSubmitTarget[],
+  targetId: string,
+  patch: Partial<Pick<TumblrSubmitTarget, "profileName" | "postingRules">>,
+) {
+  const normalizedTargetId = targetId.trim();
+
+  if (!normalizedTargetId) {
+    return targets;
+  }
+
+  return uniqueSubmitTargets(
+    targets.map((target) =>
+      target.id === normalizedTargetId
+        ? {
+            ...target,
+            profileName: typeof patch.profileName === "string" ? patch.profileName : target.profileName,
+            postingRules: typeof patch.postingRules === "string" ? patch.postingRules : target.postingRules,
           }
         : target,
     ),
@@ -117,8 +153,10 @@ export function loadSubmitTargets() {
             const submitUrl = normalizeSubmitUrl(target.submitUrl ?? "");
             const id = (target.id ?? "").trim().toLowerCase();
             const name = (target.name ?? id).trim();
+            const profileName = (target.profileName ?? name).trim();
             const forumUrl = (target.forumUrl ?? "").trim();
-            return submitUrl && id ? { id, name: name || id, submitUrl, forumUrl } : null;
+            const postingRules = (target.postingRules ?? "").trim();
+            return submitUrl && id ? { id, name: name || id, profileName: profileName || name || id, submitUrl, forumUrl, postingRules } : null;
           })
           .filter((target): target is TumblrSubmitTarget => Boolean(target))
       : [];

@@ -49,8 +49,10 @@ export type SavedTemplate = {
 export type TumblrSubmitTarget = {
   id: string;
   name: string;
+  profileName: string;
   submitUrl: string;
   forumUrl: string;
+  postingRules: string;
 };
 
 export type QueueDefinition = {

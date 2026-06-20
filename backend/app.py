@@ -352,8 +352,10 @@ def initialize(connection: ConnectionLike) -> None:
         CREATE TABLE IF NOT EXISTS submit_targets (
             id TEXT PRIMARY KEY,
             name TEXT NOT NULL DEFAULT '',
+            profile_name TEXT NOT NULL DEFAULT '',
             submit_url TEXT NOT NULL DEFAULT '',
             forum_url TEXT NOT NULL DEFAULT '',
+            posting_rules TEXT NOT NULL DEFAULT '',
             created_at TIMESTAMPTZ NOT NULL,
             updated_at TIMESTAMPTZ NOT NULL
         )
@@ -444,6 +446,8 @@ def initialize(connection: ConnectionLike) -> None:
     ):
         connection.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS workspace_id TEXT NOT NULL DEFAULT 'default'")
     connection.execute("ALTER TABLE templates ADD COLUMN IF NOT EXISTS queue_name TEXT NOT NULL DEFAULT ''")
+    connection.execute("ALTER TABLE submit_targets ADD COLUMN IF NOT EXISTS profile_name TEXT NOT NULL DEFAULT ''")
+    connection.execute("ALTER TABLE submit_targets ADD COLUMN IF NOT EXISTS posting_rules TEXT NOT NULL DEFAULT ''")
     connection.execute("ALTER TABLE submission_queue ADD COLUMN IF NOT EXISTS queue_name TEXT NOT NULL DEFAULT 'Default queue'")
     connection.execute("ALTER TABLE submission_queue ADD COLUMN IF NOT EXISTS tumblr_account_id TEXT NOT NULL DEFAULT ''")
     connection.execute("ALTER TABLE runner_settings ADD COLUMN IF NOT EXISTS tumblr_account_id TEXT NOT NULL DEFAULT ''")
@@ -1213,7 +1217,9 @@ def normalize_submit_target(value: Any) -> dict[str, str] | None:
     target_id = str(value.get("id", "")).strip().lower()
     submit_url = str(value.get("submitUrl") or value.get("submit_url") or "").strip()
     name = str(value.get("name") or target_id).strip() or target_id
+    profile_name = str(value.get("profileName") or value.get("profile_name") or name).strip() or name
     forum_url = str(value.get("forumUrl") or value.get("forum_url") or "").strip()
+    posting_rules = str(value.get("postingRules") or value.get("posting_rules") or "").strip()
 
     if not target_id or not submit_url:
         return None
@@ -1221,8 +1227,10 @@ def normalize_submit_target(value: Any) -> dict[str, str] | None:
     return {
         "id": target_id,
         "name": name,
+        "profileName": profile_name,
         "submitUrl": submit_url,
         "forumUrl": forum_url,
+        "postingRules": posting_rules,
     }
 
 
@@ -1359,8 +1367,10 @@ def get_app_settings(connection: ConnectionLike, workspace_id: str = "default") 
         {
             "id": row["id"],
             "name": row["name"],
+            "profileName": row["profile_name"] or row["name"],
             "submitUrl": row["submit_url"],
             "forumUrl": row["forum_url"],
+            "postingRules": row["posting_rules"],
         }
         for row in connection.execute("SELECT * FROM submit_targets WHERE workspace_id = %s ORDER BY name", (workspace_id,)).fetchall()
     ]
@@ -1469,18 +1479,30 @@ def upsert_app_settings(connection: ConnectionLike, payload: dict[str, Any], aud
     for target in settings["submitTargets"]:
         connection.execute(
             """
-            INSERT INTO submit_targets (id, workspace_id, name, submit_url, forum_url, created_at, updated_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO submit_targets (id, workspace_id, name, profile_name, submit_url, forum_url, posting_rules, created_at, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT(id) DO UPDATE SET
                 name = excluded.name,
+                profile_name = excluded.profile_name,
                 submit_url = excluded.submit_url,
                 forum_url = excluded.forum_url,
+                posting_rules = excluded.posting_rules,
                 updated_at = excluded.updated_at
             """,
-            (target["id"], workspace_id, target["name"], target["submitUrl"], target["forumUrl"], now, now),
+            (
+                target["id"],
+                workspace_id,
+                target["name"],
+                target["profileName"],
+                target["submitUrl"],
+                target["forumUrl"],
+                target["postingRules"],
+                now,
+                now,
+            ),
         )
         if audit:
-            for field_name in ("name", "submitUrl", "forumUrl"):
+            for field_name in ("name", "profileName", "submitUrl", "forumUrl", "postingRules"):
                 record_settings_audit(connection, "submit_targets", "upsert", target["id"], field_name, "", target[field_name], workspace_id)
 
     connection.execute("DELETE FROM queue_definitions WHERE workspace_id = %s", (workspace_id,))

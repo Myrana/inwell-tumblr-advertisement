@@ -86,6 +86,7 @@ import {
   uniqueSubmitTargets,
   upsertSubmitTarget,
   upsertSubmitTargetForumUrl,
+  upsertSubmitTargetProfile,
 } from "./domain/submitTargets";
 import { normalizeTag, uniqueTags } from "./domain/tags";
 import { applyTemplateToAdvertisement, normalizeTemplate, templateFromAdvertisement } from "./domain/templates";
@@ -687,6 +688,14 @@ function App() {
     }
 
     setSubmitTargets((current) => upsertSubmitTargetForumUrl(current, activeAd.destinationBlog, value));
+  }
+
+  function updateSubmitTargetProfile(patch: Partial<Pick<TumblrSubmitTarget, "profileName" | "postingRules">>) {
+    if (!activeAd.destinationBlog) {
+      return;
+    }
+
+    setSubmitTargets((current) => upsertSubmitTargetProfile(current, activeAd.destinationBlog, patch));
   }
 
   function toggleTag(tag: string) {
@@ -1539,6 +1548,7 @@ function App() {
             onUpdateCustomTag={setCustomTag}
             onUpdateForumUrl={updateForumUrl}
             onUpdateNewSubmitUrl={setNewSubmitUrl}
+            onUpdateSubmitTargetProfile={updateSubmitTargetProfile}
             onViewQueue={() => setActiveView("queue")}
             onVideoUpload={handleVideoUpload}
           />

@@ -94,6 +94,10 @@ export function buildRunnerPayload(advertisement: Advertisement, target: TumblrS
       version: 1,
       workflow: "tumblr-public-submit-page",
       target,
+      targetProfile: {
+        name: target.profileName || target.name,
+        postingRules: target.postingRules,
+      },
       advertisement: {
         id: advertisement.id,
         savedOptionName: advertisement.title,
@@ -118,6 +122,7 @@ export function buildRunnerPayload(advertisement: Advertisement, target: TumblrS
         "Choose the matching text/photo/video form.",
         "Paste the prepared fields, upload local media when needed, accept required blog terms, and submit.",
         "If Tumblr shows login, captcha, or changed form markup, pause for manual action.",
+        ...(target.postingRules ? [`Target posting rules: ${target.postingRules}`] : []),
       ],
     },
     null,
