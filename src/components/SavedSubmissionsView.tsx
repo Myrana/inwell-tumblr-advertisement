@@ -1,4 +1,4 @@
-import { Archive, Link, Trash2 } from "lucide-react";
+import { Archive, Link, Send, Trash2 } from "lucide-react";
 import { hasLibraryContent } from "../domain/ads";
 import { formatDate, formatStatus } from "../domain/format";
 import { Advertisement } from "../domain/types";
@@ -7,10 +7,11 @@ type SavedSubmissionsViewProps = {
   activeAdId: string;
   ads: Advertisement[];
   onDeleteDraft: (id: string) => void;
+  onQueueDraft: (id: string) => void;
   onSelectDraft: (id: string) => void;
 };
 
-export function SavedSubmissionsView({ activeAdId, ads, onDeleteDraft, onSelectDraft }: SavedSubmissionsViewProps) {
+export function SavedSubmissionsView({ activeAdId, ads, onDeleteDraft, onQueueDraft, onSelectDraft }: SavedSubmissionsViewProps) {
   const libraryAds = ads.filter(hasLibraryContent);
 
   return (
@@ -29,14 +30,25 @@ export function SavedSubmissionsView({ activeAdId, ads, onDeleteDraft, onSelectD
         <article className={ad.id === activeAdId ? "draft-row selected" : "draft-row"} key={ad.id}>
           <div className="draft-row-summary">
             <strong>{ad.title || "Untitled submission"}</strong>
-            <span>{ad.postType} - {formatStatus(ad.status)} - {formatDate(ad.updatedAt)}</span>
+            <div className="draft-row-meta">
+              <span>{ad.postType}</span>
+              <span>{formatStatus(ad.status)}</span>
+              <span>{ad.destinationBlog || "No target"}</span>
+              <span>{formatDate(ad.updatedAt)}</span>
+            </div>
           </div>
-          <a href={ad.forumUrl || "#"} aria-label="Forum URL">
-            <Link size={18} />
-          </a>
-          <button className="secondary compact-button" type="button" onClick={() => onSelectDraft(ad.id)}>
-            Edit
-          </button>
+          <div className="draft-row-actions">
+            <a href={ad.forumUrl || "#"} aria-label="Forum URL">
+              <Link size={18} />
+            </a>
+            <button className="secondary compact-button" type="button" onClick={() => onQueueDraft(ad.id)}>
+              <Send size={16} />
+              Queue
+            </button>
+            <button className="secondary compact-button" type="button" onClick={() => onSelectDraft(ad.id)}>
+              Edit
+            </button>
+          </div>
           <button
             className="icon-button"
             type="button"

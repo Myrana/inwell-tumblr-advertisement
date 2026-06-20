@@ -1968,9 +1968,29 @@ pre {
   min-width: 0;
 }
 
+.draft-row-meta,
+.draft-row-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.draft-row-actions {
+  justify-content: flex-end;
+}
+
 .draft-row strong,
 .draft-row span {
   display: block;
+}
+
+.draft-row-meta span {
+  margin-top: 4px;
+  padding: 3px 7px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #f8fafb;
 }
 
 .draft-row span {
