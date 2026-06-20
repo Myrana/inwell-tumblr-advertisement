@@ -765,12 +765,12 @@ function App() {
     }
   }
 
-  function queueSavedDraft(id: string) {
+  function queueSavedDraft(id: string, queueName = activeQueueName) {
     const ad = stored.ads.find((item) => item.id === id);
     if (!ad) {
       return;
     }
-    if (!activeQueueName) {
+    if (!queueName) {
       setQueueStatus("Create a queue before adding submissions.");
       setActiveView("queue-settings");
       return;
@@ -785,15 +785,16 @@ function App() {
     }
 
     const target = submitTargets.find((item) => item.id === ad.destinationBlog) ?? fallbackTarget(ad.destinationBlog);
-    const nextItem = createSubmissionQueueItem(ad, target, buildPreparedPost(ad), activeQueueName, runnerSettings.tumblrAccountId);
+    const nextItem = createSubmissionQueueItem(ad, target, buildPreparedPost(ad), queueName, runnerSettings.tumblrAccountId);
     setSubmissionQueue((current) => {
       const withoutExisting = current.filter(
-        (item) => item.queueName !== activeQueueName || item.adId !== ad.id || item.targetId !== nextItem.targetId,
+        (item) => item.queueName !== queueName || item.adId !== ad.id || item.targetId !== nextItem.targetId,
       );
       return [nextItem, ...withoutExisting];
     });
     syncQueueItem(nextItem);
-    setQueueStatus(`Queued ${ad.title || target.name} in ${activeQueueName}.`);
+    setSelectedQueueName(queueName);
+    setQueueStatus(`Queued ${ad.title || target.name} in ${queueName}.`);
     setActiveView("queue");
   }
 
@@ -1489,6 +1490,8 @@ function App() {
           <SavedSubmissionsView
             activeAdId={activeAd.id}
             ads={stored.ads}
+            activeQueueName={activeQueueName}
+            queueOptions={queueOptions}
             onDeleteDraft={deleteDraft}
             onQueueDraft={queueSavedDraft}
             onSelectDraft={(id) => {
