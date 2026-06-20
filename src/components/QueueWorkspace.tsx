@@ -33,9 +33,9 @@ type QueueWorkspaceProps = {
   onRenameQueue: (currentName: string, nextName: string) => void;
   onSelectQueue: (queueName: string) => void;
   onQueueScheduleSettingsChange: (patch: Partial<QueueScheduleSettings>) => void;
+  onCopyLocalRunnerSetup: () => void;
   onRefreshRunnerStatus: () => void;
   onRunnerSettingsChange: (patch: Partial<RunnerSettings>) => void;
-  onShowLocalRunnerCommand: () => void;
   onStartRunner: () => void;
   onUpdateQueueItem: (id: string, status: SubmissionStatus, notes: string) => void;
 };
@@ -60,9 +60,9 @@ export function QueueWorkspace({
   onRenameQueue,
   onSelectQueue,
   onQueueScheduleSettingsChange,
+  onCopyLocalRunnerSetup,
   onRefreshRunnerStatus,
   onRunnerSettingsChange,
-  onShowLocalRunnerCommand,
   onStartRunner,
   onUpdateQueueItem,
 }: QueueWorkspaceProps) {
@@ -270,9 +270,9 @@ export function QueueWorkspace({
               <button className="secondary" type="button" onClick={onRefreshRunnerStatus}>
                 Refresh runner status
               </button>
-              <button className="secondary" type="button" onClick={onShowLocalRunnerCommand} disabled={!activeQueue.length}>
+              <button className="secondary" type="button" onClick={onCopyLocalRunnerSetup} disabled={!activeQueue.length}>
                 <Terminal size={18} />
-                Show local command
+                Copy setup command
               </button>
               {runnerState ? (
                 <span className="runner-state">
