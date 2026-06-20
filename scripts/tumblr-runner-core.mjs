@@ -29,6 +29,7 @@ export function parseArgs(argv) {
     headless: false,
     loginFirst: false,
     noPause: false,
+    noReviewPause: false,
     submit: false,
     slowMo: 0,
     apiBaseUrl: "",
@@ -53,6 +54,8 @@ export function parseArgs(argv) {
       options.loginFirst = true;
     } else if (arg === "--no-pause") {
       options.noPause = true;
+    } else if (arg === "--no-review-pause") {
+      options.noReviewPause = true;
     } else if (arg === "--submit") {
       options.submit = true;
     } else if (arg === "--slow-mo") {

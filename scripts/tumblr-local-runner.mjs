@@ -156,6 +156,7 @@ async function runPlan(options, plan) {
     options.workspaceId,
     "--user-data-dir",
     userDataDir,
+    "--no-review-pause",
   ];
   if (options.mediaDir) {
     runnerArgs.push("--media-dir", options.mediaDir);
