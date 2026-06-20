@@ -1,4 +1,4 @@
-import { Moon, Plus, Save, Sun } from "lucide-react";
+import { ArrowLeft, Moon, Plus, Save, Sun } from "lucide-react";
 import { ColorTheme } from "../domain/types";
 
 type WorkspaceTopbarProps = {
@@ -7,6 +7,7 @@ type WorkspaceTopbarProps = {
   saveStatus?: string;
   theme: ColorTheme;
   title: string;
+  onBackToOperations?: () => void;
   onCreateDraft: () => void;
   onSaveDraft: () => void;
   onToggleTheme: () => void;
@@ -18,6 +19,7 @@ export function WorkspaceTopbar({
   saveStatus = "",
   theme,
   title,
+  onBackToOperations,
   onCreateDraft,
   onSaveDraft,
   onToggleTheme,
@@ -32,6 +34,12 @@ export function WorkspaceTopbar({
       </div>
       <div className="topbar-action-stack">
         <div className="topbar-actions">
+          {onBackToOperations ? (
+            <button className="secondary" type="button" onClick={onBackToOperations}>
+              <ArrowLeft size={18} />
+              Back to Operations
+            </button>
+          ) : null}
           {actionsVisible ? (
             <>
               <button className="secondary" type="button" onClick={onCreateDraft}>

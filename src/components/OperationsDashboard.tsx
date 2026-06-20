@@ -1,4 +1,4 @@
-import { Activity, AlertTriangle, Archive, CheckCircle2, ClipboardCheck, Download, ListChecks, ShieldCheck, Upload } from "lucide-react";
+import { Activity, AlertTriangle, Archive, BookOpenText, CheckCircle2, ClipboardCheck, Download, ListChecks, Settings2, ShieldCheck, Upload } from "lucide-react";
 import { ChangeEvent } from "react";
 import { QueueDefinition, RunnerActivity, SubmissionQueueItem, TumblrAccount, WorkspaceView } from "../domain/types";
 
@@ -55,9 +55,14 @@ export function OperationsDashboard({
           <span>Active queue</span>
           <strong>{activeQueueName || "No queue"}</strong>
           <small>{queuedCount} ready - {runningCount} running - {needsReviewCount} need review</small>
-          <button className="secondary compact-button" type="button" onClick={() => onNavigate("queue")}>
-            Open queue
-          </button>
+          <div className="operation-card-actions">
+            <button className="secondary compact-button" type="button" onClick={() => onNavigate("queue")}>
+              Open queue
+            </button>
+            <button className="secondary compact-button" type="button" onClick={() => onNavigate("queue-settings")}>
+              Manage queues
+            </button>
+          </div>
         </article>
 
         <article className="operation-card">
@@ -117,6 +122,30 @@ export function OperationsDashboard({
           <small>Reusable copy ready for submissions</small>
           <button className="secondary compact-button" type="button" onClick={() => onNavigate("templates")}>
             Open templates
+          </button>
+        </article>
+
+        <article className="operation-card">
+          <div className="operation-card-icon">
+            <BookOpenText size={20} />
+          </div>
+          <span>Reference</span>
+          <strong>Testing guide</strong>
+          <small>Recent workflow notes and a safe testing path.</small>
+          <button className="secondary compact-button" type="button" onClick={() => onNavigate("docs")}>
+            Open docs
+          </button>
+        </article>
+
+        <article className="operation-card">
+          <div className="operation-card-icon">
+            <Settings2 size={20} />
+          </div>
+          <span>Workspace map</span>
+          <strong>All tools launch here</strong>
+          <small>Use Operations to move into setup, logs, content, templates, and queue workspaces.</small>
+          <button className="secondary compact-button" type="button" onClick={() => onNavigate("dashboard")}>
+            Stay on dashboard
           </button>
         </article>
 

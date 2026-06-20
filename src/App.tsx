@@ -1666,6 +1666,7 @@ function App() {
           title={pageTitles[activeView].title}
           saveStatus={saveStatus}
           theme={colorTheme}
+          onBackToOperations={!["dashboard", "editor", "docs"].includes(activeView) ? () => setActiveView("dashboard") : undefined}
           onCreateDraft={createDraft}
           onSaveDraft={saveDraft}
           onToggleTheme={() => setColorTheme((current) => (current === "dark" ? "light" : "dark"))}

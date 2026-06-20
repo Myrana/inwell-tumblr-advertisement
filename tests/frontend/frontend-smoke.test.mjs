@@ -113,6 +113,31 @@ async function routeEmptyWorkspaceApis(page) {
   );
 }
 
+async function openWorkspaceView(page, viewName) {
+  const directButton = page.getByLabel("Workspace views").getByRole("button", { name: viewName, exact: true });
+  if ((await directButton.count()) > 0 && await directButton.first().isVisible()) {
+    await directButton.first().click();
+    return;
+  }
+
+  const operationActions = {
+    "Content Library": "Prep content",
+    Templates: "Open templates",
+    Queues: "Manage queues",
+    "Tumblr Accounts": "Manage accounts",
+    "Runner Logs": "Review logs",
+    Docs: "Open docs",
+  };
+  const actionName = operationActions[viewName];
+  if (!actionName) {
+    throw new Error(`No Operations route is configured for ${viewName}.`);
+  }
+
+  await page.getByRole("button", { name: "Operations", exact: true }).click();
+  await page.getByRole("heading", { name: "Operations dashboard", level: 1 }).waitFor();
+  await page.getByRole("button", { name: actionName, exact: true }).click();
+}
+
 test("first user can create an Inkwell login before opening the workspace", { timeout: 40000 }, async (t) => {
   const server = spawn("npx vite --host 127.0.0.1 --port 8123 --strictPort", {
     cwd: process.cwd(),
@@ -162,7 +187,7 @@ test("first user can create an Inkwell login before opening the workspace", { ti
   await page.getByRole("button", { name: "Create login" }).click();
   await page.getByRole("button", { name: "Log out" }).waitFor();
   await page.getByRole("heading", { name: "Tumblr accounts", level: 1 }).waitFor();
-  await page.getByRole("button", { name: "Content Library" }).click();
+  await openWorkspaceView(page, "Content Library");
   await page.getByRole("heading", { name: "Content library", level: 1 }).waitFor();
   await page.getByText("No content saved yet").waitFor();
   assert.equal(await page.getByRole("button", { name: "Edit" }).count(), 0);
@@ -264,7 +289,14 @@ test("operations dashboard exports and imports workspace backups", { timeout: 40
 
   await page.goto(appUrl);
   await page.getByRole("heading", { name: "Tumblr accounts", level: 1 }).waitFor();
-  await page.getByRole("button", { name: "Operations" }).click();
+  await page.getByRole("button", { name: "Operations", exact: true }).click();
+  await page.getByRole("heading", { name: "Operations dashboard", level: 1 }).waitFor();
+  assert.equal(await page.getByLabel("Workspace views").getByRole("button", { name: "Templates", exact: true }).count(), 0);
+  assert.equal(await page.getByLabel("Workspace views").getByRole("button", { name: "Queues", exact: true }).count(), 0);
+  assert.equal(await page.getByLabel("Workspace views").getByRole("button", { name: "Tumblr Accounts", exact: true }).count(), 0);
+  await page.getByRole("button", { name: "Prep content", exact: true }).click();
+  await page.getByRole("heading", { name: "Content library", level: 1 }).waitFor();
+  await page.getByRole("button", { name: "Back to Operations", exact: true }).click();
   await page.getByRole("heading", { name: "Operations dashboard", level: 1 }).waitFor();
 
   const downloadPromise = page.waitForEvent("download");
@@ -374,7 +406,7 @@ test("documentation page explains recent workflow changes", { timeout: 40000 }, 
 
   await page.goto(appUrl);
   await page.getByRole("heading", { name: "Tumblr accounts", level: 1 }).waitFor();
-  await page.getByRole("button", { name: "Docs" }).click();
+  await openWorkspaceView(page, "Docs");
   await page.getByRole("heading", { name: "Testing and change guide", level: 1 }).waitFor();
   await page.getByLabel("Inkwell documentation").getByRole("heading", { name: "Local runner" }).waitFor();
   await page.getByLabel("Inkwell documentation").getByRole("heading", { name: "Import and export" }).waitFor();
@@ -547,11 +579,11 @@ test("content library rows can queue a saved submission", { timeout: 40000 }, as
   });
 
   await page.goto(appUrl);
-  await page.getByRole("button", { name: "Operations" }).click();
+  await page.getByRole("button", { name: "Operations", exact: true }).click();
   await page.getByRole("heading", { name: "Operations dashboard", level: 1 }).waitFor();
   await page.getByLabel("Operations dashboard").getByText("3 saved drafts").waitFor();
   await page.getByLabel("Operations dashboard").getByText("Local runner offline").waitFor();
-  await page.getByRole("button", { name: "Content Library" }).click();
+  await openWorkspaceView(page, "Content Library");
   const savedRow = page.locator(".draft-row").filter({ has: page.locator("strong", { hasText: "Saved queue post" }) });
   await savedRow.getByText("Type").waitFor();
   await savedRow.getByText("Summer campaign").waitFor();
@@ -826,7 +858,7 @@ test("templates can be edited on their page and applied from the submission work
   assert.equal(await page.getByText("jcink-directory").count(), 0);
   assert.equal(await page.getByText("roleplay-finder").count(), 0);
 
-  await page.getByRole("button", { name: "Templates" }).click();
+  await openWorkspaceView(page, "Templates");
   await page.getByRole("heading", { name: "Saved templates", level: 1 }).waitFor();
 
   await page.getByLabel("Template name").fill("Reusable premium ad");
@@ -857,12 +889,12 @@ test("templates can be edited on their page and applied from the submission work
   assert.equal(await page.getByLabel("jcink site").isChecked(), true);
   assert.equal(await page.getByLabel("premium jcink").count(), 0);
 
-  await page.getByRole("button", { name: "Content Library" }).click();
+  await openWorkspaceView(page, "Content Library");
   await page.getByRole("heading", { name: "Content library", level: 1 }).waitFor();
   await page.getByRole("button", { name: "Edit" }).click();
   await page.getByRole("heading", { name: "All Things Roleplay" }).waitFor();
   assert.equal(await page.getByLabel("Workspace views").getByRole("button", { name: "Queue", exact: true }).count(), 0);
-  await page.getByRole("button", { name: "Queues", exact: true }).click();
+  await openWorkspaceView(page, "Queues");
   await page.getByRole("heading", { name: "Queues", level: 1 }).waitFor();
   assert.equal(await page.getByText("Default queue").count(), 0);
   assert.equal(await page.getByRole("button", { name: "Export automation plan" }).count(), 0);
@@ -879,7 +911,7 @@ test("templates can be edited on their page and applied from the submission work
   assert.equal(await page.getByLabel("Media folder").count(), 0);
   await page.locator(".workflow-section", { hasText: "Schedule" }).locator(".section-state.warning", { hasText: "Off" }).waitFor();
 
-  await page.getByRole("button", { name: "Queues", exact: true }).click();
+  await openWorkspaceView(page, "Queues");
   await page.getByLabel("Content calendar").getByText("Want ads").waitFor();
   await page.getByLabel("Content calendar").getByText("Not scheduled").waitFor();
   await page.getByLabel("New queue name").fill("Site ads");
@@ -896,7 +928,7 @@ test("templates can be edited on their page and applied from the submission work
   await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
   assert.equal(await page.getByLabel("Active queue").inputValue(), "Want ads");
 
-  await page.getByRole("button", { name: "Queues", exact: true }).click();
+  await openWorkspaceView(page, "Queues");
   const wantAdsRow = page.locator(".queue-management-row", { hasText: "Want ads" });
   const emptySiteAdsRow = page.locator(".queue-management-row", { hasText: "Site ads" });
   await wantAdsRow.getByText("1 item - 0 complete").waitFor();
@@ -921,7 +953,7 @@ test("templates can be edited on their page and applied from the submission work
   const persistedSchedule = await page.evaluate(() => JSON.parse(localStorage.getItem("inwell-queue-schedule-settings") ?? "{}"));
   assert.equal(persistedSchedule.perQueue["Want ads"].enabled, true);
   assert.equal(persistedSchedule.perQueue["Want ads"].dailyTime, "09:30");
-  await page.getByRole("button", { name: "Queues", exact: true }).click();
+  await openWorkspaceView(page, "Queues");
   await page.getByLabel("New queue name").fill("Schedule check");
   await page.getByRole("button", { name: "Add queue" }).click();
   await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
@@ -933,7 +965,7 @@ test("templates can be edited on their page and applied from the submission work
   await page.getByLabel("Active queue").selectOption("Want ads");
   assert.equal(await page.getByLabel("Run this queue daily").isChecked(), true);
   assert.equal(await page.getByLabel("Daily run time").inputValue(), "09:30");
-  await page.getByRole("button", { name: "Queues", exact: true }).click();
+  await openWorkspaceView(page, "Queues");
   const scheduleCheckRow = page.locator(".queue-management-row", { hasText: "Schedule check" });
   await scheduleCheckRow.getByRole("button", { name: "Delete queue" }).click();
   await page.getByText("Deleted Schedule check.").waitFor();
@@ -944,7 +976,7 @@ test("templates can be edited on their page and applied from the submission work
   await page.getByLabel("Queue name").fill("Site ads");
   await page.getByRole("button", { name: "Save name" }).click();
   await page.getByText("Renamed Want ads to Site ads.").waitFor();
-  await page.getByRole("button", { name: "Queues", exact: true }).click();
+  await openWorkspaceView(page, "Queues");
   const siteAdsRow = page.locator(".queue-management-row", { hasText: "Site ads" });
   await siteAdsRow.getByText("1 item - 0 complete").waitFor();
   assert.equal(await wantAdsRow.getByRole("button", { name: "Clear queue" }).count(), 0);
@@ -956,11 +988,11 @@ test("templates can be edited on their page and applied from the submission work
   assert.equal(await page.getByLabel("Daily run time").inputValue(), "09:30");
   await page.getByRole("button", { name: "Edit submission" }).click();
   await page.getByRole("heading", { name: "All Things Roleplay" }).waitFor();
-  await page.getByRole("button", { name: "Queues", exact: true }).click();
+  await openWorkspaceView(page, "Queues");
   await siteAdsRow.getByRole("button", { name: "Open queue" }).click();
   await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
   assert.equal(await page.getByLabel("Queue actions").getByRole("button", { name: "Clear queue" }).count(), 0);
-  await page.getByRole("button", { name: "Runner Logs" }).click();
+  await openWorkspaceView(page, "Runner Logs");
   await page.getByRole("heading", { name: "Runner logs", level: 1 }).waitFor();
   await page.getByText("No runner logs yet.").waitFor();
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
@@ -1044,7 +1076,7 @@ test("shared app settings load from and save to the backend", { timeout: 40000 }
   });
 
   await page.goto(appUrl);
-  await page.getByLabel("Workspace views").getByRole("button", { name: "Queues", exact: true }).click();
+  await openWorkspaceView(page, "Queues");
   await page.locator(".queue-management-row", { hasText: "Backend queue" }).getByRole("button", { name: "Open queue" }).click();
   await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
   assert.equal(await page.getByLabel("Active queue").inputValue(), "Backend queue");
@@ -1054,7 +1086,7 @@ test("shared app settings load from and save to the backend", { timeout: 40000 }
   assert.equal(await page.getByLabel("Run this queue daily").isChecked(), true);
   assert.equal(await page.getByLabel("Daily run time").inputValue(), "07:45");
 
-  await page.getByRole("button", { name: "Queues", exact: true }).click();
+  await openWorkspaceView(page, "Queues");
   await page.getByLabel("New queue name").fill("Backend second queue");
   await page.getByRole("button", { name: "Add queue" }).click();
   await page.waitForTimeout(250);
@@ -1175,7 +1207,7 @@ test("tumblr accounts can be saved and selected for queue runs", { timeout: 4000
   });
 
   await page.goto(appUrl);
-  await page.getByRole("button", { name: "Tumblr Accounts" }).click();
+  await openWorkspaceView(page, "Tumblr Accounts");
   await page.getByRole("heading", { name: "Tumblr accounts", level: 1 }).waitFor();
   await page.getByRole("button", { name: "Dark mode" }).click();
   assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), "dark");
@@ -1295,7 +1327,7 @@ test("tumblr login helper failure does not mark account as launched", { timeout:
   );
 
   await page.goto(appUrl);
-  await page.getByRole("button", { name: "Tumblr Accounts" }).click();
+  await openWorkspaceView(page, "Tumblr Accounts");
   await page.getByRole("heading", { name: "Tumblr accounts", level: 1 }).waitFor();
   await page.getByRole("button", { name: "Connect", exact: true }).click();
   await page.getByText(unsupportedMessage).waitFor();
@@ -1458,7 +1490,7 @@ test("tumblr account connect opens Browserbase live view without manual URL", { 
       return null;
     };
   });
-  await page.getByRole("button", { name: "Tumblr Accounts" }).click();
+  await openWorkspaceView(page, "Tumblr Accounts");
   await page.getByRole("heading", { name: "Tumblr accounts", level: 1 }).waitFor();
   await page.getByLabel("Browser provider").selectOption("browserbase");
   assert.equal(await page.getByRole("textbox", { name: "Live browser URL" }).count(), 0);
@@ -1597,7 +1629,7 @@ test("runner logs are grouped by expandable queue run", { timeout: 40000 }, asyn
   );
 
   await page.goto(appUrl);
-  await page.getByRole("button", { name: "Runner Logs" }).click();
+  await openWorkspaceView(page, "Runner Logs");
   await page.getByRole("heading", { name: "Runner logs", level: 1 }).waitFor();
   await page.getByLabel("Latest runner summary").getByText("Latest run summary").waitFor();
   await page.getByLabel("Latest run target summaries").getByText("allthingsroleplay").waitFor();
@@ -1881,7 +1913,7 @@ test("running the queue prepares the local runner and shows failure explanations
   });
 
   await page.goto(appUrl);
-  await page.getByLabel("Workspace views").getByRole("button", { name: "Queues", exact: true }).click();
+  await openWorkspaceView(page, "Queues");
   await page.locator(".queue-management-row", { hasText: "Default queue" }).getByRole("button", { name: "Open queue" }).click();
   await page.getByLabel("Post history archive").getByText("allthingsroleplay archive").waitFor();
   await page.getByLabel("Post history archive").getByRole("link", { name: "Posted Tumblr link" }).waitFor();
@@ -2031,7 +2063,7 @@ test("running the queue prepares the local runner and shows failure explanations
   assert.deepEqual(companionRunPayloads.at(-1), { queueName: "Default queue", headless: true, submit: false });
   assert.equal(await page.getByText("Manual override").count(), 0);
   assert.equal(await page.getByRole("button", { name: "Mark failed" }).count(), 0);
-  await page.getByRole("button", { name: "Runner Logs" }).click();
+  await openWorkspaceView(page, "Runner Logs");
   await page.getByRole("button", { name: /Latest run run-visible/ }).waitFor();
   await page.getByText("Why this run failed").waitFor();
   await page.getByLabel("Run run-visible target summaries").getByText("Failed").waitFor();
