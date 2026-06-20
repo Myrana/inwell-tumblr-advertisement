@@ -1,6 +1,7 @@
-import { Archive, Link, Send, Trash2 } from "lucide-react";
+import { AlertTriangle, Archive, Link, Send, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { hasLibraryContent } from "../domain/ads";
+import { findDuplicateContentMatches, mapDuplicateMatchesByAdId } from "../domain/duplicates";
 import { formatDate, formatStatus } from "../domain/format";
 import { validateAdvertisement } from "../domain/post";
 import { Advertisement, QueueDefinition } from "../domain/types";
@@ -27,6 +28,9 @@ export function SavedSubmissionsView({
   const libraryAds = ads.filter(hasLibraryContent);
   const readyAds = libraryAds.filter((ad) => validateAdvertisement(ad).length === 0);
   const needsWorkCount = libraryAds.length - readyAds.length;
+  const duplicateMatches = findDuplicateContentMatches(libraryAds);
+  const duplicateMatchesByAdId = mapDuplicateMatchesByAdId(duplicateMatches);
+  const duplicateItemCount = duplicateMatches.reduce((total, match) => total + match.adIds.length, 0);
   const [queuePickerAdId, setQueuePickerAdId] = useState("");
   const [selectedQueueName, setSelectedQueueName] = useState(activeQueueName);
   const [batchQueueName, setBatchQueueName] = useState(activeQueueName || queueOptions[0]?.name || "");
@@ -59,6 +63,12 @@ export function SavedSubmissionsView({
             <span>
               {readyAds.length} ready to queue - {needsWorkCount} need edits
             </span>
+            {duplicateMatches.length ? (
+              <span className="duplicate-check-summary" aria-label="Duplicate content check">
+                <AlertTriangle size={14} />
+                {duplicateItemCount} possible duplicates in {duplicateMatches.length} group{duplicateMatches.length === 1 ? "" : "s"}
+              </span>
+            ) : null}
           </div>
           <label>
             Batch queue destination
@@ -82,11 +92,22 @@ export function SavedSubmissionsView({
           <span>New submissions will appear here after you add details, copy, media, or a target blog.</span>
         </div>
       )}
-      {libraryAds.map((ad) => (
-        <article className={ad.id === activeAdId ? "draft-row selected" : "draft-row"} key={ad.id}>
+      {libraryAds.map((ad) => {
+        const duplicateMatch = duplicateMatchesByAdId.get(ad.id);
+        const duplicatePeerNames = duplicateMatch?.labels.filter((label, index) => duplicateMatch.adIds[index] !== ad.id) ?? [];
+
+        return (
+          <article className={ad.id === activeAdId ? "draft-row selected" : "draft-row"} key={ad.id}>
           <div className="draft-row-summary">
             <strong>{ad.title || "Untitled submission"}</strong>
             <div className="draft-row-meta">
+              {duplicateMatch ? (
+                <span className="duplicate-pill" title={`Matches ${duplicatePeerNames.join(", ")}`}>
+                  <AlertTriangle size={14} />
+                  <b>Possible duplicate</b>
+                  {duplicatePeerNames[0] || "Saved submission"}
+                </span>
+              ) : null}
               <span><b>Type</b>{ad.postType}</span>
               <span><b>Status</b>{formatStatus(ad.status)}</span>
               {ad.campaignName ? <span><b>Campaign</b>{ad.campaignName}</span> : null}
@@ -139,8 +160,9 @@ export function SavedSubmissionsView({
               </button>
             </form>
           ) : null}
-        </article>
-      ))}
+          </article>
+        );
+      })}
     </section>
   );
 }

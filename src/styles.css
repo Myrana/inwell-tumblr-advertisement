@@ -2209,6 +2209,14 @@ pre {
   font-weight: 700;
 }
 
+.batch-prep-panel .duplicate-check-summary {
+  margin-top: 7px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #8b4d13;
+}
+
 .batch-prep-panel label {
   display: grid;
   gap: 6px;
@@ -2547,6 +2555,12 @@ pre {
   background: #f8fafb;
 }
 
+.draft-row-meta .duplicate-pill {
+  border-color: #f2c36d;
+  background: #fff8e8;
+  color: #7c4a08;
+}
+
 .draft-row-meta b {
   color: var(--text);
   font-size: 0.72rem;
@@ -2659,6 +2673,10 @@ html[data-theme="dark"] .workspace-saved .batch-prep-panel label {
 
 html[data-theme="dark"] .workspace-saved .batch-prep-panel span {
   color: #a9c4ca;
+}
+
+html[data-theme="dark"] .workspace-saved .batch-prep-panel .duplicate-check-summary {
+  color: #f2c36d;
 }
 
 html[data-theme="dark"] .content-calendar-panel,
@@ -2875,6 +2893,12 @@ html[data-theme="dark"] .workspace-saved .draft-row-meta span {
   border-color: rgba(159, 176, 187, 0.22);
   background: #17232d;
   color: #b9c9d2;
+}
+
+html[data-theme="dark"] .workspace-saved .draft-row-meta .duplicate-pill {
+  border-color: rgba(242, 195, 109, 0.42);
+  background: rgba(58, 42, 18, 0.86);
+  color: #f2c36d;
 }
 
 html[data-theme="dark"] .workspace-saved .draft-row-meta b {

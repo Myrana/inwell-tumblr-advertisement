@@ -283,9 +283,9 @@ test("content library rows can queue a saved submission", { timeout: 40000 }, as
             id: "saved-ad-two",
             postType: "text",
             title: "Second saved post",
-            content: "<p>Second saved content</p>",
+            content: "<p>Saved content</p>",
             destinationBlog: "allthingsroleplay",
-            forumUrl: "https://forum.example/thread-two",
+            forumUrl: "https://forum.example/thread",
             tags: ["wanted"],
             imageCaption: "",
             imageName: "",
@@ -342,12 +342,14 @@ test("content library rows can queue a saved submission", { timeout: 40000 }, as
   await page.getByLabel("Operations dashboard").getByText("3 saved drafts").waitFor();
   await page.getByLabel("Operations dashboard").getByText("Local runner offline").waitFor();
   await page.getByRole("button", { name: "Content Library" }).click();
-  const savedRow = page.locator(".draft-row", { hasText: "Saved queue post" });
+  const savedRow = page.locator(".draft-row").filter({ has: page.locator("strong", { hasText: "Saved queue post" }) });
   await savedRow.getByText("Type").waitFor();
   await savedRow.getByText("Summer campaign").waitFor();
   await savedRow.getByText("Target").waitFor();
   await savedRow.getByText("Updated").waitFor();
   await page.getByLabel("Batch prep assistant").getByText("2 ready to queue - 1 need edits").waitFor();
+  await page.getByLabel("Duplicate content check").getByText("2 possible duplicates in 1 group").waitFor();
+  assert.equal(await page.locator(".duplicate-pill").count(), 2);
   await page.getByLabel("Batch queue destination").selectOption("Want ads");
   await page.getByRole("button", { name: "Queue ready drafts" }).click();
   await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
