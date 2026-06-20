@@ -1176,6 +1176,8 @@ test("running the queue prepares the local runner and shows failure explanations
   };
 
   page.on("pageerror", (error) => pageErrors.push(error));
+  const unavailableCompanionStatus = (route) => route.abort();
+  await page.route("http://127.0.0.1:17842/status", unavailableCompanionStatus);
   await page.route("http://127.0.0.1:8021/api/**", (route) => route.abort());
   await routeAuthenticatedSession(page);
   await page.route("http://127.0.0.1:8021/api/tumblr/accounts", (route) =>
@@ -1207,7 +1209,7 @@ test("running the queue prepares the local runner and shows failure explanations
       body: JSON.stringify({
         localRunner: {
           command:
-            "npm.cmd run tumblr:runner:local -- --api-base 'https://inkwell-production-f037.up.railway.app/api' --token 'ilr_private_token' --workspace-id 'workspace-test' --queue 'Default queue' --user-data-dir .tumblr-runner-profile-local --watch --serve --no-pause --submit",
+            "npm.cmd run tumblr:runner:local -- --api-base 'https://inkwell-production-f037.up.railway.app/api' --token 'ilr_private_token' --workspace-id 'workspace-test' --queue 'Default queue' --user-data-dir .tumblr-runner-profile-local --watch --serve --submit",
           autoStartCommand:
             "npm.cmd run tumblr:runner:install-autostart -- -ApiBase 'https://inkwell-production-f037.up.railway.app/api' -WorkspaceId 'workspace-test' -Queue 'Default queue' -RunnerToken 'ilr_private_token'",
           tokenConfigured: true,
@@ -1366,7 +1368,7 @@ test("running the queue prepares the local runner and shows failure explanations
   assert.match(copiedText, /tumblr:runner:local/);
   assert.match(copiedText, /--watch/);
   assert.match(copiedText, /--serve/);
-  assert.match(copiedText, /--no-pause/);
+  assert.doesNotMatch(copiedText, /--no-pause/);
   assert.match(copiedText, /--token 'ilr_private_token'/);
   await page.getByText(/paste it, and press Enter to start the local runner/).waitFor();
   await page.getByText(/ilr_private_token/).waitFor({ state: "detached" });
@@ -1379,6 +1381,7 @@ test("running the queue prepares the local runner and shows failure explanations
   await page.getByText(/ilr_private_token/).waitFor({ state: "detached" });
 
   let companionRunRequested = false;
+  await page.unroute("http://127.0.0.1:17842/status", unavailableCompanionStatus);
   await page.route("http://127.0.0.1:17842/status", (route) =>
     route.fulfill({
       contentType: "application/json",

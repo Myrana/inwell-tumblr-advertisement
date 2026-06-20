@@ -1571,6 +1571,40 @@ class PersistenceTests(unittest.TestCase):
         self.assertEqual(plan["items"][0]["targetName"], "inkwell-test")
         self.assertIn("Local body", plan["items"][0]["runnerPayload"])
 
+    def test_local_runner_plan_omits_server_session_path(self) -> None:
+        upsert_tumblr_account(
+            self.connection,
+            {
+                "id": "server-session",
+                "workspace_id": "workspace-local",
+                "display_name": "Server Session",
+                "blog_name": "server-session",
+                "status": "connected",
+                "user_data_dir": "/app/.tumblr-sessions/server-session",
+            },
+        )
+        upsert_queue_item(
+            self.connection,
+            {
+                "id": "local-queue-server-session",
+                "workspace_id": "workspace-local",
+                "ad_id": "ad-server-session",
+                "target_id": "target-server-session",
+                "target_name": "inkwell-test",
+                "queue_name": "Local queue",
+                "submit_url": "https://inkwell-test.tumblr.com/submit",
+                "post_type": "photo",
+                "tumblr_account_id": "server-session",
+                "status": "queued",
+                "runner_payload": "{}",
+            },
+        )
+
+        plan = local_runner_plan(self.connection, "workspace-local", "Local queue")
+
+        self.assertEqual(plan["userDataDir"], "")
+        self.assertEqual(len(plan["items"]), 1)
+
     def test_local_runner_command_uses_watch_mode_without_token_placeholder(self) -> None:
         result = local_runner_command("https://example.test/api", "workspace-local", "Local queue")
 
@@ -1580,7 +1614,7 @@ class PersistenceTests(unittest.TestCase):
         self.assertIn("--queue 'Local queue'", result["command"])
         self.assertIn("--watch", result["command"])
         self.assertIn("--serve", result["command"])
-        self.assertIn("--no-pause", result["command"])
+        self.assertNotIn("--no-pause", result["command"])
         self.assertIn("--submit", result["command"])
         self.assertNotIn("<paste", result["command"])
         self.assertIn("tumblr:runner:install-autostart", result["autoStartCommand"])
@@ -1610,12 +1644,14 @@ class PersistenceTests(unittest.TestCase):
             self.assertIn("inkwell-local-runner/scripts/install-local-runner-autostart.ps1", names)
             readme = archive.read("inkwell-local-runner/README.md").decode("utf-8")
             install_ps1 = archive.read("inkwell-local-runner/install.ps1").decode("utf-8")
+            script = archive.read("inkwell-local-runner/scripts/install-local-runner-autostart.ps1").decode("utf-8")
 
         self.assertIn("Double-click `install.cmd`", readme)
         self.assertIn("npm.cmd run tumblr:install-browsers", install_ps1)
         self.assertIn("Invoke-CheckedCommand", install_ps1)
         self.assertIn("Windows startup task install", install_ps1)
         self.assertIn("-RunnerToken 'ilr_secret'", install_ps1)
+        self.assertNotIn("--no-pause", script)
         self.assertIn("-WorkspaceId 'workspace-local'", install_ps1)
         self.assertIn("-Queue 'Local queue'", install_ps1)
 
@@ -1636,6 +1672,7 @@ class PersistenceTests(unittest.TestCase):
         self.assertIn('"runner.log"', script)
         self.assertIn("runner-launcher.log", script)
         self.assertIn("Local runner exited with code $LASTEXITCODE", script)
+        self.assertNotIn("--no-pause", script)
         self.assertIn("Could not register scheduled task", script)
         self.assertNotIn('start "" powershell.exe', script)
 
