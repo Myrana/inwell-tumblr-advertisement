@@ -3,7 +3,7 @@ import { CheckCircle2, ChevronDown, Eye, ImagePlus, Plus, Send, Tags, Video } fr
 import { ChangeEvent, FormEvent, ReactNode, useState } from "react";
 import { postTypes } from "../domain/constants";
 import { MediaLibraryAsset } from "../domain/mediaLibrary";
-import { validateAdvertisement } from "../domain/post";
+import { scoreDraftReadiness, validateAdvertisement } from "../domain/post";
 import { Advertisement, PostType, QueueDefinition, SavedTemplate, TumblrSubmitTarget } from "../domain/types";
 import { TemplateLibrary } from "./TemplateLibrary";
 
@@ -100,6 +100,7 @@ export function EditorWorkspace({
   });
   const [previewMode, setPreviewMode] = useState<PreviewMode>("desktop");
   const queueBlockers = validateAdvertisement(activeAd);
+  const readiness = scoreDraftReadiness(activeAd);
   const detailsReady = Boolean(activeAd.title.trim() && activeAd.destinationBlog.trim() && activeAd.forumUrl.trim());
   const mediaReady =
     activeAd.postType === "text"
@@ -110,15 +111,7 @@ export function EditorWorkspace({
   const contentReady = !queueBlockers.some((item) => item === "Add post content.");
   const tagsReady = activeAd.tags.length > 0;
   const queueReady = queueBlockers.length === 0;
-  const qualityChecks = [
-    { label: "Submission name", ready: Boolean(activeAd.title.trim()) },
-    { label: "Target blog", ready: Boolean(activeAd.destinationBlog.trim()) },
-    { label: "Forum link", ready: Boolean(activeAd.forumUrl.trim()) },
-    { label: "Post content", ready: contentReady },
-    { label: "Media", ready: mediaReady },
-    { label: "Tags", ready: tagsReady },
-  ];
-  const readyQualityChecks = qualityChecks.filter((item) => item.ready).length;
+  const qualityChecks = readiness.items;
   const selectedTargetSummary = activeSubmitTarget.id
     ? `${activeSubmitTarget.name} - ${activeSubmitTarget.submitUrl}`
     : "No blog selected";
@@ -306,7 +299,7 @@ export function EditorWorkspace({
           <div>
             <strong>Quality checklist</strong>
             <span>
-              {readyQualityChecks} of {qualityChecks.length} ready
+              {readiness.readyCount} of {readiness.totalCount} ready - {readiness.label}
             </span>
           </div>
           <div className="quality-checklist-grid">

@@ -1,6 +1,19 @@
 import { composerContentFor, htmlToPlainText } from "./ads";
 import { Advertisement } from "./types";
 
+export type DraftReadinessItem = {
+  label: string;
+  ready: boolean;
+};
+
+export type DraftReadinessScore = {
+  items: DraftReadinessItem[];
+  readyCount: number;
+  totalCount: number;
+  percent: number;
+  label: string;
+};
+
 export function validateAdvertisement(advertisement: Advertisement) {
   const bodyText = htmlToPlainText(composerContentFor(advertisement));
   return [
@@ -15,6 +28,36 @@ export function validateAdvertisement(advertisement: Advertisement) {
       ? "Add a video URL or upload a video file."
       : "",
   ].filter(Boolean);
+}
+
+export function scoreDraftReadiness(advertisement: Advertisement): DraftReadinessScore {
+  const blockers = validateAdvertisement(advertisement);
+  const bodyText = htmlToPlainText(composerContentFor(advertisement));
+  const mediaReady =
+    advertisement.postType === "text"
+      ? true
+      : advertisement.postType === "photo"
+        ? Boolean(advertisement.imageDataUrl.trim() || advertisement.imageName.trim())
+        : Boolean(advertisement.videoUrl.trim() || advertisement.videoName.trim());
+  const items = [
+    { label: "Submission name", ready: Boolean(advertisement.title.trim()) },
+    { label: "Target blog", ready: Boolean(advertisement.destinationBlog.trim()) },
+    { label: "Forum link", ready: Boolean(advertisement.forumUrl.trim()) },
+    { label: "Post content", ready: Boolean(bodyText) && !blockers.includes("Add post content.") },
+    { label: "Media", ready: mediaReady },
+    { label: "Tags", ready: advertisement.tags.length > 0 },
+  ];
+  const readyCount = items.filter((item) => item.ready).length;
+  const totalCount = items.length;
+  const percent = Math.round((readyCount / totalCount) * 100);
+
+  return {
+    items,
+    readyCount,
+    totalCount,
+    percent,
+    label: `${percent}% ready`,
+  };
 }
 
 export function buildPreparedPost(advertisement: Advertisement) {

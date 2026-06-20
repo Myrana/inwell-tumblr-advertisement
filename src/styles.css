@@ -2660,6 +2660,12 @@ pre {
   color: #7c4a08;
 }
 
+.draft-row-meta .readiness-pill.ready {
+  border-color: #b8ded4;
+  background: #f2fbf6;
+  color: #227450;
+}
+
 .draft-row-meta b {
   color: var(--text);
   font-size: 0.72rem;
@@ -3008,6 +3014,12 @@ html[data-theme="dark"] .workspace-saved .draft-row-meta .duplicate-pill {
   border-color: rgba(242, 195, 109, 0.42);
   background: rgba(58, 42, 18, 0.86);
   color: #f2c36d;
+}
+
+html[data-theme="dark"] .workspace-saved .draft-row-meta .readiness-pill.ready {
+  border-color: rgba(116, 199, 157, 0.36);
+  background: rgba(18, 50, 38, 0.86);
+  color: #8fe0b4;
 }
 
 html[data-theme="dark"] .workspace-saved .draft-row-meta b {
