@@ -1348,6 +1348,34 @@ pre {
   background: #fff;
 }
 
+.account-settings-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.72fr);
+  align-items: start;
+  gap: 12px;
+}
+
+.account-create-form,
+.runner-browser-form {
+  margin-bottom: 0;
+}
+
+.runner-browser-settings {
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafb;
+}
+
+.runner-browser-form {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  grid-template-columns: 1fr;
+}
+
 .account-session-row.selected {
   border-color: #2d8a9d;
   background: #f5fbf8;
@@ -2069,6 +2097,7 @@ html[data-theme="dark"] .runner-control-panel,
 html[data-theme="dark"] .runner-activity-panel,
 html[data-theme="dark"] .queue-selector-panel,
 html[data-theme="dark"] .queue-management-form,
+html[data-theme="dark"] .runner-browser-settings,
 html[data-theme="dark"] .queue-monitor-stat,
 html[data-theme="dark"] .runner-log-run-summary,
 html[data-theme="dark"] .template-form,
@@ -2303,6 +2332,7 @@ html[data-theme="dark"] .selected-tags button {
 
   .field-grid.two,
   .field-grid.three,
+  .account-settings-grid,
   .queue-management-form,
   .queue-monitor-grid,
   .submit-target-manager,
