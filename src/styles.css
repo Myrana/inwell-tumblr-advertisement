@@ -1617,6 +1617,12 @@ pre {
   min-width: 0;
 }
 
+.queue-posted-link {
+  width: fit-content;
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
 .queue-item strong,
 .queue-item span,
 .queue-item a {

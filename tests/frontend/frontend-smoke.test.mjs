@@ -1211,7 +1211,7 @@ test("runner logs are grouped by expandable queue run", { timeout: 40000 }, asyn
             target_name: "allthingsroleplay",
             level: "info",
             message: "Submit button clicked.",
-            details: {},
+            details: { postedUrl: "https://allthingsroleplay.tumblr.com/post/123/posted-ad" },
             created_at: "2026-06-18T21:30:00.000Z",
           },
           {
@@ -1297,6 +1297,7 @@ test("runner logs are grouped by expandable queue run", { timeout: 40000 }, asyn
   await page.getByLabel("Run run-new target summaries").getByText("Submitted").waitFor();
   await page.getByLabel("Run run-new step timeline").getByText("Open submit page").waitFor();
   await page.getByLabel("Run run-new step timeline").getByText("Fill form").waitFor();
+  await page.getByLabel("Run run-new step timeline").getByRole("link", { name: "Posted Tumblr link" }).waitFor();
   await page.getByLabel("Run run-new step timeline").getByRole("link", { name: "Screenshot" }).waitFor();
   assert.equal(await page.getByLabel("Run run-new target summaries").getByText("Ready for manual review").count(), 1);
   assert.equal(await page.getByRole("button", { name: /Run run-old/ }).count(), 0);

@@ -189,6 +189,11 @@ export function RunnerLogsWorkspace({
                                   Screenshot
                                 </a>
                               ) : null}
+                              {step.postedUrl ? (
+                                <a href={step.postedUrl} target="_blank" rel="noreferrer">
+                                  Posted Tumblr link
+                                </a>
+                              ) : null}
                             </div>
                           </article>
                         ))}

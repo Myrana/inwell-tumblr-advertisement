@@ -34,6 +34,7 @@ export type RunnerTimelineStep = {
   level: RunnerLog["level"];
   createdAt: string;
   screenshotUrl: string;
+  postedUrl: string;
 };
 
 export function latestRunnerRunId(logs: RunnerLog[]) {
@@ -122,7 +123,13 @@ export function runnerLogTimeline(logs: RunnerLog[]): RunnerTimelineStep[] {
       level: log.level,
       createdAt: log.createdAt,
       screenshotUrl: stringDetail(log.details, "screenshotUrl") || stringDetail(log.details, "screenshot_url"),
+      postedUrl: runnerLogPostedUrl(log),
     }));
+}
+
+export function runnerLogPostedUrl(log: RunnerLog) {
+  const value = stringDetail(log.details, "postedUrl") || stringDetail(log.details, "posted_url");
+  return /^https?:\/\//i.test(value) ? value : "";
 }
 
 export function runnerLogTargetSummaries(logs: RunnerLog[]): RunnerLogTargetSummary[] {

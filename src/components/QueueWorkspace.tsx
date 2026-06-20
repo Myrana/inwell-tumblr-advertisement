@@ -1,7 +1,7 @@
 import { ChevronDown, Download, Pencil, Play, PlugZap, Send, Terminal, TestTube2 } from "lucide-react";
 import { useState } from "react";
 import { formatDate, formatSubmissionStatus } from "../domain/format";
-import { queueLogGroups, runnerLogExplanation, visibleRunnerLogs } from "../domain/runnerLogs";
+import { queueLogGroups, runnerLogExplanation, runnerLogPostedUrl, visibleRunnerLogs } from "../domain/runnerLogs";
 import { formatEasternRun, nextDailyRunAt, scheduleSummary } from "../domain/schedule";
 import {
   QueueDefinition,
@@ -88,6 +88,12 @@ export function QueueWorkspace({
     const logs = logGroups.find((group) => group.item.id === item.id)?.logs ?? [];
     const reviewLog = logs.find((log) => log.level === "error") ?? logs.find((log) => log.level === "warning");
     return reviewLog ? runnerLogExplanation(reviewLog) || reviewLog.message : item.notes;
+  }
+
+  function queueItemPostedUrl(item: SubmissionQueueItem) {
+    const logs = logGroups.find((group) => group.item.id === item.id)?.logs ?? [];
+    const postedLog = [...logs].reverse().find((log) => runnerLogPostedUrl(log));
+    return postedLog ? runnerLogPostedUrl(postedLog) : "";
   }
 
   function recoveryGuidance(item: SubmissionQueueItem) {
@@ -280,6 +286,14 @@ export function QueueWorkspace({
               {activeQueue.length ? (
                 activeQueue.map((item) => (
                   <article className="queue-item" key={item.id}>
+                    {(() => {
+                      const postedUrl = queueItemPostedUrl(item);
+                      return postedUrl ? (
+                        <a className="queue-posted-link" href={postedUrl} target="_blank" rel="noreferrer">
+                          Posted Tumblr link
+                        </a>
+                      ) : null;
+                    })()}
                     <div className="queue-item-header">
                       <div>
                         <strong>{item.targetName}</strong>
