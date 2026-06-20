@@ -1552,6 +1552,18 @@ pre {
   gap: 8px;
 }
 
+.schedule-preset-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.schedule-preset-row .active {
+  border-color: #2d8a9d;
+  background: #e6f6f4;
+  color: #145f69;
+}
+
 .queue-monitor-stat {
   min-height: 58px;
   padding: 8px;
@@ -2451,6 +2463,12 @@ html[data-theme="dark"] .tag-check.selected {
 
 html[data-theme="dark"] .account-health-panel {
   background: #101a21;
+}
+
+html[data-theme="dark"] .schedule-preset-row .active {
+  border-color: #4da0b0;
+  background: #123226;
+  color: #8fe0b4;
 }
 
 html[data-theme="dark"] .workspace-saved .draft-row {
