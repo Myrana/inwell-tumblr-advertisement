@@ -468,6 +468,7 @@ test("custom blog submission flow does not blank the editor", { timeout: 40000 }
 
   await page.goto(appUrl);
   await assert.doesNotReject(() => page.getByRole("heading", { name: "Custom target ad" }).waitFor());
+  await page.getByLabel("Content quality checklist").getByText("6 of 6 ready").waitFor();
   assert.equal(await page.getByRole("button", { name: "Log out" }).count(), 1);
   assert.equal(await page.getByLabel("Advertisement counts").count(), 0);
   await page.getByRole("button", { name: "Dark mode" }).click();

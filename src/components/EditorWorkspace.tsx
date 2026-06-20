@@ -110,6 +110,15 @@ export function EditorWorkspace({
   const contentReady = !queueBlockers.some((item) => item === "Add post content.");
   const tagsReady = activeAd.tags.length > 0;
   const queueReady = queueBlockers.length === 0;
+  const qualityChecks = [
+    { label: "Submission name", ready: Boolean(activeAd.title.trim()) },
+    { label: "Target blog", ready: Boolean(activeAd.destinationBlog.trim()) },
+    { label: "Forum link", ready: Boolean(activeAd.forumUrl.trim()) },
+    { label: "Post content", ready: contentReady },
+    { label: "Media", ready: mediaReady },
+    { label: "Tags", ready: tagsReady },
+  ];
+  const readyQualityChecks = qualityChecks.filter((item) => item.ready).length;
   const selectedTargetSummary = activeSubmitTarget.id
     ? `${activeSubmitTarget.name} - ${activeSubmitTarget.submitUrl}`
     : "No blog selected";
@@ -291,6 +300,22 @@ export function EditorWorkspace({
               ) : null}
             </div>
           ) : null}
+        </section>
+
+        <section className="quality-checklist" aria-label="Content quality checklist">
+          <div>
+            <strong>Quality checklist</strong>
+            <span>
+              {readyQualityChecks} of {qualityChecks.length} ready
+            </span>
+          </div>
+          <div className="quality-checklist-grid">
+            {qualityChecks.map((check) => (
+              <span key={check.label} className={check.ready ? "quality-check ready" : "quality-check"}>
+                {check.label}
+              </span>
+            ))}
+          </div>
         </section>
 
         <section className="workflow-section" aria-label="Editor saved templates">
