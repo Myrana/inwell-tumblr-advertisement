@@ -9,6 +9,7 @@ param(
   [string]$TaskName = "Inkwell Tumblr Local Runner",
   [string]$UserDataDir = ".tumblr-runner-profile-local",
   [int]$IntervalSeconds = 15,
+  [int]$CompanionPort = 17842,
   [string]$RunnerToken = ""
 )
 
@@ -31,7 +32,7 @@ function Quote-PowerShell([string]$Value) {
 $commandParts = @(
   "`$env:INWELL_LOCAL_RUNNER_TOKEN = [Environment]::GetEnvironmentVariable('INWELL_LOCAL_RUNNER_TOKEN', 'User')",
   "Set-Location $(Quote-PowerShell $repoRoot.Path)",
-  "npm.cmd run tumblr:runner:local -- --api-base $(Quote-PowerShell $ApiBase) --workspace-id $(Quote-PowerShell $WorkspaceId) --queue $(Quote-PowerShell $Queue) --user-data-dir $(Quote-PowerShell $UserDataDir) --watch --no-pause --submit --interval-seconds $IntervalSeconds"
+  "npm.cmd run tumblr:runner:local -- --api-base $(Quote-PowerShell $ApiBase) --workspace-id $(Quote-PowerShell $WorkspaceId) --queue $(Quote-PowerShell $Queue) --user-data-dir $(Quote-PowerShell $UserDataDir) --watch --serve --companion-port $CompanionPort --no-pause --submit --interval-seconds $IntervalSeconds"
 )
 $command = $commandParts -join "; "
 

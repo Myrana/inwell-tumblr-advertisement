@@ -1,8 +1,11 @@
 #!/usr/bin/env node
 import fs from "node:fs/promises";
+import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
+
+const LOCAL_COMPANION_VERSION = "local-runner-2";
 
 function parseLocalArgs(argv) {
   const options = {
@@ -16,6 +19,8 @@ function parseLocalArgs(argv) {
     submit: false,
     watch: false,
     noPause: false,
+    serve: false,
+    companionPort: 17842,
     intervalSeconds: 15,
     limit: "",
   };
@@ -44,6 +49,10 @@ function parseLocalArgs(argv) {
       options.watch = true;
     } else if (arg === "--no-pause") {
       options.noPause = true;
+    } else if (arg === "--serve") {
+      options.serve = true;
+    } else if (arg === "--companion-port") {
+      options.companionPort = Math.max(1, Number(argv[++index] ?? "17842") || 17842);
     } else if (arg === "--interval-seconds") {
       options.intervalSeconds = Math.max(1, Number(argv[++index] ?? "15") || 15);
     } else {
@@ -131,6 +140,127 @@ async function runPlan(options, plan) {
   return Number(code) || 0;
 }
 
+async function executeLocalRun(options, state) {
+  if (state.running) {
+    return { accepted: false, running: true };
+  }
+
+  state.running = true;
+  state.status = "running";
+  state.lastError = "";
+  state.lastStartedAt = new Date().toISOString();
+  try {
+    const plan = await fetchRunnerPlan(options);
+    const code = await runPlan(options, plan);
+    state.lastExitCode = code;
+    state.lastFinishedAt = new Date().toISOString();
+    state.status = code ? "error" : options.watch ? "watching" : "idle";
+    return { accepted: true, running: false, exitCode: code };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    state.lastError = message;
+    state.lastFinishedAt = new Date().toISOString();
+    state.status = "error";
+    await postHeartbeat(options, "error").catch(() => undefined);
+    throw error;
+  } finally {
+    state.running = false;
+  }
+}
+
+function companionStatus(options, state) {
+  return {
+    ok: true,
+    version: LOCAL_COMPANION_VERSION,
+    apiBaseUrl: options.apiBaseUrl,
+    workspaceId: options.workspaceId,
+    queueName: options.queueName,
+    watching: options.watch,
+    running: state.running,
+    status: state.running ? "running" : state.status || (options.watch ? "watching" : "idle"),
+    lastStartedAt: state.lastStartedAt || "",
+    lastFinishedAt: state.lastFinishedAt || "",
+    lastExitCode: state.lastExitCode ?? null,
+    lastError: state.lastError || "",
+  };
+}
+
+function readRequestJson(request) {
+  return new Promise((resolve, reject) => {
+    let body = "";
+    request.setEncoding("utf8");
+    request.on("data", (chunk) => {
+      body += chunk;
+      if (body.length > 1024 * 64) {
+        reject(new Error("Request body is too large"));
+        request.destroy();
+      }
+    });
+    request.on("end", () => {
+      if (!body.trim()) {
+        resolve({});
+        return;
+      }
+      try {
+        resolve(JSON.parse(body));
+      } catch (error) {
+        reject(error);
+      }
+    });
+    request.on("error", reject);
+  });
+}
+
+function sendJson(response, status, payload) {
+  response.writeHead(status, {
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+    "Access-Control-Allow-Origin": "*",
+    "Content-Type": "application/json",
+  });
+  if (status === 204) {
+    response.end();
+    return;
+  }
+  response.end(JSON.stringify(payload));
+}
+
+function startCompanionServer(options, state) {
+  const server = http.createServer(async (request, response) => {
+    const url = new URL(request.url || "/", `http://${request.headers.host || "127.0.0.1"}`);
+    if (request.method === "OPTIONS") {
+      sendJson(response, 204, {});
+      return;
+    }
+    if (request.method === "GET" && url.pathname === "/status") {
+      sendJson(response, 200, companionStatus(options, state));
+      return;
+    }
+    if (request.method === "POST" && url.pathname === "/run") {
+      if (state.running) {
+        sendJson(response, 409, { ...companionStatus(options, state), accepted: false, error: "Local runner is already running." });
+        return;
+      }
+      const payload = await readRequestJson(request).catch(() => ({}));
+      const runOptions = { ...options };
+      if (payload && typeof payload === "object" && "queueName" in payload) {
+        runOptions.queueName = String(payload.queueName || options.queueName) || options.queueName;
+      }
+      void executeLocalRun(runOptions, state).catch((error) => {
+        console.error(`[local-runner:error] ${error instanceof Error ? error.message : String(error)}`);
+      });
+      sendJson(response, 202, { ...companionStatus(runOptions, state), accepted: true });
+      return;
+    }
+    sendJson(response, 404, { error: "Not found" });
+  });
+
+  server.listen(options.companionPort, "127.0.0.1", () => {
+    console.log(`[local-runner] Companion server listening on http://127.0.0.1:${options.companionPort}`);
+  });
+  return server;
+}
+
 async function postHeartbeat(options, status) {
   const response = await fetch(`${options.apiBaseUrl}/runner/local-heartbeat`, {
     method: "POST",
@@ -143,7 +273,7 @@ async function postHeartbeat(options, status) {
       queue_name: options.queueName,
       watching: options.watch,
       status,
-      version: "local-runner-1",
+      version: LOCAL_COMPANION_VERSION,
     }),
   });
   if (!response.ok) {
@@ -157,10 +287,27 @@ function wait(ms) {
 
 async function main() {
   const options = parseLocalArgs(process.argv.slice(2));
+  const state = {
+    running: false,
+    status: options.watch ? "watching" : "idle",
+    lastError: "",
+    lastStartedAt: "",
+    lastFinishedAt: "",
+    lastExitCode: null,
+  };
+
+  if (options.serve) {
+    startCompanionServer(options, state);
+    await postHeartbeat(options, options.watch ? "watching" : "idle").catch(() => undefined);
+    if (!options.watch) {
+      await new Promise(() => undefined);
+      return;
+    }
+  }
 
   do {
-    const plan = await fetchRunnerPlan(options);
-    const code = await runPlan(options, plan);
+    const result = await executeLocalRun(options, state);
+    const code = result.exitCode ?? 0;
     if (!options.watch) {
       process.exitCode = code;
       return;

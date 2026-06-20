@@ -206,6 +206,67 @@ export async function clearRunnerLogs() {
   await apiRequest("/runner/logs", { method: "DELETE" });
 }
 
+export type LocalCompanionStatus = {
+  ok: boolean;
+  version: string;
+  apiBaseUrl: string;
+  workspaceId: string;
+  queueName: string;
+  watching: boolean;
+  running: boolean;
+  status: string;
+  lastStartedAt: string;
+  lastFinishedAt: string;
+  lastExitCode: number | null;
+  lastError: string;
+  accepted?: boolean;
+  error?: string;
+};
+
+const localCompanionBaseUrl = "http://127.0.0.1:17842";
+
+async function localCompanionRequest<T>(path: string, init?: RequestInit, timeoutMs = 1200): Promise<T> {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(`${localCompanionBaseUrl}${path}`, {
+      ...init,
+      signal: controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+        ...init?.headers,
+      },
+    });
+    if (!response.ok) {
+      let payload: { error?: string } = {};
+      try {
+        payload = (await response.json()) as typeof payload;
+      } catch {
+        payload = {};
+      }
+      throw new ApiError(response.status, payload.error || `Local companion request failed: ${response.status}`);
+    }
+    return response.json() as Promise<T>;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
+export async function loadLocalCompanionStatus() {
+  return localCompanionRequest<LocalCompanionStatus>("/status", { method: "GET" }, 350);
+}
+
+export async function runLocalCompanion(queueName: string) {
+  return localCompanionRequest<LocalCompanionStatus>(
+    "/run",
+    {
+      method: "POST",
+      body: JSON.stringify({ queueName }),
+    },
+    1500,
+  );
+}
+
 export async function loadLocalRunnerCommand(queueName: string) {
   const response = await apiRequest<{
     localRunner: {

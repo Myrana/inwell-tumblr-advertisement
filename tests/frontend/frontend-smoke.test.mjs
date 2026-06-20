@@ -1358,6 +1358,51 @@ test("running the queue prepares the local runner and shows failure explanations
   assert.match(copiedText, /-RunnerToken 'ilr_private_token'/);
   await page.getByText(/paste it, and press Enter to install the Windows login task/).waitFor();
   await page.getByText(/ilr_private_token/).waitFor({ state: "detached" });
+
+  let companionRunRequested = false;
+  await page.route("http://127.0.0.1:17842/status", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        version: "local-runner-test",
+        apiBaseUrl: "https://inkwell-production-f037.up.railway.app/api",
+        workspaceId: "workspace-test",
+        queueName: "Default queue",
+        watching: true,
+        running: false,
+        status: "watching",
+        lastStartedAt: "",
+        lastFinishedAt: "",
+        lastExitCode: null,
+        lastError: "",
+      }),
+    }),
+  );
+  await page.route("http://127.0.0.1:17842/run", (route) => {
+    companionRunRequested = true;
+    return route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        accepted: true,
+        version: "local-runner-test",
+        apiBaseUrl: "https://inkwell-production-f037.up.railway.app/api",
+        workspaceId: "workspace-test",
+        queueName: "Default queue",
+        watching: true,
+        running: true,
+        status: "running",
+        lastStartedAt: "2026-06-20T01:00:00.000Z",
+        lastFinishedAt: "",
+        lastExitCode: null,
+        lastError: "",
+      }),
+    });
+  });
+  await page.getByRole("button", { name: "Run locally" }).click();
+  await page.getByText("Local companion started the runner on this computer.").waitFor();
+  assert.equal(companionRunRequested, true);
   assert.deepEqual(await page.evaluate(() => window.__openedUrls), []);
   await page.getByText("Why this failed").waitFor();
   await page.getByText("The Playwright browser or tab closed before the runner finished.").waitFor();
