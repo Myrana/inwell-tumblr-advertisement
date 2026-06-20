@@ -10,6 +10,7 @@
   --coral: #d96552;
   --green: #2f765d;
   --amber: #a86f20;
+  --site-overlay-image: url("https://images.rawpixel.com/image_png_800/cHJpdmF0ZS9sci9pbWFnZXMvd2Vic2l0ZS8yMDI0LTEwL3Jhd3BpeGVsb2ZmaWNlMl9hX2hpZ2gtcmVzb2x1dGlvbl9pbWFnZV9vZl9zb2Z0X2NvbG9yZnVsX2xpZ2h0X19hZDBmZTg0Mi05MTUyLTQzNzEtYWJmYi1iYmZlYmZiM2U1ZTAucG5n.png");
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
     sans-serif;
@@ -52,9 +53,32 @@ button {
 }
 
 .app-shell {
+  position: relative;
+  isolation: isolate;
   min-height: 100vh;
   display: grid;
   grid-template-columns: 280px minmax(0, 1fr);
+  background:
+    linear-gradient(180deg, rgba(244, 247, 248, 0.84), rgba(244, 247, 248, 0.9)),
+    var(--site-overlay-image) center / cover fixed;
+}
+
+.app-shell::before {
+  content: "";
+  position: fixed;
+  inset: 0 0 0 280px;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 68% 14%, rgba(46, 143, 163, 0.14), transparent 34%),
+    radial-gradient(circle at 18% 80%, rgba(217, 101, 82, 0.1), transparent 30%),
+    var(--site-overlay-image) center / cover fixed;
+  opacity: 0.24;
+}
+
+.app-shell > * {
+  position: relative;
+  z-index: 1;
 }
 
 .sidebar {
@@ -165,9 +189,9 @@ button {
   z-index: -1;
   pointer-events: none;
   background:
-    linear-gradient(135deg, rgba(46, 143, 163, 0.08) 0 1px, transparent 1px 46px),
-    linear-gradient(45deg, rgba(116, 199, 157, 0.07) 0 1px, transparent 1px 54px),
-    linear-gradient(180deg, rgba(15, 21, 29, 0.04), rgba(47, 118, 93, 0.06));
+    linear-gradient(135deg, rgba(46, 143, 163, 0.05) 0 1px, transparent 1px 46px),
+    linear-gradient(45deg, rgba(116, 199, 157, 0.04) 0 1px, transparent 1px 54px),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(47, 118, 93, 0.05));
 }
 
 .login-shell {
@@ -2101,18 +2125,32 @@ html[data-theme="dark"] body {
   background: var(--soft);
 }
 
+html[data-theme="dark"] .app-shell {
+  background:
+    linear-gradient(180deg, rgba(15, 21, 29, 0.9), rgba(16, 28, 29, 0.92)),
+    var(--site-overlay-image) center / cover fixed;
+}
+
+html[data-theme="dark"] .app-shell::before {
+  background:
+    radial-gradient(circle at 68% 14%, rgba(95, 179, 197, 0.16), transparent 34%),
+    radial-gradient(circle at 18% 80%, rgba(240, 128, 103, 0.1), transparent 30%),
+    var(--site-overlay-image) center / cover fixed;
+  opacity: 0.2;
+}
+
 html[data-theme="dark"] .workspace-saved {
   background:
-    linear-gradient(135deg, rgba(95, 179, 197, 0.07) 0 1px, transparent 1px 44px),
-    linear-gradient(45deg, rgba(116, 199, 157, 0.06) 0 1px, transparent 1px 56px),
-    linear-gradient(180deg, #0f151d 0%, #111923 52%, #101c1d 100%);
+    linear-gradient(135deg, rgba(95, 179, 197, 0.04) 0 1px, transparent 1px 44px),
+    linear-gradient(45deg, rgba(116, 199, 157, 0.04) 0 1px, transparent 1px 56px),
+    linear-gradient(180deg, rgba(15, 21, 29, 0.18), rgba(16, 28, 29, 0.22));
 }
 
 html[data-theme="dark"] .workspace-saved::before {
   background:
-    linear-gradient(135deg, rgba(95, 179, 197, 0.12) 0 1px, transparent 1px 44px),
-    linear-gradient(45deg, rgba(116, 199, 157, 0.1) 0 1px, transparent 1px 56px),
-    linear-gradient(180deg, rgba(15, 21, 29, 0.45), rgba(16, 28, 29, 0.68));
+    linear-gradient(135deg, rgba(95, 179, 197, 0.08) 0 1px, transparent 1px 44px),
+    linear-gradient(45deg, rgba(116, 199, 157, 0.07) 0 1px, transparent 1px 56px),
+    linear-gradient(180deg, rgba(15, 21, 29, 0.26), rgba(16, 28, 29, 0.34));
 }
 
 html[data-theme="dark"] .workspace-saved .topbar {
@@ -2443,6 +2481,10 @@ html[data-theme="dark"] .selected-tags button {
   }
 
   .workspace-saved::before {
+    inset: 0;
+  }
+
+  .app-shell::before {
     inset: 0;
   }
 
