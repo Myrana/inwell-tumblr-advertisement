@@ -81,7 +81,8 @@ function Install-RunnerLauncher {
   ) -join [Environment]::NewLine
   $launcherBatch = @"
 @echo off
-start "" powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "%~dp0$launcherName.ps1"
+set "INKWELL_RUNNER_ROOT=%~dp0"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0$launcherName.ps1" >> "%~dp0runner-launcher.log" 2>&1
 "@
 
   Set-Content -LiteralPath $launcherPs1 -Value $launcherScript -Encoding UTF8
