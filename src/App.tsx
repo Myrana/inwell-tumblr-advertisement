@@ -993,6 +993,12 @@ function App() {
       const copied = options.copy ? await copyTextToClipboard(localRunner.command).catch(() => false) : false;
       const tokenWarning = localRunner.tokenConfigured ? "" : "Railway is missing INWELL_LOCAL_RUNNER_TOKEN. ";
       const copyMessage = copied ? "Local runner command copied. " : "";
+      if (localRunner.usesDeviceToken) {
+        const autoStartMessage = copied && localRunner.autoStartCommand ? " Auto-start command was also prepared with the same device token." : "";
+        const actionMessage = copied ? "Keep the copied command private." : "Use Run locally to copy a fresh private device-token command.";
+        setQueueStatus(`${copyMessage}${localRunner.message} ${actionMessage}${autoStartMessage}`);
+        return;
+      }
       const autoStartMessage = localRunner.autoStartCommand ? ` Auto-start: ${localRunner.autoStartCommand}` : "";
       setQueueStatus(`${copyMessage}${localRunner.message} ${tokenWarning}Command: ${localRunner.command}${autoStartMessage}`);
     } catch (error) {

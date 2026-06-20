@@ -110,6 +110,8 @@ async function runPlan(options, plan) {
     options.token,
     "--run-id",
     plan.runId,
+    "--workspace-id",
+    options.workspaceId,
     "--user-data-dir",
     options.userDataDir,
   ];

@@ -8,12 +8,17 @@ param(
   [string]$Queue = "Adverts",
   [string]$TaskName = "Inkwell Tumblr Local Runner",
   [string]$UserDataDir = ".tumblr-runner-profile-local",
-  [int]$IntervalSeconds = 15
+  [int]$IntervalSeconds = 15,
+  [string]$RunnerToken = ""
 )
 
 $ErrorActionPreference = "Stop"
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
+if (-not [string]::IsNullOrWhiteSpace($RunnerToken)) {
+  [Environment]::SetEnvironmentVariable("INWELL_LOCAL_RUNNER_TOKEN", $RunnerToken, "User")
+}
+
 $token = [Environment]::GetEnvironmentVariable("INWELL_LOCAL_RUNNER_TOKEN", "User")
 if ([string]::IsNullOrWhiteSpace($token)) {
   throw "INWELL_LOCAL_RUNNER_TOKEN is not set in the Windows user environment."

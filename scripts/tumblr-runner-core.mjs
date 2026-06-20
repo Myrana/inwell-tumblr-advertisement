@@ -33,6 +33,7 @@ export function parseArgs(argv) {
     slowMo: 0,
     apiBaseUrl: "",
     runId: "",
+    workspaceId: "",
     apiToken: "",
     browserbaseCdpUrl: "",
     browserbaseLiveUrl: "",
@@ -60,6 +61,8 @@ export function parseArgs(argv) {
       options.apiBaseUrl = String(argv[++index] ?? "").replace(/\/$/, "");
     } else if (arg === "--run-id") {
       options.runId = String(argv[++index] ?? "");
+    } else if (arg === "--workspace-id") {
+      options.workspaceId = String(argv[++index] ?? "");
     } else if (arg === "--api-token") {
       options.apiToken = String(argv[++index] ?? "");
     } else if (arg === "--browserbase-cdp-url") {

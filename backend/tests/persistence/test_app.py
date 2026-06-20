@@ -35,6 +35,7 @@ from app import (
     upsert_tumblr_account,
     check_browserbase_tumblr_login,
     create_browserbase_tumblr_login,
+    create_local_runner_token,
     get_app_settings,
     local_runner_command,
     local_runner_plan,
@@ -43,6 +44,7 @@ from app import (
     record_local_runner_heartbeat,
     remote_tumblr_login_launch,
     unsupported_tumblr_helper_message,
+    validate_local_runner_token,
     verify_password,
     visible_tumblr_helper_supported,
 )
@@ -75,6 +77,7 @@ class FakePostgresConnection:
         self.advertisements: dict[str, dict[str, Any]] = {}
         self.advertisement_tags: dict[tuple[str, str], dict[str, Any]] = {}
         self.auth_attempts: dict[str, dict[str, Any]] = {}
+        self.local_runner_tokens: dict[str, dict[str, Any]] = {}
         self.queue_definitions: dict[str, dict[str, Any]] = {}
         self.queue_schedule_settings: dict[str, dict[str, Any]] = {}
         self.runner_logs: dict[str, dict[str, Any]] = {}
@@ -204,6 +207,28 @@ class FakePostgresConnection:
 
         if normalized.startswith("delete from user_sessions"):
             self.user_sessions.pop(str(params[0]), None)
+            return FakeCursor()
+
+        if normalized.startswith("select * from local_runner_tokens where token_hash"):
+            rows = [row for row in self.local_runner_tokens.values() if row["token_hash"] == params[0]]
+            return FakeCursor(rows)
+
+        if normalized.startswith("insert into local_runner_tokens"):
+            self.local_runner_tokens[str(params[0])] = {
+                "id": params[0],
+                "workspace_id": params[1],
+                "device_name": params[2],
+                "token_hash": params[3],
+                "created_at": params[4],
+                "last_used_at": params[5],
+                "revoked_at": params[6],
+            }
+            return FakeCursor()
+
+        if normalized.startswith("update local_runner_tokens set last_used_at"):
+            row = self.local_runner_tokens.get(str(params[1]))
+            if row:
+                row["last_used_at"] = params[0]
             return FakeCursor()
 
         if normalized.startswith("update ") and " set workspace_id = %s where workspace_id = %s" in normalized:
@@ -1429,6 +1454,23 @@ class PersistenceTests(unittest.TestCase):
         with patch.dict(os.environ, {"INWELL_LOCAL_RUNNER_TOKEN": ""}, clear=False):
             self.assertFalse(local_runner_token_valid("secret-token"))
 
+    def test_local_runner_device_token_is_hashed_and_workspace_scoped(self) -> None:
+        created = create_local_runner_token(self.connection, "workspace-local", "Mandy laptop")
+        token = created["token"]
+
+        self.assertTrue(token.startswith("ilr_"))
+        stored = next(iter(self.connection.local_runner_tokens.values()))
+        self.assertNotEqual(stored["token_hash"], token)
+        self.assertEqual(stored["token_hash"], hash_session_token(token))
+        self.assertEqual(stored["workspace_id"], "workspace-local")
+
+        valid = validate_local_runner_token(self.connection, token, "workspace-local", require_workspace=True)
+        self.assertIsNotNone(valid)
+        self.assertEqual(valid["workspace_id"], "workspace-local")
+        self.assertIsNotNone(self.connection.local_runner_tokens[stored["id"]]["last_used_at"])
+        self.assertIsNone(validate_local_runner_token(self.connection, token, "other-workspace", require_workspace=True))
+        self.assertIsNone(validate_local_runner_token(self.connection, token, "", require_workspace=True))
+
     def test_local_runner_plan_returns_runnable_workspace_queue_items(self) -> None:
         upsert_queue_item(
             self.connection,
@@ -1484,6 +1526,14 @@ class PersistenceTests(unittest.TestCase):
         self.assertIn("-ApiBase 'https://example.test/api'", result["autoStartCommand"])
         self.assertIn("-WorkspaceId 'workspace-local'", result["autoStartCommand"])
         self.assertIn("-Queue 'Local queue'", result["autoStartCommand"])
+
+    def test_local_runner_command_can_include_device_token(self) -> None:
+        result = local_runner_command("https://example.test/api", "workspace-local", "Local queue", "ilr_secret")
+
+        self.assertIn("--token 'ilr_secret'", result["command"])
+        self.assertIn("-RunnerToken 'ilr_secret'", result["autoStartCommand"])
+        self.assertTrue(result["tokenConfigured"])
+        self.assertTrue(result["usesDeviceToken"])
 
     def test_local_runner_heartbeat_reports_online_for_matching_workspace(self) -> None:
         app.LOCAL_RUNNER_HEARTBEAT.clear()

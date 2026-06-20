@@ -1208,12 +1208,13 @@ test("running the queue prepares the local runner and shows failure explanations
       body: JSON.stringify({
         localRunner: {
           command:
-            "npm.cmd run tumblr:runner:local -- --api-base 'https://inkwell-production-f037.up.railway.app/api' --workspace-id 'workspace-test' --queue 'Default queue' --user-data-dir .tumblr-runner-profile-local --watch --no-pause --submit",
+            "npm.cmd run tumblr:runner:local -- --api-base 'https://inkwell-production-f037.up.railway.app/api' --token 'ilr_private_token' --workspace-id 'workspace-test' --queue 'Default queue' --user-data-dir .tumblr-runner-profile-local --watch --no-pause --submit",
           autoStartCommand:
-            "npm.cmd run tumblr:runner:install-autostart -- -ApiBase 'https://inkwell-production-f037.up.railway.app/api' -WorkspaceId 'workspace-test' -Queue 'Default queue'",
+            "npm.cmd run tumblr:runner:install-autostart -- -ApiBase 'https://inkwell-production-f037.up.railway.app/api' -WorkspaceId 'workspace-test' -Queue 'Default queue' -RunnerToken 'ilr_private_token'",
           tokenConfigured: true,
+          usesDeviceToken: true,
           tokenEnv: "INWELL_LOCAL_RUNNER_TOKEN",
-          message: "Run this on your Windows computer from the repo checkout. Keep INWELL_LOCAL_RUNNER_TOKEN set locally and in Railway.",
+          message: "Run this on your Windows computer from the repo checkout. The copied command includes a device token.",
         },
       }),
     });
@@ -1350,7 +1351,9 @@ test("running the queue prepares the local runner and shows failure explanations
   assert.match(copiedText, /tumblr:runner:local/);
   assert.match(copiedText, /--watch/);
   assert.match(copiedText, /--no-pause/);
-  await page.getByText(/tumblr:runner:install-autostart/).waitFor();
+  assert.match(copiedText, /--token 'ilr_private_token'/);
+  await page.getByText(/Keep the copied command private/).waitFor();
+  await page.getByText(/ilr_private_token/).waitFor({ state: "detached" });
   assert.deepEqual(await page.evaluate(() => window.__openedUrls), []);
   await page.getByText("Why this failed").waitFor();
   await page.getByText("The Playwright browser or tab closed before the runner finished.").waitFor();

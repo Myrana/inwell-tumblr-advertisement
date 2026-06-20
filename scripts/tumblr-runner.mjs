@@ -273,6 +273,7 @@ async function reportRunnerEvent(options, item, status, message, level = "info",
     },
     body: JSON.stringify({
       run_id: options.runId,
+      workspace_id: options.workspaceId,
       queue_item_id: item.id,
       target_name: item.targetName,
       level,
