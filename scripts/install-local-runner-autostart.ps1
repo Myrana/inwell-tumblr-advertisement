@@ -15,7 +15,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-$repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
+$sourceRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 if (-not [string]::IsNullOrWhiteSpace($RunnerToken)) {
   [Environment]::SetEnvironmentVariable("INWELL_LOCAL_RUNNER_TOKEN", $RunnerToken, "User")
 }
@@ -37,25 +37,47 @@ function Safe-FileName([string]$Value) {
   $safe.Trim()
 }
 
-$commandParts = @(
-  "`$env:INWELL_LOCAL_RUNNER_TOKEN = [Environment]::GetEnvironmentVariable('INWELL_LOCAL_RUNNER_TOKEN', 'User')",
-  "Set-Location $(Quote-PowerShell $repoRoot.Path)",
-  "npm.cmd run tumblr:runner:local -- --api-base $(Quote-PowerShell $ApiBase) --workspace-id $(Quote-PowerShell $WorkspaceId) --queue $(Quote-PowerShell $Queue) --user-data-dir $(Quote-PowerShell $UserDataDir) --watch --serve --companion-port $CompanionPort --no-pause --submit --interval-seconds $IntervalSeconds"
-)
-$command = $commandParts -join "; "
-
 $launcherRoot = Join-Path ([Environment]::GetFolderPath("LocalApplicationData")) "InkwellLocalRunner"
+$installRoot = Join-Path $launcherRoot "runner"
 $launcherName = Safe-FileName $TaskName
 $launcherPs1 = Join-Path $launcherRoot "$launcherName.ps1"
 $launcherCmd = Join-Path $launcherRoot "$launcherName.cmd"
+
+function Normalize-Path([string]$Value) {
+  [System.IO.Path]::GetFullPath($Value).TrimEnd([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar)
+}
+
+function Install-RunnerPackage {
+  New-Item -ItemType Directory -Force -Path $installRoot | Out-Null
+
+  if ((Normalize-Path $sourceRoot) -ieq (Normalize-Path $installRoot)) {
+    return
+  }
+
+  Get-ChildItem -LiteralPath $sourceRoot -Force |
+    Where-Object { $_.Name -ne $UserDataDir } |
+    ForEach-Object {
+      Copy-Item -LiteralPath $_.FullName -Destination $installRoot -Recurse -Force
+    }
+}
+
+Install-RunnerPackage
+$repoRoot = Resolve-Path $installRoot
 
 function Install-RunnerLauncher {
   New-Item -ItemType Directory -Force -Path $launcherRoot | Out-Null
   $launcherScript = @(
     '$ErrorActionPreference = "Stop"',
-    '$env:INWELL_LOCAL_RUNNER_TOKEN = [Environment]::GetEnvironmentVariable("INWELL_LOCAL_RUNNER_TOKEN", "User")',
-    "Set-Location -LiteralPath $(Quote-PowerShell $repoRoot.Path)",
-    "npm.cmd run tumblr:runner:local -- --api-base $(Quote-PowerShell $ApiBase) --workspace-id $(Quote-PowerShell $WorkspaceId) --queue $(Quote-PowerShell $Queue) --user-data-dir $(Quote-PowerShell $UserDataDir) --watch --serve --companion-port $CompanionPort --no-pause --submit --interval-seconds $IntervalSeconds"
+    '$logPath = Join-Path $PSScriptRoot "runner.log"',
+    'try { Start-Transcript -Path $logPath -Append | Out-Null } catch {}',
+    'try {',
+    '  $env:INWELL_LOCAL_RUNNER_TOKEN = [Environment]::GetEnvironmentVariable("INWELL_LOCAL_RUNNER_TOKEN", "User")',
+    "  Set-Location -LiteralPath $(Quote-PowerShell $repoRoot.Path)",
+    "  npm.cmd run tumblr:runner:local -- --api-base $(Quote-PowerShell $ApiBase) --workspace-id $(Quote-PowerShell $WorkspaceId) --queue $(Quote-PowerShell $Queue) --user-data-dir $(Quote-PowerShell $UserDataDir) --watch --serve --companion-port $CompanionPort --no-pause --submit --interval-seconds $IntervalSeconds",
+    '  if ($LASTEXITCODE -ne 0) { throw "Local runner exited with code $LASTEXITCODE." }',
+    '} finally {',
+    '  try { Stop-Transcript | Out-Null } catch {}',
+    '}'
   ) -join [Environment]::NewLine
   $launcherBatch = @"
 @echo off
@@ -95,7 +117,8 @@ call "$launcherCmd"
 Install-RunnerLauncher
 Install-ProtocolLauncher
 
-$action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -Command $command"
+$scheduledArgument = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$launcherPs1`""
+$action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument $scheduledArgument
 $trigger = New-ScheduledTaskTrigger -AtLogOn
 $principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Limited
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Days 7) -MultipleInstances IgnoreNew
