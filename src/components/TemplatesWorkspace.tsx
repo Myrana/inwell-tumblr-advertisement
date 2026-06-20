@@ -24,23 +24,27 @@ type TemplateDraft = {
 
 type TemplatesWorkspaceProps = {
   draft: TemplateDraft;
+  editingTemplateId: string | null;
   status: string;
   templates: SavedTemplate[];
-  onApplyTemplate: (template: SavedTemplate) => void;
-  onCreateTemplate: (event: FormEvent, contentHtml: string) => void;
+  onClearTemplateDraft: () => void;
   onDeleteTemplate: (id: string) => void;
+  onEditTemplate: (template: SavedTemplate) => void;
   onDraftChange: (patch: Partial<TemplateDraft>) => void;
+  onSaveTemplate: (event: FormEvent, contentHtml: string) => void;
   onSaveCurrentAsTemplate: () => void;
 };
 
 export function TemplatesWorkspace({
   draft,
+  editingTemplateId,
   status,
   templates,
-  onApplyTemplate,
-  onCreateTemplate,
+  onClearTemplateDraft,
   onDeleteTemplate,
+  onEditTemplate,
   onDraftChange,
+  onSaveTemplate,
   onSaveCurrentAsTemplate,
 }: TemplatesWorkspaceProps) {
   const editor = useEditor({
@@ -94,7 +98,15 @@ export function TemplatesWorkspace({
       </div>
 
       <div className="template-workspace-grid">
-        <form className="template-form" onSubmit={(event) => onCreateTemplate(event, editor?.getHTML() ?? draft.content)}>
+        <form className="template-form" onSubmit={(event) => onSaveTemplate(event, editor?.getHTML() ?? draft.content)}>
+          <div className="template-form-heading">
+            <strong>{editingTemplateId ? "Edit template" : "New template"}</strong>
+            {editingTemplateId ? (
+              <button className="secondary compact-button" type="button" onClick={onClearTemplateDraft}>
+                New template
+              </button>
+            ) : null}
+          </div>
           <label>
             Template name
             <input
@@ -191,15 +203,16 @@ export function TemplatesWorkspace({
           </div>
           <button className="secondary" type="submit">
             <FilePlus2 size={18} />
-            Save template
+            {editingTemplateId ? "Update template" : "Save template"}
           </button>
         </form>
 
         <div className="template-library-panel">
           <TemplateLibrary
-            emptyText="Save a template, then apply it to any new submission."
+            actionLabel="Click to edit"
+            emptyText="Save a template, then edit it here or apply it from a new submission."
             templates={templates}
-            onApplyTemplate={onApplyTemplate}
+            onApplyTemplate={onEditTemplate}
             onDeleteTemplate={onDeleteTemplate}
           />
         </div>
