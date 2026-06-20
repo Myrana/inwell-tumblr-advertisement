@@ -939,7 +939,12 @@ class PersistenceTests(unittest.TestCase):
                     "remoteBrowserProvider": "custom",
                     "remoteBrowserLaunchUrl": "https://browser.example/live/snow",
                 },
-                "queueScheduleSettings": {"enabled": True, "dailyTime": "08:30", "timezone": "America/New_York"},
+                "queueScheduleSettings": {
+                    "enabled": True,
+                    "dailyTime": "08:30",
+                    "timezone": "America/New_York",
+                    "perQueue": {"Daily adverts": {"enabled": True, "dailyTime": "10:15", "timezone": "America/New_York"}},
+                },
             },
         )
 
@@ -959,6 +964,7 @@ class PersistenceTests(unittest.TestCase):
             },
         )
         self.assertEqual(saved["queueScheduleSettings"]["dailyTime"], "08:30")
+        self.assertEqual(saved["queueScheduleSettings"]["perQueue"]["Daily adverts"]["dailyTime"], "10:15")
         self.assertEqual(self.connection.submit_targets["allthingsroleplay"]["submit_url"], "https://allthingsroleplay.tumblr.com/submit")
         self.assertEqual(self.connection.queue_definitions["daily-adverts"]["name"], "Daily adverts")
         self.assertEqual(self.connection.runner_settings["default"]["slow_mo"], 750)
@@ -966,6 +972,7 @@ class PersistenceTests(unittest.TestCase):
         self.assertEqual(self.connection.runner_settings["default"]["remote_browser_provider"], "custom")
         self.assertEqual(self.connection.runner_settings["default"]["remote_browser_launch_url"], "https://browser.example/live/snow")
         self.assertEqual(self.connection.queue_schedule_settings["default"]["daily_time"], "08:30")
+        self.assertEqual(self.connection.queue_schedule_settings["queue:Daily adverts"]["daily_time"], "10:15")
         self.assertGreater(len(self.connection.settings_audit_events), 0)
 
     def test_app_settings_normalize_invalid_values(self) -> None:

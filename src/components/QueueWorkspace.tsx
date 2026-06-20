@@ -5,7 +5,7 @@ import { queueLogGroups, runnerLogExplanation, visibleRunnerLogs } from "../doma
 import { formatEasternRun, nextDailyRunAt, scheduleSummary } from "../domain/schedule";
 import {
   QueueDefinition,
-  QueueScheduleSettings,
+  QueueSchedulePreference,
   RunnerLog,
   SubmissionQueueItem,
   SubmissionStatus,
@@ -21,7 +21,7 @@ type QueueWorkspaceProps = {
   activeQueueName: string;
   queueOptions: QueueDefinition[];
   queueStatus: string;
-  queueScheduleSettings: QueueScheduleSettings;
+  queueScheduleSettings: QueueSchedulePreference;
   runnerConnectionLabel: string;
   runnerActivity: RunnerActivity;
   runnerHeadless: boolean;
@@ -30,7 +30,7 @@ type QueueWorkspaceProps = {
   onEditQueueItem: (id: string) => void;
   onRenameQueue: (currentName: string, nextName: string) => void;
   onSelectQueue: (queueName: string) => void;
-  onQueueScheduleSettingsChange: (patch: Partial<QueueScheduleSettings>) => void;
+  onQueueScheduleSettingsChange: (patch: Partial<QueueSchedulePreference>) => void;
   onCopyLocalRunnerSetup: () => void;
   onDownloadLocalRunner: () => void;
   onLaunchLocalRunner: () => void;

@@ -1255,6 +1255,23 @@ def normalize_runner_settings(value: Any) -> dict[str, Any]:
 
 def normalize_queue_schedule_settings(value: Any) -> dict[str, Any]:
     data = value if isinstance(value, dict) else {}
+    default_settings = normalize_queue_schedule_preference(data)
+    per_queue: dict[str, dict[str, Any]] = {}
+    raw_per_queue = data.get("perQueue")
+    if isinstance(raw_per_queue, dict):
+        for queue_name, queue_settings in raw_per_queue.items():
+            name = str(queue_name).strip()
+            if name:
+                per_queue[name] = normalize_queue_schedule_preference(queue_settings)
+
+    return {
+        **default_settings,
+        "perQueue": per_queue,
+    }
+
+
+def normalize_queue_schedule_preference(value: Any) -> dict[str, Any]:
+    data = value if isinstance(value, dict) else {}
     daily_time = str(data.get("dailyTime") or "09:00")
     if not re.match(r"^\d{2}:\d{2}$", daily_time):
         daily_time = "09:00"
@@ -1349,7 +1366,19 @@ def get_app_settings(connection: ConnectionLike, workspace_id: str = "default") 
         tag_profiles.setdefault(str(row["blog_id"]), []).append(str(row["tag"]))
 
     runner_row = connection.execute("SELECT * FROM runner_settings WHERE id = %s AND workspace_id = %s", ("default", workspace_id)).fetchone()
-    schedule_row = connection.execute("SELECT * FROM queue_schedule_settings WHERE id = %s AND workspace_id = %s", ("default", workspace_id)).fetchone()
+    schedule_rows = connection.execute("SELECT * FROM queue_schedule_settings WHERE workspace_id = %s", (workspace_id,)).fetchall()
+    schedule_row = next((row for row in schedule_rows if row["id"] == "default"), None)
+    per_queue_schedule_settings: dict[str, dict[str, Any]] = {}
+    for row in schedule_rows:
+        row_id = str(row["id"])
+        if row_id == "default":
+            continue
+        queue_name = row_id.removeprefix("queue:")
+        per_queue_schedule_settings[queue_name] = {
+            "enabled": row["enabled"],
+            "dailyTime": row["daily_time"],
+            "timezone": row["timezone"],
+        }
     remote_browser_provider = runner_row["remote_browser_provider"] if runner_row else "none"
     if remote_browser_provider == "none":
         remote_browser_provider = environment_remote_browser_provider()
@@ -1373,6 +1402,7 @@ def get_app_settings(connection: ConnectionLike, workspace_id: str = "default") 
                 "enabled": schedule_row["enabled"] if schedule_row else False,
                 "dailyTime": schedule_row["daily_time"] if schedule_row else "09:00",
                 "timezone": schedule_row["timezone"] if schedule_row else DEFAULT_TIMEZONE,
+                "perQueue": per_queue_schedule_settings,
             }
         ),
     }
@@ -1503,28 +1533,32 @@ def upsert_app_settings(connection: ConnectionLike, payload: dict[str, Any], aud
             record_settings_audit(connection, "runner_settings", "upsert", "default", field_name, "", runner_settings[field_name], workspace_id)
 
     schedule_settings = settings["queueScheduleSettings"]
-    connection.execute(
-        """
-        INSERT INTO queue_schedule_settings (id, workspace_id, enabled, daily_time, timezone, updated_at)
-        VALUES (%s, %s, %s, %s, %s, %s)
-        ON CONFLICT(id) DO UPDATE SET
-            enabled = excluded.enabled,
-            daily_time = excluded.daily_time,
-            timezone = excluded.timezone,
-            updated_at = excluded.updated_at
-        """,
-        (
-            "default",
-            workspace_id,
-            schedule_settings["enabled"],
-            schedule_settings["dailyTime"],
-            schedule_settings["timezone"],
-            now,
-        ),
-    )
-    if audit:
-        for field_name in ("enabled", "dailyTime", "timezone"):
-            record_settings_audit(connection, "queue_schedule_settings", "upsert", "default", field_name, "", schedule_settings[field_name], workspace_id)
+    connection.execute("DELETE FROM queue_schedule_settings WHERE workspace_id = %s", (workspace_id,))
+    schedule_rows = [("default", schedule_settings)]
+    schedule_rows.extend((f"queue:{queue_name}", queue_settings) for queue_name, queue_settings in schedule_settings["perQueue"].items())
+    for schedule_id, schedule_row in schedule_rows:
+        connection.execute(
+            """
+            INSERT INTO queue_schedule_settings (id, workspace_id, enabled, daily_time, timezone, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            ON CONFLICT(id) DO UPDATE SET
+                enabled = excluded.enabled,
+                daily_time = excluded.daily_time,
+                timezone = excluded.timezone,
+                updated_at = excluded.updated_at
+            """,
+            (
+                schedule_id,
+                workspace_id,
+                schedule_row["enabled"],
+                schedule_row["dailyTime"],
+                schedule_row["timezone"],
+                now,
+            ),
+        )
+        if audit:
+            for field_name in ("enabled", "dailyTime", "timezone"):
+                record_settings_audit(connection, "queue_schedule_settings", "upsert", schedule_id, field_name, "", schedule_row[field_name], workspace_id)
     return get_app_settings(connection, workspace_id)
 
 
