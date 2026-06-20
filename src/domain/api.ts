@@ -225,6 +225,10 @@ export type LocalCompanionStatus = {
 
 const localCompanionBaseUrl = "http://127.0.0.1:17842";
 
+type LocalCompanionRequestInit = RequestInit & {
+  targetAddressSpace?: "loopback";
+};
+
 async function localCompanionRequest<T>(path: string, init?: RequestInit, timeoutMs = 1200): Promise<T> {
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
@@ -232,11 +236,12 @@ async function localCompanionRequest<T>(path: string, init?: RequestInit, timeou
     const response = await fetch(`${localCompanionBaseUrl}${path}`, {
       ...init,
       signal: controller.signal,
+      targetAddressSpace: "loopback",
       headers: {
         "Content-Type": "application/json",
         ...init?.headers,
       },
-    });
+    } as LocalCompanionRequestInit);
     if (!response.ok) {
       let payload: { error?: string } = {};
       try {
