@@ -581,7 +581,7 @@ function App() {
   }
 
   function saveCurrentAsTemplate() {
-    const template = templateFromAdvertisement(activeAd);
+    const template = templateFromAdvertisement(activeAd, activeQueueName);
     setTemplates((current) => [template, ...current]);
     syncTemplate(template);
     setEditingTemplateId(template.id);
@@ -609,6 +609,7 @@ function App() {
       id: editingTemplateId ?? undefined,
       name: templateDraft.name,
       content: contentHtml,
+      queueName: existingTemplate?.queueName ?? activeQueueName,
       updatedAt: new Date().toISOString(),
     });
 
@@ -623,6 +624,9 @@ function App() {
 
   function applyTemplate(template: SavedTemplate) {
     updateActiveAd(applyTemplateToAdvertisement(template));
+    if (template.queueName && queueOptions.some((queue) => queue.name === template.queueName)) {
+      setSelectedQueueName(template.queueName);
+    }
     setTemplateStatus(`Applied ${template.name} to the current submission.`);
     setActiveView("editor");
   }

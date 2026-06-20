@@ -40,6 +40,7 @@ export type SavedTemplate = {
   name: string;
   content: string;
   forumUrl: string;
+  queueName: string;
   tags: string[];
   updatedAt: string;
 };
@@ -181,6 +182,7 @@ export type ApiTemplate = {
   name: string;
   content: string;
   forum_url: string;
+  queue_name?: string;
   tags: string[];
   updated_at: string;
 };

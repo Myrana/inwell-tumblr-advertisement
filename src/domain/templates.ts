@@ -15,16 +15,18 @@ export function normalizeTemplate(value: Partial<SavedTemplate> | null | undefin
     name: value?.name?.trim() || "Untitled template",
     content: value?.content ?? "",
     forumUrl: value?.forumUrl ?? "",
+    queueName: value?.queueName?.trim() || "",
     tags: Array.isArray(value?.tags) ? uniqueTags(value.tags) : [],
     updatedAt: value?.updatedAt || new Date().toISOString(),
   };
 }
 
-export function templateFromAdvertisement(advertisement: Advertisement): SavedTemplate {
+export function templateFromAdvertisement(advertisement: Advertisement, queueName = ""): SavedTemplate {
   return normalizeTemplate({
     name: advertisement.title || "Untitled template",
     content: advertisement.content || advertisement.imageCaption,
     forumUrl: "",
+    queueName,
     tags: [],
   });
 }
@@ -43,6 +45,7 @@ export function fromApiTemplate(value: ApiTemplate): SavedTemplate {
     name: value.name,
     content: value.content,
     forumUrl: value.forum_url,
+    queueName: value.queue_name ?? "",
     tags: value.tags,
     updatedAt: value.updated_at,
   });
@@ -54,6 +57,7 @@ export function toApiTemplate(template: SavedTemplate): ApiTemplate {
     name: template.name,
     content: template.content,
     forum_url: template.forumUrl,
+    queue_name: template.queueName,
     tags: template.tags,
     updated_at: template.updatedAt,
   };

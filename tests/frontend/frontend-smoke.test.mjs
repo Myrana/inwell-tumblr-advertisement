@@ -388,9 +388,17 @@ test("custom blog submission flow does not blank the editor", { timeout: 40000 }
           name: "Editor quick template",
           content: "<p><strong>Quick saved copy</strong></p>",
           forumUrl: "",
+          queueName: "Want ads",
           tags: [],
           updatedAt: "2026-06-17T00:00:00.000Z",
         },
+      ]),
+    );
+    localStorage.setItem(
+      "inwell-tumblr-queue-definitions",
+      JSON.stringify([
+        { id: "default-queue", name: "Default queue" },
+        { id: "want-ads", name: "Want ads" },
       ]),
     );
   });
@@ -437,6 +445,7 @@ test("custom blog submission flow does not blank the editor", { timeout: 40000 }
   await page.getByText("Saved templates").waitFor();
   await page.getByRole("button", { name: "Toggle reusable copy section" }).click();
   await page.getByRole("button", { name: /Editor quick template/ }).click();
+  assert.equal(await page.getByLabel("Queue destination").inputValue(), "Want ads");
   await page.getByRole("button", { name: "Toggle post content section" }).click();
   await page.locator(".tumblr-rich-editor strong", { hasText: "Quick saved copy" }).waitFor();
   assert.equal(await page.getByText("Import this blog's tags from a screenshot").count(), 0);
