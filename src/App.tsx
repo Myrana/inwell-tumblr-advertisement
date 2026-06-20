@@ -936,7 +936,6 @@ function App() {
     }
 
     setTumblrAccounts((current) => upsertTumblrAccount(current, normalized));
-    setRunnerSettings((current) => ({ ...current, tumblrAccountId: normalized.id }));
     syncTumblrAccount(normalized);
     setAccountDraft({ displayName: "", blogName: "" });
     setAccountStatus(`Added ${normalized.displayName}. Use Connect to log into Tumblr.`);
@@ -952,9 +951,14 @@ function App() {
   }
 
   function selectTumblrAccount(id: string) {
-    setRunnerSettings((current) => ({ ...current, tumblrAccountId: id }));
     const account = tumblrAccounts.find((item) => item.id === id);
-    setAccountStatus(account ? `Selected ${account.displayName} for queue runs.` : "No Tumblr account selected.");
+    if (!account || account.status !== "connected") {
+      setAccountStatus("Connect that Tumblr account before selecting it for queue runs.");
+      return;
+    }
+
+    setRunnerSettings((current) => ({ ...current, tumblrAccountId: id }));
+    setAccountStatus(`Selected ${account.displayName} for queue runs.`);
   }
 
   async function launchTumblrAccountLogin(id: string) {
@@ -963,8 +967,6 @@ function App() {
       setAccountStatus("Select or create a Tumblr account first.");
       return;
     }
-
-    setRunnerSettings((current) => ({ ...current, tumblrAccountId: id }));
 
     try {
       const response = await launchTumblrLogin(id, runnerSettings.slowMo);
@@ -1002,7 +1004,6 @@ function App() {
       return;
     }
 
-    setRunnerSettings((current) => ({ ...current, tumblrAccountId: id }));
     setAccountStatus(`Checking saved Tumblr login for ${account.displayName}...`);
 
     try {
@@ -1018,6 +1019,9 @@ function App() {
             notes: response.login.message,
           };
       setTumblrAccounts((current) => upsertTumblrAccount(current, checked));
+      if (checked.status === "connected") {
+        setRunnerSettings((current) => ({ ...current, tumblrAccountId: checked.id }));
+      }
       setApiAvailable(true);
       if (response.login.mode === "remote" && response.login.launchUrl) {
         window.open(response.login.launchUrl, "_blank", "noopener,noreferrer");
