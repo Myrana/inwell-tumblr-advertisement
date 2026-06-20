@@ -27,8 +27,11 @@ test("site background uses CSS overlays without remote image artifacts", () => {
 
   assert.doesNotMatch(styles, /rawpixel|site-overlay-image|image_png_800/);
   assert.match(styles, /\.app-shell::before\s*\{/);
+  assert.match(styles, /\.app-shell::after\s*\{/);
   assert.match(styles, /\.app-shell\s*\{[\s\S]*radial-gradient/);
+  assert.match(styles, /ellipse 72px 420px/);
   assert.match(styles, /html\[data-theme="dark"\]\s+\.app-shell::before\s*\{/);
+  assert.match(styles, /html\[data-theme="dark"\]\s+\.app-shell::after\s*\{/);
 });
 
 function stopProcessTree(childProcess) {
