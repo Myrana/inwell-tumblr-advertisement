@@ -1209,12 +1209,17 @@ pre {
   z-index: 0;
   pointer-events: none;
   background:
-    radial-gradient(ellipse 92px 560px at 78% 0%, rgba(27, 30, 36, 0.18), transparent 70%),
-    radial-gradient(ellipse 64px 420px at 48% 0%, rgba(46, 143, 163, 0.16), transparent 72%),
-    linear-gradient(180deg, rgba(27, 30, 36, 0.1), transparent 52%) 74% 0 / 18px 70% no-repeat,
-    linear-gradient(180deg, rgba(46, 143, 163, 0.12), transparent 58%) 49% 0 / 12px 62% no-repeat;
-  filter: blur(7px);
-  opacity: 0.72;
+    radial-gradient(ellipse 220px 96px at 73% 0%, rgba(12, 15, 19, 0.34), transparent 72%),
+    radial-gradient(ellipse 180px 82px at 50% 2%, rgba(12, 15, 19, 0.28), transparent 70%),
+    radial-gradient(ellipse 150px 72px at 29% 0%, rgba(12, 15, 19, 0.24), transparent 68%),
+    radial-gradient(ellipse 76px 540px at 76% 0%, rgba(12, 15, 19, 0.22), transparent 72%),
+    radial-gradient(ellipse 48px 420px at 55% 0%, rgba(12, 15, 19, 0.18), transparent 72%),
+    radial-gradient(ellipse 36px 300px at 34% 0%, rgba(12, 15, 19, 0.16), transparent 72%),
+    linear-gradient(180deg, rgba(12, 15, 19, 0.18), transparent 58%) 78% 0 / 12px 74% no-repeat,
+    linear-gradient(180deg, rgba(12, 15, 19, 0.14), transparent 54%) 57% 0 / 8px 62% no-repeat,
+    linear-gradient(180deg, rgba(12, 15, 19, 0.12), transparent 48%) 36% 0 / 7px 48% no-repeat;
+  filter: blur(8px);
+  opacity: 0.86;
 }
 
 .queue-workspace > * {
@@ -2436,13 +2441,17 @@ html[data-theme="dark"] .queue-workspace {
 
 html[data-theme="dark"] .queue-workspace::before {
   background:
-    radial-gradient(ellipse 112px 620px at 78% 0%, rgba(0, 0, 0, 0.34), transparent 68%),
-    radial-gradient(ellipse 70px 470px at 48% 0%, rgba(95, 179, 197, 0.22), transparent 72%),
-    radial-gradient(circle at 78% 1%, rgba(0, 0, 0, 0.28), transparent 7%),
-    radial-gradient(circle at 48% 1%, rgba(95, 179, 197, 0.18), transparent 7%),
-    linear-gradient(180deg, rgba(0, 0, 0, 0.18), transparent 52%) 74% 0 / 20px 72% no-repeat,
-    linear-gradient(180deg, rgba(95, 179, 197, 0.16), transparent 58%) 49% 0 / 14px 64% no-repeat;
-  opacity: 0.96;
+    radial-gradient(ellipse 240px 110px at 74% 0%, rgba(0, 0, 0, 0.74), transparent 72%),
+    radial-gradient(ellipse 190px 94px at 51% 2%, rgba(0, 0, 0, 0.58), transparent 70%),
+    radial-gradient(ellipse 160px 78px at 29% 0%, rgba(0, 0, 0, 0.48), transparent 68%),
+    radial-gradient(ellipse 92px 650px at 77% 0%, rgba(0, 0, 0, 0.52), transparent 72%),
+    radial-gradient(ellipse 56px 500px at 56% 0%, rgba(0, 0, 0, 0.42), transparent 72%),
+    radial-gradient(ellipse 40px 340px at 35% 0%, rgba(0, 0, 0, 0.34), transparent 72%),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.36), transparent 58%) 79% 0 / 14px 76% no-repeat,
+    linear-gradient(180deg, rgba(0, 0, 0, 0.28), transparent 54%) 58% 0 / 9px 64% no-repeat,
+    linear-gradient(180deg, rgba(0, 0, 0, 0.22), transparent 48%) 36% 0 / 7px 50% no-repeat;
+  filter: blur(7px);
+  opacity: 1;
 }
 
 html[data-theme="dark"] .queue-workspace .workflow-section {
