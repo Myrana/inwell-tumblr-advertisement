@@ -32,6 +32,7 @@ import {
   loadBackendTemplates,
   loadBackendTumblrAccounts,
   loadAuthSession,
+  loadLocalCompanionStatus,
   loadLocalRunnerCommand,
   loadRunnerLogs,
   launchTumblrLogin,
@@ -46,7 +47,9 @@ import {
   saveQueueItem,
   saveTemplate,
   saveTumblrAccount,
+  runLocalCompanion,
   registerInkwellUser,
+  type LocalCompanionStatus,
 } from "./domain/api";
 import { composerContentFor, emptyAd, fromApiAdvertisement, normalizeStoredState } from "./domain/ads";
 import { defaultTagProfiles, postTypes } from "./domain/constants";
@@ -134,6 +137,7 @@ function App() {
   const [queueScheduleSettings, setQueueScheduleSettings] = useState<QueueScheduleSettings>(() => loadQueueScheduleSettings());
   const [runnerSettings, setRunnerSettings] = useState<RunnerSettings>(() => loadRunnerSettings());
   const [runnerState, setRunnerState] = useState<RunnerStatus | null>(null);
+  const [localCompanion, setLocalCompanion] = useState<LocalCompanionStatus | null>(null);
   const [runnerLogs, setRunnerLogs] = useState<RunnerLog[]>([]);
   const [activeView, setActiveView] = useState<WorkspaceView>("editor");
   const [colorTheme, setColorTheme] = useState<ColorTheme>(() => loadColorTheme());
@@ -159,6 +163,15 @@ function App() {
   const queueOptions = useMemo(() => uniqueQueueDefinitions(queueDefinitions, submissionQueue), [queueDefinitions, submissionQueue]);
   const activeQueueName = queueOptions.some((queue) => queue.name === selectedQueueName) ? selectedQueueName : queueOptions[0]?.name ?? "";
   const activeQueue = submissionQueue.filter((item) => item.queueName === activeQueueName);
+  const runnerConnectionLabel = useMemo(() => {
+    if (localCompanion?.ok) {
+      return localCompanion.running ? "Local companion running" : "Local companion connected";
+    }
+    const localRunner = runnerState?.local_runner;
+    return localRunner?.online
+      ? `Local runner online${localRunner.queue_name ? `: ${localRunner.queue_name}` : ""}`
+      : "Local runner offline";
+  }, [localCompanion, runnerState]);
   const activeDestinationBlogRef = useRef(activeAd.destinationBlog);
   const activeBlogTags = tagProfiles[activeAd.destinationBlog] ?? defaultTagProfiles[activeAd.destinationBlog] ?? [];
   const checklistTags = uniqueTags([...activeBlogTags, ...activeAd.tags]);
@@ -396,8 +409,10 @@ function App() {
     }
 
     void refreshRunnerStatus({ quiet: true });
+    void refreshLocalCompanionStatus({ quiet: true });
     const intervalId = window.setInterval(() => {
       void refreshRunnerStatus({ quiet: true });
+      void refreshLocalCompanionStatus({ quiet: true });
     }, runnerState?.running ? 3000 : 15000);
 
     return () => window.clearInterval(intervalId);
@@ -947,6 +962,20 @@ function App() {
     return activeQueue.filter((item) => !["submitted", "posted", "running"].includes(item.status));
   }
 
+  async function refreshLocalCompanionStatus(options: { quiet?: boolean } = {}) {
+    try {
+      const status = await loadLocalCompanionStatus();
+      setLocalCompanion(status);
+      if (!options.quiet) {
+        setQueueStatus(status.running ? "Local companion is running the queue." : "Local companion is connected.");
+      }
+      return status;
+    } catch {
+      setLocalCompanion(null);
+      return null;
+    }
+  }
+
   async function refreshRunnerStatus(options: { quiet?: boolean } = {}) {
     try {
       const [response, logs, backendQueue] = await Promise.all([
@@ -1018,6 +1047,29 @@ function App() {
   }
 
   async function startRunner() {
+    const items = runnableQueueItems();
+    if (!items.length) {
+      setQueueStatus("Queue at least one target before starting the runner.");
+      return;
+    }
+
+    try {
+      const companion = localCompanion ?? await refreshLocalCompanionStatus({ quiet: true });
+      if (companion?.ok) {
+        const run = await runLocalCompanion(activeQueueName);
+        setLocalCompanion(run);
+        setQueueStatus(
+          run.accepted
+            ? "Local companion started the runner on this computer. You can leave this page open while it works."
+            : run.error || "Local companion could not start the runner.",
+        );
+        void refreshRunnerStatus({ quiet: true });
+        return;
+      }
+    } catch {
+      setLocalCompanion(null);
+    }
+
     await prepareLocalRunnerCommand({ copy: true, target: "run" });
   }
 
@@ -1219,7 +1271,7 @@ function App() {
             queueOptions={queueOptions}
             queueStatus={queueStatus}
             queueScheduleSettings={queueScheduleSettings}
-            runnerState={runnerState}
+            runnerConnectionLabel={runnerConnectionLabel}
             runnerLogs={runnerLogs}
             targetOptions={targetOptions}
             onClearQueue={clearQueueItems}
