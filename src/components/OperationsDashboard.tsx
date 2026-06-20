@@ -1,4 +1,5 @@
-import { Activity, AlertTriangle, Archive, CheckCircle2, ClipboardCheck, ListChecks, ShieldCheck } from "lucide-react";
+import { Activity, AlertTriangle, Archive, CheckCircle2, ClipboardCheck, Download, ListChecks, ShieldCheck, Upload } from "lucide-react";
+import { ChangeEvent } from "react";
 import { QueueDefinition, RunnerActivity, SubmissionQueueItem, TumblrAccount, WorkspaceView } from "../domain/types";
 
 type OperationsDashboardProps = {
@@ -10,6 +11,9 @@ type OperationsDashboardProps = {
   savedDraftCount: number;
   templateCount: number;
   tumblrAccounts: TumblrAccount[];
+  workspaceTransferStatus: string;
+  onExportWorkspace: () => void;
+  onImportWorkspace: (file: File) => void;
   onNavigate: (view: WorkspaceView) => void;
 };
 
@@ -22,6 +26,9 @@ export function OperationsDashboard({
   savedDraftCount,
   templateCount,
   tumblrAccounts,
+  workspaceTransferStatus,
+  onExportWorkspace,
+  onImportWorkspace,
   onNavigate,
 }: OperationsDashboardProps) {
   const queuedCount = queueItems.filter((item) => item.status === "queued" || item.status === "scheduled").length;
@@ -30,6 +37,13 @@ export function OperationsDashboard({
   const postedCount = queueItems.filter((item) => item.status === "posted" || item.status === "submitted").length;
   const connectedAccounts = tumblrAccounts.filter((account) => account.status === "connected").length;
   const needsLoginAccounts = tumblrAccounts.filter((account) => account.status !== "connected").length;
+  function handleImport(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (file) {
+      onImportWorkspace(file);
+    }
+  }
 
   return (
     <section className="operations-dashboard" aria-label="Operations dashboard">
@@ -104,6 +118,26 @@ export function OperationsDashboard({
           <button className="secondary compact-button" type="button" onClick={() => onNavigate("templates")}>
             Open templates
           </button>
+        </article>
+
+        <article className="operation-card operation-card-wide">
+          <div className="operation-card-icon">
+            <Download size={20} />
+          </div>
+          <span>Workspace backup</span>
+          <strong>Import and export</strong>
+          <small>{workspaceTransferStatus || "Back up or restore drafts, queues, templates, targets, and account settings."}</small>
+          <div className="operation-card-actions">
+            <button className="secondary compact-button" type="button" onClick={onExportWorkspace}>
+              <Download size={16} />
+              Export workspace
+            </button>
+            <label className="secondary compact-button file-action-button">
+              <Upload size={16} />
+              Import workspace
+              <input aria-label="Import workspace file" type="file" accept="application/json,.json" onChange={handleImport} />
+            </label>
+          </div>
         </article>
       </div>
     </section>

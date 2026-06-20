@@ -53,19 +53,24 @@ export function loadRunnerSettings(): RunnerSettings {
   try {
     const raw = localStorage.getItem(runnerSettingsStorageKey);
     const parsed = raw ? (JSON.parse(raw) as Partial<RunnerSettings>) : {};
-    const provider = normalizeRemoteBrowserProvider(parsed.remoteBrowserProvider);
-    return {
-      mediaDir: typeof parsed.mediaDir === "string" ? parsed.mediaDir : "",
-      slowMo: typeof parsed.slowMo === "number" ? parsed.slowMo : 500,
-      headless: Boolean(parsed.headless),
-      submit: Boolean(parsed.submit),
-      tumblrAccountId: typeof parsed.tumblrAccountId === "string" ? parsed.tumblrAccountId : "",
-      remoteBrowserProvider: provider,
-      remoteBrowserLaunchUrl: typeof parsed.remoteBrowserLaunchUrl === "string" ? parsed.remoteBrowserLaunchUrl : "",
-    };
+    return normalizeRunnerSettings(parsed);
   } catch {
     return defaultRunnerSettings();
   }
+}
+
+export function normalizeRunnerSettings(value: unknown): RunnerSettings {
+  const parsed = value && typeof value === "object" ? (value as Partial<RunnerSettings>) : {};
+  const provider = normalizeRemoteBrowserProvider(parsed.remoteBrowserProvider);
+  return {
+    mediaDir: typeof parsed.mediaDir === "string" ? parsed.mediaDir : "",
+    slowMo: typeof parsed.slowMo === "number" ? parsed.slowMo : 500,
+    headless: Boolean(parsed.headless),
+    submit: Boolean(parsed.submit),
+    tumblrAccountId: typeof parsed.tumblrAccountId === "string" ? parsed.tumblrAccountId : "",
+    remoteBrowserProvider: provider,
+    remoteBrowserLaunchUrl: typeof parsed.remoteBrowserLaunchUrl === "string" ? parsed.remoteBrowserLaunchUrl : "",
+  };
 }
 
 function defaultRunnerSettings(): RunnerSettings {
