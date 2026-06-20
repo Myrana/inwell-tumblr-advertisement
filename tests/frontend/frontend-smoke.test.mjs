@@ -276,18 +276,28 @@ test("content library rows can queue a saved submission", { timeout: 40000 }, as
     );
     localStorage.setItem(
       "inwell-tumblr-queue-definitions",
-      JSON.stringify([{ id: "default-queue", name: "Default queue" }]),
+      JSON.stringify([
+        { id: "default-queue", name: "Default queue" },
+        { id: "want-ads", name: "Want ads" },
+      ]),
     );
   });
 
   await page.goto(appUrl);
   await page.getByRole("button", { name: "Content Library" }).click();
-  await page.locator(".draft-row", { hasText: "Saved queue post" }).getByRole("button", { name: "Queue" }).click();
+  const savedRow = page.locator(".draft-row", { hasText: "Saved queue post" });
+  await savedRow.getByText("Type").waitFor();
+  await savedRow.getByText("Target").waitFor();
+  await savedRow.getByText("Updated").waitFor();
+  await savedRow.getByRole("button", { name: "Queue" }).click();
+  await savedRow.getByLabel("Queue destination").selectOption("Want ads");
+  await savedRow.getByRole("button", { name: "Queue here" }).click();
   await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
-  await page.getByText("Queued Saved queue post in Default queue.").waitFor();
+  await page.getByText("Queued Saved queue post in Want ads.").waitFor();
   assert.equal(savedQueueItem?.ad_id, "saved-ad");
   assert.equal(savedQueueItem?.target_id, "allthingsroleplay");
-  assert.equal(savedQueueItem?.queue_name, "Default queue");
+  assert.equal(savedQueueItem?.queue_name, "Want ads");
+  assert.equal(await page.getByLabel("Active queue").inputValue(), "Want ads");
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
 });
 
