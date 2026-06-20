@@ -12,6 +12,7 @@ export type RunnerLogRunGroup = {
   latestAt: string;
   targetNames: string[];
   targetSummaries: RunnerLogTargetSummary[];
+  timeline: RunnerTimelineStep[];
   warningCount: number;
   errorCount: number;
   failureExplanations: string[];
@@ -23,6 +24,16 @@ export type RunnerLogTargetSummary = {
   status: "ready" | "submitted" | "failed" | "needs-review" | "running";
   latestAt: string;
   explanation: string;
+};
+
+export type RunnerTimelineStep = {
+  id: string;
+  label: string;
+  message: string;
+  targetName: string;
+  level: RunnerLog["level"];
+  createdAt: string;
+  screenshotUrl: string;
 };
 
 export function latestRunnerRunId(logs: RunnerLog[]) {
@@ -78,6 +89,7 @@ export function runnerLogRunGroups(logs: RunnerLog[]): RunnerLogRunGroup[] {
         existing.failureExplanations.push(explanation);
       }
       existing.targetSummaries = runnerLogTargetSummaries(existing.logs);
+      existing.timeline = runnerLogTimeline(existing.logs);
       return;
     }
 
@@ -89,6 +101,7 @@ export function runnerLogRunGroups(logs: RunnerLog[]): RunnerLogRunGroup[] {
       latestAt: log.createdAt,
       targetNames: targetName ? [targetName] : [],
       targetSummaries: runnerLogTargetSummaries([log]),
+      timeline: runnerLogTimeline([log]),
       warningCount: log.level === "warning" ? 1 : 0,
       errorCount: log.level === "error" ? 1 : 0,
       failureExplanations: explanation ? [explanation] : [],
@@ -96,6 +109,20 @@ export function runnerLogRunGroups(logs: RunnerLog[]): RunnerLogRunGroup[] {
   });
 
   return Array.from(groups.values());
+}
+
+export function runnerLogTimeline(logs: RunnerLog[]): RunnerTimelineStep[] {
+  return [...logs]
+    .sort((left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime())
+    .map((log) => ({
+      id: log.id,
+      label: runnerLogStepLabel(log),
+      message: log.message,
+      targetName: log.targetName || log.queueItemId || "Queue item",
+      level: log.level,
+      createdAt: log.createdAt,
+      screenshotUrl: stringDetail(log.details, "screenshotUrl") || stringDetail(log.details, "screenshot_url"),
+    }));
 }
 
 export function runnerLogTargetSummaries(logs: RunnerLog[]): RunnerLogTargetSummary[] {
@@ -162,4 +189,27 @@ export function runnerLogExplanation(log: RunnerLog) {
 function stringDetail(details: Record<string, unknown>, key: string) {
   const value = details[key];
   return typeof value === "string" ? value.trim() : "";
+}
+
+function runnerLogStepLabel(log: RunnerLog) {
+  const normalized = log.message.toLowerCase();
+  if (log.level === "error") {
+    return "Failed";
+  }
+  if (normalized.includes("opening")) {
+    return "Open submit page";
+  }
+  if (normalized.includes("fields filled") || normalized.includes("filled")) {
+    return "Fill form";
+  }
+  if (normalized.includes("submit button clicked") || normalized.includes("submitted")) {
+    return "Submit";
+  }
+  if (normalized.includes("ready") || normalized.includes("manual review")) {
+    return "Ready for review";
+  }
+  if (log.level === "warning") {
+    return "Needs review";
+  }
+  return "Runner step";
 }
