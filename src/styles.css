@@ -17,16 +17,18 @@
 
 html[data-theme="dark"] {
   color-scheme: dark;
-  --ink: #eef4f7;
-  --text: #eef4f7;
-  --muted: #9fb0bb;
-  --line: #334351;
-  --surface: #17212b;
-  --soft: #0f151d;
-  --cyan: #5fb3c5;
-  --coral: #f08067;
-  --green: #74c79d;
-  --amber: #e0a649;
+  --ink: #f3eef8;
+  --text: #f3eef8;
+  --muted: #b4a9bf;
+  --line: #3b314a;
+  --surface: #171421;
+  --soft: #0c1019;
+  --cyan: #78c8d6;
+  --coral: #f28aa8;
+  --green: #7ccaa2;
+  --amber: #e7b45e;
+  --lavender: #b39df2;
+  --rose: #ff8fb7;
 }
 
 * {
@@ -348,6 +350,61 @@ h2 {
 .editor-surface {
   display: grid;
   gap: 16px;
+}
+
+.editor-notebook-intro {
+  min-width: 0;
+  padding: 18px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid rgba(46, 143, 163, 0.2);
+  border-left: 4px solid var(--coral);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(244, 247, 248, 0.9)),
+    var(--surface);
+}
+
+.editor-notebook-intro span,
+.panel-kicker,
+.blog-card-kicker {
+  color: var(--coral);
+  font-size: 0.76rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.editor-notebook-title {
+  display: block;
+  margin: 4px 0 6px;
+  font-size: 1.45rem;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.editor-notebook-intro p,
+.panel-heading p {
+  margin: 0;
+  color: var(--muted);
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.editor-save-pill {
+  flex: 0 0 auto;
+  min-height: 32px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid rgba(47, 118, 93, 0.24);
+  border-radius: 999px;
+  background: #edf8f2;
+  color: var(--green);
+  font-size: 0.78rem;
+  font-weight: 900;
+  white-space: nowrap;
 }
 
 .queue-readiness {
@@ -697,14 +754,22 @@ textarea:focus {
 
 .primary {
   padding: 0 15px;
-  background: var(--green);
+  background: linear-gradient(135deg, var(--green), var(--cyan));
   color: white;
+  box-shadow: 0 10px 24px rgba(47, 118, 93, 0.16);
 }
 
 .secondary {
   padding: 0 14px;
   background: #e8eef1;
   color: #26323b;
+}
+
+.primary:hover,
+.secondary:hover,
+.icon-button:hover,
+.tumblr-file-button:hover {
+  transform: translateY(-1px);
 }
 
 .icon-button {
@@ -1060,7 +1125,7 @@ textarea:focus {
 }
 
 .tumblr-photo-stage {
-  min-height: 200px;
+  min-height: 260px;
   display: grid;
   place-items: center;
   align-content: center;
@@ -1074,6 +1139,20 @@ textarea:focus {
 
 .tumblr-photo-stage strong {
   overflow-wrap: anywhere;
+}
+
+.tumblr-photo-stage > span {
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.tumblr-media-preview-image {
+  width: min(100%, 520px);
+  max-height: 360px;
+  border-radius: 8px;
+  object-fit: contain;
+  box-shadow: 0 18px 44px rgba(27, 30, 36, 0.16);
 }
 
 .tumblr-photo-stage input {
@@ -1561,6 +1640,11 @@ pre {
   background: #fff;
 }
 
+.queue-management-row,
+.content-calendar-card {
+  box-shadow: 0 12px 28px rgba(27, 30, 36, 0.06);
+}
+
 .queue-management-row.selected {
   border-color: #2d8a9d;
   background: #f3faf8;
@@ -1597,6 +1681,14 @@ pre {
   color: var(--muted);
   font-size: 0.84rem;
   font-weight: 700;
+}
+
+.queue-management-row .blog-card-kicker,
+.content-calendar-card .blog-card-kicker {
+  margin-top: 0;
+  color: var(--coral);
+  font-size: 0.72rem;
+  letter-spacing: 0;
 }
 
 .account-session-row {
@@ -2405,6 +2497,73 @@ pre {
   gap: 16px;
 }
 
+.operations-hero {
+  min-width: 0;
+  padding: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  border: 1px solid rgba(179, 157, 242, 0.3);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(24, 20, 36, 0.96), rgba(24, 31, 50, 0.94) 54%, rgba(58, 36, 63, 0.9)),
+    #171421;
+  color: #f8f4ff;
+  box-shadow: 0 18px 46px rgba(12, 16, 25, 0.2);
+}
+
+.operations-hero-brand {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.operations-hero-mark {
+  width: 58px;
+  height: 58px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(179, 157, 242, 0.28), rgba(255, 143, 183, 0.22));
+  color: #ffffff;
+  font-size: 1.6rem;
+  font-weight: 900;
+}
+
+.operations-hero span {
+  color: #d8caf8;
+  font-size: 0.82rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.operations-hero h1 {
+  margin: 4px 0 6px;
+  font-size: clamp(1.45rem, 2.8vw, 2.4rem);
+  line-height: 1.06;
+  letter-spacing: 0;
+}
+
+.operations-hero p {
+  max-width: 720px;
+  margin: 0;
+  color: #c8bdd4;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.operations-hero-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .run-readiness-panel,
 .attention-queue-panel {
   min-width: 0;
@@ -2827,6 +2986,44 @@ pre {
   flex-wrap: wrap;
 }
 
+.advertisement-card {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 14px 32px rgba(27, 30, 36, 0.06);
+}
+
+.draft-card-media {
+  width: 112px;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(46, 143, 163, 0.2);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(46, 143, 163, 0.13), rgba(217, 101, 82, 0.12)),
+    #f4f7f8;
+}
+
+.draft-card-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.draft-card-media span {
+  margin: 0;
+  color: var(--cyan);
+  font-size: 2rem;
+  font-weight: 900;
+}
+
 .library-empty {
   padding: 26px 16px;
   display: grid;
@@ -2937,10 +3134,10 @@ html[data-theme="dark"] body {
 
 html[data-theme="dark"] .app-shell {
   background:
-    radial-gradient(ellipse at 72% 0%, rgba(0, 0, 0, 0.26), transparent 34%),
-    radial-gradient(ellipse at 34% 3%, rgba(95, 179, 197, 0.13), transparent 32%),
-    radial-gradient(circle at 24% 82%, rgba(240, 128, 103, 0.06), transparent 28%),
-    linear-gradient(180deg, rgba(15, 21, 29, 0.96), rgba(16, 28, 29, 0.98));
+    radial-gradient(ellipse at 72% 0%, rgba(179, 157, 242, 0.16), transparent 34%),
+    radial-gradient(ellipse at 34% 3%, rgba(120, 200, 214, 0.12), transparent 32%),
+    radial-gradient(circle at 24% 82%, rgba(255, 143, 183, 0.08), transparent 28%),
+    linear-gradient(180deg, rgba(12, 16, 25, 0.98), rgba(20, 18, 31, 0.98));
 }
 
 html[data-theme="dark"] .app-shell::before {
@@ -3086,7 +3283,9 @@ html[data-theme="dark"] .attention-queue-list article {
 }
 
 html[data-theme="dark"] .sidebar {
-  background: #0c1219;
+  background:
+    linear-gradient(180deg, rgba(16, 15, 25, 0.98), rgba(10, 13, 20, 0.98)),
+    #0c1019;
 }
 
 html[data-theme="dark"] .login-shell {
@@ -3137,7 +3336,7 @@ html[data-theme="dark"] .tumblr-tag-panel,
 html[data-theme="dark"] .tumblr-photo-stage,
 html[data-theme="dark"] .tumblr-body-field,
 html[data-theme="dark"] pre {
-  background: #111a23;
+  background: #151320;
   border-color: var(--line);
   color: var(--ink);
 }
@@ -3145,7 +3344,7 @@ html[data-theme="dark"] pre {
 html[data-theme="dark"] input,
 html[data-theme="dark"] select,
 html[data-theme="dark"] textarea {
-  background: #0f1720;
+  background: #10101a;
   border-color: var(--line);
   color: var(--ink);
 }
@@ -3162,8 +3361,13 @@ html[data-theme="dark"] label {
 html[data-theme="dark"] .secondary,
 html[data-theme="dark"] .icon-button,
 html[data-theme="dark"] .tumblr-file-button {
-  background: #243241;
+  background: #292336;
   color: var(--ink);
+}
+
+html[data-theme="dark"] .primary {
+  background: linear-gradient(135deg, #7ccaa2, #b39df2 55%, #ff8fb7);
+  color: #10101a;
 }
 
 html[data-theme="dark"] .preview-mode-switcher button.active {
@@ -3175,7 +3379,7 @@ html[data-theme="dark"] .preview-mode-switcher button.active {
 html[data-theme="dark"] .queue-readiness {
   border-color: #6f562c;
   border-left-color: var(--amber);
-  background: #211c13;
+  background: #241a18;
 }
 
 html[data-theme="dark"] .queue-readiness.ready,
@@ -3183,7 +3387,7 @@ html[data-theme="dark"] .queue-confirmation,
 html[data-theme="dark"] .account-ready-panel {
   border-color: #315f4d;
   border-left-color: var(--green);
-  background: #10231d;
+  background: #12241f;
 }
 
 html[data-theme="dark"] .section-state,
@@ -3249,17 +3453,17 @@ html[data-theme="dark"] .workspace-saved .draft-row + .draft-row {
 }
 
 html[data-theme="dark"] .workspace-saved .draft-row:not(.selected) {
-  background: rgba(15, 23, 32, 0.62);
+  background: rgba(21, 19, 32, 0.82);
 }
 
 html[data-theme="dark"] .workspace-saved .draft-row:hover {
   border-color: rgba(95, 179, 197, 0.28);
-  background: rgba(18, 42, 48, 0.74);
+  background: rgba(31, 27, 48, 0.86);
 }
 
 html[data-theme="dark"] .workspace-saved .draft-row.selected {
-  border-color: rgba(95, 179, 197, 0.5);
-  background: #122c32;
+  border-color: rgba(179, 157, 242, 0.52);
+  background: #211b33;
 }
 
 html[data-theme="dark"] .workspace-saved .draft-row-meta span {
@@ -3415,7 +3619,7 @@ html[data-theme="dark"] .type-option {
 }
 
 html[data-theme="dark"] .type-option.active {
-  background: #172a24;
+  background: #1f2d26;
   color: var(--green);
 }
 
@@ -3468,6 +3672,48 @@ html[data-theme="dark"] .docs-section {
   background: rgba(17, 26, 35, 0.86);
 }
 
+html[data-theme="dark"] .operations-hero {
+  border-color: rgba(179, 157, 242, 0.34);
+  background:
+    linear-gradient(135deg, rgba(20, 17, 32, 0.98), rgba(17, 24, 42, 0.96) 52%, rgba(52, 31, 58, 0.92)),
+    #171421;
+}
+
+html[data-theme="dark"] .editor-notebook-intro {
+  border-color: rgba(179, 157, 242, 0.26);
+  border-left-color: var(--rose);
+  background:
+    linear-gradient(135deg, rgba(26, 22, 39, 0.94), rgba(18, 21, 34, 0.92)),
+    var(--surface);
+}
+
+html[data-theme="dark"] .editor-save-pill {
+  border-color: rgba(124, 202, 162, 0.34);
+  background: rgba(18, 43, 34, 0.86);
+  color: #9be5bd;
+}
+
+html[data-theme="dark"] .panel-kicker,
+html[data-theme="dark"] .blog-card-kicker,
+html[data-theme="dark"] .editor-notebook-intro span {
+  color: #ff9abd;
+}
+
+html[data-theme="dark"] .draft-card-media {
+  border-color: rgba(179, 157, 242, 0.26);
+  background:
+    linear-gradient(135deg, rgba(120, 200, 214, 0.16), rgba(255, 143, 183, 0.14)),
+    #151320;
+}
+
+html[data-theme="dark"] .draft-card-media span {
+  color: #b39df2;
+}
+
+html[data-theme="dark"] .tumblr-media-preview-image {
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.36);
+}
+
 html[data-theme="dark"] .docs-intro p,
 html[data-theme="dark"] .docs-section ul {
   color: #a9c4ca;
@@ -3510,6 +3756,15 @@ html[data-theme="dark"] .selected-tags button {
 
   .operations-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .operations-hero {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .operations-hero-actions {
+    justify-content: flex-start;
   }
 
   .operation-card-wide {
@@ -3562,6 +3817,43 @@ html[data-theme="dark"] .selected-tags button {
   .queue-confirmation {
     grid-template-columns: 1fr;
     align-items: stretch;
+  }
+
+  .operations-hero,
+  .operations-hero-brand,
+  .editor-notebook-intro {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .operations-hero-actions,
+  .operations-hero-actions > button,
+  .editor-save-pill {
+    width: 100%;
+  }
+
+  .operations-hero-actions > button,
+  .editor-save-pill {
+    justify-content: center;
+  }
+
+  .advertisement-card {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .draft-card-media {
+    width: 100%;
+    max-height: 260px;
+  }
+
+  .draft-row-actions {
+    justify-content: stretch;
+  }
+
+  .draft-row-actions > button,
+  .draft-row-actions > a {
+    flex: 1;
   }
 
   .queue-command-group {

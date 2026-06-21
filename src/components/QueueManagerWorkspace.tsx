@@ -39,7 +39,11 @@ export function QueueManagerWorkspace({
   return (
     <section className="submission-queue-panel queue-workspace" aria-label="Queue management">
       <div className="panel-heading">
-        <h2>Queues</h2>
+        <div>
+          <span className="panel-kicker">Blog Tracker</span>
+          <h2>Queues</h2>
+          <p>Keep Tumblr submission lanes, schedules, and reusable blog requirements in one place.</p>
+        </div>
         <ListChecks size={18} />
       </div>
 
@@ -74,6 +78,7 @@ export function QueueManagerWorkspace({
 
               return (
                 <article className="content-calendar-card" key={queue.id}>
+                  <span className="blog-card-kicker">Submission lane</span>
                   <strong>{queue.name}</strong>
                   <span>{nextRun}</span>
                   <small>
@@ -95,6 +100,7 @@ export function QueueManagerWorkspace({
             <article className={queue.name === activeQueueName ? "queue-management-row selected" : "queue-management-row"} key={queue.id}>
               <div className="queue-management-summary">
                 <button type="button" onClick={() => onSelectQueue(queue.name)}>
+                  <span className="blog-card-kicker">Tumblr blog set</span>
                   <strong>{queue.name}</strong>
                   <span>
                     {items.length} item{items.length === 1 ? "" : "s"} - {completedCount} complete
