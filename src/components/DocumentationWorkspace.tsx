@@ -5,7 +5,7 @@ const docsSections = [
       "Use Download runner for the first install, then use Start local runner from the queue page after Windows registers the launcher.",
       "When headless mode is on, the browser window may not stay visible. Watch the runner status, activity text, queue item status, and runner logs on the website.",
       "Run locally processes the active queue. Test run keeps submit approval off so you can verify login, page loading, media fill, and failure handling without posting.",
-      "Browserbase is no longer part of the supported workflow. The supported Tumblr automation path is the local runner; Browserless or a custom live browser URL are advanced launch-link options only.",
+      "Remote browser providers are no longer part of the supported workflow. The supported Tumblr automation path is the local runner on your Windows computer.",
     ],
   },
   {

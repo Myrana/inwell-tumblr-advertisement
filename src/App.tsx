@@ -38,7 +38,6 @@ import {
   loadLocalCompanionStatus,
   loadLocalRunnerCommand,
   loadRunnerLogs,
-  launchTumblrLogin,
   loginInkwellUser,
   logoutInkwellUser,
   removeAdvertisement,
@@ -1051,7 +1050,7 @@ function App() {
       displayName: accountDraft.displayName,
       blogName: accountDraft.blogName,
       status: "needs-login",
-      notes: "Connect a browser session before queue runs.",
+      notes: "Use the local runner to verify this Tumblr session before queue runs.",
     });
     if (!normalized) {
       setAccountStatus("Enter a Tumblr account name or blog name first.");
@@ -1061,7 +1060,7 @@ function App() {
     setTumblrAccounts((current) => upsertTumblrAccount(current, normalized));
     syncTumblrAccount(normalized);
     setAccountDraft({ displayName: "", blogName: "" });
-    setAccountStatus(`Added ${normalized.displayName}. Use Connect to log into Tumblr.`);
+    setAccountStatus(`Added ${normalized.displayName}. Use the local runner test flow to log into Tumblr on this computer.`);
   }
 
   function deleteTumblrAccount(id: string) {
@@ -1084,40 +1083,22 @@ function App() {
     setAccountStatus(`Selected ${account.displayName} for queue runs.`);
   }
 
-  async function launchTumblrAccountLogin(id: string) {
+  function launchTumblrAccountLogin(id: string) {
     const account = tumblrAccounts.find((item) => item.id === id);
     if (!account) {
       setAccountStatus("Select or create a Tumblr account first.");
       return;
     }
 
-    try {
-      const response = await launchTumblrLogin(id, runnerSettings.slowMo);
-      const note =
-        response.login.mode === "remote"
-          ? response.login.message
-          : "Login helper launched. Complete Tumblr login in the visible browser.";
-      const checking: TumblrAccount = response.login.mode === "remote" && response.login.account
-        ? fromApiTumblrAccount(response.login.account)
-        : {
-            ...account,
-            status: "checking",
-            lastCheckedAt: new Date().toISOString(),
-            notes: note,
-          };
-      setTumblrAccounts((current) => upsertTumblrAccount(current, checking));
-      setApiAvailable(true);
-      if (response.login.mode === "remote") {
-        window.open(response.login.launchUrl, "_blank", "noopener,noreferrer");
-        setAccountStatus(response.login.message);
-      } else {
-        setAccountStatus(response.login.message || `Login helper opened in process ${response.login.pid}. Finish Tumblr login in that browser.`);
-      }
-    } catch (error) {
-      setApiAvailable(false);
-      const message = error instanceof ApiError ? error.message : "Could not start Tumblr account connection. Start the Python API and try again.";
-      setAccountStatus(message);
-    }
+    const checking: TumblrAccount = {
+      ...account,
+      status: "checking",
+      lastCheckedAt: new Date().toISOString(),
+      notes: "Start the local runner or a test run on this computer, complete Tumblr login if prompted, then mark this account connected.",
+    };
+    setTumblrAccounts((current) => upsertTumblrAccount(current, checking));
+    syncTumblrAccount(checking);
+    setAccountStatus("Tumblr login happens in the local runner on this computer. Start a test run, finish Tumblr login if prompted, then mark this account connected.");
   }
 
   async function checkTumblrAccountLogin(id: string) {
@@ -1792,7 +1773,6 @@ function App() {
           <TumblrAccountsWorkspace
             accounts={tumblrAccounts}
             draft={accountDraft}
-            runnerSettings={runnerSettings}
             selectedAccountId={runnerSettings.tumblrAccountId}
             status={accountStatus}
             onCreateSubmission={() => setActiveView("editor")}
@@ -1803,7 +1783,6 @@ function App() {
             onCheckLogin={checkTumblrAccountLogin}
             onLaunchLogin={launchTumblrAccountLogin}
             onMarkConnected={markTumblrAccountConnected}
-            onRunnerSettingsChange={(patch) => setRunnerSettings((current) => ({ ...current, ...patch }))}
             onSelectAccount={selectTumblrAccount}
           />
         ) : null}
