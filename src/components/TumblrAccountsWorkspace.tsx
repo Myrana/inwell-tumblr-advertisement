@@ -119,7 +119,7 @@ export function TumblrAccountsWorkspace({
             </label>
           </div>
           {!connectedAccounts.length ? (
-            <p className="queue-empty">Start a local runner test, complete Tumblr login if prompted, then mark the account connected.</p>
+            <p className="queue-empty">Click Connect on an account to open Tumblr login through the local runner.</p>
           ) : null}
         </section>
       </div>

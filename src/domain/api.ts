@@ -221,6 +221,8 @@ export type LocalCompanionStatus = {
   lastExitCode: number | null;
   lastError: string;
   accepted?: boolean;
+  pid?: number;
+  message?: string;
   error?: string;
 };
 
@@ -275,6 +277,21 @@ export async function runLocalCompanion(queueName: string, options: { headless?:
     {
       method: "POST",
       body: JSON.stringify(body),
+    },
+    1500,
+  );
+}
+
+export async function launchLocalCompanionLogin(options: { accountId: string; userDataDir?: string; slowMo?: number }) {
+  return localCompanionRequest<LocalCompanionStatus>(
+    "/login",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        accountId: options.accountId,
+        userDataDir: options.userDataDir || "",
+        slowMo: options.slowMo ?? 250,
+      }),
     },
     1500,
   );

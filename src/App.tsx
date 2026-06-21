@@ -35,6 +35,7 @@ import {
   loadBackendTumblrAccounts,
   loadAuthSession,
   downloadLocalRunnerPackage,
+  launchLocalCompanionLogin,
   loadLocalCompanionStatus,
   loadLocalRunnerCommand,
   loadRunnerLogs,
@@ -241,6 +242,11 @@ function App() {
       return status.queueName ? `Local companion is watching ${status.queueName}.` : "Local companion is watching.";
     }
     return "Local companion is connected.";
+  };
+  const localCompanionUserDataDir = (userDataDir: string) => {
+    const value = userDataDir.trim();
+    const normalized = value.replace(/\\/g, "/");
+    return normalized.startsWith("/app/") ? "" : value;
   };
   const shouldReplaceStaleLocalRunnerStatus = (status: string) =>
     status.includes("Local companion was not detected") ||
@@ -1083,22 +1089,40 @@ function App() {
     setAccountStatus(`Selected ${account.displayName} for queue runs.`);
   }
 
-  function launchTumblrAccountLogin(id: string) {
+  async function launchTumblrAccountLogin(id: string) {
     const account = tumblrAccounts.find((item) => item.id === id);
     if (!account) {
       setAccountStatus("Select or create a Tumblr account first.");
       return;
     }
 
-    const checking: TumblrAccount = {
-      ...account,
-      status: "checking",
-      lastCheckedAt: new Date().toISOString(),
-      notes: "Start the local runner or a test run on this computer, complete Tumblr login if prompted, then mark this account connected.",
-    };
-    setTumblrAccounts((current) => upsertTumblrAccount(current, checking));
-    syncTumblrAccount(checking);
-    setAccountStatus("Tumblr login happens in the local runner on this computer. Start a test run, finish Tumblr login if prompted, then mark this account connected.");
+    try {
+      const companion = localCompanion ?? await refreshLocalCompanionStatus({ quiet: true });
+      if (!companion?.ok) {
+        setAccountStatus("Start or install the local runner on this computer, then click Connect again.");
+        return;
+      }
+
+      const login = await launchLocalCompanionLogin({
+        accountId: account.id,
+        userDataDir: localCompanionUserDataDir(account.userDataDir),
+        slowMo: runnerSettings.slowMo,
+      });
+      setLocalCompanion(login);
+      const checking: TumblrAccount = {
+        ...account,
+        status: "checking",
+        lastCheckedAt: new Date().toISOString(),
+        notes: "Tumblr login window opened on this computer. Finish login, leave Tumblr dashboard open, then mark this account connected.",
+      };
+      setTumblrAccounts((current) => upsertTumblrAccount(current, checking));
+      syncTumblrAccount(checking);
+      setAccountStatus(login.message || "Tumblr login window opened on this computer. Finish login, then mark this account connected.");
+    } catch (error) {
+      const message = error instanceof ApiError ? error.message : "Local companion was not detected on this computer.";
+      setLocalCompanion(null);
+      setAccountStatus(`${message} Start or install the local runner, then click Connect again.`);
+    }
   }
 
   async function checkTumblrAccountLogin(id: string) {

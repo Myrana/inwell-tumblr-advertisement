@@ -1517,6 +1517,7 @@ class PersistenceTests(unittest.TestCase):
             self.assertIn("inkwell-local-runner/install.ps1", names)
             self.assertIn("inkwell-local-runner/install.cmd", names)
             self.assertIn("inkwell-local-runner/scripts/tumblr-local-runner.mjs", names)
+            self.assertIn("inkwell-local-runner/scripts/tumblr-login.mjs", names)
             self.assertIn("inkwell-local-runner/scripts/install-local-runner-autostart.ps1", names)
             readme = archive.read("inkwell-local-runner/README.md").decode("utf-8")
             install_ps1 = archive.read("inkwell-local-runner/install.ps1").decode("utf-8")
