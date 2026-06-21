@@ -128,6 +128,17 @@ export function EditorWorkspace({
   return (
     <div className="workspace-grid editor-only">
       <section className="editor-surface" id="editor" aria-label="Advertisement editor">
+        <div className="editor-notebook-intro">
+          <div>
+            <span>Advertisement notebook</span>
+            <strong className="editor-notebook-title">{activeAd.title || "Untitled advertisement"}</strong>
+            <p>Write once, save the blog rules, attach the visual, and send the finished ad into the queue.</p>
+          </div>
+          <div className="editor-save-pill" aria-label="Autosave status">
+            Autosaves as you write
+          </div>
+        </div>
+
         <div className={queueReady ? "queue-readiness ready" : "queue-readiness"} aria-label="Queue readiness">
           <div>
             <strong>{queueReady ? "Ready to add to queue" : "Queue setup needs attention"}</strong>
@@ -403,8 +414,13 @@ export function EditorWorkspace({
 
                     {activeAd.postType === "photo" ? (
                       <div className="tumblr-photo-stage">
-                        <ImagePlus size={42} />
+                        {activeAd.imageDataUrl ? (
+                          <img className="tumblr-media-preview-image" src={activeAd.imageDataUrl} alt="" />
+                        ) : (
+                          <ImagePlus size={42} />
+                        )}
                         <strong>{activeAd.imageName || "Choose a photo"}</strong>
+                        <span>Drop in the graphic readers will see on Tumblr.</span>
                         <label className="tumblr-file-button">
                           Upload image
                           <input type="file" accept="image/*" onChange={onImageUpload} />

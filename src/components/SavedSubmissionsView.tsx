@@ -72,7 +72,11 @@ export function SavedSubmissionsView({
   return (
     <section className="draft-table" aria-label="Content library">
       <div className="panel-heading">
-        <h2>Content library</h2>
+        <div>
+          <span className="panel-kicker">Advertisement Library</span>
+          <h2>Content library</h2>
+          <p>Browse the archive, check readiness, and queue finished ads without digging through drafts.</p>
+        </div>
         <Archive size={18} />
       </div>
       {libraryAds.length ? (
@@ -130,8 +134,8 @@ export function SavedSubmissionsView({
       ) : null}
       {libraryAds.length ? null : (
         <div className="library-empty">
-          <strong>No content saved yet</strong>
-          <span>New submissions will appear here after you add details, copy, media, or a target blog.</span>
+          <strong>Your notebook is empty.</strong>
+          <span>No content saved yet. Create your first advertisement and begin building your archive.</span>
         </div>
       )}
       {libraryAds.map((ad) => {
@@ -140,7 +144,14 @@ export function SavedSubmissionsView({
         const readiness = scoreDraftReadiness(ad);
 
         return (
-          <article className={ad.id === activeAdId ? "draft-row selected" : "draft-row"} key={ad.id}>
+          <article className={ad.id === activeAdId ? "draft-row advertisement-card selected" : "draft-row advertisement-card"} key={ad.id}>
+          <div className="draft-card-media" aria-hidden="true">
+            {ad.imageDataUrl ? (
+              <img src={ad.imageDataUrl} alt="" />
+            ) : (
+              <span>{(ad.title || "Inkwell").slice(0, 1).toUpperCase()}</span>
+            )}
+          </div>
           <div className="draft-row-summary">
             <label className="bulk-select row-select">
               <input
@@ -150,7 +161,7 @@ export function SavedSubmissionsView({
               />
               Select saved item
             </label>
-            <strong>{ad.title || "Untitled submission"}</strong>
+            <strong>{ad.title || "Untitled advertisement"}</strong>
             <div className="draft-row-meta">
               {duplicateMatch ? (
                 <span className="duplicate-pill" title={`Matches ${duplicatePeerNames.join(", ")}`}>

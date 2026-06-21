@@ -61,6 +61,30 @@ export function OperationsDashboard({
 
   return (
     <section className="operations-dashboard" aria-label="Operations dashboard">
+      <section className="operations-hero" aria-label="Inkwell overview">
+        <div className="operations-hero-brand">
+          <div className="operations-hero-mark" aria-hidden="true">
+            I
+          </div>
+          <div>
+            <span>Inkwell</span>
+            <h1>Create Once. Submit Everywhere.</h1>
+            <p>Draft roleplay ads, track Tumblr blogs, and keep every submission moving from one notebook.</p>
+          </div>
+        </div>
+        <div className="operations-hero-actions">
+          <button className="primary compact-button" type="button" onClick={() => onNavigate("editor")}>
+            Write advertisement
+          </button>
+          <button className="secondary compact-button" type="button" onClick={() => onNavigate("saved")}>
+            Open archive
+          </button>
+          <button className="secondary compact-button" type="button" onClick={() => onNavigate("queue-settings")}>
+            Track blogs
+          </button>
+        </div>
+      </section>
+
       <section className={`run-readiness-panel run-readiness-${readiness.status}`} aria-label="Run readiness">
         <div className="run-readiness-icon">
           {readiness.canRun ? <Play size={22} /> : readiness.status === "review" ? <AlertTriangle size={22} /> : <ListChecks size={22} />}
