@@ -2494,15 +2494,15 @@ pre {
 
 .operations-dashboard {
   display: grid;
-  gap: 16px;
+  gap: 14px;
 }
 
 .operations-hero {
   min-width: 0;
-  padding: 22px;
-  display: flex;
+  padding: 18px 20px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
   gap: 18px;
   border: 1px solid rgba(179, 157, 242, 0.3);
   border-radius: 8px;
@@ -2517,12 +2517,12 @@ pre {
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 14px;
 }
 
 .operations-hero-mark {
-  width: 58px;
-  height: 58px;
+  width: 52px;
+  height: 52px;
   flex: 0 0 auto;
   display: grid;
   place-items: center;
@@ -2543,13 +2543,13 @@ pre {
 
 .operations-hero h1 {
   margin: 4px 0 6px;
-  font-size: clamp(1.45rem, 2.8vw, 2.4rem);
-  line-height: 1.06;
+  font-size: clamp(1.5rem, 2.35vw, 2.18rem);
+  line-height: 1.08;
   letter-spacing: 0;
 }
 
 .operations-hero p {
-  max-width: 720px;
+  max-width: 760px;
   margin: 0;
   color: #c8bdd4;
   font-weight: 700;
@@ -2557,17 +2557,23 @@ pre {
 }
 
 .operations-hero-actions {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(3, max-content);
   align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
-  flex-wrap: wrap;
+  justify-content: end;
+  gap: 8px;
+}
+
+.operations-hero-actions .compact-button {
+  min-height: 36px;
+  padding-inline: 13px;
+  white-space: nowrap;
 }
 
 .run-readiness-panel,
 .attention-queue-panel {
   min-width: 0;
-  padding: 16px;
+  padding: 14px 16px;
   display: grid;
   gap: 12px;
   border: 1px solid var(--line);
@@ -2679,7 +2685,7 @@ pre {
 
 .operations-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
 }
 
@@ -2687,6 +2693,7 @@ pre {
   min-width: 0;
   padding: 14px;
   display: grid;
+  grid-template-rows: auto auto auto minmax(34px, 1fr) auto;
   align-content: start;
   gap: 8px;
   border: 1px solid var(--line);
@@ -2705,7 +2712,11 @@ pre {
 }
 
 .operation-card-wide {
-  grid-column: span 3;
+  grid-column: span 4;
+}
+
+.operation-card-double {
+  grid-column: span 2;
 }
 
 .operation-card-icon {
@@ -2731,7 +2742,6 @@ pre {
 }
 
 .operation-card small {
-  min-height: 34px;
   color: var(--muted);
   font-weight: 700;
   line-height: 1.35;
@@ -3675,7 +3685,7 @@ html[data-theme="dark"] .docs-section {
 html[data-theme="dark"] .operations-hero {
   border-color: rgba(179, 157, 242, 0.34);
   background:
-    linear-gradient(135deg, rgba(20, 17, 32, 0.98), rgba(17, 24, 42, 0.96) 52%, rgba(52, 31, 58, 0.92)),
+    linear-gradient(135deg, rgba(20, 17, 32, 0.98), rgba(17, 24, 42, 0.96) 58%, rgba(52, 31, 58, 0.88)),
     #171421;
 }
 
@@ -3760,15 +3770,20 @@ html[data-theme="dark"] .selected-tags button {
 
   .operations-hero {
     align-items: flex-start;
-    flex-direction: column;
+    grid-template-columns: 1fr;
   }
 
   .operations-hero-actions {
+    grid-template-columns: repeat(3, max-content);
     justify-content: flex-start;
   }
 
   .operation-card-wide {
     grid-column: span 2;
+  }
+
+  .operation-card-double {
+    grid-column: span 1;
   }
 
   .content-calendar-grid {
@@ -3823,17 +3838,21 @@ html[data-theme="dark"] .selected-tags button {
   .operations-hero-brand,
   .editor-notebook-intro {
     align-items: flex-start;
-    flex-direction: column;
   }
 
-  .operations-hero-actions,
-  .operations-hero-actions > button,
+  .operations-hero-brand,
   .editor-save-pill {
     width: 100%;
   }
 
+  .operations-hero-actions {
+    width: 100%;
+    grid-template-columns: 1fr;
+  }
+
   .operations-hero-actions > button,
   .editor-save-pill {
+    width: 100%;
     justify-content: center;
   }
 
@@ -3911,6 +3930,10 @@ html[data-theme="dark"] .selected-tags button {
   }
 
   .operation-card-wide {
+    grid-column: auto;
+  }
+
+  .operation-card-double {
     grid-column: auto;
   }
 
