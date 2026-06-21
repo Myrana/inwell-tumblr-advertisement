@@ -292,6 +292,9 @@ test("operations dashboard exports and imports workspace backups", { timeout: 40
   await page.getByRole("heading", { name: "Tumblr accounts", level: 1 }).waitFor();
   await page.getByRole("button", { name: "Operations", exact: true }).click();
   await page.getByRole("heading", { name: "Operations dashboard", level: 1 }).waitFor();
+  await page.getByLabel("Run readiness").getByText("Queue needs content").waitFor();
+  await page.getByLabel("Run blockers").getByText("Connect a Tumblr account.").waitFor();
+  await page.getByLabel("Run blockers").getByText("Add queued or scheduled submissions.").waitFor();
   assert.equal(await page.getByLabel("Workspace views").getByRole("button", { name: "Templates", exact: true }).count(), 0);
   assert.equal(await page.getByLabel("Workspace views").getByRole("button", { name: "Queues", exact: true }).count(), 0);
   assert.equal(await page.getByLabel("Workspace views").getByRole("button", { name: "Tumblr Accounts", exact: true }).count(), 0);
@@ -377,6 +380,104 @@ test("operations dashboard exports and imports workspace backups", { timeout: 40
   await page.getByLabel("Operations dashboard").getByText("1 saved drafts").waitFor();
   await page.getByLabel("Operations dashboard").getByText("1 saved", { exact: true }).waitFor();
 
+  assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
+});
+
+test("queue auto-refills from ready drafts when an item is marked posted", { timeout: 40000 }, async (t) => {
+  const server = spawn("npx vite --host 127.0.0.1 --port 8123 --strictPort", {
+    cwd: process.cwd(),
+    shell: true,
+    stdio: "ignore",
+  });
+
+  t.after(() => {
+    stopProcessTree(server);
+  });
+
+  await waitForServer(appUrl);
+
+  const browser = await chromium.launch();
+  t.after(async () => {
+    await browser.close();
+  });
+
+  const page = await browser.newPage();
+  const pageErrors = [];
+  page.on("pageerror", (error) => pageErrors.push(error));
+  await page.route("http://127.0.0.1:8021/api/**", (route) => route.abort());
+  await page.route("http://127.0.0.1:17842/status", (route) => route.abort());
+  await routeAuthenticatedSession(page);
+  await page.addInitScript(() => {
+    const readyAd = (id, title) => ({
+      id,
+      postType: "text",
+      title,
+      campaignName: "",
+      content: `<p>${title} body</p>`,
+      destinationBlog: "refillblog",
+      forumUrl: "https://forum.example/refill",
+      tags: ["refill"],
+      imageCaption: "",
+      imageName: "",
+      imageDataUrl: "",
+      videoUrl: "",
+      videoName: "",
+      status: "ready",
+      updatedAt: "2026-06-20T12:00:00.000Z",
+    });
+    localStorage.setItem(
+      "inwell-ad-assistant-state",
+      JSON.stringify({
+        activeAdId: "ad-posted",
+        ads: [readyAd("ad-posted", "Posted source"), readyAd("ad-replacement", "Replacement source")],
+      }),
+    );
+    localStorage.setItem(
+      "inwell-tumblr-submit-targets",
+      JSON.stringify([{ id: "refillblog", name: "Refill Blog", submitUrl: "https://refillblog.tumblr.com/submit" }]),
+    );
+    localStorage.setItem(
+      "inwell-tumblr-submission-queue",
+      JSON.stringify([
+        {
+          id: "ad-posted-default-queue-refillblog",
+          adId: "ad-posted",
+          targetId: "refillblog",
+          targetName: "Refill Blog",
+          tumblrAccountId: "",
+          queueName: "Default queue",
+          submitUrl: "https://refillblog.tumblr.com/submit",
+          postType: "text",
+          status: "queued",
+          scheduledFor: "",
+          timezone: "America/New_York",
+          createdAt: "2026-06-20T12:00:00.000Z",
+          updatedAt: "2026-06-20T12:00:00.000Z",
+          lastRunAt: "",
+          postedAt: "",
+          failedAt: "",
+          notes: "Ready for local browser runner.",
+          runnerPayload: JSON.stringify({ fields: { body: "Posted source body" } }),
+        },
+      ]),
+    );
+  });
+
+  await page.goto(appUrl);
+  await openWorkspaceView(page, "Queues");
+  await page.locator(".queue-management-row", { hasText: "Default queue" }).getByRole("button", { name: "Open queue" }).click();
+  await page.locator(".queue-item", { hasText: "Refill Blog" }).waitFor();
+  await page.getByLabel("Queue bulk editor").getByLabel("Select all pending items").check();
+  await page.getByLabel("Queue bulk editor").getByLabel("Status").selectOption("posted");
+  await page.getByLabel("Queue bulk editor").getByRole("button", { name: "Update 1" }).click();
+
+  await page.getByText("Auto-added 1 replacement.").waitFor();
+  await page.locator(".queue-item", { hasText: "Auto-added to keep this queue stocked" }).waitFor();
+  await page.getByLabel("Post history archive").getByText("Bulk updated from queue workspace.").waitFor();
+  const savedQueue = JSON.parse(await page.evaluate(() => localStorage.getItem("inwell-tumblr-submission-queue")));
+  assert.equal(savedQueue.filter((item) => item.status === "queued").length, 1);
+  assert.equal(savedQueue.filter((item) => item.status === "posted").length, 1);
+  assert.match(savedQueue.find((item) => item.status === "queued").id, /ad-replacement/);
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
 });
 
@@ -2029,6 +2130,12 @@ test("running the queue prepares the local runner and shows failure explanations
   assert.match(copiedText, /--submit/);
   await page.getByText(/paste it, and press Enter to start the local runner/).waitFor();
   await page.getByText(/ilr_private_token/).waitFor({ state: "detached" });
+  await page.getByRole("button", { name: "Operations", exact: true }).click();
+  await page.getByRole("heading", { name: "Operations dashboard", level: 1 }).waitFor();
+  await page.getByLabel("Run readiness").waitFor();
+  await page.getByLabel("Attention required").getByText("allthingsroleplay").waitFor();
+  await page.getByText("Live posting approved.").waitFor();
+  await page.getByLabel("Attention required").getByRole("button", { name: "Review queue", exact: true }).click();
   await page.getByLabel("Queue actions").getByRole("button", { name: "Test run" }).click();
   await page.getByText("Local runner command copied.").waitFor();
   await page.getByText(/start a test run that prepares Tumblr without submitting/).waitFor();

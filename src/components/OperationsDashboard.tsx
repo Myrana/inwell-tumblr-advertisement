@@ -1,5 +1,6 @@
-import { Activity, AlertTriangle, Archive, BookOpenText, CheckCircle2, ClipboardCheck, Download, ListChecks, Settings2, ShieldCheck, Upload } from "lucide-react";
+import { Activity, AlertTriangle, Archive, BookOpenText, CheckCircle2, ClipboardCheck, Download, ListChecks, Play, ShieldCheck, Upload } from "lucide-react";
 import { ChangeEvent } from "react";
+import { attentionQueueItems, queueReadiness, queueStatusCounts, runnableQueueItems } from "../domain/queueAutomation";
 import { QueueDefinition, RunnerActivity, SubmissionQueueItem, TumblrAccount, WorkspaceView } from "../domain/types";
 
 type OperationsDashboardProps = {
@@ -8,6 +9,7 @@ type OperationsDashboardProps = {
   queueOptions: QueueDefinition[];
   runnerActivity: RunnerActivity;
   runnerConnectionLabel: string;
+  runnerSubmitApproved: boolean;
   savedDraftCount: number;
   templateCount: number;
   tumblrAccounts: TumblrAccount[];
@@ -23,6 +25,7 @@ export function OperationsDashboard({
   queueOptions,
   runnerActivity,
   runnerConnectionLabel,
+  runnerSubmitApproved,
   savedDraftCount,
   templateCount,
   tumblrAccounts,
@@ -31,12 +34,23 @@ export function OperationsDashboard({
   onImportWorkspace,
   onNavigate,
 }: OperationsDashboardProps) {
-  const queuedCount = queueItems.filter((item) => item.status === "queued" || item.status === "scheduled").length;
-  const runningCount = queueItems.filter((item) => item.status === "running").length;
-  const needsReviewCount = queueItems.filter((item) => item.status === "needs-review" || item.status === "failed").length;
-  const postedCount = queueItems.filter((item) => item.status === "posted" || item.status === "submitted").length;
+  const activeQueueItems = queueItems.filter((item) => item.queueName === activeQueueName);
+  const counts = queueStatusCounts(activeQueueItems);
+  const queuedCount = runnableQueueItems(activeQueueItems).length;
+  const runningCount = counts.running;
+  const attentionItems = attentionQueueItems(activeQueueItems);
+  const needsReviewCount = attentionItems.length;
+  const postedCount = counts.posted + counts.submitted;
   const connectedAccounts = tumblrAccounts.filter((account) => account.status === "connected").length;
   const needsLoginAccounts = tumblrAccounts.filter((account) => account.status !== "connected").length;
+  const readiness = queueReadiness({
+    activeQueueName,
+    activeQueue: activeQueueItems,
+    connectedAccountCount: connectedAccounts,
+    runnerActivity,
+    savedDraftCount,
+    submitApproved: runnerSubmitApproved,
+  });
   function handleImport(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = "";
@@ -47,6 +61,49 @@ export function OperationsDashboard({
 
   return (
     <section className="operations-dashboard" aria-label="Operations dashboard">
+      <section className={`run-readiness-panel run-readiness-${readiness.status}`} aria-label="Run readiness">
+        <div className="run-readiness-icon">
+          {readiness.canRun ? <Play size={22} /> : readiness.status === "review" ? <AlertTriangle size={22} /> : <ListChecks size={22} />}
+        </div>
+        <div className="run-readiness-copy">
+          <span>Run readiness</span>
+          <strong>{readiness.title}</strong>
+          <small>{readiness.detail}</small>
+        </div>
+        <button className="primary compact-button" type="button" onClick={() => onNavigate(readiness.primaryAction.view)}>
+          {readiness.primaryAction.label}
+        </button>
+        {readiness.blockers.length ? (
+          <ul className="run-readiness-blockers" aria-label="Run blockers">
+            {readiness.blockers.slice(0, 3).map((blocker) => (
+              <li key={blocker}>{blocker}</li>
+            ))}
+          </ul>
+        ) : (
+          <p className="run-readiness-blockers ready">No blockers detected for {activeQueueName || "the selected queue"}.</p>
+        )}
+      </section>
+
+      {attentionItems.length ? (
+        <section className="attention-queue-panel" aria-label="Attention required">
+          <div className="attention-queue-heading">
+            <AlertTriangle size={18} />
+            <strong>Attention required</strong>
+            <button className="secondary compact-button" type="button" onClick={() => onNavigate("queue")}>
+              Review queue
+            </button>
+          </div>
+          <div className="attention-queue-list">
+            {attentionItems.slice(0, 3).map((item) => (
+              <article key={item.id}>
+                <strong>{item.targetName}</strong>
+                <span>{item.status === "failed" ? "Failed" : "Needs review"} - {item.notes || "Check latest runner log."}</span>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
       <div className="operations-grid">
         <article className="operation-card operation-card-primary">
           <div className="operation-card-icon">
@@ -71,7 +128,7 @@ export function OperationsDashboard({
           </div>
           <span>Runner</span>
           <strong>{runnerActivity.status}</strong>
-          <small>{runnerConnectionLabel}</small>
+          <small>{runnerConnectionLabel}. {runnerSubmitApproved ? "Live posting approved." : "Test/prep mode until live posting is approved."}</small>
           <button className="secondary compact-button" type="button" onClick={() => onNavigate("queue")}>
             Runner controls
           </button>
@@ -105,9 +162,9 @@ export function OperationsDashboard({
           <div className="operation-card-icon">
             <Archive size={20} />
           </div>
-          <span>Content library</span>
+          <span>Content readiness</span>
           <strong>{savedDraftCount} saved drafts</strong>
-          <small>{queueOptions.length} queues available</small>
+          <small>{queueOptions.length} queues available - {queuedCount} runnable in {activeQueueName || "selected queue"}</small>
           <button className="secondary compact-button" type="button" onClick={() => onNavigate("saved")}>
             Prep content
           </button>
@@ -134,18 +191,6 @@ export function OperationsDashboard({
           <small>Recent workflow notes and a safe testing path.</small>
           <button className="secondary compact-button" type="button" onClick={() => onNavigate("docs")}>
             Open docs
-          </button>
-        </article>
-
-        <article className="operation-card">
-          <div className="operation-card-icon">
-            <Settings2 size={20} />
-          </div>
-          <span>Workspace map</span>
-          <strong>All tools launch here</strong>
-          <small>Use Operations to move into setup, logs, content, templates, and queue workspaces.</small>
-          <button className="secondary compact-button" type="button" onClick={() => onNavigate("dashboard")}>
-            Stay on dashboard
           </button>
         </article>
 

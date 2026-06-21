@@ -58,6 +58,11 @@ import { composerContentFor, emptyAd, fromApiAdvertisement, hasLibraryContent, n
 import { defaultTagProfiles, postTypes } from "./domain/constants";
 import { MediaLibraryAsset, mediaLibraryFromAdvertisements } from "./domain/mediaLibrary";
 import { buildPreparedPost, validateAdvertisement } from "./domain/post";
+import {
+  activeQueueItems,
+  refillQueueFromReadyDrafts,
+  runnableQueueItems as runnableItemsForQueue,
+} from "./domain/queueAutomation";
 import { createQueueItem as createSubmissionQueueItem, queueIdFromName, uniqueQueueDefinitions } from "./domain/queue";
 import {
   loadColorTheme,
@@ -944,28 +949,40 @@ function App() {
 
   function updateQueueItem(id: string, status: SubmissionStatus, notes: string) {
     let nextItem: SubmissionQueueItem | null = null;
+    let refillItems: SubmissionQueueItem[] = [];
     const timestamp = new Date().toISOString();
     setSubmissionQueue((current) =>
-      current.map((item) => {
-        if (item.id !== id) {
-          return item;
-        }
+      refillQueueAfterCompletion(
+        current.map((item) => {
+          if (item.id !== id) {
+            return item;
+          }
 
-        nextItem = {
-          ...item,
-          status,
-          notes,
-          updatedAt: timestamp,
-          lastRunAt: status === "running" ? timestamp : status === "queued" ? "" : item.lastRunAt,
-          postedAt: status === "posted" ? timestamp : status === "queued" ? "" : item.postedAt,
-          failedAt: status === "failed" ? timestamp : status === "queued" ? "" : item.failedAt,
-        };
-        return nextItem;
-      }),
+          nextItem = {
+            ...item,
+            status,
+            notes,
+            updatedAt: timestamp,
+            lastRunAt: status === "running" ? timestamp : status === "queued" ? "" : item.lastRunAt,
+            postedAt: status === "posted" ? timestamp : status === "queued" ? "" : item.postedAt,
+            failedAt: status === "failed" ? timestamp : status === "queued" ? "" : item.failedAt,
+          };
+          return nextItem;
+        }),
+        current,
+        status,
+        (items) => {
+          refillItems = items;
+        },
+      ),
     );
 
     if (nextItem) {
       syncQueueItem(nextItem);
+    }
+    refillItems.forEach(syncQueueItem);
+    if (refillItems.length) {
+      setQueueStatus(`Marked submission ${status}. Auto-added ${refillItems.length} replacement${refillItems.length === 1 ? "" : "s"} to keep ${refillItems[0].queueName} stocked.`);
     }
   }
 
@@ -973,28 +990,72 @@ function App() {
     const selectedIds = new Set(ids);
     const timestamp = new Date().toISOString();
     const updatedItems: SubmissionQueueItem[] = [];
+    let refillItems: SubmissionQueueItem[] = [];
 
     setSubmissionQueue((current) =>
-      current.map((item) => {
-        if (!selectedIds.has(item.id)) {
-          return item;
-        }
-        const nextItem = {
-          ...item,
-          status,
-          notes,
-          updatedAt: timestamp,
-          lastRunAt: status === "running" ? timestamp : status === "queued" ? "" : item.lastRunAt,
-          postedAt: status === "posted" ? timestamp : status === "queued" ? "" : item.postedAt,
-          failedAt: status === "failed" ? timestamp : status === "queued" ? "" : item.failedAt,
-        };
-        updatedItems.push(nextItem);
-        return nextItem;
-      }),
+      refillQueueAfterCompletion(
+        current.map((item) => {
+          if (!selectedIds.has(item.id)) {
+            return item;
+          }
+          const nextItem = {
+            ...item,
+            status,
+            notes,
+            updatedAt: timestamp,
+            lastRunAt: status === "running" ? timestamp : status === "queued" ? "" : item.lastRunAt,
+            postedAt: status === "posted" ? timestamp : status === "queued" ? "" : item.postedAt,
+            failedAt: status === "failed" ? timestamp : status === "queued" ? "" : item.failedAt,
+          };
+          updatedItems.push(nextItem);
+          return nextItem;
+        }),
+        current,
+        status,
+        (items) => {
+          refillItems = items;
+        },
+      ),
     );
 
     updatedItems.forEach(syncQueueItem);
-    setQueueStatus(`Updated ${updatedItems.length} queued submission${updatedItems.length === 1 ? "" : "s"}.`);
+    refillItems.forEach(syncQueueItem);
+    setQueueStatus(
+      `Updated ${updatedItems.length} queued submission${updatedItems.length === 1 ? "" : "s"}.${
+        refillItems.length ? ` Auto-added ${refillItems.length} replacement${refillItems.length === 1 ? "" : "s"}.` : ""
+      }`,
+    );
+  }
+
+  function refillQueueAfterCompletion(
+    nextQueue: SubmissionQueueItem[],
+    previousQueue: SubmissionQueueItem[],
+    status: SubmissionStatus,
+    onAddedItems: (items: SubmissionQueueItem[]) => void,
+  ) {
+    if (status !== "posted" && status !== "submitted") {
+      return nextQueue;
+    }
+
+    const completedQueueName = nextQueue.find((item, index) => {
+      const previous = previousQueue[index];
+      return previous && item.status !== previous.status && (item.status === "posted" || item.status === "submitted");
+    })?.queueName;
+    if (!completedQueueName) {
+      return nextQueue;
+    }
+
+    const targetDepth = Math.max(1, activeQueueItems(previousQueue.filter((item) => item.queueName === completedQueueName)).length);
+    const refill = refillQueueFromReadyDrafts({
+      queue: nextQueue,
+      sourceAds: normalizeStoredState(stored).ads,
+      submitTargets,
+      queueName: completedQueueName,
+      tumblrAccountId: runnerSettingsRef.current.tumblrAccountId,
+      targetDepth,
+    });
+    onAddedItems(refill.addedItems);
+    return refill.queue;
   }
 
   async function retryQueueItemTestRun(id: string) {
@@ -1221,7 +1282,7 @@ function App() {
   }
 
   function runnableQueueItems() {
-    return activeQueue.filter((item) => !["submitted", "posted", "running"].includes(item.status));
+    return runnableItemsForQueue(activeQueue);
   }
 
   function updateActiveQueueScheduleSettings(patch: Partial<QueueSchedulePreference>) {
@@ -1723,6 +1784,7 @@ function App() {
             queueOptions={queueOptions}
             runnerActivity={runnerActivity}
             runnerConnectionLabel={runnerConnectionLabel}
+            runnerSubmitApproved={runnerSettings.submit}
             savedDraftCount={stored.ads.filter(hasLibraryContent).length}
             templateCount={templates.length}
             tumblrAccounts={tumblrAccounts}

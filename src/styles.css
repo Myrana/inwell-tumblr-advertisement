@@ -2405,6 +2405,119 @@ pre {
   gap: 16px;
 }
 
+.run-readiness-panel,
+.attention-queue-panel {
+  min-width: 0;
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.run-readiness-panel {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  border-left: 4px solid var(--amber);
+}
+
+.run-readiness-ready {
+  border-left-color: var(--green);
+}
+
+.run-readiness-review,
+.run-readiness-blocked {
+  border-left-color: var(--red);
+}
+
+.run-readiness-icon {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: #eef7f8;
+  color: #315f6c;
+}
+
+.run-readiness-copy {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.run-readiness-copy span,
+.attention-queue-heading {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.run-readiness-copy strong {
+  font-size: 1.28rem;
+  overflow-wrap: anywhere;
+}
+
+.run-readiness-copy small {
+  color: var(--muted);
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.run-readiness-blockers {
+  grid-column: 2 / 4;
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.run-readiness-blockers.ready {
+  padding-left: 0;
+  list-style: none;
+}
+
+.attention-queue-panel {
+  border-left: 4px solid var(--amber);
+}
+
+.attention-queue-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.attention-queue-heading button {
+  margin-left: auto;
+}
+
+.attention-queue-list {
+  display: grid;
+  gap: 10px;
+}
+
+.attention-queue-list article {
+  min-width: 0;
+  padding: 10px 12px;
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fffaf0;
+}
+
+.attention-queue-list strong,
+.attention-queue-list span {
+  overflow-wrap: anywhere;
+}
+
+.attention-queue-list span {
+  color: var(--muted);
+  font-weight: 700;
+}
+
 .operations-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -3391,6 +3504,24 @@ html[data-theme="dark"] .selected-tags button {
   .queue-readiness {
     grid-template-columns: 1fr;
     align-items: stretch;
+  }
+
+  .run-readiness-panel {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .run-readiness-blockers {
+    grid-column: auto;
+  }
+
+  .attention-queue-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .attention-queue-heading button {
+    margin-left: 0;
   }
 
   .queue-confirmation {
