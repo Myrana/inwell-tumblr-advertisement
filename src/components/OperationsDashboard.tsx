@@ -194,7 +194,7 @@ export function OperationsDashboard({
           </button>
         </article>
 
-        <article className="operation-card">
+        <article className="operation-card operation-card-double">
           <div className="operation-card-icon">
             <ClipboardCheck size={20} />
           </div>
