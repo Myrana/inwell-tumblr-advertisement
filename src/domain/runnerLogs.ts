@@ -212,11 +212,11 @@ function runnerLogStepLabel(log: RunnerLog) {
   if (normalized.includes("submit button clicked") || normalized.includes("submitted")) {
     return "Submit";
   }
-  if (normalized.includes("ready") || normalized.includes("manual review")) {
-    return "Ready for review";
-  }
   if (log.level === "warning") {
     return "Needs review";
+  }
+  if (normalized.includes("ready") || normalized.includes("manual review")) {
+    return "Ready for review";
   }
   return "Runner step";
 }

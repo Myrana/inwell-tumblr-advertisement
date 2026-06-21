@@ -1,8 +1,7 @@
-import { Activity, Camera, ChevronDown, ChevronRight, History, Trash2 } from "lucide-react";
+import { Activity, Camera, ChevronDown, ChevronRight, History, ListChecks, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { formatDate } from "../domain/format";
 import {
-  displayLogTarget,
   latestRunnerRunId,
   runnerLogRunGroups,
   runnerLogsOutsideQueue,
@@ -30,6 +29,9 @@ export function RunnerLogsWorkspace({
   const runGroups = useMemo(() => runnerLogRunGroups(scopedLogs), [scopedLogs]);
   const latestRunGroup = runGroups[0] ?? null;
   const outsideQueueLogs = runnerLogsOutsideQueue(activeQueue, scopedLogs);
+  const isRunning = Boolean(runnerState?.running);
+  const runningTargetCount = activeQueue.filter((item) => item.status === "running").length;
+  const pendingTargetCount = activeQueue.filter((item) => item.status === "queued" || item.status === "scheduled").length;
   const logScopeLabel = showLogHistory ? "All history" : latestRunId ? `Latest run ${latestRunId}` : "Latest logs";
 
   useEffect(() => {
@@ -87,22 +89,38 @@ export function RunnerLogsWorkspace({
         </div>
       </div>
 
-      {scopedLogs.length ? (
+      {scopedLogs.length || isRunning ? (
         <div className="runner-log-run-list">
-          {latestRunGroup ? (
-            <section className={`runner-latest-summary ${latestRunGroup.errorCount ? "runner-latest-summary-failed" : ""}`} aria-label="Latest runner summary">
+          {isRunning || latestRunGroup ? (
+            <section
+              className={`runner-latest-summary ${latestRunGroup?.errorCount ? "runner-latest-summary-failed" : ""} ${isRunning ? "runner-latest-summary-running" : ""}`}
+              aria-label={isRunning ? "Current queue timeline" : "Latest runner summary"}
+            >
               <div className="runner-latest-heading">
                 <div>
-                  <strong>{latestRunGroup.errorCount ? "Latest run failed" : latestRunGroup.warningCount ? "Latest run needs review" : "Latest run summary"}</strong>
-                  <span>{latestRunGroup.runId ? `Run ${latestRunGroup.runId}` : "Untracked run"} - {formatDate(latestRunGroup.latestAt)}</span>
+                  <strong>{latestHeading(isRunning, latestRunGroup)}</strong>
+                  <span>{latestMeta(isRunning, latestRunGroup, runnerState)}</span>
                 </div>
                 <span className="runner-latest-count">
-                  {latestRunGroup.targetSummaries.length || latestRunGroup.targetNames.length || latestRunGroup.logs.length}
+                  {latestRunGroup
+                    ? latestRunGroup.targetSummaries.length || latestRunGroup.targetNames.length || latestRunGroup.logs.length
+                    : activeQueue.length}
                   {" "}
-                  target{(latestRunGroup.targetSummaries.length || latestRunGroup.targetNames.length || latestRunGroup.logs.length) === 1 ? "" : "s"}
+                  target{(latestRunGroup
+                    ? latestRunGroup.targetSummaries.length || latestRunGroup.targetNames.length || latestRunGroup.logs.length
+                    : activeQueue.length) === 1 ? "" : "s"}
                 </span>
               </div>
-              {latestRunGroup.targetSummaries.length ? (
+              {isRunning ? (
+                <div className="runner-live-status" role="status">
+                  <span>
+                    <ListChecks size={16} />
+                    {runningTargetCount ? `${runningTargetCount} running` : "Runner active"}
+                  </span>
+                  <span>{pendingTargetCount} waiting</span>
+                </div>
+              ) : null}
+              {latestRunGroup?.targetSummaries.length ? (
                 <div className="runner-target-summary-list compact" aria-label="Latest run target summaries">
                   {latestRunGroup.targetSummaries.map((summary) => (
                     <div className={`runner-target-summary runner-target-summary-${summary.status}`} key={summary.id}>
@@ -112,7 +130,17 @@ export function RunnerLogsWorkspace({
                   ))}
                 </div>
               ) : null}
-              {latestRunGroup.failureExplanations.length ? (
+              {!latestRunGroup?.targetSummaries.length && isRunning && activeQueue.length ? (
+                <div className="runner-target-summary-list compact" aria-label="Pending queue targets">
+                  {activeQueue.map((item) => (
+                    <div className={`runner-target-summary runner-target-summary-${item.status === "running" ? "running" : "pending"}`} key={item.id}>
+                      <strong>{item.targetName}</strong>
+                      <span>{item.status === "running" ? "Running" : "Waiting"}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+              {latestRunGroup?.failureExplanations.length ? (
                 <div className="runner-failure-summary" role="status">
                   <strong>{latestRunGroup.errorCount ? "Why it failed" : "Why it needs review"}</strong>
                   {latestRunGroup.failureExplanations.map((explanation) => (
@@ -199,14 +227,6 @@ export function RunnerLogsWorkspace({
                         ))}
                       </div>
                     ) : null}
-                    {group.logs.map((log) => (
-                      <article className={`queue-log queue-log-${log.level}`} key={log.id}>
-                        <strong>{log.message}</strong>
-                        <span>
-                          {displayLogTarget(log, activeQueue)} - {formatDate(log.createdAt)}
-                        </span>
-                      </article>
-                    ))}
                   </div>
                 ) : null}
               </article>
@@ -223,6 +243,34 @@ export function RunnerLogsWorkspace({
       )}
     </section>
   );
+}
+
+function latestHeading(isRunning: boolean, latestRunGroup: ReturnType<typeof runnerLogRunGroups>[number] | null) {
+  if (isRunning) {
+    return "Current queue timeline";
+  }
+  if (latestRunGroup?.errorCount) {
+    return "Latest run failed";
+  }
+  if (latestRunGroup?.warningCount) {
+    return "Latest run needs review";
+  }
+  return "Latest run timeline";
+}
+
+function latestMeta(
+  isRunning: boolean,
+  latestRunGroup: ReturnType<typeof runnerLogRunGroups>[number] | null,
+  runnerState: RunnerStatus | null,
+) {
+  if (isRunning) {
+    const runId = runnerState?.run_id || latestRunGroup?.runId;
+    return runId ? `Run ${runId} is running` : "Runner is running";
+  }
+  if (!latestRunGroup) {
+    return "No runner events yet";
+  }
+  return `${latestRunGroup.runId ? `Run ${latestRunGroup.runId}` : "Untracked run"} - ${formatDate(latestRunGroup.latestAt)}`;
 }
 
 function targetSummaryLabel(status: string) {

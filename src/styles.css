@@ -1960,6 +1960,12 @@ pre {
   background: #fff7f5;
 }
 
+.runner-latest-summary-running {
+  border-color: #b7d8e7;
+  border-left-color: var(--cyan);
+  background: #f3f9fc;
+}
+
 .runner-latest-heading {
   display: flex;
   align-items: flex-start;
@@ -1983,6 +1989,27 @@ pre {
 .runner-latest-count {
   margin-top: 0;
   white-space: nowrap;
+}
+
+.runner-live-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.runner-live-status span {
+  width: max-content;
+  max-width: 100%;
+  padding: 5px 9px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ink);
+  font-size: 0.78rem;
+  font-weight: 900;
 }
 
 .runner-log-run {
@@ -2129,6 +2156,15 @@ pre {
 
 .runner-target-summary-ready {
   border-left-color: var(--cyan);
+}
+
+.runner-target-summary-running {
+  border-left-color: var(--cyan);
+  background: #f3f9fc;
+}
+
+.runner-target-summary-pending {
+  border-left-color: var(--line);
 }
 
 .runner-target-summary-submitted {
@@ -2924,6 +2960,7 @@ html[data-theme="dark"] .queue-management-row,
 html[data-theme="dark"] .account-session-row,
 html[data-theme="dark"] .runner-log-run,
 html[data-theme="dark"] .runner-latest-summary,
+html[data-theme="dark"] .runner-live-status span,
 html[data-theme="dark"] .queue-item,
 html[data-theme="dark"] .queue-log {
   background: var(--surface);
