@@ -109,6 +109,10 @@ function parseLocalArgs(argv) {
 }
 
 async function fetchRunnerPlan(options) {
+  if (process.env.INWELL_LOCAL_PLAN_JSON) {
+    return JSON.parse(process.env.INWELL_LOCAL_PLAN_JSON);
+  }
+
   await postHeartbeat(options, "polling").catch(() => undefined);
   const url = new URL(`${options.apiBaseUrl}/runner/local-plan`);
   url.searchParams.set("workspaceId", options.workspaceId);
@@ -143,7 +147,7 @@ async function runPlan(options, plan) {
   console.log(`[local-runner] Running ${plan.items.length} item(s) from ${options.queueName}.`);
 
   const runnerArgs = [
-    path.join(process.cwd(), "scripts", "tumblr-runner.mjs"),
+    localRunnerScriptPath(),
     "--plan",
     planPath,
     "--login-first",
@@ -180,6 +184,10 @@ async function runPlan(options, plan) {
   return Number(code) || 0;
 }
 
+function localRunnerScriptPath() {
+  return process.env.INWELL_LOCAL_RUNNER_SCRIPT || path.join(process.cwd(), "scripts", "tumblr-runner.mjs");
+}
+
 async function executeLocalRun(options, state) {
   if (state.running) {
     return { accepted: false, running: true };
@@ -189,11 +197,16 @@ async function executeLocalRun(options, state) {
   state.status = "running";
   state.lastError = "";
   state.lastStartedAt = new Date().toISOString();
+  state.lastFinishedAt = "";
+  state.lastExitCode = null;
   try {
     const plan = await fetchRunnerPlan(options);
     const code = await runPlan(options, plan);
     state.lastExitCode = code;
     state.lastFinishedAt = new Date().toISOString();
+    state.lastError = code
+      ? `Local runner exited with code ${code}. Close any open Inkwell Tumblr browser windows, then try again. Check the runner log for details.`
+      : "";
     state.status = code ? "error" : options.watch ? "watching" : "idle";
     return { accepted: true, running: false, exitCode: code };
   } catch (error) {

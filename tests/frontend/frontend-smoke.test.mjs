@@ -222,6 +222,7 @@ test("operations dashboard exports and imports workspace backups", { timeout: 40
   const pageErrors = [];
   page.on("pageerror", (error) => pageErrors.push(error));
   await page.route("http://127.0.0.1:8021/api/**", (route) => route.abort());
+  await page.route("http://127.0.0.1:17842/status", (route) => route.abort());
   await routeAuthenticatedSession(page);
   await page.route("http://127.0.0.1:8021/api/advertisements", (route) =>
     route.fulfill({
@@ -487,6 +488,7 @@ test("content library rows can queue a saved submission", { timeout: 40000 }, as
   const savedQueueItems = [];
   page.on("pageerror", (error) => pageErrors.push(error));
   await page.route("http://127.0.0.1:8021/api/**", (route) => route.abort());
+  await page.route("http://127.0.0.1:17842/status", (route) => route.abort());
   await routeAuthenticatedSession(page);
   await routeEmptyWorkspaceApis(page);
   await page.route("http://127.0.0.1:8021/api/queue/**", (route) => {
@@ -2063,11 +2065,12 @@ test("running the queue prepares the local runner and shows failure explanations
         lastStartedAt: "2026-06-20T01:00:00.000Z",
         lastFinishedAt: "2026-06-20T01:00:10.000Z",
         lastExitCode: 1,
-        lastError: "",
+        lastError: "Local runner exited with code 1. Close any open Inkwell Tumblr browser windows, then try again. Check the runner log for details.",
       }),
     }),
   );
-  await page.getByText("Local companion connected; last run failed").waitFor();
+  await page.getByText("Local companion needs attention").waitFor();
+  await page.getByText("Close any open Inkwell Tumblr browser windows, then try again.").waitFor();
   await page.getByText("Why this failed").waitFor();
   await page.getByText("The Playwright browser or tab closed before the runner finished.").waitFor();
   await page.getByText("Use Retry test run after fixing the blocker.").waitFor();

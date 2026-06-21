@@ -171,3 +171,81 @@ test("local companion opens Tumblr login helper requests", async () => {
     child.kill();
   }
 });
+
+test("local companion reports actionable errors after runner failures", async () => {
+  const port = 22000 + Math.floor(Math.random() * 1000);
+  const plan = {
+    runId: "local-run-failure-test",
+    userDataDir: ".tumblr-test-profile",
+    items: [
+      {
+        id: "queue-item-1",
+        targetName: "inkwell-test",
+        submitUrl: "https://inkwell-test.tumblr.com/submit",
+        postType: "photo",
+        runnerPayload: "{}",
+      },
+    ],
+  };
+  const child = spawn(
+    process.execPath,
+    [
+      "scripts/tumblr-local-runner.mjs",
+      "--serve",
+      "--companion-port",
+      String(port),
+      "--api-base",
+      "https://inkwell-production-f037.up.railway.app/api",
+      "--workspace-id",
+      "workspace-test",
+      "--queue",
+      "Adverts",
+      "--token",
+      "test-token",
+    ],
+    {
+      cwd: process.cwd(),
+      env: {
+        ...process.env,
+        INWELL_LOCAL_PLAN_JSON: JSON.stringify(plan),
+        INWELL_LOCAL_RUNNER_SCRIPT: "tests/fixtures/local-runner-fail-stub.mjs",
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
+
+  try {
+    await waitForOutput(child, /Companion server listening/);
+    const response = await fetch(`http://127.0.0.1:${port}/run`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: "http://127.0.0.1:8123",
+      },
+      body: JSON.stringify({ queueName: "Adverts", headless: true, submit: false }),
+    });
+
+    assert.equal(response.status, 202);
+    const started = await response.json();
+    assert.equal(started.accepted, true);
+    assert.equal(started.lastExitCode, null);
+    assert.equal(started.lastError, "");
+
+    let status;
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      const statusResponse = await fetch(`http://127.0.0.1:${port}/status`);
+      status = await statusResponse.json();
+      if (status.status === "error") {
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+
+    assert.equal(status.status, "error");
+    assert.equal(status.lastExitCode, 9);
+    assert.match(status.lastError, /Local runner exited with code 9/);
+    assert.match(status.lastError, /Close any open Inkwell Tumblr browser windows/);
+  } finally {
+    child.kill();
+  }
+});
