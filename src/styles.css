@@ -3035,19 +3035,54 @@ html[data-theme="dark"] .operation-card {
   background: rgba(17, 26, 35, 0.86);
 }
 
+html[data-theme="dark"] .run-readiness-panel,
+html[data-theme="dark"] .attention-queue-panel {
+  border-color: rgba(95, 179, 197, 0.2);
+  background: rgba(17, 26, 35, 0.9);
+}
+
+html[data-theme="dark"] .run-readiness-ready {
+  border-left-color: var(--green);
+}
+
+html[data-theme="dark"] .run-readiness-review,
+html[data-theme="dark"] .run-readiness-blocked {
+  border-left-color: var(--red);
+}
+
+html[data-theme="dark"] .run-readiness-empty {
+  border-left-color: var(--amber);
+}
+
 html[data-theme="dark"] .operation-card-warning {
   border-left-color: var(--amber);
   background: rgba(44, 36, 21, 0.82);
 }
 
-html[data-theme="dark"] .operation-card-icon {
+html[data-theme="dark"] .operation-card-icon,
+html[data-theme="dark"] .run-readiness-icon {
   background: rgba(95, 179, 197, 0.12);
   color: #9fd8e6;
 }
 
 html[data-theme="dark"] .operation-card span,
-html[data-theme="dark"] .operation-card small {
+html[data-theme="dark"] .operation-card small,
+html[data-theme="dark"] .run-readiness-copy span,
+html[data-theme="dark"] .run-readiness-copy small,
+html[data-theme="dark"] .run-readiness-blockers,
+html[data-theme="dark"] .attention-queue-heading,
+html[data-theme="dark"] .attention-queue-list span {
   color: #a9c4ca;
+}
+
+html[data-theme="dark"] .run-readiness-copy strong,
+html[data-theme="dark"] .attention-queue-list strong {
+  color: #f4f8fb;
+}
+
+html[data-theme="dark"] .attention-queue-list article {
+  border-color: rgba(240, 191, 103, 0.24);
+  background: rgba(44, 36, 21, 0.72);
 }
 
 html[data-theme="dark"] .sidebar {
