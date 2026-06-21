@@ -2362,6 +2362,7 @@ def local_runner_package(api_base_url: str, workspace_id: str, queue_name: str, 
         "scripts": {
             "tumblr:install-browsers": "playwright install chromium",
             "tumblr:runner:install-autostart": "powershell -ExecutionPolicy Bypass -File scripts/install-local-runner-autostart.ps1",
+            "tumblr:login": "node scripts/tumblr-login.mjs",
             "tumblr:runner:local": "node scripts/tumblr-local-runner.mjs",
             "tumblr:runner": "node scripts/tumblr-runner.mjs",
         },
@@ -2417,6 +2418,7 @@ pause
         archive.writestr(f"{package_name}/install.cmd", install_cmd)
         for script_name in (
             "tumblr-local-runner.mjs",
+            "tumblr-login.mjs",
             "tumblr-runner.mjs",
             "tumblr-runner-core.mjs",
             "install-local-runner-autostart.ps1",

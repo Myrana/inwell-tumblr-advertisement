@@ -226,6 +226,39 @@ function companionStatus(options, state) {
   };
 }
 
+function localLoginScriptPath() {
+  return process.env.INWELL_LOCAL_LOGIN_SCRIPT || path.join(process.cwd(), "scripts", "tumblr-login.mjs");
+}
+
+function launchLocalLogin(payload, options, state) {
+  const loginOptions = {
+    userDataDir: String(payload?.userDataDir || options.userDataDir || "").trim() || options.userDataDir,
+    slowMo: String(payload?.slowMo || options.slowMo || "500"),
+  };
+  const loginArgs = [
+    localLoginScriptPath(),
+    "--user-data-dir",
+    loginOptions.userDataDir,
+    "--slow-mo",
+    loginOptions.slowMo,
+  ];
+  const child = spawn(process.execPath, loginArgs, {
+    cwd: process.cwd(),
+    detached: true,
+    stdio: "ignore",
+  });
+  child.unref();
+  state.status = options.watch ? "watching" : "idle";
+  state.lastError = "";
+  state.lastStartedAt = new Date().toISOString();
+  return {
+    ...companionStatus(options, state),
+    accepted: true,
+    pid: child.pid,
+    message: "Tumblr login window opened on this computer.",
+  };
+}
+
 function readRequestJson(request) {
   return new Promise((resolve, reject) => {
     let body = "";
@@ -306,6 +339,16 @@ function startCompanionServer(options, state) {
         console.error(`[local-runner:error] ${error instanceof Error ? error.message : String(error)}`);
       });
       sendJson(response, 202, { ...companionStatus(runOptions, state), accepted: true }, origin);
+      return;
+    }
+    if (request.method === "POST" && url.pathname === "/login") {
+      if (state.running) {
+        sendJson(response, 409, { ...companionStatus(options, state), accepted: false, error: "Local runner is already running." }, origin);
+        return;
+      }
+      const payload = await readRequestJson(request).catch(() => ({}));
+      const login = launchLocalLogin(payload, options, state);
+      sendJson(response, 202, login, origin);
       return;
     }
     sendJson(response, 404, { error: "Not found" }, origin);

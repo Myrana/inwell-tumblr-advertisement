@@ -121,3 +121,53 @@ test("local companion accepts headless dry-run requests", async () => {
     child.kill();
   }
 });
+
+test("local companion opens Tumblr login helper requests", async () => {
+  const port = 21000 + Math.floor(Math.random() * 1000);
+  const child = spawn(
+    process.execPath,
+    [
+      "scripts/tumblr-local-runner.mjs",
+      "--serve",
+      "--companion-port",
+      String(port),
+      "--api-base",
+      "https://inkwell-production-f037.up.railway.app/api",
+      "--workspace-id",
+      "workspace-test",
+      "--queue",
+      "Adverts",
+      "--token",
+      "test-token",
+    ],
+    {
+      cwd: process.cwd(),
+      env: {
+        ...process.env,
+        INWELL_LOCAL_LOGIN_SCRIPT: "tests/fixtures/local-login-stub.mjs",
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
+
+  try {
+    await waitForOutput(child, /Companion server listening/);
+    const response = await fetch(`http://127.0.0.1:${port}/login`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: "http://127.0.0.1:8123",
+      },
+      body: JSON.stringify({ accountId: "snowleopardx", userDataDir: ".tumblr-test-profile", slowMo: 25 }),
+    });
+
+    assert.equal(response.status, 202);
+    const payload = await response.json();
+    assert.equal(payload.accepted, true);
+    assert.equal(payload.running, false);
+    assert.equal(payload.message, "Tumblr login window opened on this computer.");
+    assert.equal(typeof payload.pid, "number");
+  } finally {
+    child.kill();
+  }
+});

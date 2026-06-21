@@ -1124,7 +1124,8 @@ test("tumblr accounts can be saved and selected for queue runs", { timeout: 4000
     "Access-Control-Allow-Credentials": "true",
   };
   let savedAccount = null;
-  let loginPayload = null;
+  let localLoginPayload = null;
+  let deployedLoginPayload = null;
   const loginCheckPayloads = [];
 
   page.on("pageerror", (error) => pageErrors.push(error));
@@ -1164,8 +1165,52 @@ test("tumblr accounts can be saved and selected for queue runs", { timeout: 4000
       }),
     });
   });
+  await page.route("http://127.0.0.1:17842/status", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        version: "local-runner-test",
+        apiBaseUrl: "http://127.0.0.1:8021/api",
+        workspaceId: "workspace-test",
+        queueName: "Adverts",
+        submit: false,
+        watching: true,
+        running: false,
+        status: "watching",
+        lastStartedAt: "",
+        lastFinishedAt: "",
+        lastExitCode: null,
+        lastError: "",
+      }),
+    }),
+  );
+  await page.route("http://127.0.0.1:17842/login", (route) => {
+    localLoginPayload = route.request().postDataJSON();
+    return route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        version: "local-runner-test",
+        apiBaseUrl: "http://127.0.0.1:8021/api",
+        workspaceId: "workspace-test",
+        queueName: "Adverts",
+        submit: false,
+        watching: true,
+        running: false,
+        status: "watching",
+        lastStartedAt: "2026-06-20T12:00:00.000Z",
+        lastFinishedAt: "",
+        lastExitCode: null,
+        lastError: "",
+        accepted: true,
+        pid: 9191,
+        message: "Tumblr login window opened on this computer.",
+      }),
+    });
+  });
   await page.route("http://127.0.0.1:8021/api/tumblr/login", (route) => {
-    loginPayload = route.request().postDataJSON();
+    deployedLoginPayload = route.request().postDataJSON();
     return route.fulfill({
       contentType: "application/json",
       headers: apiHeaders,
@@ -1217,15 +1262,16 @@ test("tumblr accounts can be saved and selected for queue runs", { timeout: 4000
   await page.getByText("Added Myrana Tumblr.").waitFor();
   assert.equal(savedAccount?.id, "snowleopardx");
   assert.equal(savedAccount?.status, "needs-login");
-  await page.getByText("Start a local runner test, complete Tumblr login if prompted, then mark the account connected.").waitFor();
+  await page.getByText("Click Connect on an account to open Tumblr login through the local runner.").waitFor();
   await page.getByLabel("Tumblr account health").getByText("1 need attention out of 1").waitFor();
   await page.getByLabel("Tumblr account health").getByText("Stale check").waitFor();
   assert.equal(await page.getByLabel("Runner account").inputValue(), "");
   assert.equal(await page.getByLabel("Runner account").isDisabled(), true);
 
   await page.getByRole("button", { name: "Connect", exact: true }).click();
-  await page.getByText("Tumblr login happens in the local runner on this computer.").waitFor();
-  assert.equal(loginPayload, null);
+  await page.locator(".queue-status").getByText("Tumblr login window opened on this computer.", { exact: true }).waitFor();
+  assert.equal(localLoginPayload?.accountId, "snowleopardx");
+  assert.equal(deployedLoginPayload, null);
 
   await page.getByRole("button", { name: "Mark connected" }).click();
   await page.getByText("Myrana Tumblr is ready").waitFor();
@@ -1254,7 +1300,7 @@ test("tumblr accounts can be saved and selected for queue runs", { timeout: 4000
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
 });
 
-test("tumblr account connect does not call the deployed login helper", { timeout: 40000 }, async (t) => {
+test("tumblr account connect uses local companion instead of deployed login helper", { timeout: 40000 }, async (t) => {
   const server = spawn("npx vite --host 127.0.0.1 --port 8123 --strictPort", {
     cwd: process.cwd(),
     shell: true,
@@ -1275,6 +1321,7 @@ test("tumblr account connect does not call the deployed login helper", { timeout
   const page = await browser.newPage();
   const pageErrors = [];
   let loginCallCount = 0;
+  let localLoginCallCount = 0;
   page.on("pageerror", (error) => pageErrors.push(error));
   await page.route("http://127.0.0.1:8021/api/**", (route) => route.abort());
   await routeAuthenticatedSession(page);
@@ -1328,15 +1375,60 @@ test("tumblr account connect does not call the deployed login helper", { timeout
       });
     },
   );
+  await page.route("http://127.0.0.1:17842/status", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        version: "local-runner-test",
+        apiBaseUrl: "http://127.0.0.1:8021/api",
+        workspaceId: "workspace-test",
+        queueName: "Adverts",
+        submit: false,
+        watching: false,
+        running: false,
+        status: "idle",
+        lastStartedAt: "",
+        lastFinishedAt: "",
+        lastExitCode: null,
+        lastError: "",
+      }),
+    }),
+  );
+  await page.route("http://127.0.0.1:17842/login", (route) => {
+    localLoginCallCount += 1;
+    return route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        version: "local-runner-test",
+        apiBaseUrl: "http://127.0.0.1:8021/api",
+        workspaceId: "workspace-test",
+        queueName: "Adverts",
+        submit: false,
+        watching: false,
+        running: false,
+        status: "idle",
+        lastStartedAt: "2026-06-20T12:00:00.000Z",
+        lastFinishedAt: "",
+        lastExitCode: null,
+        lastError: "",
+        accepted: true,
+        pid: 9191,
+        message: "Tumblr login window opened on this computer.",
+      }),
+    });
+  });
 
   await page.goto(appUrl);
   await openWorkspaceView(page, "Tumblr Accounts");
   await page.getByRole("heading", { name: "Tumblr accounts", level: 1 }).waitFor();
   await page.getByRole("button", { name: "Connect", exact: true }).click();
-  await page.getByText("Tumblr login happens in the local runner on this computer.").waitFor();
+  await page.locator(".queue-status").getByText("Tumblr login window opened on this computer.", { exact: true }).waitFor();
   assert.equal(await page.getByText("Login helper launched. Complete Tumblr login in the visible browser.").count(), 0);
   assert.equal(loginCallCount, 0);
-  await page.getByText("Start the local runner or a test run on this computer").waitFor();
+  assert.equal(localLoginCallCount, 1);
+  await page.getByText("Finish login, leave Tumblr dashboard open, then mark this account connected.").waitFor();
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
 });
 
@@ -1431,7 +1523,7 @@ test("tumblr account settings hide remote browser providers and ignore legacy va
   assert.equal(await page.getByText("Custom live browser URL").count(), 0);
   assert.equal(await page.getByText("Remote Tumblr login is selected").count(), 0);
   assert.equal(await page.getByRole("textbox", { name: "Live browser URL" }).count(), 0);
-  await page.getByText("Start a local runner test, complete Tumblr login if prompted, then mark the account connected.").waitFor();
+  await page.getByText("Click Connect on an account to open Tumblr login through the local runner.").waitFor();
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
 });
 

@@ -14,12 +14,18 @@ async function main() {
   await page.goto("https://www.tumblr.com/login", { waitUntil: "domcontentloaded", timeout: 60000 });
   console.log("[login] A Playwright Chromium window is open.");
   console.log("[login] Log into Tumblr manually in that window, including any captcha or verification.");
-  console.log("[login] Keep the dashboard open until it is stable, then press Enter here to close the helper.");
+  console.log("[login] Keep the dashboard open until it is stable.");
 
-  await new Promise((resolve) => {
-    process.stdin.resume();
-    process.stdin.once("data", resolve);
-  });
+  if (process.stdin.isTTY) {
+    console.log("[login] Press Enter here to close the helper.");
+    await new Promise((resolve) => {
+      process.stdin.resume();
+      process.stdin.once("data", resolve);
+    });
+  } else {
+    console.log("[login] Close the browser window when login is complete.");
+    await new Promise((resolve) => context.once("close", resolve));
+  }
 
   await context.close();
 }
