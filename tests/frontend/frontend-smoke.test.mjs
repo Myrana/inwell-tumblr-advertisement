@@ -1615,14 +1615,65 @@ test("runner logs are grouped by expandable queue run", { timeout: 40000 }, asyn
     route.fulfill({
       contentType: "application/json",
       headers: apiHeaders,
-      body: JSON.stringify({ running: false, pid: null, plan_path: "", command: [] }),
+      body: JSON.stringify({
+        runner: {
+          running: true,
+          pid: 4420,
+          plan_path: "C:/Temp/inwell-local-runner-run-new.json",
+          command: [],
+          run_id: "run-new",
+        },
+      }),
     }),
   );
   await page.route("http://127.0.0.1:8021/api/queue", (route) =>
     route.fulfill({
       contentType: "application/json",
       headers: apiHeaders,
-      body: JSON.stringify({ queue: [] }),
+      body: JSON.stringify({
+        queue: [
+          {
+            id: "queue-new",
+            ad_id: "ad-new",
+            target_id: "allthingsroleplay",
+            target_name: "allthingsroleplay",
+            tumblr_account_id: "snowleopardx",
+            queue_name: "Default queue",
+            submit_url: "https://allthingsroleplay.tumblr.com/submit",
+            post_type: "photo",
+            status: "running",
+            scheduled_for: null,
+            timezone: "America/New_York",
+            created_at: "2026-06-18T21:00:00.000Z",
+            updated_at: "2026-06-18T21:29:00.000Z",
+            last_run_at: "2026-06-18T21:29:00.000Z",
+            posted_at: null,
+            failed_at: null,
+            notes: "Runner is filling Tumblr.",
+            runner_payload: "{}",
+          },
+          {
+            id: "queue-new-jcink",
+            ad_id: "ad-new",
+            target_id: "jcinktinder",
+            target_name: "jcinktinder",
+            tumblr_account_id: "snowleopardx",
+            queue_name: "Default queue",
+            submit_url: "https://jcinktinder.tumblr.com/submit",
+            post_type: "photo",
+            status: "queued",
+            scheduled_for: null,
+            timezone: "America/New_York",
+            created_at: "2026-06-18T21:00:00.000Z",
+            updated_at: "2026-06-18T21:00:00.000Z",
+            last_run_at: null,
+            posted_at: null,
+            failed_at: null,
+            notes: "Waiting for runner.",
+            runner_payload: "{}",
+          },
+        ],
+      }),
     }),
   );
   await page.route("http://127.0.0.1:8021/api/advertisements", (route) =>
@@ -1650,11 +1701,14 @@ test("runner logs are grouped by expandable queue run", { timeout: 40000 }, asyn
   await page.goto(appUrl);
   await openWorkspaceView(page, "Runner Logs");
   await page.getByRole("heading", { name: "Runner logs", level: 1 }).waitFor();
-  await page.getByLabel("Latest runner summary").getByText("Latest run summary").waitFor();
+  await page.getByLabel("Current queue timeline").getByText("Current queue timeline").waitFor();
+  await page.getByLabel("Current queue timeline").getByText("Run run-new is running").waitFor();
+  await page.getByLabel("Current queue timeline").getByText("1 running").waitFor();
+  await page.getByLabel("Current queue timeline").getByText("1 waiting").waitFor();
   await page.getByLabel("Latest run target summaries").getByText("allthingsroleplay").waitFor();
   await page.getByLabel("Latest run target summaries").getByText("jcinktinder").waitFor();
   await page.getByRole("button", { name: /Latest run run-new/ }).waitFor();
-  assert.equal(await page.locator(".queue-log strong", { hasText: "Fields filled and ready for manual review." }).count(), 1);
+  assert.equal(await page.locator(".queue-log strong", { hasText: "Fields filled and ready for manual review." }).count(), 0);
   await page.getByLabel("Run run-new target summaries").getByText("allthingsroleplay").waitFor();
   await page.getByLabel("Run run-new target summaries").getByText("jcinktinder").waitFor();
   await page.getByLabel("Run run-new target summaries").getByText("Submitted").waitFor();
@@ -1669,7 +1723,7 @@ test("runner logs are grouped by expandable queue run", { timeout: 40000 }, asyn
   await page.getByRole("button", { name: /Run run-old/ }).waitFor();
   assert.equal(await page.locator(".queue-log strong", { hasText: "Needs manual review." }).count(), 0);
   await page.getByRole("button", { name: /Run run-old/ }).click();
-  await page.locator(".queue-log strong", { hasText: "Needs manual review." }).waitFor();
+  await page.getByLabel("Run run-old step timeline").getByText("Needs review").waitFor();
   assert.match((await page.getByRole("button", { name: /Run run-old/ }).textContent()) ?? "", /1 warning/);
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
 });
