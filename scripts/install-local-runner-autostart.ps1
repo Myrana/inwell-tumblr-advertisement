@@ -30,6 +30,25 @@ function Quote-PowerShell([string]$Value) {
   "'" + $Value.Replace("'", "''") + "'"
 }
 
+function Resolve-NpmCommand {
+  $command = Get-Command "npm.cmd" -ErrorAction SilentlyContinue
+  if ($command -and -not [string]::IsNullOrWhiteSpace($command.Source)) {
+    return $command.Source
+  }
+
+  $programFilesPath = Join-Path $env:ProgramFiles "nodejs\npm.cmd"
+  if (Test-Path -LiteralPath $programFilesPath) {
+    return $programFilesPath
+  }
+
+  $localAppDataPath = Join-Path ([Environment]::GetFolderPath("LocalApplicationData")) "Programs\nodejs\npm.cmd"
+  if (Test-Path -LiteralPath $localAppDataPath) {
+    return $localAppDataPath
+  }
+
+  throw "Could not find npm.cmd. Install Node.js 20 or newer, then run this installer again."
+}
+
 function Safe-FileName([string]$Value) {
   $safe = $Value
   foreach ($char in [System.IO.Path]::GetInvalidFileNameChars()) {
@@ -43,6 +62,7 @@ $installRoot = Join-Path $launcherRoot "runner"
 $launcherName = Safe-FileName $TaskName
 $launcherPs1 = Join-Path $launcherRoot "$launcherName.ps1"
 $launcherCmd = Join-Path $launcherRoot "$launcherName.cmd"
+$npmCommand = Resolve-NpmCommand
 
 function Normalize-Path([string]$Value) {
   [System.IO.Path]::GetFullPath($Value).TrimEnd([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar)
@@ -75,7 +95,7 @@ function Install-RunnerLauncher {
     'try {',
     '  $env:INWELL_LOCAL_RUNNER_TOKEN = [Environment]::GetEnvironmentVariable("INWELL_LOCAL_RUNNER_TOKEN", "User")',
     "  Set-Location -LiteralPath $(Quote-PowerShell $repoRoot.Path)",
-    "  npm.cmd run tumblr:runner:local -- --api-base $(Quote-PowerShell $ApiBase) --workspace-id $(Quote-PowerShell $WorkspaceId) --queue $(Quote-PowerShell $Queue) --user-data-dir $(Quote-PowerShell $UserDataDir) --watch --serve --companion-port $CompanionPort$submitArg --interval-seconds $IntervalSeconds",
+    "  & $(Quote-PowerShell $npmCommand) run tumblr:runner:local -- --api-base $(Quote-PowerShell $ApiBase) --workspace-id $(Quote-PowerShell $WorkspaceId) --queue $(Quote-PowerShell $Queue) --user-data-dir $(Quote-PowerShell $UserDataDir) --serve --companion-port $CompanionPort$submitArg --interval-seconds $IntervalSeconds",
     '  if ($LASTEXITCODE -ne 0) { throw "Local runner exited with code $LASTEXITCODE." }',
     '} finally {',
     '  try { Stop-Transcript | Out-Null } catch {}',
@@ -109,12 +129,35 @@ function Install-StartupLauncher {
 
   $baseName = Safe-FileName $TaskName
   $startupCmd = Join-Path $startupDir "$baseName.cmd"
+  $legacyStartupPs1 = Join-Path $startupDir "$baseName.ps1"
   $startupBatch = @"
 @echo off
 call "$launcherCmd"
 "@
   Set-Content -LiteralPath $startupCmd -Value $startupBatch -Encoding ASCII
+  if (Test-Path -LiteralPath $legacyStartupPs1) {
+    Remove-Item -LiteralPath $legacyStartupPs1 -Force
+  }
   Write-Host "Installed Startup folder launcher: $startupCmd"
+}
+
+function Test-CompanionOnline {
+  try {
+    $response = Invoke-WebRequest -Uri "http://127.0.0.1:$CompanionPort/status" -UseBasicParsing -TimeoutSec 2
+    return $response.StatusCode -eq 200
+  } catch {
+    return $false
+  }
+}
+
+function Start-RunnerLauncher {
+  if (Test-CompanionOnline) {
+    Write-Host "Local runner companion is already online."
+    return
+  }
+
+  Start-Process -FilePath $launcherCmd -WindowStyle Hidden | Out-Null
+  Write-Host "Started local runner companion."
 }
 
 Install-RunnerLauncher
@@ -134,5 +177,6 @@ try {
   Write-Warning "Could not register scheduled task: $($_.Exception.Message)"
   Install-StartupLauncher
 }
+Start-RunnerLauncher
 Write-Host "Queue: $Queue"
 Write-Host "API: $ApiBase"
