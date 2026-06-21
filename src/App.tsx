@@ -192,9 +192,7 @@ function App() {
         return "Local companion running";
       }
       if (localCompanion.status === "error") {
-        return localCompanion.lastError
-          ? `Local companion connected: ${localCompanion.lastError}`
-          : "Local companion connected; last run failed";
+        return "Local companion needs attention";
       }
       if (localCompanion.status === "watching") {
         return localCompanion.queueName ? `Local companion watching: ${localCompanion.queueName}` : "Local companion watching";
