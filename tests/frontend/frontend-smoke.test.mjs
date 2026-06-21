@@ -1217,15 +1217,15 @@ test("tumblr accounts can be saved and selected for queue runs", { timeout: 4000
   await page.getByText("Added Myrana Tumblr.").waitFor();
   assert.equal(savedAccount?.id, "snowleopardx");
   assert.equal(savedAccount?.status, "needs-login");
-  await page.getByText("Connect a Tumblr account below before selecting one for the runner.").waitFor();
+  await page.getByText("Start a local runner test, complete Tumblr login if prompted, then mark the account connected.").waitFor();
   await page.getByLabel("Tumblr account health").getByText("1 need attention out of 1").waitFor();
   await page.getByLabel("Tumblr account health").getByText("Stale check").waitFor();
   assert.equal(await page.getByLabel("Runner account").inputValue(), "");
   assert.equal(await page.getByLabel("Runner account").isDisabled(), true);
 
   await page.getByRole("button", { name: "Connect", exact: true }).click();
-  await page.getByText("Login helper opened in process 9191.").waitFor();
-  assert.equal(loginPayload?.accountId, "snowleopardx");
+  await page.getByText("Tumblr login happens in the local runner on this computer.").waitFor();
+  assert.equal(loginPayload, null);
 
   await page.getByRole("button", { name: "Mark connected" }).click();
   await page.getByText("Myrana Tumblr is ready").waitFor();
@@ -1254,7 +1254,7 @@ test("tumblr accounts can be saved and selected for queue runs", { timeout: 4000
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
 });
 
-test("tumblr login helper failure does not mark account as launched", { timeout: 40000 }, async (t) => {
+test("tumblr account connect does not call the deployed login helper", { timeout: 40000 }, async (t) => {
   const server = spawn("npx vite --host 127.0.0.1 --port 8123 --strictPort", {
     cwd: process.cwd(),
     shell: true,
@@ -1274,7 +1274,7 @@ test("tumblr login helper failure does not mark account as launched", { timeout:
 
   const page = await browser.newPage();
   const pageErrors = [];
-  const unsupportedMessage = "Tumblr login helper needs a visible browser on your local desktop. Railway cannot show that browser.";
+  let loginCallCount = 0;
   page.on("pageerror", (error) => pageErrors.push(error));
   await page.route("http://127.0.0.1:8021/api/**", (route) => route.abort());
   await routeAuthenticatedSession(page);
@@ -1318,25 +1318,29 @@ test("tumblr login helper failure does not mark account as launched", { timeout:
     }),
   );
   await page.route("http://127.0.0.1:8021/api/tumblr/login", (route) =>
-    route.fulfill({
-      contentType: "application/json",
-      headers: apiHeaders,
-      status: 400,
-      body: JSON.stringify({ error: unsupportedMessage }),
-    }),
+    {
+      loginCallCount += 1;
+      return route.fulfill({
+        contentType: "application/json",
+        headers: apiHeaders,
+        status: 400,
+        body: JSON.stringify({ error: "Deployed login helper should not be called." }),
+      });
+    },
   );
 
   await page.goto(appUrl);
   await openWorkspaceView(page, "Tumblr Accounts");
   await page.getByRole("heading", { name: "Tumblr accounts", level: 1 }).waitFor();
   await page.getByRole("button", { name: "Connect", exact: true }).click();
-  await page.getByText(unsupportedMessage).waitFor();
+  await page.getByText("Tumblr login happens in the local runner on this computer.").waitFor();
   assert.equal(await page.getByText("Login helper launched. Complete Tumblr login in the visible browser.").count(), 0);
-  await page.getByText("Connect a browser session before queue runs.").waitFor();
+  assert.equal(loginCallCount, 0);
+  await page.getByText("Start the local runner or a test run on this computer").waitFor();
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
 });
 
-test("tumblr account settings do not offer Browserbase and legacy values fall back to local desktop", { timeout: 40000 }, async (t) => {
+test("tumblr account settings hide remote browser providers and ignore legacy values", { timeout: 40000 }, async (t) => {
   const server = spawn("npx vite --host 127.0.0.1 --port 8123 --strictPort", {
     cwd: process.cwd(),
     shell: true,
@@ -1422,12 +1426,12 @@ test("tumblr account settings do not offer Browserbase and legacy values fall ba
   await page.goto(appUrl);
   await openWorkspaceView(page, "Tumblr Accounts");
   await page.getByRole("heading", { name: "Tumblr accounts", level: 1 }).waitFor();
-  const providerSelect = page.getByLabel("Browser provider");
-  assert.equal(await providerSelect.inputValue(), "none");
-  const providerOptions = await providerSelect.locator("option").allTextContents();
-  assert.deepEqual(providerOptions, ["Local desktop", "Browserless", "Custom live browser URL"]);
-  assert.equal(providerOptions.includes("Browserbase"), false);
+  assert.equal(await page.getByLabel("Browser provider").count(), 0);
+  assert.equal(await page.getByText("Browserless").count(), 0);
+  assert.equal(await page.getByText("Custom live browser URL").count(), 0);
+  assert.equal(await page.getByText("Remote Tumblr login is selected").count(), 0);
   assert.equal(await page.getByRole("textbox", { name: "Live browser URL" }).count(), 0);
+  await page.getByText("Start a local runner test, complete Tumblr login if prompted, then mark the account connected.").waitFor();
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
 });
 

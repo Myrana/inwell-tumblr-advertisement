@@ -69,7 +69,7 @@ export function normalizeRunnerSettings(value: unknown): RunnerSettings {
     submit: Boolean(parsed.submit),
     tumblrAccountId: typeof parsed.tumblrAccountId === "string" ? parsed.tumblrAccountId : "",
     remoteBrowserProvider: provider,
-    remoteBrowserLaunchUrl: typeof parsed.remoteBrowserLaunchUrl === "string" ? parsed.remoteBrowserLaunchUrl : "",
+    remoteBrowserLaunchUrl: provider === "none" ? "" : typeof parsed.remoteBrowserLaunchUrl === "string" ? parsed.remoteBrowserLaunchUrl : "",
   };
 }
 
@@ -85,8 +85,8 @@ function defaultRunnerSettings(): RunnerSettings {
   };
 }
 
-function normalizeRemoteBrowserProvider(value: unknown): RemoteBrowserProvider {
-  return value === "browserless" || value === "custom" ? value : "none";
+function normalizeRemoteBrowserProvider(_value: unknown): RemoteBrowserProvider {
+  return "none";
 }
 
 export function loadTumblrAccounts(): TumblrAccount[] {

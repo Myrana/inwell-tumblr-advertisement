@@ -970,8 +970,8 @@ class PersistenceTests(unittest.TestCase):
                 "slowMo": 750,
                 "submit": True,
                 "tumblrAccountId": "snowleopardx",
-                "remoteBrowserProvider": "custom",
-                "remoteBrowserLaunchUrl": "https://browser.example/live/snow",
+                "remoteBrowserProvider": "none",
+                "remoteBrowserLaunchUrl": "",
             },
         )
         self.assertEqual(saved["queueScheduleSettings"]["dailyTime"], "08:30")
@@ -982,8 +982,8 @@ class PersistenceTests(unittest.TestCase):
         self.assertEqual(self.connection.queue_definitions["daily-adverts"]["name"], "Daily adverts")
         self.assertEqual(self.connection.runner_settings["default"]["slow_mo"], 750)
         self.assertEqual(self.connection.runner_settings["default"]["tumblr_account_id"], "snowleopardx")
-        self.assertEqual(self.connection.runner_settings["default"]["remote_browser_provider"], "custom")
-        self.assertEqual(self.connection.runner_settings["default"]["remote_browser_launch_url"], "https://browser.example/live/snow")
+        self.assertEqual(self.connection.runner_settings["default"]["remote_browser_provider"], "none")
+        self.assertEqual(self.connection.runner_settings["default"]["remote_browser_launch_url"], "")
         self.assertEqual(self.connection.queue_schedule_settings["default"]["daily_time"], "08:30")
         self.assertEqual(self.connection.queue_schedule_settings["queue:Daily adverts"]["daily_time"], "10:15")
         self.assertGreater(len(self.connection.settings_audit_events), 0)
@@ -1008,13 +1008,13 @@ class PersistenceTests(unittest.TestCase):
         self.assertEqual(saved["runnerSettings"]["remoteBrowserLaunchUrl"], "")
         self.assertEqual(saved["queueScheduleSettings"]["dailyTime"], "09:00")
 
-    def test_app_settings_uses_browserless_env_as_default_provider(self) -> None:
+    def test_app_settings_ignores_remote_env_provider(self) -> None:
         upsert_app_settings(self.connection, {"runnerSettings": {"remoteBrowserProvider": "none"}}, audit=False)
 
         with patch.dict(os.environ, {"REMOTE_BROWSER_PROVIDER": "browserless"}, clear=True):
             settings = get_app_settings(self.connection)
 
-        self.assertEqual(settings["runnerSettings"]["remoteBrowserProvider"], "browserless")
+        self.assertEqual(settings["runnerSettings"]["remoteBrowserProvider"], "none")
 
     def test_app_settings_ignores_browserbase_env_provider(self) -> None:
         upsert_app_settings(self.connection, {"runnerSettings": {"remoteBrowserProvider": "none"}}, audit=False)
@@ -1024,23 +1024,11 @@ class PersistenceTests(unittest.TestCase):
 
         self.assertEqual(settings["runnerSettings"]["remoteBrowserProvider"], "none")
 
-    def test_remote_tumblr_login_launch_requires_configured_url(self) -> None:
+    def test_remote_tumblr_login_launch_is_disabled(self) -> None:
         self.assertIsNone(remote_tumblr_login_launch({"remoteBrowserProvider": "none"}))
-
         self.assertIsNone(remote_tumblr_login_launch({"remoteBrowserProvider": "browserbase"}))
-
-        with self.assertRaisesRegex(ValueError, "no live browser URL"):
-            remote_tumblr_login_launch({"remoteBrowserProvider": "custom"})
-
-        with self.assertRaisesRegex(ValueError, "must start"):
-            remote_tumblr_login_launch({"remoteBrowserProvider": "custom", "remoteBrowserLaunchUrl": "browser.example/live"})
-
-        launch = remote_tumblr_login_launch(
-            {"remoteBrowserProvider": "custom", "remoteBrowserLaunchUrl": "https://browser.example/live/snow"}
-        )
-        self.assertEqual(launch["mode"], "remote")
-        self.assertEqual(launch["provider"], "custom")
-        self.assertEqual(launch["launchUrl"], "https://browser.example/live/snow")
+        self.assertIsNone(remote_tumblr_login_launch({"remoteBrowserProvider": "browserless"}))
+        self.assertIsNone(remote_tumblr_login_launch({"remoteBrowserProvider": "custom", "remoteBrowserLaunchUrl": "https://browser.example/live/snow"}))
 
     def test_settings_statistics_count_relational_rows(self) -> None:
         upsert_app_settings(

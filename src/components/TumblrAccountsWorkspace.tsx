@@ -1,12 +1,11 @@
 import { FormEvent } from "react";
 import { FileText, LogIn, RefreshCw, ShieldCheck, Trash2, UserPlus } from "lucide-react";
 import { formatDate } from "../domain/format";
-import { RunnerSettings, TumblrAccount } from "../domain/types";
+import { TumblrAccount } from "../domain/types";
 
 type TumblrAccountsWorkspaceProps = {
   accounts: TumblrAccount[];
   draft: { displayName: string; blogName: string };
-  runnerSettings: RunnerSettings;
   status: string;
   selectedAccountId: string;
   onCreateSubmission: () => void;
@@ -17,7 +16,6 @@ type TumblrAccountsWorkspaceProps = {
   onCheckLogin: (id: string) => void;
   onLaunchLogin: (id: string) => void;
   onMarkConnected: (id: string) => void;
-  onRunnerSettingsChange: (patch: Partial<RunnerSettings>) => void;
   onSelectAccount: (id: string) => void;
 };
 
@@ -42,7 +40,6 @@ function isAccountHealthStale(account: TumblrAccount, now = new Date()) {
 export function TumblrAccountsWorkspace({
   accounts,
   draft,
-  runnerSettings,
   status,
   selectedAccountId,
   onCreateSubmission,
@@ -53,7 +50,6 @@ export function TumblrAccountsWorkspace({
   onCheckLogin,
   onLaunchLogin,
   onMarkConnected,
-  onRunnerSettingsChange,
   onSelectAccount,
 }: TumblrAccountsWorkspaceProps) {
   const connectedAccounts = accounts.filter((account) => account.status === "connected");
@@ -98,11 +94,11 @@ export function TumblrAccountsWorkspace({
 
         <section className="runner-browser-settings" aria-label="Runner browser settings">
           <div className="queue-command-heading">
-            <strong>Runner browser</strong>
+            <strong>Local runner session</strong>
             <span>
               {connectedAccounts.length
                 ? `${connectedAccounts.length} connected account${connectedAccounts.length === 1 ? "" : "s"} available`
-                : "Connect an account before queue runs"}
+                : "Verify an account before queue runs"}
             </span>
           </div>
           <div className="queue-management-form runner-browser-form">
@@ -121,34 +117,9 @@ export function TumblrAccountsWorkspace({
                 ))}
               </select>
             </label>
-            <label>
-              Browser provider
-              <select
-                value={runnerSettings.remoteBrowserProvider}
-                onChange={(event) =>
-                  onRunnerSettingsChange({
-                    remoteBrowserProvider: event.target.value as RunnerSettings["remoteBrowserProvider"],
-                  })
-                }
-              >
-                <option value="none">Local desktop</option>
-                <option value="browserless">Browserless</option>
-                <option value="custom">Custom live browser URL</option>
-              </select>
-            </label>
-            {runnerSettings.remoteBrowserProvider === "custom" || runnerSettings.remoteBrowserProvider === "browserless" ? (
-              <label>
-                Live browser URL
-                <input
-                  value={runnerSettings.remoteBrowserLaunchUrl}
-                  onChange={(event) => onRunnerSettingsChange({ remoteBrowserLaunchUrl: event.target.value })}
-                  placeholder="https://provider.example/live/session"
-                />
-              </label>
-            ) : null}
           </div>
           {!connectedAccounts.length ? (
-            <p className="queue-empty">Connect a Tumblr account below before selecting one for the runner.</p>
+            <p className="queue-empty">Start a local runner test, complete Tumblr login if prompted, then mark the account connected.</p>
           ) : null}
         </section>
       </div>
@@ -242,7 +213,7 @@ export function TumblrAccountsWorkspace({
             </article>
           ))
         ) : (
-          <p className="queue-empty">Add a Tumblr account, connect a browser session, then select it before running a queue.</p>
+          <p className="queue-empty">Add a Tumblr account, verify it with the local runner, then select it before running a queue.</p>
         )}
       </div>
     </section>

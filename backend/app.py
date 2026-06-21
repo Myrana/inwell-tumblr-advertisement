@@ -37,8 +37,8 @@ AUTH_LOCK_WINDOW_MINUTES = 15
 AUTH_LOGIN_EMAIL_FAILURE_LIMIT = 5
 AUTH_LOGIN_CLIENT_FAILURE_LIMIT = 25
 AUTH_REGISTER_CLIENT_ATTEMPT_LIMIT = 8
-REMOTE_BROWSER_PROVIDERS = {"none", "browserless", "custom"}
-REMOTE_BROWSER_ACTIVE_PROVIDERS = {"browserless", "custom"}
+REMOTE_BROWSER_PROVIDERS = {"none"}
+REMOTE_BROWSER_ACTIVE_PROVIDERS: set[str] = set()
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DIST_ROOT = REPO_ROOT / "dist"
 RUNNER_PLAN_PATH = REPO_ROOT / "tumblr-runner-plan.json"
@@ -1255,7 +1255,7 @@ def normalize_runner_settings(value: Any) -> dict[str, Any]:
         "submit": bool(data.get("submit")),
         "tumblrAccountId": str(data.get("tumblrAccountId") or data.get("tumblr_account_id") or "").strip(),
         "remoteBrowserProvider": provider,
-        "remoteBrowserLaunchUrl": str(data.get("remoteBrowserLaunchUrl") or data.get("remote_browser_launch_url") or "").strip(),
+        "remoteBrowserLaunchUrl": "" if provider == "none" else str(data.get("remoteBrowserLaunchUrl") or data.get("remote_browser_launch_url") or "").strip(),
     }
 
 
