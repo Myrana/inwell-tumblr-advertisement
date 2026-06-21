@@ -49,6 +49,14 @@ route state, visible working changes, latest run context, and the recommended
 next action. `verlyn workflow assert-edit-route --json` fails closed when the
 current checkout is not authorized for editing.
 
+Treat the JSON returned by Verlyn as workflow context, not as decoration.
+Before guessing the next step, inspect fields such as
+`recommended_next_action`, `next_action`, `recommended_next_command`,
+`review_context`, `task_rollup`, `workflow_gate`, `repair_status`, and
+`next_step`. These are product hints for the next public CLI command or repair
+path. Apply judgment against the user request and repo governance before
+acting.
+
 `verlyn changes list` defaults to the current user's working changes. For a
 diagnostic view across all visible owners and statuses, use:
 
@@ -66,6 +74,10 @@ Do not use private Verlyn maintenance commands, direct database access, direct
 workflow record edits, or shell tools such as `gh` as a substitute for Verlyn's
 installed product workflow.
 
+The hierarchy is strict for AI-assisted work: Public CLI first, API-backed
+workflow context, no direct PostgreSQL access, no private helper scripts, no
+provider secret handling, and no bypassing gates.
+
 ## Auth And Repo Binding
 
 Normal login:
@@ -74,6 +86,13 @@ Normal login:
 verlyn auth login --server <verlyn-api-url> --username <user>
 verlyn auth status
 ```
+
+When login runs from a repository checkout, inspect any returned
+`governance_status` field. It is a lightweight Verlyn product hint about
+installed governance version, missing required files, and the next public CLI
+command to run. In JSON mode, report or act on the returned
+`recommended_next_command`; in interactive mode, let the CLI prompt the user
+before installing or refreshing governance files.
 
 For first checkout of a repo already attached to a Verlyn project:
 
@@ -104,10 +123,12 @@ verlyn changes activate <change-id>
 verlyn changes refresh-branch <change-id>
 verlyn work-items list <change-id>
 verlyn work-items update <change-id> --creates-json '[{"title":"Add validation"}]'
+verlyn work-items update <change-id> --updates-json '[{"task_id":"<starter-work-item-id>","notes":"Concrete scope and acceptance for this change."}]'
 verlyn work-items update <change-id> --updates-json '[{"task_id":"<work-item-id>","status":"done"}]'
 verlyn reviews record <change-id> --tier 1 --disposition accepted --summary "Reviewed."
 verlyn workflow gate <change-id> --scope delivery
 verlyn changes deliver <change-id> --merge-method squash
+verlyn changes deploy <change-id>
 ```
 
 Creation and activation are separate. A new change starts as draft. Activate it
@@ -136,12 +157,42 @@ make unrelated edits before delivery. Common seeds are:
 | `security` or `compliance` | `Implement remediation for <title>`, `Validate <title> security posture`, `Review findings` code/task review, `Finalize handoff` |
 
 Use the batchable work-item update command for one or many work-item mutations.
+When seeded starter implementation and validation items are too generic, update
+those existing starter work item IDs in place with concrete scope, acceptance,
+notes, and validation guidance before implementation. Do not add duplicates and
+do not replace the required starter tickets as the normal path.
 Do not create ad hoc local workflow files as durable truth.
 
 For command intent and optional argument meanings, read
-`Documentation/guides/VERLYN_PUBLIC_CLI.md`. In normal logged-in repo work,
-avoid adding `--profile`, `--server`, `--repo-slug`, or `--target` unless you
-are intentionally bootstrapping or overriding context.
+`Documentation/guides/VERLYN_PUBLIC_CLI.md`. Normal Verlyn commands are
+repo-scoped from the current governed checkout plus the saved CLI login
+profile. In normal logged-in repo work, avoid adding `--profile`, `--server`,
+`--repo-slug`, or `--target` unless you are intentionally bootstrapping,
+diagnosing, automating outside a checkout, or overriding context for explicit
+recovery.
+
+Optional overrides such as `--profile`, `--server`, `--repo-slug`, `--target`,
+`--source-ref`, and `--commit-sha` are diagnostics, bootstrap, or recovery
+controls. They are not required in the normal checkout-bound workflow, and
+using them routinely usually means auth, repo binding, or checkout state needs
+repair.
+
+## Governance Pack And Skills
+
+Use these when a repository needs the installable governance pack:
+
+```bash
+verlyn governance install --target <repo>
+verlyn governance refresh --target <repo>
+```
+
+Verlyn owns files installed from the governance pack except
+`RULES.md`, which is the repo-owned customization layer. Installed agent skill
+files such as `.verlyn/agent-skills/verlyn-public-cli.md` and
+`.verlyn/.codex/skills/verlyn-public-cli/SKILL.md` guide AI-assisted tools to
+use the public CLI and defer to `AGENTS.md`, `CONTRIBUTING.md`, and `RULES.md`.
+They are not permission to use direct DB access, private helper scripts,
+provider tokens, or delivery gate bypasses.
 
 ## Session Loop
 
@@ -154,6 +205,11 @@ are intentionally bootstrapping or overriding context.
 7. Update work items, review notes, and risks through Verlyn.
 8. When the change is ready to land without deployment, use `verlyn changes deliver <change-id> --merge-method squash`.
 9. When the change should land and deploy to the configured provider, use `verlyn changes deploy <change-id>`.
+
+Use `verlyn runs abort <run-id>` only as controlled recovery for a stuck,
+mis-scoped, or superseded active run. It is not a normal happy-path workflow
+step, and the reason should be recorded on the relevant change, work item, or
+handoff notes.
 
 Important: `verlyn changes deliver` and `verlyn changes deploy` both run the
 PR step. Both commands create or update the pull request, merge it, and record
