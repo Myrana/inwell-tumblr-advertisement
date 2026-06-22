@@ -2703,6 +2703,7 @@ pre {
 }
 
 .operation-card-primary {
+  grid-column: span 2;
   border-left-color: var(--green);
 }
 
@@ -2748,10 +2749,17 @@ pre {
 }
 
 .operation-card-actions {
-  display: flex;
-  align-items: center;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
   gap: 10px;
-  flex-wrap: wrap;
+}
+
+.operation-card-actions .compact-button {
+  width: 100%;
+  min-width: 0;
+  padding-inline: 10px;
+  white-space: nowrap;
 }
 
 .file-action-button {
@@ -3782,6 +3790,10 @@ html[data-theme="dark"] .selected-tags button {
     grid-column: span 2;
   }
 
+  .operation-card-primary {
+    grid-column: span 1;
+  }
+
   .operation-card-double {
     grid-column: span 1;
   }
@@ -3933,8 +3945,16 @@ html[data-theme="dark"] .selected-tags button {
     grid-column: auto;
   }
 
+  .operation-card-primary {
+    grid-column: auto;
+  }
+
   .operation-card-double {
     grid-column: auto;
+  }
+
+  .operation-card-actions {
+    grid-template-columns: 1fr;
   }
 
   .tumblr-composer-header select {
