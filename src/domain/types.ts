@@ -1,7 +1,7 @@
 export type Status = "draft" | "ready" | "submitted";
 export type PostType = "text" | "photo" | "video";
 export type ColorTheme = "light" | "dark";
-export type WorkspaceView = "dashboard" | "editor" | "saved" | "templates" | "queue" | "queue-settings" | "accounts" | "logs" | "docs";
+export type WorkspaceView = "dashboard" | "editor" | "saved" | "templates" | "queue" | "runner" | "queue-settings" | "accounts" | "logs" | "docs";
 
 export type AuthUser = {
   id: string;

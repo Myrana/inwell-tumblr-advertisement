@@ -1,4 +1,4 @@
-import { Archive, ChevronDown, Download, Pencil, Play, PlugZap, Send, Terminal, TestTube2 } from "lucide-react";
+import { Archive, ChevronDown, Pencil, Send, TestTube2 } from "lucide-react";
 import { useState } from "react";
 import { formatDate, formatSubmissionStatus } from "../domain/format";
 import { isCompletedQueueItem, postHistoryArchiveItems } from "../domain/queue";
@@ -7,7 +7,6 @@ import { formatEasternRun, nextDailyRunAt, scheduleSummary } from "../domain/sch
 import {
   QueueDefinition,
   QueueSchedulePreference,
-  RunnerActivity,
   RunnerLog,
   SubmissionQueueItem,
   SubmissionStatus,
@@ -19,23 +18,11 @@ type QueueWorkspaceProps = {
   queueOptions: QueueDefinition[];
   queueStatus: string;
   queueScheduleSettings: QueueSchedulePreference;
-  runnerConnectionLabel: string;
-  runnerActivity: RunnerActivity;
-  runnerHeadless: boolean;
-  runnerSubmitApproved: boolean;
   runnerLogs: RunnerLog[];
   onEditQueueItem: (id: string) => void;
   onRenameQueue: (currentName: string, nextName: string) => void;
   onSelectQueue: (queueName: string) => void;
   onQueueScheduleSettingsChange: (patch: Partial<QueueSchedulePreference>) => void;
-  onCopyLocalRunnerSetup: () => void;
-  onDownloadLocalRunner: () => void;
-  onLaunchLocalRunner: () => void;
-  onStartRunner: () => void;
-  onStartTestRun: () => void;
-  onRunnerHeadlessChange: (headless: boolean) => void;
-  onRunnerSubmitApprovedChange: (submit: boolean) => void;
-  showLaunchLocalRunner: boolean;
   onRetryQueueItemTestRun: (id: string) => void;
   onBulkUpdateQueueItems: (ids: string[], status: SubmissionStatus, notes: string) => void;
   onUpdateQueueItem: (id: string, status: SubmissionStatus, notes: string) => void;
@@ -55,23 +42,11 @@ export function QueueWorkspace({
   queueOptions,
   queueStatus,
   queueScheduleSettings,
-  runnerConnectionLabel,
-  runnerActivity,
-  runnerHeadless,
-  runnerSubmitApproved,
   runnerLogs,
   onEditQueueItem,
   onRenameQueue,
   onSelectQueue,
   onQueueScheduleSettingsChange,
-  onCopyLocalRunnerSetup,
-  onDownloadLocalRunner,
-  onLaunchLocalRunner,
-  onStartRunner,
-  onStartTestRun,
-  onRunnerHeadlessChange,
-  onRunnerSubmitApprovedChange,
-  showLaunchLocalRunner,
   onRetryQueueItemTestRun,
   onBulkUpdateQueueItems,
   onUpdateQueueItem,
@@ -255,62 +230,6 @@ export function QueueWorkspace({
             </div>
           </div>
         ) : null}
-      </section>
-
-      <section className="queue-command-panel" aria-label="Queue actions">
-        <div className="queue-command-group">
-          <div className="queue-command-heading">
-            <strong>Local runner</strong>
-            <span>{runnerConnectionLabel}</span>
-          </div>
-          <div className="queue-action-row">
-            <button className="primary" type="button" onClick={() => onStartRunner()} disabled={!activeSubmissionItems.length}>
-              <Play size={18} />
-              Run
-            </button>
-            <button className="secondary" type="button" onClick={onStartTestRun} disabled={!activeSubmissionItems.length}>
-              <TestTube2 size={18} />
-              Test run
-            </button>
-            {showLaunchLocalRunner ? (
-              <button className="secondary" type="button" onClick={onLaunchLocalRunner}>
-                <PlugZap size={18} />
-                Start
-              </button>
-            ) : null}
-            <button className="secondary" type="button" onClick={onDownloadLocalRunner}>
-              <Download size={18} />
-              Download
-            </button>
-            <button className="secondary" type="button" onClick={onCopyLocalRunnerSetup} disabled={!activeSubmissionItems.length}>
-              <Terminal size={18} />
-              Setup
-            </button>
-          </div>
-        </div>
-      </section>
-
-      <section className="runner-activity-panel" aria-label="Local runner activity">
-        <div>
-          <strong>{runnerActivity.status}</strong>
-          <span>{runnerActivity.detail}</span>
-        </div>
-        <label className="runner-submit-toggle runner-headless-toggle">
-          <input
-            checked={runnerHeadless}
-            type="checkbox"
-            onChange={(event) => onRunnerHeadlessChange(event.target.checked)}
-          />
-          Run headless
-        </label>
-        <label className="runner-submit-toggle runner-headless-toggle">
-          <input
-            checked={runnerSubmitApproved}
-            type="checkbox"
-            onChange={(event) => onRunnerSubmitApprovedChange(event.target.checked)}
-          />
-          Approve live posting
-        </label>
       </section>
 
       {queueStatus ? <p className="queue-status">{queueStatus}</p> : null}

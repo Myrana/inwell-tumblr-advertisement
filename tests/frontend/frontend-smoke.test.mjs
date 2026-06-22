@@ -124,6 +124,7 @@ async function openWorkspaceView(page, viewName) {
     "Content Library": "Prep content",
     Templates: "Open templates",
     Queues: "Manage queues",
+    Runner: "Runner controls",
     "Tumblr Accounts": "Manage accounts",
     "Runner Logs": "Review logs",
     Docs: "Open docs",
@@ -1006,12 +1007,14 @@ test("templates can be edited on their page and applied from the submission work
   await page.getByRole("button", { name: "Add queue" }).click();
   await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
   assert.equal(await page.getByLabel("Active queue").inputValue(), "Want ads");
-  await page.getByLabel("Queue actions").getByText("Local runner", { exact: true }).waitFor();
-  assert.equal(await page.getByLabel("Queue actions").getByRole("button", { name: "Current" }).count(), 0);
-  assert.equal(await page.getByLabel("Queue actions").getByRole("button", { name: "Queue all" }).count(), 0);
-  assert.equal(await page.getByLabel("Queue actions").getByRole("button", { name: "Clear done" }).count(), 0);
-  assert.equal(await page.getByLabel("Queue actions").getByRole("button", { name: "Clear queue" }).count(), 0);
+  assert.equal(await page.getByLabel("Queue actions").count(), 0);
+  await openWorkspaceView(page, "Runner");
+  await page.getByLabel("Runner controls").getByRole("button", { name: "Run", exact: true }).waitFor();
+  await page.getByLabel("Runner controls").getByRole("button", { name: "Test run" }).waitFor();
   assert.equal(await page.getByLabel("Media folder").count(), 0);
+  await openWorkspaceView(page, "Queues");
+  await page.locator(".queue-management-row", { hasText: "Want ads" }).getByRole("button", { name: "Open queue" }).click();
+  await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
   await page.locator(".workflow-section", { hasText: "Schedule" }).locator(".section-state.warning", { hasText: "Off" }).waitFor();
 
   await openWorkspaceView(page, "Queues");
@@ -1041,8 +1044,7 @@ test("templates can be edited on their page and applied from the submission work
   await wantAdsRow.getByRole("button", { name: "Open queue" }).click();
   await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
   assert.equal(await page.getByLabel("Active queue").inputValue(), "Want ads");
-  assert.equal(await page.getByLabel("Queue actions").getByRole("button", { name: "Queue all" }).count(), 0);
-  await page.getByLabel("Queue actions").getByRole("button", { name: "Run", exact: true }).waitFor();
+  assert.equal(await page.getByLabel("Queue actions").count(), 0);
   await page.getByRole("button", { name: "Toggle schedule section" }).click();
   assert.equal(await page.getByLabel("Daily run time").isDisabled(), true);
   await page.getByLabel("Run this queue daily").check();
@@ -1094,7 +1096,7 @@ test("templates can be edited on their page and applied from the submission work
   await openWorkspaceView(page, "Queues");
   await siteAdsRow.getByRole("button", { name: "Open queue" }).click();
   await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
-  assert.equal(await page.getByLabel("Queue actions").getByRole("button", { name: "Clear queue" }).count(), 0);
+  assert.equal(await page.getByLabel("Queue actions").count(), 0);
   await openWorkspaceView(page, "Runner Logs");
   await page.getByRole("heading", { name: "Runner logs", level: 1 }).waitFor();
   await page.getByText("No runner logs yet.").waitFor();
@@ -2093,17 +2095,18 @@ test("running the queue prepares the local runner and shows failure explanations
   await page.getByLabel("Post history archive").getByRole("link", { name: "Posted Tumblr link" }).waitFor();
   await page.getByLabel("Queue bulk editor").getByText("Select all pending items").waitFor();
   await page.locator(".queue-item", { hasText: "allthingsroleplay" }).getByLabel("Select queue item").waitFor();
-  await page.getByText("Local runner online: Default queue").waitFor();
-  await page.getByLabel("Local runner activity").getByText("Watching", { exact: true }).waitFor();
-  await page.getByLabel("Local runner activity").getByText("Runner is watching Default queue.").waitFor();
-  await page.getByLabel("Queue actions").getByRole("button", { name: "Start" }).click();
+  await openWorkspaceView(page, "Runner");
+  await page.getByLabel("Runner browser session").getByText("Local runner online: Default queue").waitFor();
+  await page.getByLabel("Runner workspace").getByText("Watching", { exact: true }).waitFor();
+  await page.getByLabel("Runner workspace").getByText("Runner is watching Default queue.").waitFor();
+  await page.getByLabel("Runner controls").getByRole("button", { name: "Start" }).click();
   await page.getByText("Opening the installed local runner.").waitFor();
-  await page.getByLabel("Queue actions").getByRole("button", { name: "Download" }).click();
+  await page.getByLabel("Runner controls").getByRole("button", { name: "Download" }).click();
   await page.getByText("Local runner installer downloaded.").waitFor();
   assert.equal(localPackageRequested, true);
   assert.equal(localPackageSubmit, "false");
-  assert.equal(await page.getByLabel("Local runner activity").getByLabel("Approve live posting").isChecked(), false);
-  await page.getByLabel("Queue actions").getByRole("button", { name: "Run", exact: true }).click();
+  assert.equal(await page.getByLabel("Runner browser session").getByLabel("Approve live posting").isChecked(), false);
+  await page.getByLabel("Runner controls").getByRole("button", { name: "Run", exact: true }).click();
   await page.getByText("Local runner command copied.").waitFor();
   await page.getByText("Local companion was not detected on this computer, so the command was copied instead.").waitFor();
   assert.equal(localCommandRequested, true);
@@ -2115,7 +2118,7 @@ test("running the queue prepares the local runner and shows failure explanations
   assert.match(copiedText, /--token 'ilr_private_token'/);
   assert.doesNotMatch(copiedText, /--submit/);
   await page.getByText(/prepare Tumblr without submitting/).waitFor();
-  await page.getByLabel("Local runner activity").getByLabel("Approve live posting").check();
+  await page.getByLabel("Runner browser session").getByLabel("Approve live posting").check();
   await page.waitForFunction(() => JSON.parse(localStorage.getItem("inwell-tumblr-runner-settings") ?? "{}").submit === true);
   const approvedCommandResponse = page.waitForResponse((response) => {
     if (!response.url().includes("/api/runner/local-command")) {
@@ -2123,7 +2126,7 @@ test("running the queue prepares the local runner and shows failure explanations
     }
     return new URL(response.url()).searchParams.get("submit") === "true";
   });
-  await page.getByLabel("Queue actions").getByRole("button", { name: "Run", exact: true }).click();
+  await page.getByLabel("Runner controls").getByRole("button", { name: "Run", exact: true }).click();
   await approvedCommandResponse;
   await page.waitForFunction(() => /--submit/.test(window.__copiedText || ""));
   copiedText = await page.evaluate(() => window.__copiedText);
@@ -2136,7 +2139,8 @@ test("running the queue prepares the local runner and shows failure explanations
   await page.getByLabel("Attention required").getByText("allthingsroleplay").waitFor();
   await page.getByText("Live posting approved.").waitFor();
   await page.getByLabel("Attention required").getByRole("button", { name: "Review queue", exact: true }).click();
-  await page.getByLabel("Queue actions").getByRole("button", { name: "Test run" }).click();
+  await openWorkspaceView(page, "Runner");
+  await page.getByLabel("Runner controls").getByRole("button", { name: "Test run" }).click();
   await page.getByText("Local runner command copied.").waitFor();
   await page.getByText(/start a test run that prepares Tumblr without submitting/).waitFor();
   copiedText = await page.evaluate(() => window.__copiedText);
@@ -2144,7 +2148,7 @@ test("running the queue prepares the local runner and shows failure explanations
   assert.match(copiedText, /--watch/);
   assert.match(copiedText, /--serve/);
   assert.doesNotMatch(copiedText, /--submit/);
-  await page.getByLabel("Queue actions").getByRole("button", { name: "Setup" }).click();
+  await page.getByLabel("Runner controls").getByRole("button", { name: "Setup" }).click();
   await page.getByText("Local runner setup command copied.").waitFor();
   copiedText = await page.evaluate(() => window.__copiedText);
   assert.match(copiedText, /tumblr:runner:install-autostart/);
@@ -2199,16 +2203,16 @@ test("running the queue prepares the local runner and shows failure explanations
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
   await page.getByText("Local companion is watching Default queue.").waitFor();
   await page.getByText("Local companion was not detected on this computer", { exact: false }).waitFor({ state: "detached" });
-  await page.getByLabel("Local runner activity").getByLabel("Run headless").check();
-  await page.getByLabel("Queue actions").getByRole("button", { name: "Test run" }).click();
+  await page.getByLabel("Runner browser session").getByLabel("Run headless").check();
+  await page.getByLabel("Runner controls").getByRole("button", { name: "Test run" }).click();
   await page.getByText("Local companion started a test run.").waitFor();
   assert.deepEqual(companionRunPayloads.at(-1), { queueName: "Default queue", headless: true, submit: false });
-  await page.getByLabel("Queue actions").getByRole("button", { name: "Run", exact: true }).click();
+  await page.getByLabel("Runner controls").getByRole("button", { name: "Run", exact: true }).click();
   await page.getByText("Local companion started the runner headless.").waitFor();
   assert.equal(companionRunRequested, true);
   assert.deepEqual(companionRunPayloads.at(-1), { queueName: "Default queue", headless: true, submit: true });
-  await page.getByLabel("Local runner activity").getByText("Running", { exact: true }).waitFor();
-  await page.getByLabel("Local runner activity").getByText("Working through Default queue.").waitFor();
+  await page.getByLabel("Runner workspace").getByText("Running", { exact: true }).waitFor();
+  await page.getByLabel("Runner workspace").getByText("Working through Default queue.").waitFor();
   assert.deepEqual(await page.evaluate(() => window.__openedUrls), []);
   await page.unroute("http://127.0.0.1:17842/status");
   await page.route("http://127.0.0.1:17842/status", (route) =>
@@ -2230,8 +2234,10 @@ test("running the queue prepares the local runner and shows failure explanations
       }),
     }),
   );
-  await page.getByText("Local companion needs attention").waitFor();
+  await page.getByLabel("Runner browser session").getByText("Local companion needs attention").waitFor();
   await page.getByText("Close any open Inkwell Tumblr browser windows, then try again.").waitFor();
+  await openWorkspaceView(page, "Queues");
+  await page.locator(".queue-management-row", { hasText: "Default queue" }).getByRole("button", { name: "Open queue" }).click();
   await page.getByText("Why this failed").waitFor();
   await page.getByText("The Playwright browser or tab closed before the runner finished.").waitFor();
   await page.getByText("Use Retry test run after fixing the blocker.").waitFor();

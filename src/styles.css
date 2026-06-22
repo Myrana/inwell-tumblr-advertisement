@@ -1604,6 +1604,120 @@ pre {
   font-weight: 800;
 }
 
+.runner-workspace {
+  display: grid;
+  gap: 16px;
+}
+
+.runner-hero {
+  padding: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid rgba(46, 143, 163, 0.22);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(46, 143, 163, 0.12), rgba(217, 101, 82, 0.08)),
+    #f8fafb;
+}
+
+.runner-hero span {
+  color: var(--green);
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.runner-hero h2 {
+  margin: 3px 0 5px;
+  font-size: clamp(1.8rem, 4vw, 2.7rem);
+}
+
+.runner-hero p {
+  max-width: 640px;
+  margin: 0;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.runner-hero-actions,
+.runner-link-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.runner-workspace-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.9fr);
+  gap: 14px;
+}
+
+.runner-workspace-activity {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.runner-readiness-list {
+  display: grid;
+  gap: 10px;
+}
+
+.runner-readiness-item,
+.runner-latest-mini {
+  min-width: 0;
+  padding: 12px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fffaf0;
+}
+
+.runner-readiness-item.ready {
+  background: #f2fbf6;
+}
+
+.runner-readiness-item svg,
+.runner-latest-mini svg {
+  color: var(--cyan);
+}
+
+.runner-readiness-item strong,
+.runner-readiness-item span,
+.runner-latest-mini strong,
+.runner-latest-mini span {
+  display: block;
+}
+
+.runner-readiness-item span,
+.runner-latest-mini span {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.runner-action-grid {
+  align-items: stretch;
+}
+
+.runner-action-grid > button {
+  min-width: 128px;
+}
+
+.runner-log-summary-panel {
+  align-self: start;
+}
+
+.runner-link-row {
+  margin-top: 12px;
+}
+
 .queue-selector-panel,
 .queue-management-form {
   margin-bottom: 12px;
@@ -3653,6 +3767,23 @@ html[data-theme="dark"] .queue-workspace .runner-activity-panel {
   background: #10231d;
 }
 
+html[data-theme="dark"] .runner-hero {
+  border-color: rgba(179, 157, 242, 0.26);
+  background:
+    linear-gradient(135deg, rgba(120, 200, 214, 0.12), rgba(255, 143, 183, 0.1)),
+    rgba(21, 19, 32, 0.88);
+}
+
+html[data-theme="dark"] .runner-readiness-item,
+html[data-theme="dark"] .runner-latest-mini {
+  border-color: rgba(95, 179, 197, 0.18);
+  background: rgba(44, 36, 21, 0.72);
+}
+
+html[data-theme="dark"] .runner-readiness-item.ready {
+  background: rgba(18, 43, 34, 0.78);
+}
+
 html[data-theme="dark"] .queue-workspace .queue-monitor-stat,
 html[data-theme="dark"] .queue-workspace .queue-item,
 html[data-theme="dark"] .queue-workspace .post-history-item {
@@ -3962,6 +4093,21 @@ html[data-theme="dark"] .selected-tags button {
   .queue-command-group {
     grid-template-columns: 1fr;
     align-items: stretch;
+  }
+
+  .runner-hero,
+  .runner-workspace-activity {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .runner-workspace-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .runner-hero-actions,
+  .runner-link-row {
+    width: 100%;
   }
 
   .batch-prep-panel {
