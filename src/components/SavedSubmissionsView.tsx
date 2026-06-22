@@ -145,86 +145,91 @@ export function SavedSubmissionsView({
 
         return (
           <article className={ad.id === activeAdId ? "draft-row advertisement-card selected" : "draft-row advertisement-card"} key={ad.id}>
-          <div className="draft-card-media" aria-hidden="true">
-            {ad.imageDataUrl ? (
-              <img src={ad.imageDataUrl} alt="" />
-            ) : (
-              <span>{(ad.title || "Inkwell").slice(0, 1).toUpperCase()}</span>
-            )}
-          </div>
-          <div className="draft-row-summary">
-            <label className="bulk-select row-select">
-              <input
-                checked={selectedDraftIds.includes(ad.id)}
-                type="checkbox"
-                onChange={(event) => toggleDraftSelection(ad.id, event.target.checked)}
-              />
-              Select saved item
-            </label>
-            <strong>{ad.title || "Untitled advertisement"}</strong>
-            <div className="draft-row-meta">
-              {duplicateMatch ? (
-                <span className="duplicate-pill" title={`Matches ${duplicatePeerNames.join(", ")}`}>
-                  <AlertTriangle size={14} />
-                  <b>Possible duplicate</b>
-                  {duplicatePeerNames[0] || "Saved submission"}
-                </span>
-              ) : null}
-              <span><b>Type</b>{ad.postType}</span>
-              <span><b>Status</b>{formatStatus(ad.status)}</span>
-              <span className={readiness.percent === 100 ? "readiness-pill ready" : "readiness-pill"}>
-                <b>Readiness</b>{readiness.label}
-              </span>
-              {ad.campaignName ? <span><b>Campaign</b>{ad.campaignName}</span> : null}
-              <span><b>Target</b>{ad.destinationBlog || "No target"}</span>
-              <span><b>Updated</b>{formatDate(ad.updatedAt)}</span>
+            <div className="draft-card-media" aria-hidden="true">
+              {ad.imageDataUrl ? (
+                <img src={ad.imageDataUrl} alt="" />
+              ) : (
+                <span>{(ad.title || "Inkwell").slice(0, 1).toUpperCase()}</span>
+              )}
             </div>
-          </div>
-          <div className="draft-row-actions">
-            <a href={ad.forumUrl || "#"} aria-label="Forum URL">
-              <Link size={18} />
-            </a>
-            <button className="secondary compact-button" type="button" onClick={() => startQueue(ad.id)}>
-              <Send size={16} />
-              Queue
-            </button>
-            <button className="secondary compact-button" type="button" onClick={() => onSelectDraft(ad.id)}>
-              Edit
-            </button>
-          </div>
-          <button
-            className="icon-button"
-            type="button"
-            onClick={() => onDeleteDraft(ad.id)}
-            aria-label="Delete content library item"
-            title="Delete content library item"
-          >
-            <Trash2 size={18} />
-          </button>
-          {queuePickerAdId === ad.id ? (
-            <form
-              className="content-queue-picker"
-              aria-label={`Choose queue for ${ad.title || "content library item"}`}
-              onSubmit={(event) => {
-                event.preventDefault();
-                onQueueDraft(ad.id, selectedQueueName);
-              }}
-            >
-              <label>
-                Queue destination
-                <select value={selectedQueueName} onChange={(event) => setSelectedQueueName(event.target.value)}>
-                  {queueOptions.map((queue) => (
-                    <option key={queue.id} value={queue.name}>
-                      {queue.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <button className="primary compact-button" type="submit">
-                Queue here
+            <div className="draft-row-summary">
+              <div className="draft-card-header">
+                <div className="draft-card-title-group">
+                  <span className="draft-card-kicker">Saved advertisement</span>
+                  <strong className="draft-card-title">{ad.title || "Untitled advertisement"}</strong>
+                </div>
+                <label className="bulk-select row-select draft-card-select" aria-label="Select saved item">
+                  <input
+                    checked={selectedDraftIds.includes(ad.id)}
+                    type="checkbox"
+                    onChange={(event) => toggleDraftSelection(ad.id, event.target.checked)}
+                  />
+                  Select
+                </label>
+              </div>
+              <div className="draft-row-meta">
+                {duplicateMatch ? (
+                  <span className="duplicate-pill" title={`Matches ${duplicatePeerNames.join(", ")}`}>
+                    <AlertTriangle size={14} />
+                    <b>Possible duplicate</b>
+                    {duplicatePeerNames[0] || "Saved submission"}
+                  </span>
+                ) : null}
+                <span><b>Type</b>{ad.postType}</span>
+                <span><b>Status</b>{formatStatus(ad.status)}</span>
+                <span className={readiness.percent === 100 ? "readiness-pill ready" : "readiness-pill"}>
+                  <b>Readiness</b>{readiness.label}
+                </span>
+                {ad.campaignName ? <span><b>Campaign</b>{ad.campaignName}</span> : null}
+                <span><b>Target</b>{ad.destinationBlog || "No target"}</span>
+                <span><b>Updated</b>{formatDate(ad.updatedAt)}</span>
+              </div>
+            </div>
+            <div className="draft-row-actions">
+              <a href={ad.forumUrl || "#"} aria-label="Forum URL">
+                <Link size={18} />
+              </a>
+              <button className="secondary compact-button" type="button" onClick={() => startQueue(ad.id)}>
+                <Send size={16} />
+                Queue
               </button>
-            </form>
-          ) : null}
+              <button className="secondary compact-button" type="button" onClick={() => onSelectDraft(ad.id)}>
+                Edit
+              </button>
+            </div>
+            <button
+              className="icon-button"
+              type="button"
+              onClick={() => onDeleteDraft(ad.id)}
+              aria-label="Delete content library item"
+              title="Delete content library item"
+            >
+              <Trash2 size={18} />
+            </button>
+            {queuePickerAdId === ad.id ? (
+              <form
+                className="content-queue-picker"
+                aria-label={`Choose queue for ${ad.title || "content library item"}`}
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  onQueueDraft(ad.id, selectedQueueName);
+                }}
+              >
+                <label>
+                  Queue destination
+                  <select value={selectedQueueName} onChange={(event) => setSelectedQueueName(event.target.value)}>
+                    {queueOptions.map((queue) => (
+                      <option key={queue.id} value={queue.name}>
+                        {queue.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button className="primary compact-button" type="submit">
+                  Queue here
+                </button>
+              </form>
+            ) : null}
           </article>
         );
       })}
