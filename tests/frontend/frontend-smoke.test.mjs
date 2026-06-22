@@ -123,7 +123,7 @@ async function openWorkspaceView(page, viewName) {
   const operationActions = {
     "Content Library": "Prep content",
     Templates: "Open templates",
-    Queues: "Manage queues",
+    Queues: "Blog tracker",
     Runner: "Runner controls",
     "Tumblr Accounts": "Manage accounts",
     "Runner Logs": "Review logs",
@@ -136,7 +136,7 @@ async function openWorkspaceView(page, viewName) {
 
   await page.getByRole("button", { name: "Operations", exact: true }).click();
   await page.getByRole("heading", { name: "Operations dashboard", level: 1 }).waitFor();
-  await page.getByRole("button", { name: actionName, exact: true }).click();
+  await page.getByRole("button", { name: actionName, exact: true }).first().click();
 }
 
 test("first user can create an Inkwell login before opening the workspace", { timeout: 40000 }, async (t) => {
@@ -187,10 +187,13 @@ test("first user can create an Inkwell login before opening the workspace", { ti
   await page.getByLabel("Password").fill("super-secret-password");
   await page.getByRole("button", { name: "Create login" }).click();
   await page.getByRole("button", { name: "Log out" }).waitFor();
-  await page.getByRole("heading", { name: "Tumblr accounts", level: 1 }).waitFor();
+  await page.getByRole("heading", { name: "Operations dashboard", level: 1 }).waitFor();
+  await page.getByLabel("First-run checklist").getByText("Connect Tumblr account").waitFor();
+  await page.getByLabel("First-run checklist").getByRole("button", { name: "Start with example ad" }).waitFor();
   await openWorkspaceView(page, "Content Library");
   await page.getByRole("heading", { name: "Content library", level: 1 }).waitFor();
   await page.getByText("No content saved yet").waitFor();
+  await page.getByRole("button", { name: "Create advertisement" }).waitFor();
   assert.equal(await page.getByRole("button", { name: "Edit" }).count(), 0);
   await page.getByRole("button", { name: "New Submission" }).click();
   await page.getByRole("heading", { name: "Untitled submission" }).waitFor();
@@ -290,8 +293,6 @@ test("operations dashboard exports and imports workspace backups", { timeout: 40
   );
 
   await page.goto(appUrl);
-  await page.getByRole("heading", { name: "Tumblr accounts", level: 1 }).waitFor();
-  await page.getByRole("button", { name: "Operations", exact: true }).click();
   await page.getByRole("heading", { name: "Operations dashboard", level: 1 }).waitFor();
   await page.getByLabel("Run readiness").getByText("Queue needs content").waitFor();
   await page.getByLabel("Run blockers").getByText("Connect a Tumblr account.").waitFor();
@@ -508,7 +509,7 @@ test("documentation page explains recent workflow changes", { timeout: 40000 }, 
   await routeEmptyWorkspaceApis(page);
 
   await page.goto(appUrl);
-  await page.getByRole("heading", { name: "Tumblr accounts", level: 1 }).waitFor();
+  await page.getByRole("heading", { name: "Operations dashboard", level: 1 }).waitFor();
   await openWorkspaceView(page, "Docs");
   await page.getByRole("heading", { name: "Testing and change guide", level: 1 }).waitFor();
   await page.getByLabel("Inkwell documentation").getByRole("heading", { name: "Local runner" }).waitFor();
@@ -821,6 +822,7 @@ test("custom blog submission flow does not blank the editor", { timeout: 40000 }
   });
 
   await page.goto(appUrl);
+  await page.getByRole("button", { name: "New Submission" }).click();
   await assert.doesNotReject(() => page.getByRole("heading", { name: "Custom target ad" }).waitFor());
   await page.getByLabel("Content quality checklist").getByText("6 of 6 ready").waitFor();
   await page.getByLabel("Content quality checklist").getByText("100% ready").waitFor();
@@ -830,6 +832,7 @@ test("custom blog submission flow does not blank the editor", { timeout: 40000 }
   assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), "dark");
   assert.equal(await page.evaluate(() => localStorage.getItem("inkwell-color-theme")), "dark");
   await page.reload();
+  await page.getByRole("button", { name: "New Submission" }).click();
   await page.getByRole("heading", { name: "Custom target ad" }).waitFor();
   assert.equal(await page.getByRole("button", { name: "Light mode" }).count(), 1);
   assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), "dark");
@@ -885,7 +888,7 @@ test("custom blog submission flow does not blank the editor", { timeout: 40000 }
   await page.getByRole("button", { name: "Add custom tag" }).click();
   assert.equal(await page.getByLabel("manual test tag").isChecked(), true);
   await page.getByRole("button", { name: "Save", exact: true }).click();
-  await page.getByText("Saved.").waitFor();
+  await page.getByRole("status").getByText("Saved just now").waitFor();
   assert.equal(await page.getByRole("button", { name: "Keep editing" }).count(), 0);
   assert.equal(await page.getByRole("button", { name: "Add to queue" }).count(), 1);
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
@@ -957,6 +960,7 @@ test("templates can be edited on their page and applied from the submission work
   });
 
   await page.goto(appUrl);
+  await page.getByRole("button", { name: "New Submission" }).click();
   await page.getByLabel("Target Tumblr blog").selectOption("custom-ads");
   assert.equal(await page.getByText("Inkwell Ads").count(), 0);
   assert.equal(await page.getByText("jcink-directory").count(), 0);

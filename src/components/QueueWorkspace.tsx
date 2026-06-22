@@ -1,4 +1,4 @@
-import { Archive, ChevronDown, Pencil, Send, TestTube2 } from "lucide-react";
+import { Archive, ChevronDown, FilePlus2, ListChecks, Pencil, Send, TestTube2 } from "lucide-react";
 import { useState } from "react";
 import { formatDate, formatSubmissionStatus } from "../domain/format";
 import { isCompletedQueueItem, postHistoryArchiveItems } from "../domain/queue";
@@ -26,6 +26,8 @@ type QueueWorkspaceProps = {
   onRetryQueueItemTestRun: (id: string) => void;
   onBulkUpdateQueueItems: (ids: string[], status: SubmissionStatus, notes: string) => void;
   onUpdateQueueItem: (id: string, status: SubmissionStatus, notes: string) => void;
+  onCreateSubmission: () => void;
+  onManageBlogs: () => void;
 };
 
 type QueueSectionKey = "overview" | "schedule" | "submissions" | "history";
@@ -50,6 +52,8 @@ export function QueueWorkspace({
   onRetryQueueItemTestRun,
   onBulkUpdateQueueItems,
   onUpdateQueueItem,
+  onCreateSubmission,
+  onManageBlogs,
 }: QueueWorkspaceProps) {
   const [openSections, setOpenSections] = useState<Record<QueueSectionKey, boolean>>({
     overview: true,
@@ -355,7 +359,20 @@ export function QueueWorkspace({
                   </article>
                 ))
               ) : (
-                <p className="queue-empty">Queue one or more Tumblr blogs into {activeQueueName}, then run the automation step.</p>
+                <div className="queue-empty action-empty">
+                  <strong>No submissions queued for {activeQueueName || "this lane"}.</strong>
+                  <span>Write an advertisement, then add it to a blog lane when it is ready.</span>
+                  <div className="empty-action-row">
+                    <button className="primary compact-button" type="button" onClick={onCreateSubmission}>
+                      <FilePlus2 size={16} />
+                      Write advertisement
+                    </button>
+                    <button className="secondary compact-button" type="button" onClick={onManageBlogs}>
+                      <ListChecks size={16} />
+                      Blog tracker
+                    </button>
+                  </div>
+                </div>
               )}
             </div>
           </div>
