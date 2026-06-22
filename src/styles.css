@@ -3182,7 +3182,7 @@ pre {
 .draft-card-header {
   display: flex;
   align-items: flex-start;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 14px;
 }
 
@@ -3190,6 +3190,14 @@ pre {
   min-width: 0;
   display: grid;
   gap: 4px;
+}
+
+.draft-card-title-row {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .draft-card-kicker {
