@@ -1,4 +1,4 @@
-import { Activity, AlertTriangle, Archive, BookOpenText, CheckCircle2, ClipboardCheck, Download, ListChecks, Play, ShieldCheck, Upload } from "lucide-react";
+import { Activity, AlertTriangle, Archive, CheckCircle2, ClipboardCheck, Download, ListChecks, Play, ShieldCheck, Upload } from "lucide-react";
 import { ChangeEvent } from "react";
 import { attentionQueueItems, queueReadiness, queueStatusCounts, runnableQueueItems } from "../domain/queueAutomation";
 import { QueueDefinition, RunnerActivity, SubmissionQueueItem, TumblrAccount, WorkspaceView } from "../domain/types";
@@ -203,18 +203,6 @@ export function OperationsDashboard({
           <small>Reusable copy ready for submissions</small>
           <button className="secondary compact-button" type="button" onClick={() => onNavigate("templates")}>
             Open templates
-          </button>
-        </article>
-
-        <article className="operation-card">
-          <div className="operation-card-icon">
-            <BookOpenText size={20} />
-          </div>
-          <span>Reference</span>
-          <strong>Testing guide</strong>
-          <small>Recent workflow notes and a safe testing path.</small>
-          <button className="secondary compact-button" type="button" onClick={() => onNavigate("docs")}>
-            Open docs
           </button>
         </article>
 
