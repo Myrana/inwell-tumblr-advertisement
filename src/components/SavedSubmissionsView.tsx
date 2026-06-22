@@ -156,16 +156,18 @@ export function SavedSubmissionsView({
               <div className="draft-card-header">
                 <div className="draft-card-title-group">
                   <span className="draft-card-kicker">Saved advertisement</span>
-                  <strong className="draft-card-title">{ad.title || "Untitled advertisement"}</strong>
+                  <div className="draft-card-title-row">
+                    <strong className="draft-card-title">{ad.title || "Untitled advertisement"}</strong>
+                    <label className="bulk-select row-select draft-card-select" aria-label="Select saved item">
+                      <input
+                        checked={selectedDraftIds.includes(ad.id)}
+                        type="checkbox"
+                        onChange={(event) => toggleDraftSelection(ad.id, event.target.checked)}
+                      />
+                      Select
+                    </label>
+                  </div>
                 </div>
-                <label className="bulk-select row-select draft-card-select" aria-label="Select saved item">
-                  <input
-                    checked={selectedDraftIds.includes(ad.id)}
-                    type="checkbox"
-                    onChange={(event) => toggleDraftSelection(ad.id, event.target.checked)}
-                  />
-                  Select
-                </label>
               </div>
               <div className="draft-row-meta">
                 {duplicateMatch ? (
