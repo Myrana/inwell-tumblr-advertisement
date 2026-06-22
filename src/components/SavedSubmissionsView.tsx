@@ -1,4 +1,4 @@
-import { AlertTriangle, Archive, Link, Send, Trash2 } from "lucide-react";
+import { AlertTriangle, Archive, FilePlus2, Link, Send, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { hasLibraryContent } from "../domain/ads";
 import { findDuplicateContentMatches, mapDuplicateMatchesByAdId } from "../domain/duplicates";
@@ -13,6 +13,7 @@ type SavedSubmissionsViewProps = {
   queueOptions: QueueDefinition[];
   onDeleteDraft: (id: string) => void;
   onBulkUpdateDrafts: (ids: string[], patch: { campaignName?: string; tag?: string }) => void;
+  onCreateDraft: () => void;
   onQueueDraft: (id: string, queueName: string) => void;
   onSelectDraft: (id: string) => void;
 };
@@ -24,6 +25,7 @@ export function SavedSubmissionsView({
   queueOptions,
   onDeleteDraft,
   onBulkUpdateDrafts,
+  onCreateDraft,
   onQueueDraft,
   onSelectDraft,
 }: SavedSubmissionsViewProps) {
@@ -136,6 +138,10 @@ export function SavedSubmissionsView({
         <div className="library-empty">
           <strong>Your notebook is empty.</strong>
           <span>No content saved yet. Create your first advertisement and begin building your archive.</span>
+          <button className="primary compact-button" type="button" onClick={onCreateDraft}>
+            <FilePlus2 size={16} />
+            Create advertisement
+          </button>
         </div>
       )}
       {libraryAds.map((ad) => {

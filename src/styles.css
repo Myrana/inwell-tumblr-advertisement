@@ -742,6 +742,7 @@ textarea:focus {
 .secondary,
 .upload-button,
 .icon-button {
+  min-width: 0;
   min-height: 40px;
   border: 0;
   border-radius: 8px;
@@ -1660,6 +1661,17 @@ pre {
   margin: 0;
 }
 
+.primary,
+.secondary {
+  overflow-wrap: anywhere;
+}
+
+.runner-install-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .runner-readiness-list {
   display: grid;
   gap: 10px;
@@ -1974,6 +1986,26 @@ pre {
   color: var(--muted);
   font-size: 0.84rem;
   font-weight: 600;
+}
+
+.action-empty {
+  padding: 14px;
+  display: grid;
+  gap: 10px;
+  border: 1px dashed rgba(46, 143, 163, 0.34);
+  border-radius: 8px;
+  background: #f8fafb;
+}
+
+.action-empty strong,
+.action-empty span {
+  display: block;
+}
+
+.empty-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .queue-list {
@@ -2682,6 +2714,88 @@ pre {
   min-height: 36px;
   padding-inline: 13px;
   white-space: nowrap;
+}
+
+.first-run-panel,
+.runner-install-guide {
+  min-width: 0;
+  padding: 16px;
+  display: grid;
+  gap: 14px;
+  border: 1px solid #b8ded4;
+  border-left: 4px solid var(--green);
+  border-radius: 8px;
+  background: #f5fbf8;
+}
+
+.first-run-heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.first-run-heading h2,
+.runner-install-guide h2 {
+  margin: 3px 0 5px;
+  color: var(--text);
+  font-size: 1.1rem;
+}
+
+.first-run-heading p,
+.runner-install-guide p {
+  margin: 0;
+  color: var(--muted);
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.first-run-steps,
+.runner-install-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.first-run-steps article,
+.runner-install-steps article {
+  min-width: 0;
+  padding: 12px;
+  display: grid;
+  gap: 9px;
+  border: 1px solid rgba(47, 118, 93, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.first-run-steps article {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.first-run-steps article > span {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--green);
+  color: #fff;
+  font-weight: 900;
+}
+
+.first-run-steps strong,
+.runner-install-steps strong {
+  display: block;
+  color: var(--text);
+}
+
+.first-run-steps p,
+.runner-install-steps span {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 700;
+  line-height: 1.4;
 }
 
 .run-readiness-panel,
@@ -3510,6 +3624,11 @@ html[data-theme="dark"] .workflow-section-header,
 html[data-theme="dark"] .workflow-section-body,
 html[data-theme="dark"] .setup-panel,
 html[data-theme="dark"] .save-next-step,
+html[data-theme="dark"] .first-run-panel,
+html[data-theme="dark"] .first-run-steps article,
+html[data-theme="dark"] .runner-install-guide,
+html[data-theme="dark"] .runner-install-steps article,
+html[data-theme="dark"] .action-empty,
 html[data-theme="dark"] .runner-control-panel,
 html[data-theme="dark"] .runner-activity-panel,
 html[data-theme="dark"] .queue-selector-panel,
@@ -4006,6 +4125,15 @@ html[data-theme="dark"] .selected-tags button {
 }
 
 @media (max-width: 720px) {
+  .app-shell,
+  .workspace,
+  .editor-surface,
+  .workflow-section,
+  .tumblr-submit-shell {
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
   .workspace,
   .sidebar {
     padding: 16px;
@@ -4054,6 +4182,20 @@ html[data-theme="dark"] .selected-tags button {
     align-items: flex-start;
   }
 
+  .editor-notebook-intro,
+  .first-run-heading {
+    flex-direction: column;
+  }
+
+  .editor-notebook-intro {
+    padding: 14px;
+  }
+
+  .editor-notebook-title {
+    font-size: 1.22rem;
+    line-height: 1.2;
+  }
+
   .operations-hero-brand,
   .editor-save-pill {
     width: 100%;
@@ -4068,6 +4210,13 @@ html[data-theme="dark"] .selected-tags button {
   .editor-save-pill {
     width: 100%;
     justify-content: center;
+  }
+
+  .editor-save-pill {
+    height: auto;
+    min-height: 34px;
+    white-space: normal;
+    text-align: center;
   }
 
   .advertisement-card {
@@ -4114,8 +4263,15 @@ html[data-theme="dark"] .selected-tags button {
   }
 
   .runner-hero-actions,
-  .runner-link-row {
+  .runner-link-row,
+  .runner-install-actions {
     width: 100%;
+  }
+
+  .runner-install-actions > button,
+  .runner-hero-actions > button,
+  .runner-link-row > button {
+    flex: 1 1 160px;
   }
 
   .batch-prep-panel {
@@ -4153,6 +4309,8 @@ html[data-theme="dark"] .selected-tags button {
   .field-grid.three,
   .content-calendar-grid,
   .operations-grid,
+  .first-run-steps,
+  .runner-install-steps,
   .docs-grid,
   .account-settings-grid,
   .queue-management-form,
@@ -4186,6 +4344,56 @@ html[data-theme="dark"] .selected-tags button {
   .tumblr-composer-header select {
     border-right: 0;
     border-bottom: 1px solid var(--line);
+  }
+
+  .workflow-section-header {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .workflow-section-header > button {
+    align-items: flex-start;
+  }
+
+  .workflow-section-actions {
+    justify-content: stretch;
+  }
+
+  .workflow-section-actions > button,
+  .workflow-section-actions > span {
+    flex: 1 1 140px;
+  }
+
+  .tumblr-submit-shell.preview-mobile,
+  .tumblr-submit-shell.preview-compact {
+    max-width: 100%;
+  }
+
+  .tumblr-blog-id {
+    min-height: 42px;
+  }
+
+  .tumblr-editor-tools {
+    justify-content: flex-start;
+    gap: 10px;
+    overflow-x: auto;
+  }
+
+  .tumblr-editor-tools button {
+    flex: 0 0 30px;
+  }
+
+  .tag-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .custom-tag-form {
+    flex-wrap: wrap;
+  }
+
+  .custom-tag-form input {
+    min-width: 0;
   }
 
   .media-preview,

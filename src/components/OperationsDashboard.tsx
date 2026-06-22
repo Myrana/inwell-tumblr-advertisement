@@ -1,4 +1,4 @@
-import { Activity, AlertTriangle, Archive, CheckCircle2, ClipboardCheck, Download, ListChecks, Play, ShieldCheck, Upload } from "lucide-react";
+import { Activity, AlertTriangle, Archive, CheckCircle2, ClipboardCheck, Download, FilePlus2, ListChecks, Play, ShieldCheck, Upload } from "lucide-react";
 import { ChangeEvent } from "react";
 import { attentionQueueItems, queueReadiness, queueStatusCounts, runnableQueueItems } from "../domain/queueAutomation";
 import { QueueDefinition, RunnerActivity, SubmissionQueueItem, TumblrAccount, WorkspaceView } from "../domain/types";
@@ -14,6 +14,7 @@ type OperationsDashboardProps = {
   templateCount: number;
   tumblrAccounts: TumblrAccount[];
   workspaceTransferStatus: string;
+  onCreateSampleAd: () => void;
   onExportWorkspace: () => void;
   onImportWorkspace: (file: File) => void;
   onNavigate: (view: WorkspaceView) => void;
@@ -30,6 +31,7 @@ export function OperationsDashboard({
   templateCount,
   tumblrAccounts,
   workspaceTransferStatus,
+  onCreateSampleAd,
   onExportWorkspace,
   onImportWorkspace,
   onNavigate,
@@ -43,6 +45,7 @@ export function OperationsDashboard({
   const postedCount = counts.posted + counts.submitted;
   const connectedAccounts = tumblrAccounts.filter((account) => account.status === "connected").length;
   const needsLoginAccounts = tumblrAccounts.filter((account) => account.status !== "connected").length;
+  const showFirstRunPanel = connectedAccounts === 0 && savedDraftCount === 0 && queueItems.length === 0;
   const readiness = queueReadiness({
     activeQueueName,
     activeQueue: activeQueueItems,
@@ -80,10 +83,58 @@ export function OperationsDashboard({
             Open archive
           </button>
           <button className="secondary compact-button" type="button" onClick={() => onNavigate("queue-settings")}>
-            Track blogs
+            Blog tracker
           </button>
         </div>
       </section>
+
+      {showFirstRunPanel ? (
+        <section className="first-run-panel" aria-label="First-run checklist">
+          <div className="first-run-heading">
+            <div>
+              <span className="panel-kicker">Start here</span>
+              <h2>Set up your first Tumblr ad</h2>
+              <p>Connect an account, write or load an example advertisement, then queue it to a blog.</p>
+            </div>
+            <button className="secondary compact-button" type="button" onClick={onCreateSampleAd}>
+              <FilePlus2 size={16} />
+              Start with example ad
+            </button>
+          </div>
+          <div className="first-run-steps">
+            <article>
+              <span>1</span>
+              <div>
+                <strong>Connect Tumblr account</strong>
+                <p>Add a Tumblr login so the local runner can prepare or submit queue items.</p>
+              </div>
+              <button className="primary compact-button" type="button" onClick={() => onNavigate("accounts")}>
+                Connect account
+              </button>
+            </article>
+            <article>
+              <span>2</span>
+              <div>
+                <strong>Write first advertisement</strong>
+                <p>Create your ad, add forum details, and save the tags readers should see.</p>
+              </div>
+              <button className="secondary compact-button" type="button" onClick={() => onNavigate("editor")}>
+                Write ad
+              </button>
+            </article>
+            <article>
+              <span>3</span>
+              <div>
+                <strong>Queue to a blog</strong>
+                <p>Use Blog tracker to organize blog lanes, then send the finished ad to a queue.</p>
+              </div>
+              <button className="secondary compact-button" type="button" onClick={() => onNavigate("queue-settings")}>
+                Open Blog tracker
+              </button>
+            </article>
+          </div>
+        </section>
+      ) : null}
 
       <section className={`run-readiness-panel run-readiness-${readiness.status}`} aria-label="Run readiness">
         <div className="run-readiness-icon">
@@ -141,7 +192,7 @@ export function OperationsDashboard({
               Open queue
             </button>
             <button className="secondary compact-button" type="button" onClick={() => onNavigate("queue-settings")}>
-              Manage queues
+              Blog tracker
             </button>
           </div>
         </article>

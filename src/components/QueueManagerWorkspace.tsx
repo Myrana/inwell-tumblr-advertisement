@@ -14,6 +14,7 @@ type QueueManagerWorkspaceProps = {
   onDeleteQueue: (queueName: string) => void;
   onQueueNameDraftChange: (value: string) => void;
   onSelectQueue: (queueName: string) => void;
+  onCreateSubmission: () => void;
 };
 
 const completedStatuses = new Set(["submitted", "posted", "failed"]);
@@ -29,6 +30,7 @@ export function QueueManagerWorkspace({
   onDeleteQueue,
   onQueueNameDraftChange,
   onSelectQueue,
+  onCreateSubmission,
 }: QueueManagerWorkspaceProps) {
   const defaultSchedule = {
     enabled: queueScheduleSettings.enabled,
@@ -41,7 +43,7 @@ export function QueueManagerWorkspace({
       <div className="panel-heading">
         <div>
           <span className="panel-kicker">Blog Tracker</span>
-          <h2>Queues</h2>
+          <h2>Blog tracker</h2>
           <p>Keep Tumblr submission lanes, schedules, and reusable blog requirements in one place.</p>
         </div>
         <ListChecks size={18} />
@@ -120,7 +122,13 @@ export function QueueManagerWorkspace({
             </article>
           );
         }) : (
-          <p className="queue-empty">Create your first queue when you are ready to organize submissions.</p>
+          <div className="queue-empty action-empty">
+            <strong>No blog lanes yet.</strong>
+            <span>Create a lane for a Tumblr blog or ad campaign, then write an advertisement to queue there.</span>
+            <button className="secondary compact-button" type="button" onClick={onCreateSubmission}>
+              Write advertisement
+            </button>
+          </div>
         )}
       </div>
     </section>

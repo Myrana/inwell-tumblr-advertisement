@@ -33,6 +33,7 @@ type TemplatesWorkspaceProps = {
   onDraftChange: (patch: Partial<TemplateDraft>) => void;
   onSaveTemplate: (event: FormEvent, contentHtml: string) => void;
   onSaveCurrentAsTemplate: () => void;
+  canSaveCurrentAsTemplate: boolean;
 };
 
 export function TemplatesWorkspace({
@@ -46,6 +47,7 @@ export function TemplatesWorkspace({
   onDraftChange,
   onSaveTemplate,
   onSaveCurrentAsTemplate,
+  canSaveCurrentAsTemplate,
 }: TemplatesWorkspaceProps) {
   const editor = useEditor({
     extensions: [
@@ -90,10 +92,13 @@ export function TemplatesWorkspace({
       </div>
 
       <div className="template-actions">
-        <button className="primary" type="button" onClick={onSaveCurrentAsTemplate}>
+        <button className="primary" type="button" onClick={onSaveCurrentAsTemplate} disabled={!canSaveCurrentAsTemplate}>
           <Save size={18} />
           Save current submission as template
         </button>
+        {!canSaveCurrentAsTemplate ? (
+          <p className="template-status">Templates work best after the current ad has a title, copy, blog, or tags.</p>
+        ) : null}
         {status ? <p className="template-status">{status}</p> : null}
       </div>
 

@@ -157,7 +157,7 @@ function App() {
   const [runnerState, setRunnerState] = useState<RunnerStatus | null>(null);
   const [localCompanion, setLocalCompanion] = useState<LocalCompanionStatus | null>(null);
   const [runnerLogs, setRunnerLogs] = useState<RunnerLog[]>([]);
-  const [activeView, setActiveView] = useState<WorkspaceView>("editor");
+  const [activeView, setActiveView] = useState<WorkspaceView>("dashboard");
   const [colorTheme, setColorTheme] = useState<ColorTheme>(() => loadColorTheme());
   const [accountSetupRouteApplied, setAccountSetupRouteApplied] = useState(false);
 
@@ -390,9 +390,6 @@ function App() {
       return;
     }
 
-    if (!hasConnectedTumblrAccount) {
-      setActiveView("accounts");
-    }
     setAccountSetupRouteApplied(true);
   }, [accountSetupRouteApplied, authUser, backendStateLoaded, hasConnectedTumblrAccount]);
 
@@ -594,10 +591,16 @@ function App() {
 
     if (nextActiveAd) {
       syncAdvertisement(nextActiveAd);
+      setSaveStatus("Saved just now");
     }
   }
 
   function saveCurrentAsTemplate() {
+    if (!hasLibraryContent(activeAd)) {
+      setTemplateStatus("Write an advertisement first, then save it as a reusable template.");
+      return;
+    }
+
     const template = templateFromAdvertisement(activeAd, activeQueueName);
     setTemplates((current) => [template, ...current]);
     syncTemplate(template);
@@ -749,6 +752,30 @@ function App() {
     syncAdvertisement(next);
   }
 
+  function createSampleAdvertisement() {
+    const next: Advertisement = {
+      ...emptyAd(),
+      title: "Open canons photo ad",
+      campaignName: "Summer wanted ads",
+      content:
+        "<p>Our supernatural town is open for canon applications, original families, and slow-burn plotlines.</p><p>Looking for writers who enjoy active plotting, flexible pacing, and character-first drama.</p>",
+      forumUrl: "https://your-forum.jcink.net",
+      tags: ["roleplay", "jcink", "wanted ad"],
+      imageCaption:
+        "<p>Our supernatural town is open for canon applications, original families, and slow-burn plotlines.</p><p>Looking for writers who enjoy active plotting, flexible pacing, and character-first drama.</p>",
+      updatedAt: new Date().toISOString(),
+    };
+    activeDestinationBlogRef.current = next.destinationBlog;
+    setValidation([]);
+    setSaveStatus("Example ad loaded");
+    setStored((current) => ({
+      ads: [next, ...current.ads],
+      activeAdId: next.id,
+    }));
+    syncAdvertisement(next);
+    setActiveView("editor");
+  }
+
   function deleteDraft(id: string) {
     setStored((current) => {
       const remaining = current.ads.filter((ad) => ad.id !== id);
@@ -799,7 +826,7 @@ function App() {
   function saveDraft() {
     updateActiveAd({ status: "draft" });
     setValidation([]);
-    setSaveStatus("Saved.");
+    setSaveStatus("Saved just now");
   }
 
   function validateAd() {
@@ -1757,6 +1784,7 @@ function App() {
             templates={templates}
             toolbarButtons={toolbarButtons}
             validation={validation}
+            saveStatus={saveStatus}
             onAddCustomTag={addCustomTag}
             onAddSubmitTarget={addSubmitTarget}
             onApplyTemplate={applyTemplate}
@@ -1791,6 +1819,7 @@ function App() {
             templateCount={templates.length}
             tumblrAccounts={tumblrAccounts}
             workspaceTransferStatus={workspaceTransferStatus}
+            onCreateSampleAd={createSampleAdvertisement}
             onExportWorkspace={exportWorkspace}
             onImportWorkspace={importWorkspace}
             onNavigate={setActiveView}
@@ -1811,6 +1840,8 @@ function App() {
             onRetryQueueItemTestRun={retryQueueItemTestRun}
             onBulkUpdateQueueItems={bulkUpdateQueueItems}
             onUpdateQueueItem={updateQueueItem}
+            onCreateSubmission={() => setActiveView("editor")}
+            onManageBlogs={() => setActiveView("queue-settings")}
           />
         ) : null}
         {activeView === "runner" ? (
@@ -1855,6 +1886,7 @@ function App() {
               setSelectedQueueName(queueName);
               setActiveView("queue");
             }}
+            onCreateSubmission={() => setActiveView("editor")}
           />
         ) : null}
         {activeView === "logs" ? (
@@ -1900,6 +1932,7 @@ function App() {
             onDraftChange={(patch) => setTemplateDraft((current) => ({ ...current, ...patch }))}
             onSaveTemplate={saveTemplateDraft}
             onSaveCurrentAsTemplate={saveCurrentAsTemplate}
+            canSaveCurrentAsTemplate={hasLibraryContent(activeAd)}
           />
         ) : null}
 
@@ -1912,6 +1945,7 @@ function App() {
             onDeleteDraft={deleteDraft}
             onBulkUpdateDrafts={bulkUpdateSavedDrafts}
             onQueueDraft={queueSavedDraft}
+            onCreateDraft={() => setActiveView("editor")}
             onSelectDraft={(id) => {
               setStored((current) => ({ ...current, activeAdId: id }));
               setActiveView("editor");

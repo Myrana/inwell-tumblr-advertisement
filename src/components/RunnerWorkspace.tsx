@@ -68,6 +68,7 @@ export function RunnerWorkspace({
   const latestRunId = latestRunnerRunId(runnerLogs);
   const latestRunGroup = runnerLogRunGroups(runnerLogs)[0] ?? null;
   const localRunner = runnerState?.local_runner;
+  const showInstallGuide = !localRunner?.online && !runnableItems.length;
   const readinessItems = [
     {
       label: "Local companion",
@@ -110,6 +111,48 @@ export function RunnerWorkspace({
           </button>
         </div>
       </section>
+
+      {showInstallGuide ? (
+        <section className="runner-install-guide" aria-label="Install local runner">
+          <div>
+            <span className="panel-kicker">Install local runner</span>
+            <h2>Set up this computer before live automation</h2>
+            <p>Download the runner, connect a Tumblr account, then add a queued ad. Test run fills Tumblr without submitting.</p>
+          </div>
+          <div className="runner-install-steps">
+            <article>
+              <strong>1. Download</strong>
+              <span>Install the local runner once on this computer.</span>
+            </article>
+            <article>
+              <strong>2. Connect</strong>
+              <span>Open Tumblr login through the runner and select the account.</span>
+            </article>
+            <article>
+              <strong>3. Test run</strong>
+              <span>Prepare Tumblr first, then approve live posting only when the queue looks right.</span>
+            </article>
+          </div>
+          <div className="runner-install-actions">
+            <button className="primary compact-button" type="button" onClick={onDownloadLocalRunner}>
+              <Download size={16} />
+              Download runner
+            </button>
+            {showLaunchLocalRunner ? (
+              <button className="secondary compact-button" type="button" onClick={onLaunchLocalRunner}>
+                <PlugZap size={16} />
+                Start runner
+              </button>
+            ) : null}
+            <button className="secondary compact-button" type="button" onClick={onNavigateAccounts}>
+              Manage accounts
+            </button>
+            <button className="secondary compact-button" type="button" onClick={onNavigateQueue}>
+              Open queue
+            </button>
+          </div>
+        </section>
+      ) : null}
 
       <div className="runner-workspace-grid">
         <section className="workflow-section runner-readiness-workspace" aria-label="Runner readiness">

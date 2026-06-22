@@ -39,6 +39,7 @@ type EditorWorkspaceProps = {
   templates: SavedTemplate[];
   toolbarButtons: ToolbarButton[];
   validation: string[];
+  saveStatus: string;
   onAddCustomTag: (event: FormEvent) => void;
   onAddSubmitTarget: (event: FormEvent) => void;
   onApplyMediaAsset: (asset: MediaLibraryAsset) => void;
@@ -75,6 +76,7 @@ export function EditorWorkspace({
   templates,
   toolbarButtons,
   validation,
+  saveStatus,
   onAddCustomTag,
   onAddSubmitTarget,
   onApplyMediaAsset,
@@ -135,7 +137,7 @@ export function EditorWorkspace({
             <p>Write once, save the blog rules, attach the visual, and send the finished ad into the queue.</p>
           </div>
           <div className="editor-save-pill" aria-label="Autosave status">
-            Autosaves as you write
+            {saveStatus || "Autosaves as you write"}
           </div>
         </div>
 
@@ -220,7 +222,7 @@ export function EditorWorkspace({
                     onChange={(event) => onUpdateActiveAd({ title: event.target.value })}
                     placeholder="Open canons photo ad"
                   />
-                  <span className="field-hint">Used to find this content library item again.</span>
+                  <span className="field-hint">Example: Open canon photo ad.</span>
                 </label>
 
                 <label>
@@ -230,7 +232,7 @@ export function EditorWorkspace({
                     onChange={(event) => onUpdateActiveAd({ campaignName: event.target.value })}
                     placeholder="Summer wanted ads"
                   />
-                  <span className="field-hint">Groups related submissions and queue runs.</span>
+                  <span className="field-hint">Example: Summer wanted ads.</span>
                 </label>
 
                 <label>
@@ -245,7 +247,7 @@ export function EditorWorkspace({
                       ))
                     ) : null}
                   </select>
-                  <span className="field-hint">{activeSubmitTarget.submitUrl || "Add or choose a Tumblr submit URL before queueing."}</span>
+                  <span className="field-hint">{activeSubmitTarget.submitUrl || "Example: a Tumblr submit page that accepts roleplay ads."}</span>
                 </label>
 
                 <label>
@@ -255,7 +257,7 @@ export function EditorWorkspace({
                     onChange={(event) => onUpdateForumUrl(event.target.value)}
                     placeholder="https://your-forum.jcink.net"
                   />
-                  <span className="field-hint">Saved with the selected Tumblr blog and included in the queue package.</span>
+                  <span className="field-hint">Example: the forum or wanted page readers should open.</span>
                 </label>
               </div>
 
@@ -267,6 +269,7 @@ export function EditorWorkspace({
                     onChange={(event) => onUpdateNewSubmitUrl(event.target.value)}
                     placeholder="https://allthingsroleplay.tumblr.com/submit"
                   />
+                  <span className="field-hint">Paste a blog submit URL once, then reuse it from Blog tracker.</span>
                 </label>
                 <button className="secondary" type="submit">
                   <Plus size={18} />
