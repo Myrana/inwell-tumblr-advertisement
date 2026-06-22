@@ -3006,10 +3006,10 @@ pre {
 
 .advertisement-card {
   display: grid;
-  grid-template-columns: 112px minmax(0, 1fr) auto auto;
+  grid-template-columns: 148px minmax(0, 1fr) auto auto;
   align-items: center;
-  gap: 14px;
-  padding: 14px;
+  gap: 16px;
+  padding: 16px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fff;
@@ -3017,8 +3017,8 @@ pre {
 }
 
 .draft-card-media {
-  width: 112px;
-  aspect-ratio: 4 / 3;
+  width: 148px;
+  aspect-ratio: 16 / 10;
   overflow: hidden;
   display: grid;
   place-items: center;
@@ -3061,6 +3061,54 @@ pre {
 .draft-row-summary {
   flex: 1;
   min-width: 0;
+  display: grid;
+  gap: 9px;
+}
+
+.draft-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.draft-card-title-group {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.draft-card-kicker {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.draft-card-title {
+  color: var(--text);
+  font-size: 1.18rem;
+  line-height: 1.15;
+}
+
+.draft-card-select {
+  flex: 0 0 auto;
+  min-height: 28px;
+  margin: 0;
+  padding: 4px 9px;
+  border: 1px solid rgba(46, 143, 163, 0.22);
+  border-radius: 999px;
+  background: rgba(46, 143, 163, 0.08);
+  color: var(--text);
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.draft-card-select input {
+  width: 14px;
+  height: 14px;
 }
 
 .draft-row-meta,
@@ -3073,6 +3121,10 @@ pre {
 
 .draft-row-actions {
   justify-content: flex-end;
+}
+
+.advertisement-card .content-queue-picker {
+  grid-column: 2 / -1;
 }
 
 .draft-row strong,
@@ -3466,6 +3518,11 @@ html[data-theme="dark"] .workspace-saved .draft-row {
   border-radius: 8px;
 }
 
+html[data-theme="dark"] .workspace-saved .advertisement-card {
+  margin: 0;
+  padding: 16px;
+}
+
 html[data-theme="dark"] .workspace-saved .draft-row + .draft-row {
   margin-top: 6px;
 }
@@ -3728,6 +3785,12 @@ html[data-theme="dark"] .draft-card-media span {
   color: #b39df2;
 }
 
+html[data-theme="dark"] .draft-card-select {
+  border-color: rgba(139, 205, 224, 0.32);
+  background: rgba(23, 45, 59, 0.78);
+  color: #e9f3f6;
+}
+
 html[data-theme="dark"] .tumblr-media-preview-image {
   box-shadow: 0 18px 44px rgba(0, 0, 0, 0.36);
 }
@@ -3876,6 +3939,15 @@ html[data-theme="dark"] .selected-tags button {
   .draft-card-media {
     width: 100%;
     max-height: 260px;
+  }
+
+  .draft-card-header {
+    flex-direction: column-reverse;
+    align-items: flex-start;
+  }
+
+  .advertisement-card .content-queue-picker {
+    grid-column: auto;
   }
 
   .draft-row-actions {
