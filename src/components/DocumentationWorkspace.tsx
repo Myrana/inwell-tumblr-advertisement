@@ -2,8 +2,8 @@ const docsSections = [
   {
     title: "Local runner",
     items: [
-      "Use Download runner for the first install, then use Start local runner from the queue page after Windows registers the launcher.",
-      "When headless mode is on, the browser window may not stay visible. Watch the runner status, activity text, queue item status, and runner logs on the website.",
+      "Use Download runner for the first install, then use Start from the Runner page after Windows registers the launcher.",
+      "When headless mode is on, the browser window may not stay visible. Watch the Runner page, queue item status, and runner logs on the website.",
       "Run locally processes the active queue. Test run keeps submit approval off so you can verify login, page loading, media fill, and failure handling without posting.",
       "Remote browser providers are no longer part of the supported workflow. The supported Tumblr automation path is the local runner on your Windows computer.",
     ],
@@ -11,7 +11,7 @@ const docsSections = [
   {
     title: "Queues",
     items: [
-      "Queues now live as named work lanes. Open Queues to create or switch lanes, then open the Submission queue to run the selected lane.",
+      "Queues now live as named work lanes. Open Queues to create or switch lanes, then open Runner to run the selected lane.",
       "Content Library asks which queue to use when more than one queue exists, so saved drafts do not land in the wrong lane by accident.",
       "Completed posts appear in the post history archive, while failed or needs-review items stay visible for retry and manual attention.",
     ],

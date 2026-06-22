@@ -19,6 +19,7 @@ import { DocumentationWorkspace } from "./components/DocumentationWorkspace";
 import { LoginWorkspace } from "./components/LoginWorkspace";
 import { OperationsDashboard } from "./components/OperationsDashboard";
 import { RunnerLogsWorkspace } from "./components/RunnerLogsWorkspace";
+import { RunnerWorkspace } from "./components/RunnerWorkspace";
 import { SavedSubmissionsView } from "./components/SavedSubmissionsView";
 import { TemplatesWorkspace } from "./components/TemplatesWorkspace";
 import { TumblrAccountsWorkspace } from "./components/TumblrAccountsWorkspace";
@@ -494,7 +495,7 @@ function App() {
   }, [authUser]);
 
   useEffect(() => {
-    if (!["dashboard", "queue", "logs"].includes(activeView)) {
+    if (!["dashboard", "queue", "runner", "logs"].includes(activeView)) {
       return;
     }
 
@@ -1629,6 +1630,7 @@ function App() {
     saved: { eyebrow: "Content library", title: "Content library" },
     templates: { eyebrow: "Reusable copy library", title: "Saved templates" },
     queue: { eyebrow: "Tumblr automation", title: "Submission queue" },
+    runner: { eyebrow: "Tumblr automation", title: "Runner" },
     "queue-settings": { eyebrow: "Tumblr automation", title: "Queues" },
     accounts: { eyebrow: "Tumblr automation", title: "Tumblr accounts" },
     logs: { eyebrow: "Tumblr automation", title: "Runner logs" },
@@ -1801,26 +1803,41 @@ function App() {
             queueOptions={queueOptions}
             queueStatus={queueStatus}
             queueScheduleSettings={activeQueueScheduleSettings}
-            runnerConnectionLabel={runnerConnectionLabel}
-            runnerActivity={runnerActivity}
-            runnerHeadless={runnerSettings.headless}
-            runnerSubmitApproved={runnerSettings.submit}
             runnerLogs={runnerLogs}
             onEditQueueItem={editQueuedSubmission}
             onRenameQueue={renameQueueDefinition}
             onSelectQueue={setSelectedQueueName}
             onQueueScheduleSettingsChange={updateActiveQueueScheduleSettings}
-            onCopyLocalRunnerSetup={copyLocalRunnerSetup}
-            onDownloadLocalRunner={downloadLocalRunnerInstaller}
-            onLaunchLocalRunner={launchLocalRunnerProtocol}
-            onStartRunner={startRunner}
-            onStartTestRun={startTestRunner}
-            onRunnerHeadlessChange={(headless) => setRunnerSettings((current) => ({ ...current, headless }))}
-            onRunnerSubmitApprovedChange={(submit) => setRunnerSettings((current) => ({ ...current, submit }))}
-            showLaunchLocalRunner={canLaunchLocalRunner}
             onRetryQueueItemTestRun={retryQueueItemTestRun}
             onBulkUpdateQueueItems={bulkUpdateQueueItems}
             onUpdateQueueItem={updateQueueItem}
+          />
+        ) : null}
+        {activeView === "runner" ? (
+          <RunnerWorkspace
+            activeQueue={activeQueue}
+            activeQueueName={activeQueueName}
+            queueOptions={queueOptions}
+            queueStatus={queueStatus}
+            runnerActivity={runnerActivity}
+            runnerConnectionLabel={runnerConnectionLabel}
+            runnerHeadless={runnerSettings.headless}
+            runnerLogs={runnerLogs}
+            runnerState={runnerState}
+            runnerSubmitApproved={runnerSettings.submit}
+            selectedTumblrAccountId={runnerSettings.tumblrAccountId}
+            showLaunchLocalRunner={canLaunchLocalRunner}
+            tumblrAccounts={tumblrAccounts}
+            onCopyLocalRunnerSetup={copyLocalRunnerSetup}
+            onDownloadLocalRunner={downloadLocalRunnerInstaller}
+            onLaunchLocalRunner={launchLocalRunnerProtocol}
+            onNavigateAccounts={() => setActiveView("accounts")}
+            onNavigateLogs={() => setActiveView("logs")}
+            onNavigateQueue={() => setActiveView("queue")}
+            onRunnerHeadlessChange={(headless) => setRunnerSettings((current) => ({ ...current, headless }))}
+            onRunnerSubmitApprovedChange={(submit) => setRunnerSettings((current) => ({ ...current, submit }))}
+            onStartRunner={startRunner}
+            onStartTestRun={startTestRunner}
           />
         ) : null}
         {activeView === "queue-settings" ? (

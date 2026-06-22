@@ -153,7 +153,7 @@ export function OperationsDashboard({
           <span>Runner</span>
           <strong>{runnerActivity.status}</strong>
           <small>{runnerConnectionLabel}. {runnerSubmitApproved ? "Live posting approved." : "Test/prep mode until live posting is approved."}</small>
-          <button className="secondary compact-button" type="button" onClick={() => onNavigate("queue")}>
+          <button className="secondary compact-button" type="button" onClick={() => onNavigate("runner")}>
             Runner controls
           </button>
         </article>

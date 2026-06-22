@@ -127,7 +127,7 @@ export function queueReadiness(options: {
     status: "ready",
     title: options.submitApproved ? "Ready for live run" : "Ready for test run",
     detail: options.submitApproved ? `${runnableCount} runnable item${runnableCount === 1 ? "" : "s"} can post.` : "Live posting is off; the runner will prepare items for review.",
-    primaryAction: { label: "Open runner", view: "queue" },
+    primaryAction: { label: "Open runner", view: "runner" },
     blockers: [],
   };
 }

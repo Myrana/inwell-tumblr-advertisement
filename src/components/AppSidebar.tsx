@@ -1,4 +1,4 @@
-import { BookOpenText, FileText, Gauge } from "lucide-react";
+import { BookOpenText, FileText, Gauge, PlayCircle } from "lucide-react";
 import { AuthUser, WorkspaceView } from "../domain/types";
 
 type AppSidebarProps = {
@@ -39,6 +39,10 @@ export function AppSidebar({
         <button className={activeView === "editor" ? "active" : ""} type="button" onClick={() => onViewChange("editor")}>
           <FileText size={18} />
           New Submission
+        </button>
+        <button className={activeView === "runner" ? "active" : ""} type="button" onClick={() => onViewChange("runner")}>
+          <PlayCircle size={18} />
+          Runner
         </button>
         <button className={activeView === "docs" ? "active" : ""} type="button" onClick={() => onViewChange("docs")}>
           <BookOpenText size={18} />
