@@ -6,6 +6,8 @@ import { formatDate, formatStatus } from "../domain/format";
 import { scoreDraftReadiness, validateAdvertisement } from "../domain/post";
 import { Advertisement, QueueDefinition } from "../domain/types";
 
+type LibrarySortMode = "updated-desc" | "campaign-asc" | "campaign-desc";
+
 type SavedSubmissionsViewProps = {
   activeAdId: string;
   ads: Advertisement[];
@@ -41,7 +43,25 @@ export function SavedSubmissionsView({
   const [selectedDraftIds, setSelectedDraftIds] = useState<string[]>([]);
   const [bulkCampaignName, setBulkCampaignName] = useState("");
   const [bulkTag, setBulkTag] = useState("");
+  const [sortMode, setSortMode] = useState<LibrarySortMode>("updated-desc");
   const selectedLibraryCount = selectedDraftIds.filter((id) => libraryAds.some((ad) => ad.id === id)).length;
+  const sortedLibraryAds = [...libraryAds].sort((first, second) => {
+    if (sortMode === "updated-desc") {
+      return new Date(second.updatedAt).getTime() - new Date(first.updatedAt).getTime();
+    }
+
+    const firstCampaign = first.campaignName?.trim() || "";
+    const secondCampaign = second.campaignName?.trim() || "";
+    if (!firstCampaign || !secondCampaign) {
+      return firstCampaign ? -1 : secondCampaign ? 1 : (first.title || "").localeCompare(second.title || "", undefined, { sensitivity: "base" });
+    }
+
+    const campaignComparison = firstCampaign.localeCompare(secondCampaign, undefined, { sensitivity: "base" });
+    const titleComparison = (first.title || "").localeCompare(second.title || "", undefined, { sensitivity: "base" });
+
+    return sortMode === "campaign-asc" ? campaignComparison || titleComparison : -campaignComparison || titleComparison;
+  });
+  const sortedReadyAds = sortedLibraryAds.filter((ad) => validateAdvertisement(ad).length === 0);
 
   function toggleDraftSelection(adId: string, selected: boolean) {
     setSelectedDraftIds((current) => (selected ? Array.from(new Set([...current, adId])) : current.filter((id) => id !== adId)));
@@ -68,7 +88,7 @@ export function SavedSubmissionsView({
 
   function queueReadyDrafts() {
     const queueName = batchQueueName || activeQueueName || queueOptions[0]?.name || "";
-    readyAds.forEach((ad) => onQueueDraft(ad.id, queueName));
+    sortedReadyAds.forEach((ad) => onQueueDraft(ad.id, queueName));
   }
 
   return (
@@ -117,9 +137,17 @@ export function SavedSubmissionsView({
             <input
               checked={selectedLibraryCount === libraryAds.length}
               type="checkbox"
-              onChange={(event) => setSelectedDraftIds(event.target.checked ? libraryAds.map((ad) => ad.id) : [])}
+              onChange={(event) => setSelectedDraftIds(event.target.checked ? sortedLibraryAds.map((ad) => ad.id) : [])}
             />
             Select all saved items
+          </label>
+          <label>
+            Sort library
+            <select value={sortMode} onChange={(event) => setSortMode(event.target.value as LibrarySortMode)}>
+              <option value="updated-desc">Newest first</option>
+              <option value="campaign-asc">A-Z</option>
+              <option value="campaign-desc">Z-A</option>
+            </select>
           </label>
           <label>
             Campaign
@@ -144,13 +172,21 @@ export function SavedSubmissionsView({
           </button>
         </div>
       )}
-      {libraryAds.map((ad) => {
+      {sortedLibraryAds.map((ad) => {
         const duplicateMatch = duplicateMatchesByAdId.get(ad.id);
         const duplicatePeerNames = duplicateMatch?.labels.filter((label, index) => duplicateMatch.adIds[index] !== ad.id) ?? [];
         const readiness = scoreDraftReadiness(ad);
 
         return (
           <article className={ad.id === activeAdId ? "draft-row advertisement-card selected" : "draft-row advertisement-card"} key={ad.id}>
+            <label className="bulk-select row-select draft-card-select" aria-label="Select saved item">
+              <input
+                checked={selectedDraftIds.includes(ad.id)}
+                type="checkbox"
+                onChange={(event) => toggleDraftSelection(ad.id, event.target.checked)}
+              />
+              Select
+            </label>
             <div className="draft-card-media" aria-hidden="true">
               {ad.imageDataUrl ? (
                 <img src={ad.imageDataUrl} alt="" />
@@ -164,14 +200,6 @@ export function SavedSubmissionsView({
                   <span className="draft-card-kicker">Saved advertisement</span>
                   <div className="draft-card-title-row">
                     <strong className="draft-card-title">{ad.title || "Untitled advertisement"}</strong>
-                    <label className="bulk-select row-select draft-card-select" aria-label="Select saved item">
-                      <input
-                        checked={selectedDraftIds.includes(ad.id)}
-                        type="checkbox"
-                        onChange={(event) => toggleDraftSelection(ad.id, event.target.checked)}
-                      />
-                      Select
-                    </label>
                   </div>
                 </div>
               </div>
