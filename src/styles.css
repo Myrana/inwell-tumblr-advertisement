@@ -2681,6 +2681,11 @@ pre {
   background: #f8fafb;
 }
 
+.sort-panel {
+  grid-template-columns: minmax(170px, 1fr) minmax(140px, 220px);
+  align-items: center;
+}
+
 .bulk-edit-panel label,
 .bulk-select {
   display: grid;

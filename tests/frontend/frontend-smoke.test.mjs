@@ -865,11 +865,9 @@ test("content library rows can queue a saved submission", { timeout: 40000 }, as
   await page.getByLabel("Duplicate content check").getByText("2 possible duplicates in 1 group").waitFor();
   assert.equal(await page.locator(".duplicate-pill").count(), 2);
   await savedRow.getByLabel("Select saved item").check();
-  await page.getByLabel("Saved bulk editor").getByLabel("Campaign").fill("Fall campaign");
-  await page.getByLabel("Saved bulk editor").getByLabel("Add tag").fill("archive");
-  await page.getByLabel("Saved bulk editor").getByRole("button", { name: "Update 1" }).click();
-  await savedRow.getByText("Fall campaign").waitFor();
-  await page.getByLabel("Saved bulk editor").getByLabel("Sort library").selectOption("campaign-asc");
+  assert.equal(await page.getByLabel("Saved sorting controls").getByLabel("Campaign").count(), 0);
+  assert.equal(await page.getByLabel("Saved sorting controls").getByLabel("Add tag").count(), 0);
+  await page.getByLabel("Saved sorting controls").getByLabel("Sort library").selectOption("campaign-asc");
   await page.locator(".advertisement-card").first().getByText("Second saved post").waitFor();
   await page.getByLabel("Batch queue destination").selectOption("Want ads");
   await page.getByRole("button", { name: "Queue ready drafts" }).click();
@@ -877,7 +875,7 @@ test("content library rows can queue a saved submission", { timeout: 40000 }, as
   await page.getByText("Queued Saved queue post in Want ads.").waitFor();
   assert.deepEqual(savedQueueItems.map((item) => item.ad_id), ["saved-ad-two", "saved-ad"]);
   assert.deepEqual(savedQueueItems.map((item) => item.ad_id).sort(), ["saved-ad", "saved-ad-two"]);
-  assert.equal(JSON.parse(savedQueueItems.find((item) => item.ad_id === "saved-ad").runner_payload).advertisement.campaignName, "Fall campaign");
+  assert.equal(JSON.parse(savedQueueItems.find((item) => item.ad_id === "saved-ad").runner_payload).advertisement.campaignName, "Summer campaign");
   assert.equal(JSON.parse(savedQueueItems.find((item) => item.ad_id === "saved-ad").runner_payload).targetProfile.name, "All Things Roleplay ads");
   assert.equal(
     JSON.parse(savedQueueItems.find((item) => item.ad_id === "saved-ad").runner_payload).targetProfile.postingRules,
