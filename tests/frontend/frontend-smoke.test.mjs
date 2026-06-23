@@ -505,6 +505,79 @@ test("queue auto-refills from ready drafts when an item is marked posted", { tim
   assert.equal(savedQueue.filter((item) => item.status === "queued").length, 1);
   assert.equal(savedQueue.filter((item) => item.status === "posted").length, 1);
   assert.match(savedQueue.find((item) => item.status === "queued").id, /ad-replacement/);
+  assert.equal(savedQueue.every((item) => item.runnerPayload === ""), true);
+  assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
+});
+
+test("queue persistence quota failures do not blank the workspace", { timeout: 40000 }, async (t) => {
+  const server = spawn("npx vite --host 127.0.0.1 --port 8123 --strictPort", {
+    cwd: process.cwd(),
+    shell: true,
+    stdio: "ignore",
+  });
+
+  t.after(() => {
+    stopProcessTree(server);
+  });
+
+  await waitForServer(appUrl);
+
+  const browser = await chromium.launch();
+  t.after(async () => {
+    await browser.close();
+  });
+
+  const page = await browser.newPage();
+  const pageErrors = [];
+  page.on("pageerror", (error) => pageErrors.push(error));
+  await page.route("http://127.0.0.1:8021/api/**", (route) => route.abort());
+  await page.route("http://127.0.0.1:17842/status", (route) => route.abort());
+  await routeAuthenticatedSession(page);
+  await routeEmptyWorkspaceApis(page);
+  await page.addInitScript(() => {
+    const originalSetItem = Storage.prototype.setItem;
+    Storage.prototype.setItem = function patchedSetItem(key, value) {
+      if (key === "inwell-tumblr-submission-queue") {
+        throw new DOMException("Quota exceeded", "QuotaExceededError");
+      }
+      return originalSetItem.call(this, key, value);
+    };
+    localStorage.setItem(
+      "inwell-ad-assistant-state",
+      JSON.stringify({
+        activeAdId: "quota-ad",
+        ads: [
+          {
+            id: "quota-ad",
+            postType: "text",
+            title: "Quota source",
+            campaignName: "",
+            content: "<p>Quota source body</p>",
+            destinationBlog: "quotablog",
+            forumUrl: "https://forum.example/quota",
+            tags: ["quota"],
+            imageCaption: "",
+            imageName: "",
+            imageDataUrl: "",
+            videoUrl: "",
+            videoName: "",
+            status: "ready",
+            updatedAt: "2026-06-20T12:00:00.000Z",
+          },
+        ],
+      }),
+    );
+    localStorage.setItem(
+      "inwell-tumblr-submit-targets",
+      JSON.stringify([{ id: "quotablog", name: "Quota Blog", submitUrl: "https://quotablog.tumblr.com/submit" }]),
+    );
+  });
+
+  await page.goto(appUrl);
+  await page.getByRole("button", { name: "New Submission" }).click();
+  await page.getByRole("button", { name: "Add to queue" }).click();
+  await page.getByRole("heading", { name: "Queues", level: 1 }).waitFor();
+  await page.getByText("Create a queue before adding submissions.").waitFor();
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
 });
 

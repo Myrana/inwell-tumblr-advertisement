@@ -16,7 +16,18 @@ import { loadSubmitTargets } from "./submitTargets";
 import { loadTagProfiles } from "./tags";
 import { normalizeTemplate } from "./templates";
 import { normalizeTumblrAccount } from "./tumblrAccounts";
-import { ColorTheme, QueueDefinition, QueueSchedulePreference, QueueScheduleSettings, RemoteBrowserProvider, RunnerSettings, SavedTemplate, StoredState, TumblrAccount } from "./types";
+import {
+  ColorTheme,
+  QueueDefinition,
+  QueueSchedulePreference,
+  QueueScheduleSettings,
+  RemoteBrowserProvider,
+  RunnerSettings,
+  SavedTemplate,
+  StoredState,
+  SubmissionQueueItem,
+  TumblrAccount,
+} from "./types";
 
 export { loadSubmissionQueue, loadSubmitTargets, loadTagProfiles };
 
@@ -162,41 +173,65 @@ export function loadColorTheme(): ColorTheme {
 }
 
 export function saveStoredState(stored: StoredState) {
-  localStorage.setItem(storageKey, JSON.stringify(stored));
+  safeSetLocalStorage(storageKey, stored);
 }
 
 export function saveSubmitTargets(value: unknown) {
-  localStorage.setItem(submitTargetStorageKey, JSON.stringify(value));
+  safeSetLocalStorage(submitTargetStorageKey, value);
 }
 
 export function saveSubmissionQueue(value: unknown) {
-  localStorage.setItem(submissionQueueStorageKey, JSON.stringify(value));
+  safeSetLocalStorage(submissionQueueStorageKey, compactSubmissionQueueForStorage(value));
 }
 
 export function saveQueueDefinitions(value: unknown) {
-  localStorage.setItem(queueDefinitionsStorageKey, JSON.stringify(value));
+  safeSetLocalStorage(queueDefinitionsStorageKey, value);
 }
 
 export function saveTagProfiles(value: unknown) {
-  localStorage.setItem(tagProfileStorageKey, JSON.stringify(value));
+  safeSetLocalStorage(tagProfileStorageKey, value);
 }
 
 export function saveRunnerSettings(value: unknown) {
-  localStorage.setItem(runnerSettingsStorageKey, JSON.stringify(value));
+  safeSetLocalStorage(runnerSettingsStorageKey, value);
 }
 
 export function saveQueueScheduleSettings(value: unknown) {
-  localStorage.setItem(queueScheduleSettingsStorageKey, JSON.stringify(value));
+  safeSetLocalStorage(queueScheduleSettingsStorageKey, value);
 }
 
 export function saveTemplates(value: unknown) {
-  localStorage.setItem(templateStorageKey, JSON.stringify(value));
+  safeSetLocalStorage(templateStorageKey, value);
 }
 
 export function saveTumblrAccounts(value: unknown) {
-  localStorage.setItem(tumblrAccountsStorageKey, JSON.stringify(value));
+  safeSetLocalStorage(tumblrAccountsStorageKey, value);
 }
 
 export function saveColorTheme(value: ColorTheme) {
-  localStorage.setItem(themeStorageKey, value);
+  safeSetLocalStorage(themeStorageKey, value);
+}
+
+function compactSubmissionQueueForStorage(value: unknown) {
+  if (!Array.isArray(value)) {
+    return value;
+  }
+
+  return value.map((item: Partial<SubmissionQueueItem>) => ({
+    ...item,
+    runnerPayload: "",
+  }));
+}
+
+function safeSetLocalStorage(key: string, value: unknown) {
+  try {
+    localStorage.setItem(key, typeof value === "string" ? value : JSON.stringify(value));
+  } catch (error) {
+    console.warn(`Inkwell could not persist ${key} locally. Backend state remains available.`, error);
+    try {
+      localStorage.removeItem(key);
+    } catch {
+      // Ignore storage cleanup failures; persistence is best effort.
+    }
+  }
 }
