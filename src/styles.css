@@ -2420,6 +2420,29 @@ pre {
   color: #7b5b00;
 }
 
+.runner-run-status.ready {
+  background: #eefbf4;
+  color: #1f6d4a;
+}
+
+.runner-run-overview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.runner-run-overview > span {
+  width: max-content;
+  max-width: 100%;
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 900;
+}
 .runner-failure-summary,
 .queue-item-explanation {
   padding: 10px;
@@ -3919,6 +3942,16 @@ html[data-theme="dark"] .validation {
   color: #ffaaa0;
 }
 
+html[data-theme="dark"] .runner-run-status.ready {
+  background: rgba(116, 199, 157, 0.16);
+  color: #9de5ba;
+}
+
+html[data-theme="dark"] .runner-run-overview > span {
+  border-color: rgba(95, 179, 197, 0.2);
+  background: rgba(17, 26, 35, 0.82);
+  color: #a9c4ca;
+}
 html[data-theme="dark"] .queue-management-row.selected,
 html[data-theme="dark"] .account-session-row.selected,
 html[data-theme="dark"] .draft-row.selected,

@@ -2213,6 +2213,10 @@ test("runner logs are grouped by expandable queue run", { timeout: 40000 }, asyn
   await page.getByLabel("Latest run target summaries").getByText("jcinktinder").waitFor();
   await page.getByRole("button", { name: /Latest run run-new/ }).waitFor();
   assert.equal(await page.locator(".queue-log strong", { hasText: "Fields filled and ready for manual review." }).count(), 0);
+  await page.getByLabel("Run run-new timeline overview").getByText("Timeline ready").waitFor();
+  await page.getByLabel("Run run-new timeline overview").getByText("3 timeline steps").waitFor();
+  await page.getByLabel("Run run-new timeline overview").getByText("2 targets").waitFor();
+  await page.getByLabel("Run run-new timeline overview").getByText("1 running - 1 waiting").waitFor();
   await page.getByLabel("Run run-new target summaries").getByText("allthingsroleplay").waitFor();
   await page.getByLabel("Run run-new target summaries").getByText("jcinktinder").waitFor();
   await page.getByLabel("Run run-new target summaries").getByText("Submitted").waitFor();
