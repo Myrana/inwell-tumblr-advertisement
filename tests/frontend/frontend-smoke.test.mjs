@@ -745,6 +745,58 @@ test("content library tolerates nullable saved draft fields", { timeout: 40000 }
   await page.route("http://127.0.0.1:17842/status", (route) => route.abort());
   await routeAuthenticatedSession(page);
   await routeEmptyWorkspaceApis(page);
+  await page.route("http://127.0.0.1:8021/api/queue", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({
+        queue: [
+          {
+            id: null,
+            ad_id: null,
+            target_id: null,
+            target_name: null,
+            submit_url: null,
+            post_type: null,
+            status: null,
+            created_at: null,
+            updated_at: null,
+            notes: null,
+            runner_payload: null,
+          },
+        ],
+      }),
+    }),
+  );
+  await page.route("http://127.0.0.1:8021/api/settings", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({
+        settings: {
+          submitTargets: [
+            null,
+            { id: null, name: null, submitUrl: null },
+            {
+              id: "nullable-blog",
+              name: "nullable-blog",
+              profileName: null,
+              submitUrl: "https://nullable-blog.tumblr.com/submit",
+              forumUrl: null,
+              postingRules: null,
+            },
+          ],
+          tagProfiles: {
+            "nullable-blog": [null, "Wanted", "  premium ad  "],
+            ignored: null,
+          },
+          queueDefinitions: [null, { id: null, name: null }],
+          runnerSettings: { slowMo: null, tumblrAccountId: null },
+          queueScheduleSettings: { perQueue: { "": {} } },
+        },
+      }),
+    }),
+  );
   await page.addInitScript(() => {
     localStorage.setItem(
       "inwell-ad-assistant-state",

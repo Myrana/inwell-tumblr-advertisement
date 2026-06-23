@@ -56,25 +56,30 @@ export function fallbackTarget(id: string): TumblrSubmitTarget {
   };
 }
 
-export function uniqueSubmitTargets(targets: TumblrSubmitTarget[]) {
+function normalizeSubmitTarget(target: Partial<TumblrSubmitTarget> | null | undefined): TumblrSubmitTarget | null {
+  const id = typeof target?.id === "string" ? target.id.trim().toLowerCase() : "";
+  const submitUrl = normalizeSubmitUrl(typeof target?.submitUrl === "string" ? target.submitUrl : "");
+  if (!id || !submitUrl || removedSeedTargetIds.has(id)) {
+    return null;
+  }
+
+  const name = typeof target?.name === "string" && target.name.trim() ? target.name.trim() : id;
+  const profileName = typeof target?.profileName === "string" && target.profileName.trim() ? target.profileName.trim() : name;
+  const forumUrl = typeof target?.forumUrl === "string" ? target.forumUrl.trim() : "";
+  const postingRules = typeof target?.postingRules === "string" ? target.postingRules.trim() : "";
+  return { id, name, profileName, submitUrl, forumUrl, postingRules };
+}
+
+export function uniqueSubmitTargets(targets: Array<Partial<TumblrSubmitTarget> | null | undefined>) {
   const seen = new Map<string, TumblrSubmitTarget>();
 
   targets.forEach((target) => {
-    if (!target.id || seen.has(target.id)) {
+    const normalized = normalizeSubmitTarget(target);
+    if (!normalized || seen.has(normalized.id)) {
       return;
     }
 
-    if (removedSeedTargetIds.has(target.id)) {
-      return;
-    }
-
-    seen.set(target.id, {
-      ...target,
-      name: target.name || target.id,
-      profileName: target.profileName || target.name || target.id,
-      forumUrl: target.forumUrl || "",
-      postingRules: target.postingRules || "",
-    });
+    seen.set(normalized.id, normalized);
   });
 
   return Array.from(seen.values());
@@ -150,13 +155,7 @@ export function loadSubmitTargets() {
     const imported = Array.isArray(parsed)
       ? parsed
           .map((target) => {
-            const submitUrl = normalizeSubmitUrl(target.submitUrl ?? "");
-            const id = (target.id ?? "").trim().toLowerCase();
-            const name = (target.name ?? id).trim();
-            const profileName = (target.profileName ?? name).trim();
-            const forumUrl = (target.forumUrl ?? "").trim();
-            const postingRules = (target.postingRules ?? "").trim();
-            return submitUrl && id ? { id, name: name || id, profileName: profileName || name || id, submitUrl, forumUrl, postingRules } : null;
+            return normalizeSubmitTarget(target);
           })
           .filter((target): target is TumblrSubmitTarget => Boolean(target))
       : [];

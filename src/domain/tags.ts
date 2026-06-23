@@ -1,10 +1,10 @@
 import { defaultTagProfiles, tagProfileStorageKey } from "./constants";
 
-export function normalizeTag(value: string) {
-  return value.trim().replace(/\s+/g, " ").toLowerCase();
+export function normalizeTag(value: unknown) {
+  return typeof value === "string" ? value.trim().replace(/\s+/g, " ").toLowerCase() : "";
 }
 
-export function uniqueTags(values: string[]) {
+export function uniqueTags(values: unknown[]) {
   return [...new Set(values.map(normalizeTag).filter(Boolean))];
 }
 
@@ -24,18 +24,24 @@ export function loadTagProfiles() {
       return defaultTagProfiles;
     }
 
-    const parsed = JSON.parse(raw) as Record<string, unknown>;
-    const profiles: Record<string, string[]> = { ...defaultTagProfiles };
-    Object.entries(parsed).forEach(([blog, tags]) => {
-      if (Array.isArray(tags)) {
-        profiles[blog] = tags.length ? uniqueTags(tags as string[]) : (defaultTagProfiles[blog] ?? []);
-      }
-    });
-    Object.keys(defaultTagProfiles).forEach((blog) => {
-      profiles[blog] = profiles[blog] ?? defaultTagProfiles[blog];
-    });
-    return profiles;
+    return normalizeTagProfiles(JSON.parse(raw));
   } catch {
     return defaultTagProfiles;
   }
+}
+
+export function normalizeTagProfiles(value: unknown) {
+  const profiles: Record<string, string[]> = { ...defaultTagProfiles };
+  if (value && typeof value === "object") {
+    Object.entries(value as Record<string, unknown>).forEach(([blog, tags]) => {
+      const blogName = normalizeTag(blog);
+      if (blogName && Array.isArray(tags)) {
+        profiles[blogName] = tags.length ? uniqueTags(tags) : (defaultTagProfiles[blogName] ?? []);
+      }
+    });
+  }
+  Object.keys(defaultTagProfiles).forEach((blog) => {
+    profiles[blog] = profiles[blog] ?? defaultTagProfiles[blog];
+  });
+  return profiles;
 }

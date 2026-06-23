@@ -1,8 +1,8 @@
 import { apiBaseUrl } from "./constants";
 import { toApiAdvertisement } from "./ads";
-import { normalizeQueueName } from "./queue";
+import { normalizeQueueItem, normalizeQueueName } from "./queue";
 import { fromApiTemplate, toApiTemplate } from "./templates";
-import { fromApiTumblrAccount, toApiTumblrAccount } from "./tumblrAccounts";
+import { fromApiTumblrAccount, normalizeTumblrAccount, toApiTumblrAccount } from "./tumblrAccounts";
 import {
   Advertisement,
   AppSettings,
@@ -122,7 +122,7 @@ export async function saveBackendAppSettings(settings: AppSettings) {
 }
 
 export function fromApiQueueItem(item: ApiQueueItem): SubmissionQueueItem {
-  return {
+  const normalized = normalizeQueueItem({
     id: item.id,
     adId: item.ad_id,
     targetId: item.target_id,
@@ -141,7 +141,13 @@ export function fromApiQueueItem(item: ApiQueueItem): SubmissionQueueItem {
     failedAt: item.failed_at ?? "",
     notes: item.notes,
     runnerPayload: item.runner_payload,
-  };
+  });
+
+  if (!normalized) {
+    throw new ApiError(422, "Queue item is missing required fields.");
+  }
+
+  return normalized;
 }
 
 export function toApiQueueItem(item: SubmissionQueueItem): ApiQueueItem {
@@ -182,7 +188,15 @@ export function fromApiRunnerLog(log: ApiRunnerLog): RunnerLog {
 
 export async function loadBackendQueue() {
   const response = await apiRequest<{ queue: ApiQueueItem[] }>("/queue");
-  return response.queue.map(fromApiQueueItem);
+  return response.queue
+    .map((item) => {
+      try {
+        return fromApiQueueItem(item);
+      } catch {
+        return null;
+      }
+    })
+    .filter((item): item is SubmissionQueueItem => Boolean(item));
 }
 
 export async function saveQueueItem(item: SubmissionQueueItem) {
@@ -342,7 +356,9 @@ export async function loadLocalRunnerCommand(queueName: string, options: { submi
 
 export async function loadBackendTumblrAccounts() {
   const response = await apiRequest<{ accounts: ApiTumblrAccount[] }>("/tumblr/accounts");
-  return response.accounts.map(fromApiTumblrAccount);
+  return response.accounts
+    .map((account) => normalizeTumblrAccount(fromApiTumblrAccount(account)))
+    .filter((account): account is TumblrAccount => Boolean(account));
 }
 
 export async function saveTumblrAccount(account: TumblrAccount) {
