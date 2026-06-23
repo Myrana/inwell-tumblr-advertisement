@@ -39,6 +39,31 @@ test("site background uses CSS overlays without remote image artifacts", () => {
   assert.match(styles, /linear-gradient\(180deg, rgba\(0, 0, 0, 0\.36\)/);
 });
 
+test("render crashes show a recovery panel instead of a blank page", { timeout: 40000 }, async (t) => {
+  const server = spawn("npx vite --host 127.0.0.1 --port 8123 --strictPort", {
+    cwd: process.cwd(),
+    shell: true,
+    stdio: "ignore",
+  });
+
+  t.after(() => {
+    stopProcessTree(server);
+  });
+
+  await waitForServer(appUrl);
+
+  const browser = await chromium.launch();
+  t.after(async () => {
+    await browser.close();
+  });
+
+  const page = await browser.newPage();
+  await page.goto(`${appUrl}?forceCrash=1`);
+  await page.getByRole("heading", { name: "Inkwell hit a startup error.", level: 1 }).waitFor();
+  await page.getByText("Forced local render crash.").waitFor();
+  await page.getByRole("button", { name: "Reset local cache" }).waitFor();
+});
+
 function stopProcessTree(childProcess) {
   if (!childProcess.pid) {
     return;
