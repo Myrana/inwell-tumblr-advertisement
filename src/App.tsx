@@ -96,7 +96,7 @@ import {
   upsertSubmitTarget,
   upsertSubmitTargetForumUrl,
 } from "./domain/submitTargets";
-import { normalizeTag, uniqueTags } from "./domain/tags";
+import { normalizeTag, normalizeTagProfiles, uniqueTags } from "./domain/tags";
 import { applyTemplateToAdvertisement, normalizeTemplate, templateFromAdvertisement } from "./domain/templates";
 import { fromApiTumblrAccount, normalizeTumblrAccount, tumblrAccountId, upsertTumblrAccount } from "./domain/tumblrAccounts";
 import { createWorkspaceExport, parseWorkspaceImport, WorkspaceTransferData } from "./domain/workspaceTransfer";
@@ -461,7 +461,7 @@ function App() {
         );
         setTagProfiles(
           backendSettings.tagProfiles && Object.keys(backendSettings.tagProfiles).length
-            ? backendSettings.tagProfiles
+            ? normalizeTagProfiles(backendSettings.tagProfiles)
             : tagProfiles,
         );
         setRunnerSettings(backendSettings.runnerSettings ? normalizeRunnerSettings({ ...runnerSettings, ...backendSettings.runnerSettings }) : runnerSettings);
