@@ -875,10 +875,10 @@ test("custom blog submission flow does not blank the editor", { timeout: 40000 }
   assert.equal(await page.getByLabel("Queue destination").inputValue(), "Want ads");
   await page.getByRole("button", { name: "Toggle post content section" }).click();
   await page.locator(".tumblr-rich-editor strong", { hasText: "Quick saved copy" }).waitFor();
-  await page.getByRole("button", { name: "Mobile" }).click();
-  assert.equal(await page.locator(".tumblr-submit-shell").evaluate((node) => node.classList.contains("preview-mobile")), true);
-  await page.getByRole("button", { name: "Compact" }).click();
-  assert.equal(await page.locator(".tumblr-submit-shell").evaluate((node) => node.classList.contains("preview-compact")), true);
+  await page.getByLabel("Preview mode").getByText("Desktop", { exact: true }).waitFor();
+  assert.equal(await page.getByLabel("Preview mode").getByText("Mobile", { exact: true }).count(), 0);
+  assert.equal(await page.getByLabel("Preview mode").getByText("Compact", { exact: true }).count(), 0);
+  assert.equal(await page.locator(".tumblr-submit-shell").evaluate((node) => node.classList.contains("preview-desktop")), true);
   await page.getByLabel("Reusable media library").getByText("forum-banner.png").waitFor();
   await page.getByRole("button", { name: "Use forum-banner.png" }).click();
   await page.locator(".tumblr-photo-stage strong", { hasText: "forum-banner.png" }).waitFor();

@@ -15,7 +15,6 @@ type ToolbarButton = {
 };
 
 type WorkflowSectionKey = "details" | "templates" | "composer";
-type PreviewMode = "desktop" | "mobile" | "compact";
 
 type QueueConfirmation = {
   count: number;
@@ -100,7 +99,6 @@ export function EditorWorkspace({
     templates: false,
     composer: false,
   });
-  const [previewMode, setPreviewMode] = useState<PreviewMode>("desktop");
   const queueBlockers = validateAdvertisement(activeAd);
   const readiness = scoreDraftReadiness(activeAd);
   const detailsReady = Boolean(activeAd.title.trim() && activeAd.destinationBlog.trim() && activeAd.forumUrl.trim());
@@ -370,27 +368,17 @@ export function EditorWorkspace({
           {openSections.composer ? (
             <div className="workflow-section-body composer-section-body">
               {submissionComplete ? (
-                <div className={`tumblr-submit-shell preview-${previewMode}`}>
+                <div className="tumblr-submit-shell preview-desktop">
                   <div className="tumblr-thank-you" role="status">
                     <h2>Thank you!</h2>
                     <p>Your submission has been received and is awaiting moderator approval.</p>
                   </div>
                 </div>
               ) : (
-                <div className={`tumblr-submit-shell preview-${previewMode}`}>
+                <div className="tumblr-submit-shell preview-desktop">
                   <div className="tumblr-composer">
                     <div className="preview-mode-switcher" role="group" aria-label="Preview mode">
-                      {(["desktop", "mobile", "compact"] as PreviewMode[]).map((mode) => (
-                        <button
-                          key={mode}
-                          className={previewMode === mode ? "active" : ""}
-                          type="button"
-                          aria-pressed={previewMode === mode}
-                          onClick={() => setPreviewMode(mode)}
-                        >
-                          {mode[0].toUpperCase() + mode.slice(1)}
-                        </button>
-                      ))}
+                      <span className="active">Desktop</span>
                     </div>
                     <div className="tumblr-composer-header">
                       <label>
