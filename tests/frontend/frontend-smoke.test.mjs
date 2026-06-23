@@ -720,6 +720,80 @@ test("content library rows can queue a saved submission", { timeout: 40000 }, as
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
 });
 
+test("content library tolerates nullable saved draft fields", { timeout: 40000 }, async (t) => {
+  const server = spawn("npx vite --host 127.0.0.1 --port 8123 --strictPort", {
+    cwd: process.cwd(),
+    shell: true,
+    stdio: "ignore",
+  });
+
+  t.after(() => {
+    stopProcessTree(server);
+  });
+
+  await waitForServer(appUrl);
+
+  const browser = await chromium.launch();
+  t.after(async () => {
+    await browser.close();
+  });
+
+  const page = await browser.newPage();
+  const pageErrors = [];
+  page.on("pageerror", (error) => pageErrors.push(error));
+  await page.route("http://127.0.0.1:8021/api/**", (route) => route.abort());
+  await page.route("http://127.0.0.1:17842/status", (route) => route.abort());
+  await routeAuthenticatedSession(page);
+  await routeEmptyWorkspaceApis(page);
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      "inwell-ad-assistant-state",
+      JSON.stringify({
+        activeAdId: "nullable-draft",
+        ads: [
+          {
+            id: "nullable-draft",
+            postType: "photo",
+            title: "Nullable saved draft",
+            campaignName: null,
+            content: null,
+            destinationBlog: "nullable-blog",
+            forumUrl: "https://forum.example/thread",
+            tags: null,
+            imageCaption: null,
+            imageName: null,
+            imageDataUrl: null,
+            videoUrl: null,
+            videoName: null,
+            status: "draft",
+            updatedAt: "not a date",
+          },
+        ],
+      }),
+    );
+    localStorage.setItem(
+      "inwell-tumblr-submit-targets",
+      JSON.stringify([
+        {
+          id: "nullable-blog",
+          name: "nullable-blog",
+          profileName: "nullable-blog",
+          submitUrl: "https://nullable-blog.tumblr.com/submit",
+          forumUrl: "",
+          postingRules: "",
+        },
+      ]),
+    );
+  });
+
+  await page.goto(appUrl);
+  await page.getByRole("button", { name: "Open content" }).click();
+  await page.getByRole("heading", { name: "Content library", level: 2 }).waitFor();
+  await page.getByText("Nullable saved draft").waitFor();
+  await page.getByText("Updated").waitFor();
+  assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
+});
+
 test("custom blog submission flow does not blank the editor", { timeout: 40000 }, async (t) => {
   const server = spawn("npx vite --host 127.0.0.1 --port 8123 --strictPort", {
     cwd: process.cwd(),

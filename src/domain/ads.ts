@@ -13,6 +13,18 @@ function createId() {
   return `ad-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
+function normalizedText(value: unknown, fallback = "") {
+  return typeof value === "string" ? value : fallback;
+}
+
+function normalizedUpdatedAt(value: unknown, fallback: string) {
+  if (typeof value !== "string") {
+    return fallback;
+  }
+
+  return Number.isNaN(new Date(value).getTime()) ? fallback : value;
+}
+
 export const emptyAd = (destinationBlog = blogs[0] ?? ""): Advertisement => ({
   id: createId(),
   postType: "photo",
@@ -34,16 +46,24 @@ export const emptyAd = (destinationBlog = blogs[0] ?? ""): Advertisement => ({
 export function normalizeAd(value: Partial<Advertisement> | null | undefined): Advertisement {
   const fallback = emptyAd();
   const postType = value?.postType === "text" || value?.postType === "video" ? value.postType : "photo";
+  const destinationBlog = normalizedText(value?.destinationBlog, fallback.destinationBlog);
 
   return {
-    ...fallback,
-    ...value,
+    id: normalizedText(value?.id, fallback.id),
     postType,
-    id: value?.id || fallback.id,
-    destinationBlog: removedSeedTargetIds.has(value?.destinationBlog ?? "") ? "" : value?.destinationBlog ?? fallback.destinationBlog,
-    tags: Array.isArray(value?.tags) ? value.tags : fallback.tags,
+    title: normalizedText(value?.title),
+    campaignName: normalizedText(value?.campaignName),
+    content: normalizedText(value?.content),
+    destinationBlog: removedSeedTargetIds.has(destinationBlog) ? "" : destinationBlog,
+    forumUrl: normalizedText(value?.forumUrl),
+    tags: Array.isArray(value?.tags) ? value.tags.filter((tag): tag is string => typeof tag === "string") : fallback.tags,
+    imageCaption: normalizedText(value?.imageCaption),
+    imageName: normalizedText(value?.imageName, fallback.imageName),
+    imageDataUrl: normalizedText(value?.imageDataUrl, fallback.imageDataUrl),
+    videoUrl: normalizedText(value?.videoUrl),
+    videoName: normalizedText(value?.videoName),
     status: value?.status === "ready" || value?.status === "submitted" ? value.status : "draft",
-    updatedAt: value?.updatedAt || fallback.updatedAt,
+    updatedAt: normalizedUpdatedAt(value?.updatedAt, fallback.updatedAt),
   };
 }
 
