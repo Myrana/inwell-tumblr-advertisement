@@ -745,6 +745,53 @@ test("content library tolerates nullable saved draft fields", { timeout: 40000 }
   await page.route("http://127.0.0.1:17842/status", (route) => route.abort());
   await routeAuthenticatedSession(page);
   await routeEmptyWorkspaceApis(page);
+  await page.route("http://127.0.0.1:8021/api/advertisements", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({
+        advertisements: [
+          null,
+          {
+            id: "backend-nullable-draft",
+            post_type: null,
+            title: "Backend nullable draft",
+            campaign_name: null,
+            content: null,
+            destination_blog: null,
+            forum_url: null,
+            tags: [null, "Wanted"],
+            image_caption: null,
+            image_name: null,
+            image_data_url: null,
+            video_url: null,
+            video_name: null,
+            status: null,
+            updated_at: null,
+          },
+        ],
+      }),
+    }),
+  );
+  await page.route("http://127.0.0.1:8021/api/templates", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({
+        templates: [
+          {
+            id: null,
+            name: null,
+            content: null,
+            forum_url: null,
+            queue_name: null,
+            tags: [null, "Template tag"],
+            updated_at: null,
+          },
+        ],
+      }),
+    }),
+  );
   await page.route("http://127.0.0.1:8021/api/queue", (route) =>
     route.fulfill({
       contentType: "application/json",
@@ -797,6 +844,51 @@ test("content library tolerates nullable saved draft fields", { timeout: 40000 }
       }),
     }),
   );
+  await page.route("http://127.0.0.1:8021/api/runner/logs", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({
+        logs: [
+          {
+            id: null,
+            run_id: null,
+            queue_item_id: null,
+            target_name: null,
+            level: null,
+            message: null,
+            details: null,
+            created_at: null,
+          },
+        ],
+      }),
+    }),
+  );
+  await page.route("http://127.0.0.1:8021/api/tumblr/accounts", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({
+        accounts: [
+          {
+            id: null,
+            display_name: null,
+            blog_name: null,
+            user_data_dir: null,
+            status: null,
+            last_checked_at: null,
+            last_login_at: null,
+            notes: null,
+            browserbase_context_id: null,
+            browserbase_session_id: null,
+            browserbase_live_url: null,
+            browserbase_session_expires_at: null,
+            updated_at: null,
+          },
+        ],
+      }),
+    }),
+  );
   await page.addInitScript(() => {
     localStorage.setItem(
       "inwell-ad-assistant-state",
@@ -841,7 +933,7 @@ test("content library tolerates nullable saved draft fields", { timeout: 40000 }
   await page.goto(appUrl);
   await page.getByRole("button", { name: "Open content" }).click();
   await page.getByRole("heading", { name: "Content library", level: 2 }).waitFor();
-  await page.getByText("Nullable saved draft").waitFor();
+  await page.getByText("Backend nullable draft").waitFor();
   await page.getByText("Updated").waitFor();
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
 });

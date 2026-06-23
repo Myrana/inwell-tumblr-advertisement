@@ -1,5 +1,5 @@
 import { apiBaseUrl } from "./constants";
-import { toApiAdvertisement } from "./ads";
+import { fromApiAdvertisement, toApiAdvertisement } from "./ads";
 import { normalizeQueueItem, normalizeQueueName } from "./queue";
 import { fromApiTemplate, toApiTemplate } from "./templates";
 import { fromApiTumblrAccount, normalizeTumblrAccount, toApiTumblrAccount } from "./tumblrAccounts";
@@ -7,6 +7,7 @@ import {
   Advertisement,
   AppSettings,
   ApiQueueItem,
+  ApiAdvertisement,
   ApiRunnerLog,
   ApiTemplate,
   ApiTumblrAccount,
@@ -91,9 +92,26 @@ export async function removeAdvertisement(id: string) {
   await apiRequest(`/advertisements/${id}`, { method: "DELETE" });
 }
 
+function safeArray<T>(value: unknown): T[] {
+  return Array.isArray(value) ? value : [];
+}
+
+export async function loadBackendAdvertisements() {
+  const response = await apiRequest<{ advertisements: ApiAdvertisement[] }>("/advertisements");
+  return safeArray<ApiAdvertisement>(response.advertisements)
+    .map((advertisement) => {
+      try {
+        return fromApiAdvertisement(advertisement);
+      } catch {
+        return null;
+      }
+    })
+    .filter((advertisement): advertisement is Advertisement => Boolean(advertisement));
+}
+
 export async function loadBackendTemplates() {
   const response = await apiRequest<{ templates: ApiTemplate[] }>("/templates");
-  return response.templates.map(fromApiTemplate);
+  return safeArray<ApiTemplate>(response.templates).map(fromApiTemplate);
 }
 
 export async function saveTemplate(template: SavedTemplate) {
@@ -174,21 +192,24 @@ export function toApiQueueItem(item: SubmissionQueueItem): ApiQueueItem {
 }
 
 export function fromApiRunnerLog(log: ApiRunnerLog): RunnerLog {
+  const details = log.details && typeof log.details === "object" && !Array.isArray(log.details) ? log.details : {};
+  const level = log.level === "warning" || log.level === "error" ? log.level : "info";
+
   return {
-    id: log.id,
-    runId: log.run_id ?? "",
-    queueItemId: log.queue_item_id,
-    targetName: log.target_name ?? "",
-    level: log.level,
-    message: log.message,
-    details: log.details ?? {},
-    createdAt: log.created_at,
+    id: typeof log.id === "string" && log.id ? log.id : `log-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    runId: typeof log.run_id === "string" ? log.run_id : "",
+    queueItemId: typeof log.queue_item_id === "string" ? log.queue_item_id : "",
+    targetName: typeof log.target_name === "string" ? log.target_name : "",
+    level,
+    message: typeof log.message === "string" ? log.message : "",
+    details,
+    createdAt: typeof log.created_at === "string" ? log.created_at : new Date().toISOString(),
   };
 }
 
 export async function loadBackendQueue() {
   const response = await apiRequest<{ queue: ApiQueueItem[] }>("/queue");
-  return response.queue
+  return safeArray<ApiQueueItem>(response.queue)
     .map((item) => {
       try {
         return fromApiQueueItem(item);
@@ -213,7 +234,7 @@ export async function removeQueueItem(id: string) {
 
 export async function loadRunnerLogs() {
   const response = await apiRequest<{ logs: ApiRunnerLog[] }>("/runner/logs");
-  return response.logs.map(fromApiRunnerLog);
+  return safeArray<ApiRunnerLog>(response.logs).map(fromApiRunnerLog);
 }
 
 export async function clearRunnerLogs() {
@@ -356,7 +377,7 @@ export async function loadLocalRunnerCommand(queueName: string, options: { submi
 
 export async function loadBackendTumblrAccounts() {
   const response = await apiRequest<{ accounts: ApiTumblrAccount[] }>("/tumblr/accounts");
-  return response.accounts
+  return safeArray<ApiTumblrAccount>(response.accounts)
     .map((account) => normalizeTumblrAccount(fromApiTumblrAccount(account)))
     .filter((account): account is TumblrAccount => Boolean(account));
 }
