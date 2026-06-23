@@ -2673,7 +2673,7 @@ pre {
   margin: 0 0 14px;
   padding: 12px;
   display: grid;
-  grid-template-columns: minmax(160px, 1fr) minmax(150px, 220px) minmax(150px, 220px) auto;
+  grid-template-columns: minmax(150px, 1fr) minmax(140px, 190px) minmax(150px, 220px) minmax(150px, 220px) auto;
   align-items: end;
   gap: 10px;
   border: 1px solid var(--line);
@@ -3337,7 +3337,7 @@ pre {
 
 .advertisement-card {
   display: grid;
-  grid-template-columns: 148px minmax(0, 1fr) auto auto;
+  grid-template-columns: auto 148px minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 16px;
   padding: 16px;
@@ -3445,6 +3445,10 @@ pre {
   white-space: nowrap;
 }
 
+.advertisement-card > .draft-card-select {
+  align-self: center;
+}
+
 .draft-card-select input {
   width: 14px;
   height: 14px;
@@ -3463,7 +3467,7 @@ pre {
 }
 
 .advertisement-card .content-queue-picker {
-  grid-column: 2 / -1;
+  grid-column: 3 / -1;
 }
 
 .draft-row strong,
@@ -4332,7 +4336,7 @@ html[data-theme="dark"] .selected-tags button {
   }
 
   .draft-card-header {
-    flex-direction: column-reverse;
+    flex-direction: column;
     align-items: flex-start;
   }
 

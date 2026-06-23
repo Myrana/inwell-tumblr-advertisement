@@ -795,6 +795,7 @@ test("content library rows can queue a saved submission", { timeout: 40000 }, as
             id: "saved-ad-two",
             postType: "text",
             title: "Second saved post",
+            campaignName: "Alpha campaign",
             content: "<p>Saved content</p>",
             destinationBlog: "allthingsroleplay",
             forumUrl: "https://forum.example/thread",
@@ -868,10 +869,13 @@ test("content library rows can queue a saved submission", { timeout: 40000 }, as
   await page.getByLabel("Saved bulk editor").getByLabel("Add tag").fill("archive");
   await page.getByLabel("Saved bulk editor").getByRole("button", { name: "Update 1" }).click();
   await savedRow.getByText("Fall campaign").waitFor();
+  await page.getByLabel("Saved bulk editor").getByLabel("Sort library").selectOption("campaign-asc");
+  await page.locator(".advertisement-card").first().getByText("Second saved post").waitFor();
   await page.getByLabel("Batch queue destination").selectOption("Want ads");
   await page.getByRole("button", { name: "Queue ready drafts" }).click();
   await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
-  await page.getByText("Queued Second saved post in Want ads.").waitFor();
+  await page.getByText("Queued Saved queue post in Want ads.").waitFor();
+  assert.deepEqual(savedQueueItems.map((item) => item.ad_id), ["saved-ad-two", "saved-ad"]);
   assert.deepEqual(savedQueueItems.map((item) => item.ad_id).sort(), ["saved-ad", "saved-ad-two"]);
   assert.equal(JSON.parse(savedQueueItems.find((item) => item.ad_id === "saved-ad").runner_payload).advertisement.campaignName, "Fall campaign");
   assert.equal(JSON.parse(savedQueueItems.find((item) => item.ad_id === "saved-ad").runner_payload).targetProfile.name, "All Things Roleplay ads");
