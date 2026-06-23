@@ -10,14 +10,20 @@ function createId() {
 }
 
 export function normalizeTemplate(value: Partial<SavedTemplate> | null | undefined): SavedTemplate {
+  const name = typeof value?.name === "string" ? value.name.trim() : "";
+  const content = typeof value?.content === "string" ? value.content : "";
+  const forumUrl = typeof value?.forumUrl === "string" ? value.forumUrl : "";
+  const queueName = typeof value?.queueName === "string" ? value.queueName.trim() : "";
+  const updatedAt = typeof value?.updatedAt === "string" ? value.updatedAt : "";
+
   return {
-    id: value?.id || createId(),
-    name: value?.name?.trim() || "Untitled template",
-    content: value?.content ?? "",
-    forumUrl: value?.forumUrl ?? "",
-    queueName: value?.queueName?.trim() || "",
+    id: typeof value?.id === "string" && value.id ? value.id : createId(),
+    name: name || "Untitled template",
+    content,
+    forumUrl,
+    queueName,
     tags: Array.isArray(value?.tags) ? uniqueTags(value.tags) : [],
-    updatedAt: value?.updatedAt || new Date().toISOString(),
+    updatedAt: updatedAt || new Date().toISOString(),
   };
 }
 

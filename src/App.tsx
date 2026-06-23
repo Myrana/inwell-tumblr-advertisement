@@ -30,6 +30,7 @@ import {
   apiRequest,
   checkTumblrLogin,
   clearRunnerLogs,
+  loadBackendAdvertisements,
   loadBackendAppSettings,
   loadBackendQueue,
   loadBackendTemplates,
@@ -55,7 +56,7 @@ import {
   registerInkwellUser,
   type LocalCompanionStatus,
 } from "./domain/api";
-import { composerContentFor, emptyAd, fromApiAdvertisement, hasLibraryContent, normalizeStoredState } from "./domain/ads";
+import { composerContentFor, emptyAd, hasLibraryContent, normalizeStoredState } from "./domain/ads";
 import { defaultTagProfiles, postTypes } from "./domain/constants";
 import { MediaLibraryAsset, mediaLibraryFromAdvertisements } from "./domain/mediaLibrary";
 import { buildPreparedPost, validateAdvertisement } from "./domain/post";
@@ -103,7 +104,6 @@ import { createWorkspaceExport, parseWorkspaceImport, WorkspaceTransferData } fr
 import {
   Advertisement,
   AppSettings,
-  ApiAdvertisement,
   AuthUser,
   ColorTheme,
   QueueSchedulePreference,
@@ -428,7 +428,7 @@ function App() {
       }
       try {
         const [advertisementResponse, backendTemplates, backendQueue, backendLogs, backendSettings, backendTumblrAccounts] = await Promise.all([
-          apiRequest<{ advertisements: ApiAdvertisement[] }>("/advertisements"),
+          loadBackendAdvertisements(),
           loadBackendTemplates(),
           loadBackendQueue(),
           loadRunnerLogs(),
@@ -440,7 +440,7 @@ function App() {
           return;
         }
 
-        const backendAds = advertisementResponse.advertisements.map(fromApiAdvertisement);
+        const backendAds = advertisementResponse;
         const nextStored = normalizeStoredState({
           ads: backendAds.length ? backendAds : stored.ads,
           activeAdId: stored.activeAdId,
