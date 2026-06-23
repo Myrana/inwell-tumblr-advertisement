@@ -7,6 +7,7 @@ import { scoreDraftReadiness, validateAdvertisement } from "../domain/post";
 import { Advertisement, QueueDefinition } from "../domain/types";
 
 type LibrarySortMode = "updated-desc" | "campaign-asc" | "campaign-desc";
+type CampaignFilterKey = "all" | "unassigned" | `campaign:${string}`;
 
 type SavedSubmissionsViewProps = {
   activeAdId: string;
@@ -32,7 +33,27 @@ export function SavedSubmissionsView({
   const libraryAds = ads.filter(hasLibraryContent);
   const readyAds = libraryAds.filter((ad) => validateAdvertisement(ad).length === 0);
   const needsWorkCount = libraryAds.length - readyAds.length;
-  const duplicateMatches = findDuplicateContentMatches(libraryAds);
+  const [selectedCampaignKey, setSelectedCampaignKey] = useState<CampaignFilterKey>("all");
+  const selectedCampaignName = selectedCampaignKey.startsWith("campaign:") ? selectedCampaignKey.slice("campaign:".length) : "";
+  const selectedCampaignAds = libraryAds.filter((ad) => {
+    const campaignName = ad.campaignName?.trim() || "";
+    if (selectedCampaignKey === "all") {
+      return true;
+    }
+    if (selectedCampaignKey === "unassigned") {
+      return !campaignName;
+    }
+    return campaignName === selectedCampaignName;
+  });
+  const selectedReadyAds = selectedCampaignAds.filter((ad) => validateAdvertisement(ad).length === 0);
+  const selectedNeedsWorkCount = selectedCampaignAds.length - selectedReadyAds.length;
+  const campaignNames = Array.from(new Set(libraryAds.map((ad) => ad.campaignName?.trim()).filter(Boolean) as string[])).sort((first, second) =>
+    first.localeCompare(second, undefined, { sensitivity: "base" }),
+  );
+  const unassignedAds = libraryAds.filter((ad) => !ad.campaignName?.trim());
+  const selectedCampaignLabel =
+    selectedCampaignKey === "all" ? "All campaigns" : selectedCampaignKey === "unassigned" ? "Unassigned" : selectedCampaignName;
+  const duplicateMatches = findDuplicateContentMatches(selectedCampaignAds);
   const duplicateMatchesByAdId = mapDuplicateMatchesByAdId(duplicateMatches);
   const duplicateItemCount = duplicateMatches.reduce((total, match) => total + match.adIds.length, 0);
   const [queuePickerAdId, setQueuePickerAdId] = useState("");
@@ -40,8 +61,8 @@ export function SavedSubmissionsView({
   const [batchQueueName, setBatchQueueName] = useState(activeQueueName || queueOptions[0]?.name || "");
   const [selectedDraftIds, setSelectedDraftIds] = useState<string[]>([]);
   const [sortMode, setSortMode] = useState<LibrarySortMode>("updated-desc");
-  const selectedLibraryCount = selectedDraftIds.filter((id) => libraryAds.some((ad) => ad.id === id)).length;
-  const sortedLibraryAds = [...libraryAds].sort((first, second) => {
+  const selectedLibraryCount = selectedDraftIds.filter((id) => selectedCampaignAds.some((ad) => ad.id === id)).length;
+  const sortedLibraryAds = [...selectedCampaignAds].sort((first, second) => {
     if (sortMode === "updated-desc") {
       return new Date(second.updatedAt).getTime() - new Date(first.updatedAt).getTime();
     }
@@ -78,6 +99,12 @@ export function SavedSubmissionsView({
     sortedReadyAds.forEach((ad) => onQueueDraft(ad.id, queueName));
   }
 
+  function campaignReadinessSummary(campaignAds: Advertisement[]) {
+    const readyCount = campaignAds.filter((ad) => validateAdvertisement(ad).length === 0).length;
+    const needsWork = campaignAds.length - readyCount;
+    return `${readyCount} ready - ${needsWork} needs work`;
+  }
+
   return (
     <section className="draft-table" aria-label="Content library">
       <div className="panel-heading">
@@ -93,8 +120,9 @@ export function SavedSubmissionsView({
           <div>
             <strong>Batch prep assistant</strong>
             <span>
-              {readyAds.length} ready to queue - {needsWorkCount} need edits
+              {selectedCampaignLabel}: {selectedReadyAds.length} ready to queue - {selectedNeedsWorkCount} need edits
             </span>
+            {selectedCampaignKey !== "all" ? <span>All saved: {readyAds.length} ready - {needsWorkCount} need edits</span> : null}
             {duplicateMatches.length ? (
               <span className="duplicate-check-summary" aria-label="Duplicate content check">
                 <AlertTriangle size={14} />
@@ -112,49 +140,80 @@ export function SavedSubmissionsView({
               ))}
             </select>
           </label>
-          <button className="primary compact-button" type="button" onClick={queueReadyDrafts} disabled={!readyAds.length || !batchQueueName}>
+          <button className="primary compact-button" type="button" onClick={queueReadyDrafts} disabled={!selectedReadyAds.length || !batchQueueName}>
             <Send size={16} />
-            Queue ready drafts
+            {selectedCampaignKey === "all" ? "Queue ready drafts" : "Queue ready campaign"}
           </button>
         </div>
       ) : null}
       {libraryAds.length ? (
-        <div className="bulk-edit-panel sort-panel" aria-label="Saved sorting controls">
-          <label className="bulk-select">
-            <input
-              checked={selectedLibraryCount === libraryAds.length}
-              type="checkbox"
-              onChange={(event) => setSelectedDraftIds(event.target.checked ? sortedLibraryAds.map((ad) => ad.id) : [])}
-            />
-            Select all saved items
-          </label>
-          <label>
-            Sort library
-            <select value={sortMode} onChange={(event) => setSortMode(event.target.value as LibrarySortMode)}>
-              <option value="updated-desc">Newest first</option>
-              <option value="campaign-asc">A-Z</option>
-              <option value="campaign-desc">Z-A</option>
-            </select>
-          </label>
-        </div>
-      ) : null}
-      {libraryAds.length ? null : (
-        <div className="library-empty">
-          <strong>Your notebook is empty.</strong>
-          <span>No content saved yet. Create your first advertisement and begin building your archive.</span>
-          <button className="primary compact-button" type="button" onClick={onCreateDraft}>
-            <FilePlus2 size={16} />
-            Create advertisement
-          </button>
-        </div>
-      )}
-      {sortedLibraryAds.map((ad) => {
-        const duplicateMatch = duplicateMatchesByAdId.get(ad.id);
-        const duplicatePeerNames = duplicateMatch?.labels.filter((label, index) => duplicateMatch.adIds[index] !== ad.id) ?? [];
-        const readiness = scoreDraftReadiness(ad);
+        <div className="campaign-library-layout">
+          <aside className="campaign-filter-panel" aria-label="Campaign library">
+            <strong>Campaigns</strong>
+            <button
+              className={selectedCampaignKey === "all" ? "campaign-filter-button active" : "campaign-filter-button"}
+              type="button"
+              onClick={() => setSelectedCampaignKey("all")}
+            >
+              <span>All campaigns</span>
+              <small>{campaignReadinessSummary(libraryAds)}</small>
+            </button>
+            <button
+              className={selectedCampaignKey === "unassigned" ? "campaign-filter-button active" : "campaign-filter-button"}
+              type="button"
+              onClick={() => setSelectedCampaignKey("unassigned")}
+            >
+              <span>Unassigned</span>
+              <small>{campaignReadinessSummary(unassignedAds)}</small>
+            </button>
+            {campaignNames.map((campaignName) => {
+              const campaignKey: CampaignFilterKey = `campaign:${campaignName}`;
+              const campaignAds = libraryAds.filter((ad) => ad.campaignName?.trim() === campaignName);
+              return (
+                <button
+                  className={selectedCampaignKey === campaignKey ? "campaign-filter-button active" : "campaign-filter-button"}
+                  key={campaignName}
+                  type="button"
+                  onClick={() => setSelectedCampaignKey(campaignKey)}
+                >
+                  <span>{campaignName}</span>
+                  <small>{campaignReadinessSummary(campaignAds)}</small>
+                </button>
+              );
+            })}
+          </aside>
+          <div className="campaign-library-results">
+            <div className="bulk-edit-panel sort-panel" aria-label="Saved sorting controls">
+              <label className="bulk-select">
+                <input
+                  checked={selectedCampaignAds.length > 0 && selectedLibraryCount === selectedCampaignAds.length}
+                  type="checkbox"
+                  onChange={(event) => setSelectedDraftIds(event.target.checked ? sortedLibraryAds.map((ad) => ad.id) : [])}
+                />
+                Select all visible items
+              </label>
+              <label>
+                Sort library
+                <select value={sortMode} onChange={(event) => setSortMode(event.target.value as LibrarySortMode)}>
+                  <option value="updated-desc">Newest first</option>
+                  <option value="campaign-asc">A-Z</option>
+                  <option value="campaign-desc">Z-A</option>
+                </select>
+              </label>
+            </div>
+            {libraryAds.length && !sortedLibraryAds.length ? (
+              <div className="library-empty campaign-empty">
+                <strong>No ads in {selectedCampaignLabel}.</strong>
+                <span>Choose another campaign or assign a campaign from the editor.</span>
+              </div>
+            ) : null}
+            {sortedLibraryAds.map((ad) => {
+              const duplicateMatch = duplicateMatchesByAdId.get(ad.id);
+              const duplicatePeerNames = duplicateMatch?.labels.filter((label, index) => duplicateMatch.adIds[index] !== ad.id) ?? [];
+              const readiness = scoreDraftReadiness(ad);
 
-        return (
-          <article className={ad.id === activeAdId ? "draft-row advertisement-card selected" : "draft-row advertisement-card"} key={ad.id}>
+              return (
+                <article className={ad.id === activeAdId ? "draft-row advertisement-card selected" : "draft-row advertisement-card"} key={ad.id}>
             <label className="bulk-select row-select draft-card-select" aria-label="Select saved item">
               <input
                 checked={selectedDraftIds.includes(ad.id)}
@@ -242,9 +301,21 @@ export function SavedSubmissionsView({
                 </button>
               </form>
             ) : null}
-          </article>
-        );
-      })}
+                </article>
+              );
+            })}
+          </div>
+        </div>
+      ) : (
+        <div className="library-empty">
+          <strong>Your notebook is empty.</strong>
+          <span>No content saved yet. Create your first advertisement and begin building your archive.</span>
+          <button className="primary compact-button" type="button" onClick={onCreateDraft}>
+            <FilePlus2 size={16} />
+            Create advertisement
+          </button>
+        </div>
+      )}
     </section>
   );
 }
