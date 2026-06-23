@@ -1038,16 +1038,6 @@ textarea:focus {
   background: #fff;
 }
 
-.tumblr-submit-shell.preview-mobile {
-  max-width: 430px;
-  margin-inline: auto;
-}
-
-.tumblr-submit-shell.preview-compact {
-  max-width: 340px;
-  margin-inline: auto;
-}
-
 .preview-mode-switcher {
   display: flex;
   flex-wrap: wrap;
@@ -1057,17 +1047,18 @@ textarea:focus {
   background: #f5f9fa;
 }
 
-.preview-mode-switcher button {
+.preview-mode-switcher span {
+  display: inline-flex;
+  align-items: center;
   min-height: 32px;
   padding: 0 0.75rem;
   border: 1px solid transparent;
   border-radius: 999px;
-  background: transparent;
   color: var(--muted);
   font-weight: 800;
 }
 
-.preview-mode-switcher button.active {
+.preview-mode-switcher span.active {
   border-color: rgba(42, 109, 132, 0.34);
   background: #e8f5f7;
   color: var(--text);
@@ -3681,7 +3672,7 @@ html[data-theme="dark"] .primary {
   color: #10101a;
 }
 
-html[data-theme="dark"] .preview-mode-switcher button.active {
+html[data-theme="dark"] .preview-mode-switcher span.active {
   border-color: #375c6b;
   background: #183242;
   color: var(--ink);
@@ -4362,11 +4353,6 @@ html[data-theme="dark"] .selected-tags button {
   .workflow-section-actions > button,
   .workflow-section-actions > span {
     flex: 1 1 140px;
-  }
-
-  .tumblr-submit-shell.preview-mobile,
-  .tumblr-submit-shell.preview-compact {
-    max-width: 100%;
   }
 
   .tumblr-blog-id {
