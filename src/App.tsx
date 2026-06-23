@@ -850,35 +850,6 @@ function App() {
       .catch(() => setApiAvailable(false));
   }
 
-  function bulkUpdateSavedDrafts(ids: string[], patch: { campaignName?: string; tag?: string }) {
-    const selectedIds = new Set(ids);
-    const campaignName = patch.campaignName?.trim();
-    const tag = patch.tag?.trim();
-    const timestamp = new Date().toISOString();
-    const updatedAds: Advertisement[] = [];
-
-    setStored((current) => ({
-      ...current,
-      ads: current.ads.map((ad) => {
-        if (!selectedIds.has(ad.id)) {
-          return ad;
-        }
-        const nextTags = tag && !ad.tags.includes(tag) ? [...ad.tags, tag] : ad.tags;
-        const next = {
-          ...ad,
-          campaignName: campaignName || ad.campaignName,
-          tags: nextTags,
-          updatedAt: timestamp,
-        };
-        updatedAds.push(next);
-        return next;
-      }),
-    }));
-
-    updatedAds.forEach(syncAdvertisement);
-    setSaveStatus(`Updated ${updatedAds.length} saved item${updatedAds.length === 1 ? "" : "s"}.`);
-  }
-
   function saveDraft() {
     updateActiveAd({ status: "draft" });
     setValidation([]);
@@ -2000,7 +1971,6 @@ function App() {
             activeQueueName={activeQueueName}
             queueOptions={queueOptions}
             onDeleteDraft={deleteDraft}
-            onBulkUpdateDrafts={bulkUpdateSavedDrafts}
             onQueueDraft={queueSavedDraft}
             onCreateDraft={() => setActiveView("editor")}
             onSelectDraft={(id) => {
