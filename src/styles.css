@@ -31,6 +31,75 @@ html[data-theme="dark"] {
   --rose: #ff8fb7;
 }
 
+html[data-theme="dark"][data-skin="forest-night"] {
+  --ink: #edf8ef;
+  --text: #edf8ef;
+  --muted: #a9bdae;
+  --line: #294331;
+  --surface: #101a14;
+  --soft: #07100b;
+  --cyan: #8ecfb1;
+  --coral: #e09a83;
+  --green: #8fd3a2;
+  --amber: #d9ba6b;
+  --lavender: #a7c7a8;
+  --rose: #f0a9a0;
+}
+
+html[data-theme="dark"][data-skin="blue-archive"] {
+  --ink: #edf6fb;
+  --text: #edf6fb;
+  --muted: #a9b7c7;
+  --line: #2a3b50;
+  --surface: #111a26;
+  --soft: #08111d;
+  --cyan: #80cbe2;
+  --coral: #eaa0b0;
+  --green: #8bc7ab;
+  --amber: #d8bd7a;
+  --lavender: #9fb8e8;
+  --rose: #e8a4c0;
+}
+
+html[data-theme="light"][data-skin="soft-green"] {
+  --ink: #1f2c22;
+  --text: #1f2c22;
+  --muted: #647262;
+  --line: #cad8c8;
+  --surface: #fbfcf8;
+  --soft: #f3f7f1;
+  --cyan: #5b9ca6;
+  --coral: #c87564;
+  --green: #4d8f65;
+  --amber: #a97828;
+}
+
+html[data-theme="light"][data-skin="paper-desk"] {
+  --ink: #24282d;
+  --text: #24282d;
+  --muted: #68717b;
+  --line: #d7d9d3;
+  --surface: #fbfaf6;
+  --soft: #f1f1eb;
+  --cyan: #4f91a0;
+  --coral: #c86f62;
+  --green: #5a8465;
+  --amber: #9f7431;
+}
+
+html[data-theme="light"][data-skin="rose-ledger"] {
+  --ink: #31242c;
+  --text: #31242c;
+  --muted: #756873;
+  --line: #decbd6;
+  --surface: #fff9fb;
+  --soft: #f7eff3;
+  --cyan: #6e9aa2;
+  --coral: #c9708c;
+  --green: #6f8c67;
+  --amber: #a87a3c;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -331,6 +400,28 @@ h2 {
 
 .topbar-actions {
   flex-wrap: wrap;
+}
+
+.skin-picker {
+  min-height: 40px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 800;
+}
+
+.skin-picker select {
+  min-width: 134px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-weight: 800;
+  outline: none;
 }
 
 .topbar-action-stack {
@@ -4417,7 +4508,13 @@ html[data-theme="dark"] .selected-tags button {
     justify-items: stretch;
   }
 
-  .topbar-actions > button {
+  .topbar-actions > button,
+  .skin-picker {
+    flex: 1;
+  }
+
+  .skin-picker select {
+    min-width: 0;
     flex: 1;
   }
 }

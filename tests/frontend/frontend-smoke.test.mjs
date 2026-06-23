@@ -33,6 +33,8 @@ test("site background uses CSS overlays without remote image artifacts", () => {
   assert.match(styles, /ellipse 72px 420px/);
   assert.match(styles, /html\[data-theme="dark"\]\s+\.app-shell::before\s*\{/);
   assert.match(styles, /html\[data-theme="dark"\]\s+\.app-shell::after\s*\{/);
+  assert.match(styles, /html\[data-theme="dark"\]\[data-skin="forest-night"\]/);
+  assert.match(styles, /html\[data-theme="light"\]\[data-skin="soft-green"\]/);
   assert.match(styles, /\.queue-workspace::before\s*\{/);
   assert.match(styles, /html\[data-theme="dark"\]\s+\.queue-workspace::before\s*\{/);
   assert.match(styles, /ellipse 240px 110px/);
@@ -619,6 +621,7 @@ test("authenticated backend workspace clears large local mirrors", { timeout: 40
       "inkwell-saved-templates": JSON.stringify([{ id: "legacy-template", content: largeQueuePayload }]),
       "inwell-tumblr-accounts": JSON.stringify([{ id: "legacy-account", notes: largeQueuePayload }]),
       "inkwell-color-theme": "dark",
+      "inkwell-color-skin": "forest-night",
     };
     Object.entries(legacyValues).forEach(([key, value]) => localStorage.setItem(key, value));
   });
@@ -641,6 +644,7 @@ test("authenticated backend workspace clears large local mirrors", { timeout: 40
   );
   assert.deepEqual(remaining, remaining.map(([key]) => [key, null]));
   assert.equal(await page.evaluate(() => localStorage.getItem("inkwell-color-theme")), "dark");
+  assert.equal(await page.evaluate(() => localStorage.getItem("inkwell-color-skin")), "forest-night");
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
 });
 
@@ -1210,11 +1214,20 @@ test("custom blog submission flow does not blank the editor", { timeout: 40000 }
   await page.getByRole("button", { name: "Dark mode" }).click();
   assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), "dark");
   assert.equal(await page.evaluate(() => localStorage.getItem("inkwell-color-theme")), "dark");
+  await page.getByLabel("Workspace skin").selectOption("forest-night");
+  assert.equal(await page.evaluate(() => document.documentElement.dataset.skin), "forest-night");
+  assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), "dark");
+  assert.equal(await page.evaluate(() => localStorage.getItem("inkwell-color-skin")), "forest-night");
+  await page.getByLabel("Workspace skin").selectOption("soft-green");
+  assert.equal(await page.evaluate(() => document.documentElement.dataset.skin), "soft-green");
+  assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), "light");
+  assert.equal(await page.evaluate(() => localStorage.getItem("inkwell-color-skin")), "soft-green");
   await page.reload();
   await page.getByRole("button", { name: "New Submission" }).click();
   await page.getByRole("heading", { name: "Custom target ad" }).waitFor();
-  assert.equal(await page.getByRole("button", { name: "Light mode" }).count(), 1);
-  assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), "dark");
+  assert.equal(await page.getByRole("button", { name: "Dark mode" }).count(), 1);
+  assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), "light");
+  assert.equal(await page.evaluate(() => document.documentElement.dataset.skin), "soft-green");
 
   const targetSelect = page.locator('label:has-text("Target Tumblr blog") select');
   const addBlogInput = page.locator('label:has-text("Add Tumblr submit URL") input');

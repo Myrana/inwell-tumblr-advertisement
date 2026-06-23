@@ -2,6 +2,8 @@ import {
   queueDefinitionsStorageKey,
   queueScheduleSettingsStorageKey,
   runnerSettingsStorageKey,
+  colorSkins,
+  skinStorageKey,
   storageKey,
   submissionQueueStorageKey,
   submitTargetStorageKey,
@@ -18,6 +20,7 @@ import { normalizeTemplate } from "./templates";
 import { normalizeTumblrAccount } from "./tumblrAccounts";
 import {
   ColorTheme,
+  ColorSkin,
   QueueDefinition,
   QueueSchedulePreference,
   QueueScheduleSettings,
@@ -184,6 +187,15 @@ export function loadColorTheme(): ColorTheme {
   }
 }
 
+export function loadColorSkin(): ColorSkin {
+  try {
+    const value = localStorage.getItem(skinStorageKey);
+    return colorSkins.some((skin) => skin.value === value) ? (value as ColorSkin) : "inkwell-dark";
+  } catch {
+    return "inkwell-dark";
+  }
+}
+
 export function saveStoredState(stored: StoredState) {
   safeSetLocalStorage(storageKey, stored);
 }
@@ -222,6 +234,10 @@ export function saveTumblrAccounts(value: unknown) {
 
 export function saveColorTheme(value: ColorTheme) {
   safeSetLocalStorage(themeStorageKey, value);
+}
+
+export function saveColorSkin(value: ColorSkin) {
+  safeSetLocalStorage(skinStorageKey, value);
 }
 
 export function clearBackendOwnedLocalStorage() {
