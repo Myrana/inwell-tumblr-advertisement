@@ -857,9 +857,9 @@ test("custom blog submission flow does not blank the editor", { timeout: 40000 }
   await targetSelect.selectOption("another-rp");
   assert.equal(await savedNameInput.inputValue(), "another-rp");
   assert.equal(await forumInput.inputValue(), "https://forum.example");
-  assert.equal(await page.getByLabel("Profile label").inputValue(), "another-rp");
-  await page.getByLabel("Profile label").fill("Another RP promo rules");
-  await page.getByLabel("Posting rules").fill("Use photo ads and avoid mature tags.");
+  assert.equal(await page.getByLabel("Target profile").count(), 0);
+  assert.equal(await page.getByLabel("Profile label").count(), 0);
+  assert.equal(await page.getByLabel("Posting rules").count(), 0);
   await savedNameInput.fill("");
   await addBlogInput.fill("https://blank-name.tumblr.com/submit");
   await page.getByRole("button", { name: "Add blog" }).click();
@@ -867,8 +867,8 @@ test("custom blog submission flow does not blank the editor", { timeout: 40000 }
   await forumInput.fill("https://forum.example/updated");
   const persistedTargets = await page.evaluate(() => JSON.parse(localStorage.getItem("inwell-tumblr-submit-targets") ?? "[]"));
   assert.equal(persistedTargets.find((target) => target.id === "blank-name")?.forumUrl, "https://forum.example/updated");
-  assert.equal(persistedTargets.find((target) => target.id === "another-rp")?.profileName, "Another RP promo rules");
-  assert.equal(persistedTargets.find((target) => target.id === "another-rp")?.postingRules, "Use photo ads and avoid mature tags.");
+  assert.equal(persistedTargets.find((target) => target.id === "another-rp")?.profileName, "another-rp");
+  assert.equal(persistedTargets.find((target) => target.id === "another-rp")?.postingRules, "");
   await page.getByText("Saved templates").waitFor();
   await page.getByRole("button", { name: "Toggle reusable copy section" }).click();
   await page.getByRole("button", { name: /Editor quick template/ }).click();
