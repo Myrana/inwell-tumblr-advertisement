@@ -69,6 +69,7 @@ import { createQueueItem as createSubmissionQueueItem, queueIdFromName, uniqueQu
 import {
   loadColorTheme,
   loadQueueScheduleSettings,
+  clearBackendOwnedLocalStorage,
   normalizeQueueScheduleSettings,
   normalizeRunnerSettings,
   loadQueueDefinitions,
@@ -180,6 +181,7 @@ function App() {
   const queueOptions = useMemo(() => uniqueQueueDefinitions(queueDefinitions, submissionQueue), [queueDefinitions, submissionQueue]);
   const activeQueueName = queueOptions.some((queue) => queue.name === selectedQueueName) ? selectedQueueName : queueOptions[0]?.name ?? "";
   const activeQueue = submissionQueue.filter((item) => item.queueName === activeQueueName);
+  const backendOwnsWorkspaceState = Boolean(authUser && backendStateLoaded);
   const defaultQueueScheduleSettings: QueueSchedulePreference = useMemo(
     () => ({
       enabled: queueScheduleSettings.enabled,
@@ -314,20 +316,42 @@ function App() {
   }, []);
 
   useEffect(() => {
+    if (backendOwnsWorkspaceState) {
+      clearBackendOwnedLocalStorage();
+    }
+  }, [backendOwnsWorkspaceState]);
+
+  useEffect(() => {
+    if (backendOwnsWorkspaceState) {
+      return;
+    }
+
     saveStoredState(stored);
-  }, [stored]);
+  }, [backendOwnsWorkspaceState, stored]);
 
   useEffect(() => {
+    if (backendOwnsWorkspaceState) {
+      return;
+    }
+
     saveSubmitTargets(submitTargets);
-  }, [submitTargets]);
+  }, [backendOwnsWorkspaceState, submitTargets]);
 
   useEffect(() => {
+    if (backendOwnsWorkspaceState) {
+      return;
+    }
+
     saveSubmissionQueue(submissionQueue);
-  }, [submissionQueue]);
+  }, [backendOwnsWorkspaceState, submissionQueue]);
 
   useEffect(() => {
+    if (backendOwnsWorkspaceState) {
+      return;
+    }
+
     saveQueueDefinitions(queueOptions);
-  }, [queueOptions]);
+  }, [backendOwnsWorkspaceState, queueOptions]);
 
   useEffect(() => {
     if (selectedQueueName !== activeQueueName) {
@@ -336,25 +360,45 @@ function App() {
   }, [activeQueueName, selectedQueueName]);
 
   useEffect(() => {
+    if (backendOwnsWorkspaceState) {
+      return;
+    }
+
     saveTagProfiles(tagProfiles);
-  }, [tagProfiles]);
+  }, [backendOwnsWorkspaceState, tagProfiles]);
 
   useEffect(() => {
+    if (backendOwnsWorkspaceState) {
+      return;
+    }
+
     saveTemplates(templates);
-  }, [templates]);
+  }, [backendOwnsWorkspaceState, templates]);
 
   useEffect(() => {
+    if (backendOwnsWorkspaceState) {
+      return;
+    }
+
     saveTumblrAccounts(tumblrAccounts);
-  }, [tumblrAccounts]);
+  }, [backendOwnsWorkspaceState, tumblrAccounts]);
 
   useEffect(() => {
     runnerSettingsRef.current = runnerSettings;
+    if (backendOwnsWorkspaceState) {
+      return;
+    }
+
     saveRunnerSettings(runnerSettings);
-  }, [runnerSettings]);
+  }, [backendOwnsWorkspaceState, runnerSettings]);
 
   useEffect(() => {
+    if (backendOwnsWorkspaceState) {
+      return;
+    }
+
     saveQueueScheduleSettings(queueScheduleSettings);
-  }, [queueScheduleSettings]);
+  }, [backendOwnsWorkspaceState, queueScheduleSettings]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = colorTheme;
