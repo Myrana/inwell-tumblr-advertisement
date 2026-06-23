@@ -11,6 +11,7 @@ type AppErrorBoundaryState = {
 const localCacheKeys = [
   "inwell-ad-assistant-state",
   "inwell-tumblr-submit-targets",
+  "inwell-tumblr-submission-queue",
   "inwell-saved-templates",
   "inwell-submission-queue",
   "inwell-tumblr-accounts",

@@ -31,6 +31,18 @@ import {
 
 export { loadSubmissionQueue, loadSubmitTargets, loadTagProfiles };
 
+const backendOwnedStorageKeys = [
+  storageKey,
+  submitTargetStorageKey,
+  submissionQueueStorageKey,
+  queueDefinitionsStorageKey,
+  tagProfileStorageKey,
+  runnerSettingsStorageKey,
+  queueScheduleSettingsStorageKey,
+  templateStorageKey,
+  tumblrAccountsStorageKey,
+];
+
 export function loadQueueDefinitions(): QueueDefinition[] {
   try {
     const raw = localStorage.getItem(queueDefinitionsStorageKey);
@@ -210,6 +222,16 @@ export function saveTumblrAccounts(value: unknown) {
 
 export function saveColorTheme(value: ColorTheme) {
   safeSetLocalStorage(themeStorageKey, value);
+}
+
+export function clearBackendOwnedLocalStorage() {
+  backendOwnedStorageKeys.forEach((key) => {
+    try {
+      localStorage.removeItem(key);
+    } catch {
+      // Local cache cleanup is best effort.
+    }
+  });
 }
 
 function compactSubmissionQueueForStorage(value: unknown) {

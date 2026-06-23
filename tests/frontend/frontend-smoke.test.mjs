@@ -581,6 +581,69 @@ test("queue persistence quota failures do not blank the workspace", { timeout: 4
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
 });
 
+test("authenticated backend workspace clears large local mirrors", { timeout: 40000 }, async (t) => {
+  const server = spawn("npx vite --host 127.0.0.1 --port 8123 --strictPort", {
+    cwd: process.cwd(),
+    shell: true,
+    stdio: "ignore",
+  });
+
+  t.after(() => {
+    stopProcessTree(server);
+  });
+
+  await waitForServer(appUrl);
+
+  const browser = await chromium.launch();
+  t.after(async () => {
+    await browser.close();
+  });
+
+  const page = await browser.newPage();
+  const pageErrors = [];
+  page.on("pageerror", (error) => pageErrors.push(error));
+  await page.route("http://127.0.0.1:8021/api/**", (route) => route.abort());
+  await page.route("http://127.0.0.1:17842/status", (route) => route.abort());
+  await routeAuthenticatedSession(page);
+  await routeEmptyWorkspaceApis(page);
+  await page.addInitScript(() => {
+    const largeQueuePayload = "x".repeat(50000);
+    const legacyValues = {
+      "inwell-ad-assistant-state": JSON.stringify({ activeAdId: "legacy-ad", ads: [{ id: "legacy-ad", title: largeQueuePayload }] }),
+      "inwell-tumblr-submit-targets": JSON.stringify([{ id: "legacy-blog", name: largeQueuePayload }]),
+      "inwell-tumblr-submission-queue": JSON.stringify([{ id: "legacy-queue", runnerPayload: largeQueuePayload }]),
+      "inwell-tumblr-queue-definitions": JSON.stringify([{ id: "legacy-queue", name: "Legacy queue" }]),
+      "inwell-blog-tag-profiles": JSON.stringify({ legacy: [largeQueuePayload] }),
+      "inwell-tumblr-runner-settings": JSON.stringify({ mediaDir: largeQueuePayload }),
+      "inwell-queue-schedule-settings": JSON.stringify({ perQueue: { legacy: {} } }),
+      "inkwell-saved-templates": JSON.stringify([{ id: "legacy-template", content: largeQueuePayload }]),
+      "inwell-tumblr-accounts": JSON.stringify([{ id: "legacy-account", notes: largeQueuePayload }]),
+      "inkwell-color-theme": "dark",
+    };
+    Object.entries(legacyValues).forEach(([key, value]) => localStorage.setItem(key, value));
+  });
+
+  await page.goto(appUrl);
+  await page.getByRole("heading", { name: "Operations", level: 1 }).waitFor();
+  await page.waitForFunction(() => localStorage.getItem("inwell-tumblr-submission-queue") === null);
+  const remaining = await page.evaluate(() =>
+    [
+      "inwell-ad-assistant-state",
+      "inwell-tumblr-submit-targets",
+      "inwell-tumblr-submission-queue",
+      "inwell-tumblr-queue-definitions",
+      "inwell-blog-tag-profiles",
+      "inwell-tumblr-runner-settings",
+      "inwell-queue-schedule-settings",
+      "inkwell-saved-templates",
+      "inwell-tumblr-accounts",
+    ].map((key) => [key, localStorage.getItem(key)]),
+  );
+  assert.deepEqual(remaining, remaining.map(([key]) => [key, null]));
+  assert.equal(await page.evaluate(() => localStorage.getItem("inkwell-color-theme")), "dark");
+  assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
+});
+
 test("documentation page explains recent workflow changes", { timeout: 40000 }, async (t) => {
   const server = spawn("npx vite --host 127.0.0.1 --port 8123 --strictPort", {
     cwd: process.cwd(),
@@ -2439,7 +2502,7 @@ test("running the queue prepares the local runner and shows failure explanations
   assert.doesNotMatch(copiedText, /--submit/);
   await page.getByText(/prepare Tumblr without submitting/).waitFor();
   await page.getByLabel("Runner browser session").getByLabel("Approve live posting").check();
-  await page.waitForFunction(() => JSON.parse(localStorage.getItem("inwell-tumblr-runner-settings") ?? "{}").submit === true);
+  assert.equal(await page.getByLabel("Runner browser session").getByLabel("Approve live posting").isChecked(), true);
   const approvedCommandResponse = page.waitForResponse((response) => {
     if (!response.url().includes("/api/runner/local-command")) {
       return false;
