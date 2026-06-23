@@ -1,6 +1,7 @@
 export type Status = "draft" | "ready" | "submitted";
 export type PostType = "text" | "photo" | "video";
 export type ColorTheme = "light" | "dark";
+export type ColorSkin = "inkwell-dark" | "forest-night" | "blue-archive" | "soft-green" | "paper-desk" | "rose-ledger";
 export type WorkspaceView = "dashboard" | "editor" | "saved" | "templates" | "queue" | "runner" | "queue-settings" | "accounts" | "logs" | "docs";
 
 export type AuthUser = {

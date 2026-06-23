@@ -57,7 +57,7 @@ import {
   type LocalCompanionStatus,
 } from "./domain/api";
 import { composerContentFor, emptyAd, hasLibraryContent, normalizeStoredState } from "./domain/ads";
-import { defaultTagProfiles, postTypes } from "./domain/constants";
+import { colorSkins, defaultTagProfiles, postTypes } from "./domain/constants";
 import { MediaLibraryAsset, mediaLibraryFromAdvertisements } from "./domain/mediaLibrary";
 import { buildPreparedPost, validateAdvertisement } from "./domain/post";
 import {
@@ -67,6 +67,7 @@ import {
 } from "./domain/queueAutomation";
 import { createQueueItem as createSubmissionQueueItem, queueIdFromName, uniqueQueueDefinitions } from "./domain/queue";
 import {
+  loadColorSkin,
   loadColorTheme,
   loadQueueScheduleSettings,
   clearBackendOwnedLocalStorage,
@@ -81,6 +82,7 @@ import {
   loadTemplates,
   loadTumblrAccounts,
   saveColorTheme,
+  saveColorSkin,
   saveQueueScheduleSettings,
   saveQueueDefinitions,
   saveRunnerSettings,
@@ -106,6 +108,7 @@ import {
   Advertisement,
   AppSettings,
   AuthUser,
+  ColorSkin,
   ColorTheme,
   QueueSchedulePreference,
   QueueScheduleSettings,
@@ -159,6 +162,7 @@ function App() {
   const [runnerLogs, setRunnerLogs] = useState<RunnerLog[]>([]);
   const [activeView, setActiveView] = useState<WorkspaceView>("dashboard");
   const [colorTheme, setColorTheme] = useState<ColorTheme>(() => loadColorTheme());
+  const [colorSkin, setColorSkin] = useState<ColorSkin>(() => loadColorSkin());
   const [accountSetupRouteApplied, setAccountSetupRouteApplied] = useState(false);
 
   const activeAd = useMemo(() => {
@@ -406,6 +410,11 @@ function App() {
   }, [colorTheme]);
 
   useEffect(() => {
+    document.documentElement.dataset.skin = colorSkin;
+    saveColorSkin(colorSkin);
+  }, [colorSkin]);
+
+  useEffect(() => {
     if (!authUser || !backendStateLoaded) {
       return;
     }
@@ -553,6 +562,18 @@ function App() {
     void saveAdvertisement(advertisement)
       .then(() => setApiAvailable(true))
       .catch(() => setApiAvailable(false));
+  }
+
+  function selectColorSkin(nextSkin: ColorSkin) {
+    const skinConfig = colorSkins.find((option) => option.value === nextSkin);
+    setColorSkin(nextSkin);
+    if (skinConfig) {
+      setColorTheme(skinConfig.theme);
+    }
+  }
+
+  function toggleColorTheme() {
+    selectColorSkin(colorTheme === "dark" ? "soft-green" : "inkwell-dark");
   }
 
   function authLockMessage(error: unknown, fallback: string) {
@@ -1794,11 +1815,13 @@ function App() {
           eyebrow={pageTitles[activeView].eyebrow}
           title={pageTitles[activeView].title}
           saveStatus={saveStatus}
+          skin={colorSkin}
           theme={colorTheme}
           onBackToOperations={!["dashboard", "editor", "docs"].includes(activeView) ? () => setActiveView("dashboard") : undefined}
           onCreateDraft={createDraft}
           onSaveDraft={saveDraft}
-          onToggleTheme={() => setColorTheme((current) => (current === "dark" ? "light" : "dark"))}
+          onSkinChange={selectColorSkin}
+          onToggleTheme={toggleColorTheme}
         />
 
         {activeView === "editor" ? (

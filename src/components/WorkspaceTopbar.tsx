@@ -1,15 +1,18 @@
-import { ArrowLeft, Moon, Plus, Save, Sun } from "lucide-react";
-import { ColorTheme } from "../domain/types";
+import { ArrowLeft, Moon, Palette, Plus, Save, Sun } from "lucide-react";
+import { colorSkins } from "../domain/constants";
+import { ColorSkin, ColorTheme } from "../domain/types";
 
 type WorkspaceTopbarProps = {
   actionsVisible?: boolean;
   eyebrow: string;
   saveStatus?: string;
+  skin: ColorSkin;
   theme: ColorTheme;
   title: string;
   onBackToOperations?: () => void;
   onCreateDraft: () => void;
   onSaveDraft: () => void;
+  onSkinChange: (skin: ColorSkin) => void;
   onToggleTheme: () => void;
 };
 
@@ -17,11 +20,13 @@ export function WorkspaceTopbar({
   actionsVisible = true,
   eyebrow,
   saveStatus = "",
+  skin,
   theme,
   title,
   onBackToOperations,
   onCreateDraft,
   onSaveDraft,
+  onSkinChange,
   onToggleTheme,
 }: WorkspaceTopbarProps) {
   const darkMode = theme === "dark";
@@ -61,6 +66,21 @@ export function WorkspaceTopbar({
             {darkMode ? <Sun size={18} /> : <Moon size={18} />}
             {darkMode ? "Light mode" : "Dark mode"}
           </button>
+          <label className="skin-picker">
+            <Palette size={18} />
+            <span>Skin</span>
+            <select
+              aria-label="Workspace skin"
+              value={skin}
+              onChange={(event) => onSkinChange(event.target.value as ColorSkin)}
+            >
+              {colorSkins.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
         {actionsVisible && saveStatus ? (
           <div className="save-next-step compact" role="status">
