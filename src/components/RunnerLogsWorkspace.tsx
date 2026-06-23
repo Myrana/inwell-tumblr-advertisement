@@ -183,6 +183,13 @@ export function RunnerLogsWorkspace({
                 </button>
                 {isOpen ? (
                   <div className="queue-log-list" aria-label={`${groupTitle} entries`}>
+                    <div className="runner-run-overview" aria-label={`${groupTitle} timeline overview`}>
+                      <span className={`runner-run-status ${runnerRunStatusTone(group)}`}>{runnerRunStatusLabel(group)}</span>
+                      <span>{group.timeline.length} timeline step{group.timeline.length === 1 ? "" : "s"}</span>
+                      <span>{group.targetNames.length || group.targetSummaries.length || 0} target{(group.targetNames.length || group.targetSummaries.length || 0) === 1 ? "" : "s"}</span>
+                      <span>Latest event {formatDate(group.latestAt)}</span>
+                      {isRunning && latestRunId === group.runId ? <span>{runningTargetCount ? `${runningTargetCount} running` : "Runner active"} - {pendingTargetCount} waiting</span> : null}
+                    </div>
                     {group.targetSummaries.length ? (
                       <div className="runner-target-summary-list" aria-label={`${groupTitle} target summaries`}>
                         {group.targetSummaries.map((summary) => (
@@ -256,6 +263,26 @@ function latestHeading(isRunning: boolean, latestRunGroup: ReturnType<typeof run
     return "Latest run needs review";
   }
   return "Latest run timeline";
+}
+
+function runnerRunStatusLabel(group: ReturnType<typeof runnerLogRunGroups>[number]) {
+  if (group.errorCount) {
+    return "Failed";
+  }
+  if (group.warningCount) {
+    return "Needs review";
+  }
+  return "Timeline ready";
+}
+
+function runnerRunStatusTone(group: ReturnType<typeof runnerLogRunGroups>[number]) {
+  if (group.errorCount) {
+    return "failed";
+  }
+  if (group.warningCount) {
+    return "warning";
+  }
+  return "ready";
 }
 
 function latestMeta(
