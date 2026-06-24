@@ -1529,6 +1529,7 @@ class PersistenceTests(unittest.TestCase):
         self.assertIn("Windows startup task install", install_ps1)
         self.assertIn("-RunnerToken 'ilr_secret'", install_ps1)
         self.assertNotIn("--no-pause", script)
+        self.assertIn("--watch --serve", script)
         self.assertIn("-WorkspaceId 'workspace-local'", install_ps1)
         self.assertIn("-Queue 'Local queue'", install_ps1)
 
@@ -1551,8 +1552,7 @@ class PersistenceTests(unittest.TestCase):
         self.assertIn("Local runner exited with code $LASTEXITCODE", script)
         self.assertIn("Resolve-NpmCommand", script)
         self.assertIn("& $(Quote-PowerShell $npmCommand) run tumblr:runner:local", script)
-        self.assertIn("--serve --companion-port", script)
-        self.assertNotIn("--watch --serve", script)
+        self.assertIn("--watch --serve --companion-port", script)
         self.assertIn("Could not find npm.cmd", script)
         self.assertIn("Test-CompanionOnline", script)
         self.assertIn("Start-RunnerLauncher", script)
