@@ -2303,6 +2303,25 @@ test("running the queue prepares the local runner and shows failure explanations
     notes: "Posted by the local runner.",
     runner_payload: JSON.stringify({ fields: { body: "Archived queue body" } }),
   };
+  const submittedQueueItem = {
+    id: "queue-submitted-rpadverts",
+    ad_id: "ad-run",
+    target_id: "rpadverts",
+    target_name: "rpadverts",
+    tumblr_account_id: "snowleopardx",
+    submit_url: "https://rpadverts.tumblr.com/submit",
+    post_type: "photo",
+    status: "submitted",
+    scheduled_for: null,
+    timezone: "America/New_York",
+    created_at: "2026-06-18T19:00:00.000Z",
+    updated_at: "2026-06-18T19:35:00.000Z",
+    last_run_at: "2026-06-18T19:30:00.000Z",
+    posted_at: null,
+    failed_at: null,
+    notes: "Submitted by the local runner.",
+    runner_payload: JSON.stringify({ fields: { body: "Submitted queue body" } }),
+  };
 
   page.on("pageerror", (error) => pageErrors.push(error));
   const unavailableCompanionStatus = (route) => route.abort();
@@ -2391,6 +2410,16 @@ test("running the queue prepares the local runner and shows failure explanations
             details: { postedUrl: "https://allthingsroleplay.tumblr.com/post/456/archive-post" },
             created_at: "2026-06-18T20:30:00.000Z",
           },
+          {
+            id: "log-submitted",
+            run_id: "run-submitted",
+            queue_item_id: "queue-submitted-rpadverts",
+            target_name: "rpadverts",
+            level: "info",
+            message: "Submit button clicked.",
+            details: {},
+            created_at: "2026-06-18T19:35:00.000Z",
+          },
         ],
       }),
     }),
@@ -2423,7 +2452,7 @@ test("running the queue prepares the local runner and shows failure explanations
     route.fulfill({
       contentType: "application/json",
       headers: apiHeaders,
-      body: JSON.stringify({ queue: [queueItem, postedQueueItem] }),
+      body: JSON.stringify({ queue: [queueItem, postedQueueItem, submittedQueueItem] }),
     }),
   );
   await page.route("http://127.0.0.1:8021/api/advertisements", (route) =>
@@ -2497,9 +2526,15 @@ test("running the queue prepares the local runner and shows failure explanations
   await openWorkspaceView(page, "Queues");
   await page.locator(".queue-management-row", { hasText: "Default queue" }).getByRole("button", { name: "Open queue" }).click();
   await page.getByLabel("Post history archive").getByText("allthingsroleplay archive").waitFor();
+  await page.getByLabel("Post history archive").getByText("rpadverts").waitFor();
   await page.getByLabel("Post history archive").getByRole("link", { name: "Posted Tumblr link" }).waitFor();
-  await page.getByLabel("Post history archive").getByRole("button", { name: "Copy Discord update" }).click();
-  await page.getByLabel("Post history archive").getByRole("button", { name: "Discord update copied" }).waitFor();
+  await page.getByLabel("Post history archive").getByRole("button", { name: "Copy all Discord updates" }).click();
+  await page.getByLabel("Post history archive").getByRole("button", { name: "All Discord updates copied" }).waitFor();
+  const allDiscordUpdateText = await page.evaluate(() => window.__copiedText);
+  assert.match(allDiscordUpdateText, /^\u2705 Advert posted\n\nQueue: Default queue\nTarget: allthingsroleplay archive\nPosted at: Jun 18, 2026 /);
+  assert.match(allDiscordUpdateText, /\n\n---\n\n\u2705 Advert posted\n\nQueue: Default queue\nTarget: rpadverts\nPosted at: Jun 18, 2026 /);
+  await page.getByLabel("Post history archive").getByRole("button", { name: "Copy Discord update" }).first().click();
+  await page.getByLabel("Post history archive").getByRole("button", { name: "Discord update copied" }).first().waitFor();
   const discordUpdateText = await page.evaluate(() => window.__copiedText);
   assert.match(discordUpdateText, /^\u2705 Advert posted\n\nQueue: Default queue\nTarget: allthingsroleplay archive\nPosted at: Jun 18, 2026 /);
   await page.getByLabel("Queue bulk editor").getByText("Select all pending items").waitFor();

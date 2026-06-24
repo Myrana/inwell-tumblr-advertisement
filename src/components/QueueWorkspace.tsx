@@ -63,6 +63,7 @@ export function QueueWorkspace({
   });
   const [selectedQueueItemIds, setSelectedQueueItemIds] = useState<string[]>([]);
   const [copiedDiscordItemId, setCopiedDiscordItemId] = useState("");
+  const [copiedAllDiscordUpdates, setCopiedAllDiscordUpdates] = useState(false);
   const [bulkQueueStatus, setBulkQueueStatus] = useState<SubmissionStatus>("queued");
   const [bulkQueueNotes, setBulkQueueNotes] = useState("Bulk updated from queue workspace.");
   const statusCounts = activeQueue.reduce<Record<SubmissionStatus, number>>(
@@ -100,6 +101,16 @@ export function QueueWorkspace({
     }
     await navigator.clipboard.writeText(discordCompletionMessage(item));
     setCopiedDiscordItemId(item.id);
+    setCopiedAllDiscordUpdates(false);
+  }
+
+  async function copyAllDiscordCompletionMessages() {
+    if (!navigator.clipboard?.writeText || !postHistoryItems.length) {
+      return;
+    }
+    await navigator.clipboard.writeText(postHistoryItems.map(discordCompletionMessage).join("\n\n---\n\n"));
+    setCopiedAllDiscordUpdates(true);
+    setCopiedDiscordItemId("");
   }
 
   function recoveryGuidance(item: SubmissionQueueItem) {
@@ -402,45 +413,53 @@ export function QueueWorkspace({
         {openSections.history ? (
           <div className="workflow-section-body">
             {postHistoryItems.length ? (
-              <div className="post-history-list">
-                {postHistoryItems.map((item) => {
-                  const postedUrl = queueItemPostedUrl(item);
-                  const completedAt = item.postedAt || item.updatedAt;
+              <>
+                <div className="post-history-actions">
+                  <button className="secondary compact-button" type="button" onClick={() => void copyAllDiscordCompletionMessages()}>
+                    <Clipboard size={16} />
+                    {copiedAllDiscordUpdates ? "All Discord updates copied" : "Copy all Discord updates"}
+                  </button>
+                </div>
+                <div className="post-history-list">
+                  {postHistoryItems.map((item) => {
+                    const postedUrl = queueItemPostedUrl(item);
+                    const completedAt = item.postedAt || item.updatedAt;
 
-                  return (
-                    <article className="post-history-item" key={item.id}>
-                      <div className="post-history-heading">
-                        <Archive size={18} />
-                        <div>
-                          <strong>{item.targetName}</strong>
-                          <span>{formatSubmissionStatus(item.status)} - {formatDate(completedAt)}</span>
+                    return (
+                      <article className="post-history-item" key={item.id}>
+                        <div className="post-history-heading">
+                          <Archive size={18} />
+                          <div>
+                            <strong>{item.targetName}</strong>
+                            <span>{formatSubmissionStatus(item.status)} - {formatDate(completedAt)}</span>
+                          </div>
                         </div>
-                      </div>
-                      <div className="post-history-meta">
-                        <span><b>Type</b>{item.postType}</span>
-                        <span><b>Queue</b>{item.queueName}</span>
-                        <span><b>Updated</b>{formatDate(item.updatedAt)}</span>
-                      </div>
-                      {item.notes ? <p>{item.notes}</p> : null}
-                      <div className="post-history-actions">
-                        {postedUrl ? (
-                          <a className="queue-posted-link" href={postedUrl} target="_blank" rel="noreferrer">
-                            Posted Tumblr link
-                          </a>
-                        ) : null}
-                        <button className="secondary compact-button" type="button" onClick={() => onEditQueueItem(item.id)}>
-                          <Pencil size={16} />
-                          Edit archived post
-                        </button>
-                        <button className="secondary compact-button" type="button" onClick={() => void copyDiscordCompletionMessage(item)}>
-                          <Clipboard size={16} />
-                          {copiedDiscordItemId === item.id ? "Discord update copied" : "Copy Discord update"}
-                        </button>
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
+                        <div className="post-history-meta">
+                          <span><b>Type</b>{item.postType}</span>
+                          <span><b>Queue</b>{item.queueName}</span>
+                          <span><b>Updated</b>{formatDate(item.updatedAt)}</span>
+                        </div>
+                        {item.notes ? <p>{item.notes}</p> : null}
+                        <div className="post-history-actions">
+                          {postedUrl ? (
+                            <a className="queue-posted-link" href={postedUrl} target="_blank" rel="noreferrer">
+                              Posted Tumblr link
+                            </a>
+                          ) : null}
+                          <button className="secondary compact-button" type="button" onClick={() => onEditQueueItem(item.id)}>
+                            <Pencil size={16} />
+                            Edit archived post
+                          </button>
+                          <button className="secondary compact-button" type="button" onClick={() => void copyDiscordCompletionMessage(item)}>
+                            <Clipboard size={16} />
+                            {copiedDiscordItemId === item.id ? "Discord update copied" : "Copy Discord update"}
+                          </button>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              </>
             ) : (
               <p className="queue-empty">Completed Tumblr submissions will appear here after they are marked submitted or posted.</p>
             )}
