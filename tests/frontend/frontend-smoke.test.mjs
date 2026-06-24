@@ -2498,6 +2498,10 @@ test("running the queue prepares the local runner and shows failure explanations
   await page.locator(".queue-management-row", { hasText: "Default queue" }).getByRole("button", { name: "Open queue" }).click();
   await page.getByLabel("Post history archive").getByText("allthingsroleplay archive").waitFor();
   await page.getByLabel("Post history archive").getByRole("link", { name: "Posted Tumblr link" }).waitFor();
+  await page.getByLabel("Post history archive").getByRole("button", { name: "Copy Discord update" }).click();
+  await page.getByLabel("Post history archive").getByRole("button", { name: "Discord update copied" }).waitFor();
+  const discordUpdateText = await page.evaluate(() => window.__copiedText);
+  assert.match(discordUpdateText, /^\u2705 Advert posted\n\nQueue: Default queue\nTarget: allthingsroleplay archive\nPosted at: Jun 18, 2026 /);
   await page.getByLabel("Queue bulk editor").getByText("Select all pending items").waitFor();
   await page.locator(".queue-item", { hasText: "allthingsroleplay" }).getByLabel("Select queue item").waitFor();
   await openWorkspaceView(page, "Runner");
