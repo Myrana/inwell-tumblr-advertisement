@@ -351,9 +351,53 @@ button {
   color: var(--muted);
 }
 
+.login-mode-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 18px 0;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--soft);
+}
+
+.login-mode-tabs button,
+.login-secondary-actions button {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.login-mode-tabs button {
+  min-height: 38px;
+  border-radius: 6px;
+}
+
+.login-mode-tabs button.active {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 1px 4px rgba(27, 30, 36, 0.12);
+}
+
 .login-form {
   display: grid;
   gap: 14px;
+}
+
+.login-secondary-actions {
+  margin-top: 14px;
+  text-align: center;
+}
+
+.login-secondary-actions button {
+  padding: 4px 8px;
+}
+
+.login-secondary-actions button:hover,
+.login-secondary-actions button:focus-visible {
+  color: var(--cyan);
 }
 
 .topbar {

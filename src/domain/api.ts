@@ -77,6 +77,14 @@ export async function loginInkwellUser(payload: { email: string; password: strin
   });
 }
 
+export async function requestInkwellPasswordReset(payload: { email: string }) {
+  const response = await apiRequest<{ passwordReset: { submitted: boolean; message: string } }>("/auth/password-reset", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  return response.passwordReset;
+}
+
 export async function logoutInkwellUser() {
   return apiRequest<AuthSessionResponse>("/auth/logout", { method: "POST" });
 }

@@ -1,7 +1,10 @@
 import { FormEvent } from "react";
 
+export type LoginMode = "login" | "register" | "reset";
+
 type LoginWorkspaceProps = {
   bootstrapRequired: boolean;
+  mode: LoginMode;
   form: {
     email: string;
     password: string;
@@ -10,18 +13,30 @@ type LoginWorkspaceProps = {
   };
   status: string;
   onFormChange: (patch: Partial<LoginWorkspaceProps["form"]>) => void;
+  onModeChange: (mode: LoginMode) => void;
   onLogin: (event: FormEvent) => void;
   onRegister: (event: FormEvent) => void;
+  onPasswordReset: (event: FormEvent) => void;
 };
 
 export function LoginWorkspace({
   bootstrapRequired,
+  mode,
   form,
   status,
   onFormChange,
+  onModeChange,
   onLogin,
   onRegister,
+  onPasswordReset,
 }: LoginWorkspaceProps) {
+  const activeMode = bootstrapRequired ? "register" : mode;
+  const isRegistering = activeMode === "register";
+  const isResetting = activeMode === "reset";
+  const title = isRegistering ? "Create your Inkwell account" : isResetting ? "Reset your password" : "Log into Inkwell";
+  const submitLabel = isRegistering ? "Create account" : isResetting ? "Send reset instructions" : "Log in";
+  const submitHandler = isRegistering ? onRegister : isResetting ? onPasswordReset : onLogin;
+
   return (
     <main className="login-shell">
       <section className="login-panel" aria-label="Inkwell login">
@@ -32,9 +47,19 @@ export function LoginWorkspace({
             <span>Tumblr Advertisement Assistant</span>
           </div>
         </div>
-        <h1>{bootstrapRequired ? "Create your Inkwell login" : "Log into Inkwell"}</h1>
-        <form className="login-form" onSubmit={bootstrapRequired ? onRegister : onLogin}>
-          {bootstrapRequired ? (
+        <h1>{title}</h1>
+        {!bootstrapRequired ? (
+          <div className="login-mode-tabs" role="tablist" aria-label="Account options">
+            <button type="button" className={activeMode === "login" ? "active" : ""} onClick={() => onModeChange("login")}>
+              Log in
+            </button>
+            <button type="button" className={activeMode === "register" ? "active" : ""} onClick={() => onModeChange("register")}>
+              Create account
+            </button>
+          </div>
+        ) : null}
+        <form className="login-form" onSubmit={submitHandler}>
+          {isRegistering ? (
             <>
               <label>
                 Name
@@ -65,19 +90,34 @@ export function LoginWorkspace({
               placeholder="you@example.com"
             />
           </label>
-          <label>
-            Password
-            <input
-              autoComplete={bootstrapRequired ? "new-password" : "current-password"}
-              type="password"
-              value={form.password}
-              onChange={(event) => onFormChange({ password: event.target.value })}
-            />
-          </label>
+          {!isResetting ? (
+            <label>
+              Password
+              <input
+                autoComplete={isRegistering ? "new-password" : "current-password"}
+                type="password"
+                value={form.password}
+                onChange={(event) => onFormChange({ password: event.target.value })}
+              />
+            </label>
+          ) : null}
           <button className="primary" type="submit">
-            {bootstrapRequired ? "Create login" : "Log in"}
+            {submitLabel}
           </button>
         </form>
+        {!bootstrapRequired ? (
+          <div className="login-secondary-actions">
+            {activeMode === "login" ? (
+              <button type="button" onClick={() => onModeChange("reset")}>
+                Forgot password?
+              </button>
+            ) : (
+              <button type="button" onClick={() => onModeChange("login")}>
+                Back to login
+              </button>
+            )}
+          </div>
+        ) : null}
         {status ? <p className="queue-status">{status}</p> : null}
       </section>
     </main>
