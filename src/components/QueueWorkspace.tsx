@@ -1,4 +1,4 @@
-import { Archive, ChevronDown, FilePlus2, ListChecks, Pencil, Send, TestTube2 } from "lucide-react";
+import { Archive, ChevronDown, Clipboard, FilePlus2, ListChecks, Pencil, Send, TestTube2 } from "lucide-react";
 import { useState } from "react";
 import { formatDate, formatSubmissionStatus } from "../domain/format";
 import { isCompletedQueueItem, postHistoryArchiveItems } from "../domain/queue";
@@ -62,6 +62,7 @@ export function QueueWorkspace({
     history: true,
   });
   const [selectedQueueItemIds, setSelectedQueueItemIds] = useState<string[]>([]);
+  const [copiedDiscordItemId, setCopiedDiscordItemId] = useState("");
   const [bulkQueueStatus, setBulkQueueStatus] = useState<SubmissionStatus>("queued");
   const [bulkQueueNotes, setBulkQueueNotes] = useState("Bulk updated from queue workspace.");
   const statusCounts = activeQueue.reduce<Record<SubmissionStatus, number>>(
@@ -86,6 +87,19 @@ export function QueueWorkspace({
     const logs = allLogGroups.find((group) => group.item.id === item.id)?.logs ?? [];
     const postedLog = [...logs].reverse().find((log) => runnerLogPostedUrl(log));
     return postedLog ? runnerLogPostedUrl(postedLog) : "";
+  }
+
+  function discordCompletionMessage(item: SubmissionQueueItem) {
+    const completedAt = item.postedAt || item.updatedAt || item.createdAt;
+    return `\u2705 Advert posted\n\nQueue: ${item.queueName}\nTarget: ${item.targetName}\nPosted at: ${formatDiscordPostedAt(completedAt)}`;
+  }
+
+  async function copyDiscordCompletionMessage(item: SubmissionQueueItem) {
+    if (!navigator.clipboard?.writeText) {
+      return;
+    }
+    await navigator.clipboard.writeText(discordCompletionMessage(item));
+    setCopiedDiscordItemId(item.id);
   }
 
   function recoveryGuidance(item: SubmissionQueueItem) {
@@ -418,6 +432,10 @@ export function QueueWorkspace({
                           <Pencil size={16} />
                           Edit archived post
                         </button>
+                        <button className="secondary compact-button" type="button" onClick={() => void copyDiscordCompletionMessage(item)}>
+                          <Clipboard size={16} />
+                          {copiedDiscordItemId === item.id ? "Discord update copied" : "Copy Discord update"}
+                        </button>
                       </div>
                     </article>
                   );
@@ -431,4 +449,16 @@ export function QueueWorkspace({
       </section>
     </section>
   );
+}
+
+function formatDiscordPostedAt(value: string) {
+  const parts = new Intl.DateTimeFormat("en", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).formatToParts(new Date(value));
+  const part = (type: string) => parts.find((item) => item.type === type)?.value ?? "";
+  return `${part("month")} ${part("day")}, ${part("year")} ${part("hour")}:${part("minute")} ${part("dayPeriod")}`.trim();
 }
