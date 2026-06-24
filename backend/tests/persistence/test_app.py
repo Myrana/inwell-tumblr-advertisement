@@ -1314,6 +1314,92 @@ class PersistenceTests(unittest.TestCase):
         self.assertEqual(self.connection.submission_queue["queue-log-1"]["status"], "submitted")
         self.assertIsNone(self.connection.submission_queue["queue-log-1"]["posted_at"])
 
+    def test_runner_log_infers_submitted_status_from_submit_click_message(self) -> None:
+        upsert_queue_item(
+            self.connection,
+            {
+                "id": "queue-log-click-message",
+                "ad_id": "ad-1",
+                "target_id": "target-click-message",
+                "target_name": "rpadverts",
+                "submit_url": "https://rpadverts.tumblr.com/submit",
+                "status": "queued",
+                "runner_payload": "{}",
+            },
+        )
+
+        record_runner_log(
+            self.connection,
+            {
+                "queue_item_id": "queue-log-click-message",
+                "run_id": "run-click-message",
+                "level": "info",
+                "message": "Submit button clicked.",
+                "details": {"postedUrl": ""},
+                "created_at": "2026-06-24T12:37:00+00:00",
+            },
+        )
+
+        queue_item = self.connection.submission_queue["queue-log-click-message"]
+        self.assertEqual(queue_item["status"], "submitted")
+        self.assertEqual(str(queue_item["updated_at"]), "2026-06-24 12:37:00+00:00")
+        self.assertIsNone(queue_item["failed_at"])
+
+    def test_runner_log_maps_clicked_status_to_submitted(self) -> None:
+        upsert_queue_item(
+            self.connection,
+            {
+                "id": "queue-log-clicked-status",
+                "ad_id": "ad-1",
+                "target_id": "target-clicked-status",
+                "target_name": "therpdirectory",
+                "submit_url": "https://therpdirectory.tumblr.com/submit",
+                "status": "queued",
+                "runner_payload": "{}",
+            },
+        )
+
+        record_runner_log(
+            self.connection,
+            {
+                "queue_item_id": "queue-log-clicked-status",
+                "run_id": "run-clicked-status",
+                "level": "info",
+                "status": "clicked",
+                "message": "Submit button clicked.",
+                "details": {"status": "clicked"},
+            },
+        )
+
+        self.assertEqual(self.connection.submission_queue["queue-log-clicked-status"]["status"], "submitted")
+
+    def test_runner_log_does_not_infer_submitted_from_disabled_submit(self) -> None:
+        upsert_queue_item(
+            self.connection,
+            {
+                "id": "queue-log-disabled-submit",
+                "ad_id": "ad-1",
+                "target_id": "target-disabled-submit",
+                "target_name": "disabledsubmit",
+                "submit_url": "https://disabledsubmit.tumblr.com/submit",
+                "status": "queued",
+                "runner_payload": "{}",
+            },
+        )
+
+        record_runner_log(
+            self.connection,
+            {
+                "queue_item_id": "queue-log-disabled-submit",
+                "run_id": "run-disabled-submit",
+                "level": "warning",
+                "message": "Submit button is disabled after filling the form.",
+                "details": {"status": "disabled"},
+            },
+        )
+
+        self.assertEqual(self.connection.submission_queue["queue-log-disabled-submit"]["status"], "queued")
+
     def test_runner_log_fills_missing_run_and_target_from_active_runner_and_queue(self) -> None:
         old_run_id = app.RUNNER_LAST_RUN_ID
         app.RUNNER_LAST_RUN_ID = "run-active"

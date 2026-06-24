@@ -1150,6 +1150,8 @@ def normalize_queue_status(value: Any) -> str:
     status = str(value or "queued").strip().lower()
     if status == "submitting":
         return "running"
+    if status == "clicked":
+        return "submitted"
     if status == "submitted":
         return "submitted"
     if status == "manual-action":
@@ -1987,11 +1989,21 @@ def record_runner_log(connection: ConnectionLike, payload: dict[str, Any]) -> di
         (log["workspace_id"], log["id"]),
     )
 
-    if log["status"]:
-        touch_queue_item_status(connection, log["queue_item_id"], log["status"], log["message"], log["created_at"])
+    queue_status = log["status"] or infer_runner_log_queue_status(log)
+    if queue_status:
+        touch_queue_item_status(connection, log["queue_item_id"], queue_status, log["message"], log["created_at"])
 
     row = connection.execute("SELECT * FROM runner_logs WHERE id = %s", (log["id"],)).fetchone()
     return row_to_runner_log(row, load_runner_log_details(connection, log["id"]))
+
+
+def infer_runner_log_queue_status(log: dict[str, Any]) -> str:
+    message = str(log.get("message") or "").strip().lower()
+    details = log.get("details") if isinstance(log.get("details"), dict) else {}
+    detail_status = str(details.get("status") or "").strip().lower()
+    if detail_status == "clicked" or message == "submit button clicked.":
+        return "submitted"
+    return ""
 
 
 def touch_queue_item_status(
