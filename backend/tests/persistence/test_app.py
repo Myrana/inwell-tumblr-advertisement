@@ -26,6 +26,7 @@ from app import (
     initialize_database_for_startup,
     login_user,
     login_user_with_lock,
+    request_password_reset,
     record_runner_log,
     run,
     settings_statistics,
@@ -1134,6 +1135,59 @@ class PersistenceTests(unittest.TestCase):
         self.assertEqual(hash_session_token(token), next(iter(self.connection.user_sessions.values()))["token_hash"])
         self.assertEqual(self.connection.templates[template["id"]]["workspace_id"], workspace_id)
         self.assertEqual(self.connection.template_tags[(template["id"], "jcink")]["workspace_id"], workspace_id)
+
+    def test_create_user_workspace_allows_additional_accounts_without_stealing_default_data(self) -> None:
+        first_user, first_workspace_id = create_user_workspace(
+            self.connection,
+            {
+                "email": "owner@example.test",
+                "password": "correct-password",
+                "displayName": "Owner",
+                "workspaceName": "Owner workspace",
+            },
+        )
+        second_user, second_workspace_id = create_user_workspace(
+            self.connection,
+            {
+                "email": "second@example.test",
+                "password": "another-password",
+                "displayName": "Second",
+                "workspaceName": "Second workspace",
+            },
+        )
+
+        self.assertNotEqual(first_user["id"], second_user["id"])
+        self.assertNotEqual(first_workspace_id, second_workspace_id)
+        self.assertEqual(second_user["workspace"]["name"], "Second workspace")
+
+        with self.assertRaises(ValueError):
+            create_user_workspace(
+                self.connection,
+                {
+                    "email": "second@example.test",
+                    "password": "another-password",
+                    "displayName": "Duplicate",
+                    "workspaceName": "Duplicate workspace",
+                },
+            )
+
+    def test_password_reset_request_returns_generic_message(self) -> None:
+        create_user_workspace(
+            self.connection,
+            {
+                "email": "owner@example.test",
+                "password": "correct-password",
+                "displayName": "Owner",
+                "workspaceName": "Owner workspace",
+            },
+        )
+
+        known = request_password_reset(self.connection, {"email": "owner@example.test"})
+        unknown = request_password_reset(self.connection, {"email": "missing@example.test"})
+
+        self.assertTrue(known["submitted"])
+        self.assertEqual(known["message"], unknown["message"])
+        self.assertIn("reset instructions", known["message"])
 
     def test_login_rejects_wrong_password_and_returns_workspace_for_valid_user(self) -> None:
         created_user, workspace_id = create_user_workspace(

@@ -207,12 +207,12 @@ test("first user can create an Inkwell login before opening the workspace", { ti
   await routeEmptyWorkspaceApis(page);
 
   await page.goto(appUrl);
-  await page.getByRole("heading", { name: "Create your Inkwell login" }).waitFor();
+  await page.getByRole("heading", { name: "Create your Inkwell account" }).waitFor();
   await page.getByLabel("Name").fill("Myrana");
   await page.getByLabel("Workspace").fill("Myrana workspace");
   await page.getByLabel("Email").fill("myrana@example.test");
   await page.getByLabel("Password").fill("super-secret-password");
-  await page.getByRole("button", { name: "Create login" }).click();
+  await page.getByRole("button", { name: "Create account" }).click();
   await page.getByRole("button", { name: "Log out" }).waitFor();
   await page.getByRole("heading", { name: "Operations dashboard", level: 1 }).waitFor();
   await page.getByLabel("First-run checklist").getByText("Connect Tumblr account").waitFor();
@@ -727,9 +727,89 @@ test("login lockout shows a wait message", { timeout: 40000 }, async (t) => {
   await page.getByRole("heading", { name: "Log into Inkwell" }).waitFor();
   await page.getByLabel("Email").fill("myrana@example.test");
   await page.getByLabel("Password").fill("wrong-password");
-  await page.getByRole("button", { name: "Log in" }).click();
+  await page.locator("form").getByRole("button", { name: "Log in" }).click();
   await page.getByText("Too many failed login attempts. Try again later. Wait about 2 minutes before trying again.").waitFor();
 
+  assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
+});
+
+test("login page exposes create-account and forgot-password flows", { timeout: 40000 }, async (t) => {
+  const server = spawn("npx vite --host 127.0.0.1 --port 8123 --strictPort", {
+    cwd: process.cwd(),
+    shell: true,
+    stdio: "ignore",
+  });
+
+  t.after(() => {
+    stopProcessTree(server);
+  });
+
+  await waitForServer(appUrl);
+
+  const browser = await chromium.launch();
+  t.after(async () => {
+    await browser.close();
+  });
+
+  const page = await browser.newPage();
+  const pageErrors = [];
+  let registerPayload = null;
+  let resetPayload = null;
+  page.on("pageerror", (error) => pageErrors.push(error));
+  await page.route("http://127.0.0.1:8021/api/**", (route) => route.abort());
+  await page.route("http://127.0.0.1:8021/api/auth/session", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({ authenticated: false, user: null, bootstrapRequired: false }),
+    }),
+  );
+  await page.route("http://127.0.0.1:8021/api/auth/register", (route) => {
+    registerPayload = route.request().postDataJSON();
+    return route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      status: 400,
+      body: JSON.stringify({ error: "Registration test response." }),
+    });
+  });
+  await page.route("http://127.0.0.1:8021/api/auth/password-reset", (route) => {
+    resetPayload = route.request().postDataJSON();
+    return route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      status: 201,
+      body: JSON.stringify({
+        passwordReset: {
+          submitted: true,
+          message: "If an Inkwell account exists for that email, reset instructions will be sent when email delivery is configured.",
+        },
+      }),
+    });
+  });
+
+  await page.goto(appUrl);
+  await page.getByRole("heading", { name: "Log into Inkwell" }).waitFor();
+  await page.getByRole("button", { name: "Create account" }).click();
+  await page.getByRole("heading", { name: "Create your Inkwell account" }).waitFor();
+  await page.getByLabel("Name").fill("New User");
+  await page.getByLabel("Workspace").fill("New workspace");
+  await page.getByLabel("Email").fill("new@example.test");
+  await page.getByLabel("Password").fill("new-password");
+  await page.getByRole("button", { name: "Create account" }).last().click();
+  await page.getByText("Could not create that login. Use a valid email and a password with at least 8 characters.").waitFor();
+
+  await page.getByRole("button", { name: "Back to login" }).click();
+  await page.getByRole("button", { name: "Forgot password?" }).click();
+  await page.getByRole("heading", { name: "Reset your password" }).waitFor();
+  await page.getByLabel("Email").fill("new@example.test");
+  await page.getByRole("button", { name: "Send reset instructions" }).click();
+  await page.getByText("If an Inkwell account exists for that email, reset instructions will be sent when email delivery is configured.").waitFor();
+
+  assert.equal(registerPayload?.email, "new@example.test");
+  assert.equal(registerPayload?.displayName, "New User");
+  assert.equal(registerPayload?.workspaceName, "New workspace");
+  assert.equal(resetPayload?.email, "new@example.test");
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
 });
 

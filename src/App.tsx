@@ -16,7 +16,7 @@ import { EditorWorkspace } from "./components/EditorWorkspace";
 import { QueueWorkspace } from "./components/QueueWorkspace";
 import { QueueManagerWorkspace } from "./components/QueueManagerWorkspace";
 import { DocumentationWorkspace } from "./components/DocumentationWorkspace";
-import { LoginWorkspace } from "./components/LoginWorkspace";
+import { LoginWorkspace, type LoginMode } from "./components/LoginWorkspace";
 import { OperationsDashboard } from "./components/OperationsDashboard";
 import { RunnerLogsWorkspace } from "./components/RunnerLogsWorkspace";
 import { RunnerWorkspace } from "./components/RunnerWorkspace";
@@ -43,6 +43,7 @@ import {
   loadRunnerLogs,
   loginInkwellUser,
   logoutInkwellUser,
+  requestInkwellPasswordReset,
   removeAdvertisement,
   removeQueueItem,
   removeTemplate,
@@ -128,6 +129,7 @@ function App() {
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [bootstrapRequired, setBootstrapRequired] = useState(false);
+  const [loginMode, setLoginMode] = useState<LoginMode>("login");
   const [loginStatus, setLoginStatus] = useState("");
   const [loginForm, setLoginForm] = useState({ email: "", password: "", displayName: "", workspaceName: "Inkwell workspace" });
   const [stored, setStored] = useState<StoredState>(() => loadStoredState());
@@ -609,6 +611,17 @@ function App() {
       setLoginStatus("");
     } catch (error) {
       setLoginStatus(authLockMessage(error, "Email or password was not accepted."));
+    }
+  }
+
+  async function requestPasswordReset(event: FormEvent) {
+    event.preventDefault();
+    try {
+      const reset = await requestInkwellPasswordReset({ email: loginForm.email });
+      setLoginStatus(reset.message);
+      setLoginMode("login");
+    } catch (error) {
+      setLoginStatus(error instanceof ApiError ? error.message : "Could not start password reset.");
     }
   }
 
@@ -1762,11 +1775,17 @@ function App() {
     return (
       <LoginWorkspace
         bootstrapRequired={bootstrapRequired}
+        mode={loginMode}
         form={loginForm}
         status={loginStatus}
         onFormChange={(patch) => setLoginForm((current) => ({ ...current, ...patch }))}
+        onModeChange={(mode) => {
+          setLoginMode(mode);
+          setLoginStatus("");
+        }}
         onLogin={loginInkwell}
         onRegister={registerInkwell}
+        onPasswordReset={requestPasswordReset}
       />
     );
   }

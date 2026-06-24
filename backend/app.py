@@ -1669,10 +1669,11 @@ def create_user_workspace(connection: ConnectionLike, payload: dict[str, Any]) -
         raise ValueError("Valid email is required")
     if len(password) < 8:
         raise ValueError("Password must be at least 8 characters")
-    if users_exist(connection):
-        raise ValueError("Registration is closed after the first user is created")
+    if connection.execute("SELECT * FROM users WHERE email = %s", (email,)).fetchone():
+        raise ValueError("An account already exists for that email")
 
     now = utc_now()
+    is_first_user = not users_exist(connection)
     user_id = f"user-{uuid.uuid4().hex}"
     workspace_id = f"workspace-{uuid.uuid4().hex}"
     connection.execute(
@@ -1689,10 +1690,21 @@ def create_user_workspace(connection: ConnectionLike, payload: dict[str, Any]) -
         """,
         (workspace_id, user_id, workspace_name or "Inkwell workspace", now, now),
     )
-    assign_default_workspace_data(connection, workspace_id)
+    if is_first_user:
+        assign_default_workspace_data(connection, workspace_id)
     user = connection.execute("SELECT * FROM users WHERE id = %s", (user_id,)).fetchone()
     workspace = connection.execute("SELECT * FROM workspaces WHERE id = %s", (workspace_id,)).fetchone()
     return row_to_user(user, workspace), workspace_id
+
+
+def request_password_reset(connection: ConnectionLike, payload: dict[str, Any]) -> dict[str, Any]:
+    email = normalize_email(payload.get("email"))
+    if email and "@" in email:
+        connection.execute("SELECT * FROM users WHERE email = %s", (email,)).fetchone()
+    return {
+        "submitted": True,
+        "message": "If an Inkwell account exists for that email, reset instructions will be sent when email delivery is configured.",
+    }
 
 
 def login_user(connection: ConnectionLike, payload: dict[str, Any]) -> tuple[dict[str, Any], str]:
@@ -2746,6 +2758,12 @@ class Handler(BaseHTTPRequestHandler):
                 self.respond_rate_limited(str(error), error.retry_after_seconds)
             except ValueError as error:
                 self.respond({"error": str(error)}, HTTPStatus.BAD_REQUEST)
+            return
+
+        if collection == "auth/password-reset":
+            payload = self.read_json()
+            with connect() as connection:
+                self.respond({"passwordReset": request_password_reset(connection, payload)}, HTTPStatus.CREATED)
             return
 
         if collection == "auth/logout":
