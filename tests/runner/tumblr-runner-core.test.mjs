@@ -12,6 +12,7 @@ import {
   headlessBlockerMessage,
   headlessLoginRequiredMessage,
   htmlToPlainText,
+  isPhotoClickThroughContext,
   isReusableRemotePage,
   loginWaitMessage,
   manualActionReason,
@@ -84,7 +85,7 @@ test("normalizeRunnerPlan decodes queue item runner payload", () => {
         postType: "photo",
         runnerPayload: JSON.stringify({
           target: { name: "target" },
-          advertisement: { postType: "photo", tags: ["one", "two"], imageName: "ad.png" },
+          advertisement: { postType: "photo", forumUrl: "https://forum.example/thread", tags: ["one", "two"], imageName: "ad.png" },
           fields: { caption: "<p>Hello</p>", imageDataUrl: "data:image/png;base64,aGVsbG8=" },
         }),
       },
@@ -95,7 +96,27 @@ test("normalizeRunnerPlan decodes queue item runner payload", () => {
   assert.equal(plan.items[0].postType, "photo");
   assert.equal(fieldsForItem(plan.items[0]).title, "");
   assert.match(fieldsForItem(plan.items[0]).bodyHtml, /<p>Hello<\/p>/);
+  assert.equal(fieldsForItem(plan.items[0]).imageLinkUrl, "https://forum.example/thread");
   assert.deepEqual(fieldsForItem(plan.items[0]).tags, ["one", "two"]);
+});
+
+test("fieldsForItem prefers explicit image click-through URL", () => {
+  const fields = fieldsForItem({
+    payload: {
+      fields: { body: "Body", imageLinkUrl: "https://forum.example/photo-link" },
+      advertisement: { forumUrl: "https://forum.example/fallback", tags: [] },
+    },
+  });
+
+  assert.equal(fields.imageLinkUrl, "https://forum.example/photo-link");
+});
+
+test("photo click-through context matching avoids unrelated URL fields", () => {
+  assert.equal(isPhotoClickThroughContext("Photo link URL"), true);
+  assert.equal(isPhotoClickThroughContext("Click-through URL"), true);
+  assert.equal(isPhotoClickThroughContext("URL", true), true);
+  assert.equal(isPhotoClickThroughContext("Video URL", true), false);
+  assert.equal(isPhotoClickThroughContext("Tag URL", true), false);
 });
 
 test("fieldsForItem includes the saved option name as a title hint", () => {
