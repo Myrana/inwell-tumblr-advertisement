@@ -313,9 +313,23 @@ export function fieldsForItem(item) {
     title: String(advertisement.savedOptionName || ""),
     videoUrl: String(fields.videoUrl || advertisement.videoUrl || ""),
     imageDataUrl: String(fields.imageDataUrl || advertisement.imageDataUrl || ""),
+    imageLinkUrl: String(fields.imageLinkUrl || advertisement.forumUrl || ""),
     imageName: String(advertisement.imageName || "tumblr-upload.png"),
     tags: Array.isArray(advertisement.tags) ? advertisement.tags.map(String) : [],
   };
+}
+
+export function isPhotoClickThroughContext(value, allowGenericUrl = false) {
+  const context = String(value || "").replace(/\s+/g, " ").trim().toLowerCase();
+  if (!context) {
+    return false;
+  }
+  if (/video|tag|caption|body|title|search|email|password|login/.test(context)) {
+    return false;
+  }
+
+  return /click.?through|photo link|image link|link url|source url|content source|set a link|add a link/.test(context)
+    || (allowGenericUrl && /^url$|^https?:\/\/|url to link|link$/.test(context));
 }
 
 export function fillRichTextEditorInDocument({ value, isHtml = false }) {
