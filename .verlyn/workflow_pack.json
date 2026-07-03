@@ -1,25 +1,24 @@
 {
   "product": "Verlyn",
-  "workflow_pack_version": "2026.06.21.3",
+  "workflow_pack_version": "2026.07.03.1",
   "repo_name": "inwell-tumblr-advertisement",
   "install_mode": "governance",
   "installed_at": "2026-06-17T14:01:18.240360+00:00",
-  "workspace_root": "/verlyn_data/analysis_workspace",
-  "manifest_hash": "d90baf3fdbaeba62b5522e7f64571c41ebe8c926879fa15fdf0d81b65be721ee",
-  "refreshed_at": "2026-06-21T21:51:27.036546+00:00",
+  "manifest_hash": "5f01601d51b1e7e8a9c3c031a1c62a0f7a2102bf8d292e135703683d0d3b6234",
+  "refreshed_at": "2026-07-03T15:06:39.977784+00:00",
   "governance_pack": {
     "name": "verlyn-standard",
-    "version": "2026.06.21.3",
-    "manifest_hash": "d90baf3fdbaeba62b5522e7f64571c41ebe8c926879fa15fdf0d81b65be721ee",
+    "version": "2026.07.03.1",
+    "manifest_hash": "5f01601d51b1e7e8a9c3c031a1c62a0f7a2102bf8d292e135703683d0d3b6234",
     "source": "verlyn_api",
-    "refreshed_at": "2026-06-21T21:51:27.036546+00:00",
+    "refreshed_at": "2026-07-03T15:06:39.977784+00:00",
     "repo_owned_paths": [
       "RULES.md"
     ],
     "files": {
       "AGENTS.md": {
         "owner": "verlyn",
-        "sha256": "4e5571a68c81724db5d2dd27aa79a465c16603495486063d91a8dff034e747ad",
+        "sha256": "5b467bbc0d633a145fe472fcc3bccec26a199119d8c630f508e9977bd0c7b473",
         "required": true,
         "category": "governance",
         "purpose": "repo_rules"
@@ -47,7 +46,7 @@
       },
       ".verlyn/runtime_context.json": {
         "owner": "verlyn",
-        "sha256": "38490e778f3c36f57096453509dbc3a024db1f0b207785d475b1c1785ca31544",
+        "sha256": "08f63d22fee2a9fc53a9e5b3d787710e52d7be005bb18e11005a66c7228971f0",
         "required": true,
         "category": "governance",
         "purpose": "assistant_runtime_context"
@@ -61,14 +60,14 @@
       },
       ".verlyn/agent-skills/verlyn-public-cli.md": {
         "owner": "verlyn",
-        "sha256": "08555ff8412ebd1e2db5c63c6ec6802a495ba44b7447e76dc52b280130fc420d",
+        "sha256": "2f43b752f0eeb660d94185ee2eaec3f1a82084b30198bdda92861cb9105bc36f",
         "required": false,
         "category": "governance",
         "purpose": "agent_skill_reference"
       },
       ".verlyn/.codex/skills/verlyn-public-cli/SKILL.md": {
         "owner": "verlyn",
-        "sha256": "13091103864006adedabacbd7713d61755d589ec07cb0380b29f182266ed6881",
+        "sha256": "dea14eda890229f9803370d80674b53f571eec29b473325f8a4af0d0a038d417",
         "required": false,
         "category": "governance",
         "purpose": "codex_skill"
@@ -103,7 +102,7 @@
       },
       ".github/workflows/verlyn-pr-gate.yml": {
         "owner": "verlyn",
-        "sha256": "1f42859145522cb4d03fb23716038938b25f17711be51d646b915c17729b00f8",
+        "sha256": "3a0d650cf6b045209640d8f009d6b73a1b09b630bb7b5e24d30d3797daed9844",
         "required": true,
         "category": "github",
         "purpose": "ci_gate"
@@ -124,17 +123,24 @@
       },
       "Documentation/guides/VERLYN_AGENT_WORKFLOW.md": {
         "owner": "verlyn",
-        "sha256": "2693c027db3f5024202f668db95978176d5acab6e9e6cc20dc7d674a1aa78700",
+        "sha256": "bfa4b039a063aeb34ee01adb81a1bfc245a53f300b728d853b6a4cf6cb5fbe0f",
         "required": false,
         "category": "documentation",
         "purpose": "workflow"
       },
       "Documentation/guides/VERLYN_PUBLIC_CLI.md": {
         "owner": "verlyn",
-        "sha256": "1e895ec96fca3081984ff98a980f854e6f373cd80ff3992ba4858efe1fd4dc9c",
+        "sha256": "0cd5bba0d46f6edfd98b1179232baefd0c683ff7d5a4a063c056c83ccecc22f6",
         "required": true,
         "category": "documentation",
         "purpose": "cli_reference"
+      },
+      "Documentation/guides/VERLYN_CLI_MCP_TRANSITION.md": {
+        "owner": "verlyn",
+        "sha256": "563b4910559382af1b401fb907f58c0a70afe7a1cdca8f3886842fb37b6d9c6a",
+        "required": false,
+        "category": "documentation",
+        "purpose": "cli_mcp_transition"
       },
       "Documentation/hooks.md": {
         "owner": "verlyn",
