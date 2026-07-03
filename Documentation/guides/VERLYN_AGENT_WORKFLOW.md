@@ -1,33 +1,34 @@
 # Verlyn Agent Workflow
 
 Use this guide when an assistant or agent is working inside this repository.
-It is the single assistant-facing workflow guide installed by the governance
-pack. `AGENTS.md` remains authoritative for policy, and `RULES.md` may contain
-project-owned guidance for this repo.
+`AGENTS.md` is authoritative for policy, `CONTRIBUTING.md` is authoritative for
+commit protocol, and `RULES.md` contains repo-owned guidance. Use
+`Documentation/guides/VERLYN_PUBLIC_CLI.md` as the detailed command reference.
+This is the single assistant-facing workflow guide for Verlyn-governed repo
+sessions.
 
-Use `Documentation/guides/VERLYN_PUBLIC_CLI.md` as the command reference for
-public CLI intent, optional arguments, and deliver-versus-deploy behavior.
+## Reload Order
 
-## Read In This Order
+Read, in order:
 
 1. `AGENTS.md`
 2. `CONTRIBUTING.md`
 3. `RULES.md`
 4. `.verlyn/runtime_context.json` when present
 5. `Documentation/AI_USAGE_POLICY.md`
-6. This guide
+6. this guide
 7. `Documentation/guides/VERLYN_PUBLIC_CLI.md`
-8. Active change details from Verlyn when work already exists
+8. `Documentation/guides/VERLYN_CLI_MCP_TRANSITION.md` when present
+9. active change details from Verlyn when work already exists
 
-After session compaction, compressed-summary recovery, or any resume where the
-operator may question whether rules were reloaded, reread the governed files
-and visibly tell the operator:
+After compaction, compressed-summary recovery, or any stale-context resume,
+reread the governed files and visibly tell the operator:
 
 > Governance was reloaded and required repo rules were reread.
 
-## Required Startup Commands
+## Required Startup
 
-Run these before suggesting or editing anything:
+Run these before suggesting edits or changing files:
 
 ```bash
 verlyn auth status
@@ -35,48 +36,58 @@ verlyn workflow assistant-startup --json
 verlyn workflow assert-edit-route --json
 verlyn target show --json
 verlyn changes list
+verlyn changes list --owner-scope all --status-scope all
 verlyn runs --limit 3 --json
 ```
 
-These commands confirm that the installed CLI is authenticated, the current
-checkout is authorized by Verlyn, and current workflow state is visible. If
-auth, target binding, or repo authorization fails, stop and repair that path
-before editing.
+These commands verify CLI auth, repo binding, current branch, active change
+route, visible work, and recent run context. If auth, target binding, or edit
+routing fails, repair that public Verlyn path before editing.
 
-`verlyn workflow assistant-startup --json` is the canonical machine-readable
-assistant reload command after context compaction. It returns repo state, edit
-route state, visible working changes, latest run context, and the recommended
-next action. `verlyn workflow assert-edit-route --json` fails closed when the
-current checkout is not authorized for editing.
+Inspect `workflow_hint` first when present. It is the canonical chain-aware
+resolver payload shared by `workflow assistant-startup --json`,
+`workflow inbox --json`, and `changes next --json`. Use
+`selected_change`, `recommended_action`, `recommended_command`, `safe_to_edit`,
+`reason_code`, `chain_context`, `blocked_changes`, `ready_roots`,
+`current_branch_context`, `resolver_status`, and `degraded_reason` before
+guessing from flat lists. Product hints such as `recommended_next_action`,
+`next_action`, `recommended_next_command`, `review_context`, `task_rollup`,
+`workflow_gate`, `repair_status`, and `next_step` guide the next command but
+never bypass repo policy.
 
-Treat the JSON returned by Verlyn as workflow context, not as decoration.
-Before guessing the next step, inspect fields such as
-`recommended_next_action`, `next_action`, `recommended_next_command`,
-`review_context`, `task_rollup`, `workflow_gate`, `repair_status`, and
-`next_step`. These are product hints for the next public CLI command or repair
-path. Apply judgment against the user request and repo governance before
-acting.
+## Control Path
 
-`verlyn changes list` defaults to the current user's working changes. For a
-diagnostic view across all visible owners and statuses, use:
+Public CLI first, API-backed workflow state, and no private bypasses.
 
-```bash
-verlyn changes list --owner-scope all --status-scope all
-```
+1. Installed public `verlyn` CLI commands.
+2. MCP for explicitly supported API-backed workflow actions when the user has
+   configured MCP and OAuth succeeds.
+3. Web UI workflow surfaces for run creation, onboarding, and settings.
+4. Stop and record a Verlyn workflow blocker when the product path is missing
+   or blocked.
 
-## Command Priority
-
-1. Installed public `verlyn` CLI commands
-2. Web UI workflow surfaces for run creation, onboarding, and settings
-3. Stop and record a Verlyn workflow blocker when the installed product path is missing or blocked
+The initial mixed CLI/MCP posture is **CLI-first, MCP-optional, CLI fallback**.
+Use `Documentation/guides/VERLYN_CLI_MCP_TRANSITION.md` for the supported MCP
+tool list and switching rules. Keep using the CLI for bootstrap, local checkout
+state, governance files, review-runner orchestration, trust checks, and hosted
+delivery/deploy until those surfaces have explicit MCP parity and review.
 
 Do not use private Verlyn maintenance commands, direct database access, direct
-workflow record edits, or shell tools such as `gh` as a substitute for Verlyn's
-installed product workflow.
+workflow-record edits, provider-secret handling, or shell provider tools such
+as `gh` as substitutes for Verlyn's installed product workflow.
 
-The hierarchy is strict for AI-assisted work: Public CLI first, API-backed
-workflow context, no direct PostgreSQL access, no private helper scripts, no
-provider secret handling, and no bypassing gates.
+Normal Verlyn commands are repo-scoped from the current checkout plus the saved
+CLI login profile. Avoid `--profile`, `--server`, `--repo-slug`, and `--target`
+unless bootstrapping, diagnosing, automating outside a checkout, or performing
+explicit recovery. If normal repo work needs an override to pass, treat it as
+auth, repo binding, or checkout drift to repair through Verlyn.
+
+Normal commands are repo-scoped from the current governed checkout. Optional overrides such as `--profile`, `--server`, `--repo-slug`, `--target`, `--source-ref`, and `--commit-sha` are diagnostics, bootstrap, automation, or recovery controls, not routine workflow inputs.
+
+For vendor-specific delivery changes, query
+`/api/repos/{repo_slug}/delivery/providers` before changing provider behavior.
+Railway is the first concrete provider slice using Verlyn's shared provider
+plugin core and manifest-backed provider contract.
 
 ## Auth And Repo Binding
 
@@ -87,12 +98,8 @@ verlyn auth login --server <verlyn-api-url> --username <user>
 verlyn auth status
 ```
 
-When login runs from a repository checkout, inspect any returned
-`governance_status` field. It is a lightweight Verlyn product hint about
-installed governance version, missing required files, and the next public CLI
-command to run. In JSON mode, report or act on the returned
-`recommended_next_command`; in interactive mode, let the CLI prompt the user
-before installing or refreshing governance files.
+When login runs from a repository checkout, inspect any `governance_status`
+payload and follow its `recommended_next_command`.
 
 For first checkout of a repo already attached to a Verlyn project:
 
@@ -100,23 +107,17 @@ For first checkout of a repo already attached to a Verlyn project:
 verlyn repos clone <repo-slug> ./local-folder --project-id <project-id>
 ```
 
-Rules:
+CLI auth is user/profile scoped. Entity, project, repository, workflow, and
+provider credential resolution stay in Verlyn's backend. Local checkout paths
+are user-machine preferences, not repository identity.
 
-- CLI auth is user/profile scoped and separate from durable repo identity.
-- Verlyn owns project/repo authorization and provider-token resolution.
-- The CLI must not connect directly to PostgreSQL or ask users for provider tokens.
-- Local paths are user-machine preferences; entity, project, and repository
-  bindings remain the source of truth.
-- Use `--target` only when you need to make local checkout selection explicit
-  for diagnostics.
+## Change And Work-Item Flow
 
-## Workflow Commands
-
-Use installed `verlyn` commands for normal repository workflow:
+Use installed `verlyn` commands for tracked work:
 
 ```bash
 verlyn changes list
-verlyn changes show <change-id>
+verlyn changes show <change-id> --json
 verlyn changes create --title "..." --change-type <type> --effort-band <small|medium|large>
 verlyn changes update <change-id> --proposal-summary "..." --proposal-scope "..."
 verlyn changes activate <change-id>
@@ -125,124 +126,131 @@ verlyn work-items list <change-id>
 verlyn work-items update <change-id> --creates-json '[{"title":"Add validation"}]'
 verlyn work-items update <change-id> --updates-json '[{"task_id":"<starter-work-item-id>","notes":"Concrete scope and acceptance for this change."}]'
 verlyn work-items update <change-id> --updates-json '[{"task_id":"<work-item-id>","status":"done"}]'
-verlyn reviews record <change-id> --tier 1 --disposition accepted --summary "Reviewed."
+verlyn reviews changed-files <change-id> --run-independent-review
 verlyn workflow gate <change-id> --scope delivery
-verlyn changes deliver <change-id> --merge-method squash
-verlyn changes deploy <change-id>
 ```
 
-Creation and activation are separate. A new change starts as draft. Activate it
-before implementation so Verlyn can bind the work branch and enforce the normal
-workflow trail.
+Creation and activation are separate. Draft means planning only: agents may
+inspect files and flesh out change/work-item records, but must not write files,
+run write-formatters, generate source artifacts, or apply patches until
+`verlyn changes activate <change-id>` has bound the branch and
+`verlyn workflow assert-edit-route --json` returning `allowed: true` confirms
+the edit route for that change.
 
-`verlyn changes create` also seeds required starter work items. These are
-workflow tickets, not finished task plans. Read them with
-`verlyn work-items list <change-id>`, then flesh them out for the specific
-change before starting work. The first two starter items are tailored to the
-change type, and `Review findings` plus `Finalize handoff` are always included.
-`Review findings` is the required code/task review ticket when no separate
-mandatory human review applies. Use it to confirm the implementation matches
-the change ticket and work items, did not hallucinate behavior, and did not
-make unrelated edits before delivery. Common seeds are:
+`verlyn changes create` seeds required starter work items. Update those
+starters in place with concrete scope, acceptance, notes, and validation
+guidance before implementation. `Review findings` is the required code/task
+review ticket when no separate human review applies. Use it to check scope,
+unrelated edits, hallucination risk, and verification before closeout.
 
-| Change type | Starter work items |
-|---|---|
-| `feature` or default | `Implement <title>`, `Validate acceptance for <title>`, `Review findings` code/task review, `Finalize handoff` |
-| `bugfix` | `Reproduce and fix <title>`, `Add regression coverage for <title>`, `Review findings` code/task review, `Finalize handoff` |
-| `workflow` | `Implement workflow change for <title>`, `Validate workflow behavior for <title>`, `Review findings` code/task review, `Finalize handoff` |
-| `api` | `Implement API change for <title>`, `Validate contract and acceptance for <title>`, `Review findings` code/task review, `Finalize handoff` |
-| `performance` | `Profile and optimize <title>`, `Validate <title> responsiveness and load behavior`, `Review findings` code/task review, `Finalize handoff` |
-| `refactor` | `Refactor <title>`, `Validate <title> behavior parity`, `Review findings` code/task review, `Finalize handoff` |
-| `architecture` | `Shape architecture change for <title>`, `Validate dependency and workflow impact for <title>`, `Review findings` code/task review, `Finalize handoff` |
-| `security` or `compliance` | `Implement remediation for <title>`, `Validate <title> security posture`, `Review findings` code/task review, `Finalize handoff` |
+Changed-file review evidence for `prepare-pr`, `deliver`, and `deploy` must
+come from an independent reviewer. If the operator is working inside an AI
+agent, that agent must request an independent review agent or another
+independent AI path to review the full contents of every changed file and record
+that independent provenance, for example:
 
-Use the batchable work-item update command for one or many work-item mutations.
-When seeded starter implementation and validation items are too generic, update
-those existing starter work item IDs in place with concrete scope, acceptance,
-notes, and validation guidance before implementation. Do not add duplicates and
-do not replace the required starter tickets as the normal path.
-Do not create ad hoc local workflow files as durable truth.
+```bash
+verlyn reviews changed-files <change-id> --independent-local-agent --reviewer <agent-name>
+```
 
-For command intent and optional argument meanings, read
-`Documentation/guides/VERLYN_PUBLIC_CLI.md`. Normal Verlyn commands are
-repo-scoped from the current governed checkout plus the saved CLI login
-profile. In normal logged-in repo work, avoid adding `--profile`, `--server`,
-`--repo-slug`, or `--target` unless you are intentionally bootstrapping,
-diagnosing, automating outside a checkout, or overriding context for explicit
-recovery.
+Use the first-class runner/request path when the CLI should manage this step:
 
-Optional overrides such as `--profile`, `--server`, `--repo-slug`, `--target`,
-`--source-ref`, and `--commit-sha` are diagnostics, bootstrap, or recovery
-controls. They are not required in the normal checkout-bound workflow, and
-using them routinely usually means auth, repo binding, or checkout state needs
-repair.
+```bash
+verlyn reviews changed-files <change-id> --run-independent-review
+```
 
-## Governance Pack And Skills
+`verlyn reviews record ... --tier changed_file_review --disposition accepted`
+is only for audit records from an already-completed independent review when
+the wrapper can also provide the required independent provenance, reviewed-file
+scope, review job status, and cleanup status. Do not use that bare record path
+as the primary gating command for `prepare-pr`, `deliver`, or `deploy`.
 
-Use these when a repository needs the installable governance pack:
+If a supported local AI launcher is not available, the command fails closed and
+returns the whole-file prompt, spawn instructions, and exact follow-up record
+command instead of recording accepted evidence. The spawn instructions require
+inherited tool defaults and tell the agent to retry without explicit model or
+agent-type overrides when launch rejects them.
+For unattended local review launches, configure `VERLYN_REVIEW_RUNNER_COMMAND`
+to a command that reads the prompt from stdin and returns strict JSON on stdout.
+The public CLI also accepts `--review-runner-command` for a one-off command.
+When that command is missing or not executable, the CLI must report structured
+launcher diagnostics and remain fail-closed.
+
+The independent reviewer must use the generated changed-file review
+instructions from the CLI/API review result. That versioned rubric requires
+whole-file inspection, not diff-only inspection, and explicitly checks large
+files/functions, branch and nesting complexity, parameter count, broad exception
+handling, security/auth ordering, state and route ownership, critical-path
+tests, analyzer hotspots, and runtime/deployment risk. If a separate review
+agent or job is spawned, record its review job id, agent/session id, terminal
+status, and cleanup status; closeout fails when a recorded review job is still
+running, failed, stale, or not cleaned up.
+Use the `--review-job-id`, `--agent-id`, `--review-job-status`, and
+`--agent-cleanup-status` options on `verlyn reviews changed-files` or
+`verlyn reviews record` when the wrapper has spawned and monitored an
+independent reviewer.
+When the independent reviewer returns structured `blocking_findings`,
+`code_quality_findings`, or `test_gaps`, the review-record path creates or
+updates review-finding work items tied to that review entry, review job,
+severity, file, rubric check, and line where available. Closeout keeps the same
+creation/update path as a backstop for older review evidence. Score-relevant
+quality issues for a touched file must be actionable work items rather than
+accepted residual-risk prose.
+
+Treat review-generated remediation work items as complete structural work
+orders, not narrow patch prompts. Work the full intent of the reviewer finding:
+split or reduce the named domain/subdomain when size or complexity is called
+out, clean the full testing lane or matrix when critical-path tests are called
+out, and repair the complete exception/security/failure path when broad
+handling or authorization boundaries are called out. If the generated ticket
+contains several examples, those examples describe the breadth of the work; do
+not complete only one example and rerun review. Complete or explicitly
+disposition every review-created work item from that review batch, then run a
+fresh independent/configured-AI changed-file review before retrying `deliver`
+or `deploy`.
+
+A resident/local self-review, deterministic fallback review, or configured-AI
+record without required usage evidence may be stored for audit, but it does not
+satisfy the closeout gate and cannot be bypassed with
+`--allow-review-findings`. Use `--allow-review-findings` only for accepted risk
+on findings produced by an independent review.
+
+The public CLI profile also carries an explicit changed-file review gate mode.
+Use `verlyn repos review-mode show` before closeout when mode is unclear, and
+use `verlyn repos review-mode set full|changed-surface|bypass --reason "..."`
+only when the change record and operator intent support that posture. Missing
+profile state defaults to `full`. `bypass` reports warning metadata through
+`prepare-pr`, `deliver`, `deploy`, and `workflow gate`, and it suppresses
+automatic PR package review evidence recording; do not summarize bypass mode as
+accepted independent review evidence. Backend routes honor non-full modes only
+with authorized public CLI client checkout context, so do not handcraft bare
+API payloads to bypass review gates.
+
+## Governance Pack
+
+Use API-backed governance commands:
 
 ```bash
 verlyn governance install --target <repo>
 verlyn governance refresh --target <repo>
+verlyn governance refresh --target <repo> --dry-run --json
 ```
 
-Verlyn owns files installed from the governance pack except
-`RULES.md`, which is the repo-owned customization layer. Installed agent skill
-files such as `.verlyn/agent-skills/verlyn-public-cli.md` and
-`.verlyn/.codex/skills/verlyn-public-cli/SKILL.md` guide AI-assisted tools to
-use the public CLI and defer to `AGENTS.md`, `CONTRIBUTING.md`, and `RULES.md`.
-They are not permission to use direct DB access, private helper scripts,
-provider tokens, or delivery gate bypasses.
+Verlyn owns installed governance pack files except repo-owned `RULES.md`.
+Refresh preserves `RULES.md` and overwrites generated files so stale local
+guidance returns to the current contract.
 
-## Session Loop
+Generated PR gates run the CI trust suites through the packaged public CLI, not
+through repo-local support scripts:
 
-1. Read the governed files and inspect active change details from Verlyn.
-2. Run the required startup commands.
-3. Do not edit until the repo is authorized for the authenticated user and the applicable Verlyn change is active.
-4. If no change applies, record an explicit direct-work reason before editing.
-5. Create or update change and work-item records through the installed `verlyn` CLI.
-6. Do the implementation and verification.
-7. Update work items, review notes, and risks through Verlyn.
-8. When the change is ready to land without deployment, use `verlyn changes deliver <change-id> --merge-method squash`.
-9. When the change should land and deploy to the configured provider, use `verlyn changes deploy <change-id>`.
+```bash
+verlyn workflow trust-contract --profile pr
+verlyn workflow trust-contract --profile tester-lane --require-optional
+```
 
-Use `verlyn runs abort <run-id>` only as controlled recovery for a stuck,
-mis-scoped, or superseded active run. It is not a normal happy-path workflow
-step, and the reason should be recorded on the relevant change, work item, or
-handoff notes.
-
-Important: `verlyn changes deliver` and `verlyn changes deploy` both run the
-PR step. Both commands create or update the pull request, merge it, and record
-source-control closeout. Use `deliver` when you want PR closeout only. Use
-`deploy` when you want that same PR closeout followed by provider deployment.
-
-`verlyn changes deliver` is the normal hosted source-control closeout command. It commits local
-dirty work when `--commit-message` is supplied, pushes with Verlyn-managed
-provider credentials, opens or updates the PR, merges it, switches the local
-checkout back to the delivery base branch when local checkout context exists,
-records closeout, and reconciles safe client-local branch deletion back into
-the change metadata. It does not deploy. `verlyn changes deploy <change-id>`
-runs the same hosted source-control closeout path and then triggers or monitors
-the configured provider. When an already delivered source ref must be deployed,
-pass `--source-ref` and optional `--commit-sha`; Verlyn then resolves that
-delivered point and records deployment evidence. Credential issuance is gated
-by Verlyn repo write access, release operations entitlement, exact client-remote
-matching, and redacted audit recording; the CLI must not print provider tokens
-in JSON output.
-
-If local checkout cleanup is blocked or unsafe, the hosted merge remains
-complete and the CLI reports the blocker, `repair_status`, `unsafe`,
-`next_step`, and deterministic repair options instead of rewriting local
-history.
-
-## Preparing Multiple Changes
-
-When you need to scope several changes before starting implementation:
-
-1. Create or update the change records first.
-2. Use `verlyn changes activate <change-id> --no-checkout` when you need to bind or create a branch without switching the current checkout.
-3. Reorder or insert prep work items through `verlyn work-items update`.
-4. Leave the current checkout on the branch you are actively implementing until you intentionally switch work.
+Verlyn source checkouts may run the source-specific profiles
+`verlyn-source-pr` and `verlyn-source-tester-lane`; generated governance for
+other repositories must stay on the standalone profiles.
 
 ## Source Of Truth
 
@@ -250,26 +258,44 @@ Durable Verlyn truth is managed by Verlyn and scoped by entity, project, and
 repository:
 
 - repo binding
-- changes
-- work items
-- reviews
-- decisions
-- runs
-- report/evidence records
+- changes and work items
+- reviews, decisions, and handoffs
+- runs and evidence records
 - delivery state
 
 Repo-local files are source code, governance policy, templates, or temporary
-scratch artifacts. Do not reconstruct durable workflow truth from old
-`workstream/` files, workspace-local JSON, generated scratch paths, direct
-database queries, or chat summaries.
+artifacts. Do not reconstruct durable workflow truth from local JSON, old
+`workstream/` files, direct database queries, generated scratch paths, or chat
+summaries.
+
+## Closeout
+
+Use the installed hosted closeout path:
+
+```bash
+verlyn changes deliver <change-id> --merge-method squash
+verlyn changes deploy <change-id> --merge-method squash
+```
+
+`deliver` creates or updates the PR, merges it, records source-control
+closeout, and repairs the local checkout when safe. It does not deploy.
+`deploy` runs the same closeout and then triggers or monitors the configured
+provider. Pass `--source-ref` and optional `--commit-sha` only for explicit
+deployment recovery of an already delivered source ref.
+If checkout restoration or branch cleanup is unsafe, the command fails closed
+with the reported repair command instead of claiming local cleanup succeeded.
+For multi-target deployment groups, inspect normalized `deployment_targets`
+evidence before summarizing closeout or status. Each target entry carries the
+operator label, required flag, provider service identity, deployment id/status,
+commit/ref match state, URL, and target-specific reason when stale or failed.
+Single-target output remains compact.
+
+Use `verlyn runs abort <run-id>` only for controlled recovery of a stuck,
+mis-scoped, or superseded active run, and record the reason on the relevant
+change, work item, or handoff.
 
 ## Completion
 
-Work is not complete until:
-
-- acceptance criteria are satisfied
-- applicable verification passes
-- change/work-item state is updated through Verlyn
-- review notes and remaining risks are recorded
-- PR/delivery state is handled through the Verlyn workflow path
-- the operator explicitly approves any commit or delivery action that requires approval
+Work is not complete until acceptance criteria are satisfied, applicable
+verification passes, Verlyn work items and review records are current, and any
+remaining risks or skipped checks are recorded.

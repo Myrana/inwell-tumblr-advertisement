@@ -15,10 +15,11 @@
     "tumblr:runner:install-autostart": "powershell -ExecutionPolicy Bypass -File scripts/install-local-runner-autostart.ps1",
     "tumblr:runner:local": "node scripts/tumblr-local-runner.mjs",
     "tumblr:runner": "node scripts/tumblr-runner.mjs",
-    "test": "npm run test:runner && npm run test:frontend && npm run test:backend",
+    "test": "npm run test:runner && npm run test:frontend && npm run test:backend && npm run test:governance",
     "test:runner": "node --test \"tests/runner/**/*.test.mjs\"",
     "test:frontend": "node --test \"tests/frontend/**/*.test.mjs\"",
-    "test:backend": "python -m unittest discover -s backend/tests -p \"test_*.py\""
+    "test:backend": "python -m unittest discover -s backend/tests -p \"test_*.py\"",
+    "test:governance": "node --test \"tests/governance/**/*.test.mjs\""
   },
   "dependencies": {
     "@tiptap/extension-link": "^3.27.0",

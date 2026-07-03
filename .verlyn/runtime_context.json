@@ -8,7 +8,9 @@
     "AGENTS.md": "Repo-wide system governance, routing, verification, and completion policy.",
     ".verlyn/runtime_context.json": "Compact runtime summary for assistants and compressed sessions.",
     "RULES.md": "Editable project-specific guidance for people and assistants.",
-    "Documentation/guides/VERLYN_AGENT_WORKFLOW.md": "Single assistant workflow guide with startup order, installed CLI commands, session loop, and completion rules."
+    "Documentation/guides/VERLYN_AGENT_WORKFLOW.md": "Single assistant workflow guide with startup order, installed CLI commands, session loop, and completion rules.",
+    "Documentation/guides/VERLYN_PUBLIC_CLI.md": "Installed public CLI command reference.",
+    "Documentation/guides/VERLYN_CLI_MCP_TRANSITION.md": "CLI-first, MCP-optional transition guide for supported API-backed workflow actions."
   },
   "startup_read_order": [
     "AGENTS.md",
@@ -16,10 +18,13 @@
     "RULES.md",
     ".verlyn/runtime_context.json",
     "Documentation/AI_USAGE_POLICY.md",
-    "Documentation/guides/VERLYN_AGENT_WORKFLOW.md"
+    "Documentation/guides/VERLYN_AGENT_WORKFLOW.md",
+    "Documentation/guides/VERLYN_PUBLIC_CLI.md",
+    "Documentation/guides/VERLYN_CLI_MCP_TRANSITION.md"
   ],
   "control_path_priority": [
     "Installed public verlyn CLI commands",
+    "MCP for explicitly supported API-backed workflow actions when OAuth succeeds, with CLI retained for bootstrap, checkout state, governance, trust checks, review-runner orchestration, and hosted delivery/deploy",
     "Web UI workflow surfaces for run creation, onboarding, and settings",
     "If the installed Verlyn product path is missing or blocked, stop and record a Verlyn workflow blocker instead of bypassing Verlyn"
   ],
@@ -27,8 +32,10 @@
     "Treat Verlyn-managed repo binding, changes, work items, reviews, delivery state, and evidence as the active workflow source of truth.",
     "Read RULES.md for project-owned guidance; it may be empty on fresh installs, and AGENTS.md remains authoritative for system policy.",
     "After session compaction, compressed-summary recovery, or other resume paths, reread AGENTS.md, RULES.md, .verlyn/runtime_context.json, Documentation/AI_USAGE_POLICY.md, and Documentation/guides/VERLYN_AGENT_WORKFLOW.md before continuing.",
-    "Run verlyn auth status, verlyn workflow assistant-startup --json, and verlyn target show --json after resume so the local CLI identity, edit route, and repo binding are explicit.",
-    "Use Verlyn JSON fields such as recommended_next_action, next_action, recommended_next_command, review_context, task_rollup, and workflow_gate before guessing the next workflow step.",
+    "When MCP is configured, follow Documentation/guides/VERLYN_CLI_MCP_TRANSITION.md: CLI-first, MCP-optional, CLI fallback, with CLI retained for bootstrap, local checkout state, governance, trust checks, review-runner orchestration, and hosted delivery/deploy.",
+    "Run verlyn auth status, verlyn workflow assistant-startup --json, verlyn workflow assert-edit-route --json, verlyn target show --json, verlyn changes list, verlyn changes list --owner-scope all --status-scope all, and verlyn runs --limit 3 --json after resume so the local CLI identity, edit route, repo binding, visible workflow state, and recent run context are explicit.",
+    "When Verlyn JSON includes workflow_hint, inspect it before flat change lists or summary next-action fields; it is the canonical chain-aware resolver payload for assistant-startup, workflow inbox, and changes next.",
+    "Use Verlyn JSON fields such as workflow_hint, recommended_next_action, next_action, recommended_next_command, review_context, task_rollup, and workflow_gate before guessing the next workflow step.",
     "If auth, target binding, repo visibility, or edit routing fails, repair the public CLI login/checkout/change route through Verlyn instead of adding routine overrides or bypassing gates.",
     "The first user-facing response after compaction or resume must explicitly say that governance was reloaded and required repo rules were reread; hidden command output, receipt files, or web-only indicators are not enough.",
     "Use Verlyn-managed change/work-item state before manual code edits; use a recorded active change or an explicit direct-work exception instead of relying on memory."

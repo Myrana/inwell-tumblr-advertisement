@@ -16,13 +16,17 @@ If `.verlyn/agent-skills/verlyn-public-cli.md` is missing, fall back to the repo
 5. `Documentation/AI_USAGE_POLICY.md` when present
 6. `Documentation/guides/VERLYN_AGENT_WORKFLOW.md` when present
 7. `Documentation/guides/VERLYN_PUBLIC_CLI.md` when present
+8. `Documentation/guides/VERLYN_CLI_MCP_TRANSITION.md` when present
 
 Required Codex behavior:
 
 - Use the installed public `verlyn` CLI first.
-- Run `verlyn auth status`, `verlyn workflow assistant-startup --json`,
-  `verlyn workflow assert-edit-route --json`, and `verlyn target show --json`
-  before edits.
+- Run the canonical startup sequence before edits:
+  `verlyn auth status`, `verlyn workflow assistant-startup --json`,
+  `verlyn workflow assert-edit-route --json`, `verlyn target show --json`,
+  `verlyn changes list`,
+  `verlyn changes list --owner-scope all --status-scope all`, and
+  `verlyn runs --limit 3 --json`.
 - Treat normal Verlyn commands as repo-scoped from the current governed
   checkout plus saved CLI login. Optional overrides are for bootstrap,
   diagnostics, automation outside a checkout, or explicit recovery.
@@ -36,7 +40,26 @@ Required Codex behavior:
   the public CLI.
 - Inspect active changes and work items through `verlyn changes show --json`
   and `verlyn work-items list`.
+- When MCP is configured, follow the mixed posture in
+  `Documentation/guides/VERLYN_CLI_MCP_TRANSITION.md`: CLI-first,
+  MCP-optional, CLI fallback. Use MCP only for explicitly supported API-backed
+  workflow actions after OAuth succeeds; keep CLI for bootstrap, local checkout
+  state, governance, trust checks, review-runner orchestration, and hosted
+  delivery/deploy.
+- Use `verlyn workflow trust-contract --profile pr` and
+  `verlyn workflow trust-contract --profile tester-lane --require-optional` for
+  governance CI trust suites; do not restore repo-local support script
+  dependencies.
+- Use `verlyn-source-pr` or `verlyn-source-tester-lane` only for Verlyn source
+  checkout regression lanes.
+- Treat draft changes as planning-only. Do not write files, run modifying
+  formatters, generate source artifacts, or apply patches until the change is
+  active and `verlyn workflow assert-edit-route --json` returns `allowed: true`.
 - Record changed-file review evidence before delivery when real files changed.
+  Use `verlyn reviews changed-files <change-id> --run-independent-review` as the
+  primary path. Use `reviews record` for changed-file review gates only when an
+  already-completed independent review can be recorded with provenance, reviewed
+  files, job status, and cleanup status.
 - Use `verlyn changes deliver <change-id>` for source-control closeout and
   `verlyn changes deploy <change-id>` for closeout plus provider deployment.
 
