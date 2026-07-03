@@ -127,10 +127,9 @@ verlyn reviews changed-files <change-id> --run-independent-review
 verlyn workflow gate <change-id> --scope delivery
 ```
 
-Use `verlyn reviews record ... --tier changed_file_review` only for audit
-records from an already-completed independent review, and only when the record
-includes independent provenance, reviewed-file scope, review job status, and
-cleanup status.
+Use `verlyn reviews record` for changed-file review only as audit records from
+an already-completed independent review when provenance, reviewed-file scope,
+review job status, and cleanup status are all known.
 
 Governance CI trust suites are run through the packaged public CLI command:
 

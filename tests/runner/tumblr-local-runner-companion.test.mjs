@@ -607,9 +607,11 @@ test("local companion reports actionable errors after runner failures", async ()
 
     assert.equal(status.status, "error");
     assert.equal(status.lastExitCode, 9);
+    assert.equal(status.lastBlockerCode, "headless_runner_failed");
     assert.match(status.lastError, /Local runner exited with code 9/);
     assert.match(status.lastError, /Headless mode cannot show Tumblr login, captcha, or manual review prompts/);
     assert.equal(status.lastRun.headless, true);
+    assert.equal(status.lastRun.blockerCode, "headless_runner_failed");
     assert.equal(status.lastRun.status, "error");
   } finally {
     child.kill();
@@ -679,9 +681,11 @@ test("local companion reports signal-terminated runner as an error", async () =>
     assert.equal(status.lastExitCode, 1);
     const expectedSignal = process.platform === "win32" ? "" : "SIGTERM";
     assert.equal(status.lastExitSignal, expectedSignal);
+    assert.equal(status.lastBlockerCode, "headless_runner_failed");
     assert.equal(status.lastRun.status, "error");
     assert.equal(status.lastRun.exitCode, 1);
     assert.equal(status.lastRun.exitSignal, status.lastExitSignal);
+    assert.equal(status.lastRun.blockerCode, "headless_runner_failed");
     assert.match(status.lastError, /Local runner exited with code 1/);
     if (expectedSignal) {
       assert.match(status.lastError, new RegExp(`signal ${expectedSignal}`));
@@ -755,11 +759,216 @@ test("local companion reports normal exit code one without signal context", asyn
 
     assert.equal(status.lastExitCode, 1);
     assert.equal(status.lastExitSignal, "");
+    assert.equal(status.lastBlockerCode, "headless_runner_failed");
     assert.equal(status.lastRun.status, "error");
     assert.equal(status.lastRun.exitCode, 1);
     assert.equal(status.lastRun.exitSignal, "");
+    assert.equal(status.lastRun.blockerCode, "headless_runner_failed");
     assert.match(status.lastError, /Local runner exited with code 1/);
     assert.doesNotMatch(status.lastError, /signal/);
+  } finally {
+    child.kill();
+  }
+});
+
+test("local companion preserves structured headless blocker codes from runner output", async () => {
+  const port = 29000 + Math.floor(Math.random() * 1000);
+  const plan = {
+    runId: "local-run-headless-code-test",
+    userDataDir: ".tumblr-test-profile",
+    items: [
+      {
+        id: "queue-item-1",
+        targetName: "inkwell-test",
+        submitUrl: "https://inkwell-test.tumblr.com/submit",
+        postType: "photo",
+        runnerPayload: "{}",
+      },
+    ],
+  };
+  const child = spawn(
+    process.execPath,
+    [
+      "scripts/tumblr-local-runner.mjs",
+      "--serve",
+      "--companion-port",
+      String(port),
+      "--api-base",
+      "https://inkwell-production-f037.up.railway.app/api",
+      "--workspace-id",
+      "workspace-test",
+      "--queue",
+      "Adverts",
+      "--token",
+      "test-token",
+    ],
+    {
+      cwd: process.cwd(),
+      env: {
+        ...process.env,
+        INWELL_LOCAL_PLAN_JSON: JSON.stringify(plan),
+        INWELL_LOCAL_RUNNER_SCRIPT: "tests/fixtures/local-runner-headless-code-stub.mjs",
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
+
+  try {
+    await waitForOutput(child, /Companion server listening/);
+    const response = await fetch(`http://127.0.0.1:${port}/run`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: "http://127.0.0.1:8123",
+      },
+      body: JSON.stringify({ queueName: "Adverts", headless: true, submit: false }),
+    });
+
+    assert.equal(response.status, 202);
+    const status = await waitForCompanionStatus(
+      port,
+      (candidate) => candidate.status === "error",
+      "structured headless blocker status",
+    );
+
+    assert.equal(status.lastBlockerCode, "headless_login_required");
+    assert.equal(status.lastRun.blockerCode, "headless_login_required");
+    assert.equal(status.lastRun.status, "error");
+  } finally {
+    child.kill();
+  }
+});
+
+test("local companion ignores headless-looking stderr without a structured result", async () => {
+  const port = 30000 + Math.floor(Math.random() * 1000);
+  const plan = {
+    runId: "local-run-stderr-code-test",
+    userDataDir: ".tumblr-test-profile",
+    items: [
+      {
+        id: "queue-item-1",
+        targetName: "inkwell-test",
+        submitUrl: "https://inkwell-test.tumblr.com/submit",
+        postType: "photo",
+        runnerPayload: "{}",
+      },
+    ],
+  };
+  const child = spawn(
+    process.execPath,
+    [
+      "scripts/tumblr-local-runner.mjs",
+      "--serve",
+      "--companion-port",
+      String(port),
+      "--api-base",
+      "https://inkwell-production-f037.up.railway.app/api",
+      "--workspace-id",
+      "workspace-test",
+      "--queue",
+      "Adverts",
+      "--token",
+      "test-token",
+    ],
+    {
+      cwd: process.cwd(),
+      env: {
+        ...process.env,
+        INWELL_LOCAL_PLAN_JSON: JSON.stringify(plan),
+        INWELL_LOCAL_RUNNER_SCRIPT: "tests/fixtures/local-runner-stderr-code-stub.mjs",
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
+
+  try {
+    await waitForOutput(child, /Companion server listening/);
+    const response = await fetch(`http://127.0.0.1:${port}/run`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: "http://127.0.0.1:8123",
+      },
+      body: JSON.stringify({ queueName: "Adverts", headless: true, submit: false }),
+    });
+
+    assert.equal(response.status, 202);
+    const status = await waitForCompanionStatus(
+      port,
+      (candidate) => candidate.status === "error",
+      "stderr-only headless failure status",
+    );
+
+    assert.equal(status.lastBlockerCode, "headless_runner_failed");
+    assert.equal(status.lastRun.blockerCode, "headless_runner_failed");
+  } finally {
+    child.kill();
+  }
+});
+
+test("local companion reports post-fill headless manual review blockers", async () => {
+  const port = 31000 + Math.floor(Math.random() * 1000);
+  const plan = {
+    runId: "local-run-postfill-blocker-test",
+    userDataDir: ".tumblr-test-profile",
+    items: [
+      {
+        id: "queue-item-1",
+        targetName: "inkwell-test",
+        submitUrl: "https://inkwell-test.tumblr.com/submit",
+        postType: "photo",
+        runnerPayload: "{}",
+      },
+    ],
+  };
+  const child = spawn(
+    process.execPath,
+    [
+      "scripts/tumblr-local-runner.mjs",
+      "--serve",
+      "--companion-port",
+      String(port),
+      "--api-base",
+      "https://inkwell-production-f037.up.railway.app/api",
+      "--workspace-id",
+      "workspace-test",
+      "--queue",
+      "Adverts",
+      "--token",
+      "test-token",
+    ],
+    {
+      cwd: process.cwd(),
+      env: {
+        ...process.env,
+        INWELL_LOCAL_PLAN_JSON: JSON.stringify(plan),
+        INWELL_LOCAL_RUNNER_SCRIPT: "tests/fixtures/local-runner-postfill-blocker-stub.mjs",
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
+
+  try {
+    await waitForOutput(child, /Companion server listening/);
+    const response = await fetch(`http://127.0.0.1:${port}/run`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: "http://127.0.0.1:8123",
+      },
+      body: JSON.stringify({ queueName: "Adverts", headless: true, submit: false }),
+    });
+
+    assert.equal(response.status, 202);
+    const status = await waitForCompanionStatus(
+      port,
+      (candidate) => candidate.status === "error",
+      "post-fill headless blocker status",
+    );
+
+    assert.equal(status.lastBlockerCode, "headless_manual_review_required");
+    assert.equal(status.lastRun.blockerCode, "headless_manual_review_required");
+    assert.equal(status.lastRun.status, "error");
   } finally {
     child.kill();
   }

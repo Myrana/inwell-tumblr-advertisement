@@ -7,6 +7,10 @@ import {
   fieldsForItem,
   fillRichTextEditorInDocument,
   frameCandidateScore,
+  headlessBlockerCodeForReason,
+  headlessBlockerCodes,
+  headlessBlockerMessage,
+  headlessLoginRequiredMessage,
   htmlToPlainText,
   isReusableRemotePage,
   loginWaitMessage,
@@ -52,6 +56,8 @@ test("parseArgs supports same-session login before queue execution", () => {
     "wss://browser.example/session-123",
     "--remote-live-url",
     "https://browser.example/live/session-123",
+    "--result-path",
+    "runner-result.json",
   ]);
   assert.equal(options.planPath, "queue.json");
   assert.equal(options.loginFirst, true);
@@ -63,6 +69,7 @@ test("parseArgs supports same-session login before queue execution", () => {
   assert.equal(options.workspaceId, "workspace-local");
   assert.equal(options.remoteCdpUrl, "wss://browser.example/session-123");
   assert.equal(options.remoteLiveUrl, "https://browser.example/live/session-123");
+  assert.equal(options.resultPath, "runner-result.json");
 });
 
 test("normalizeRunnerPlan decodes queue item runner payload", () => {
@@ -193,6 +200,15 @@ test("manual action detection catches login and captcha states", () => {
   assert.equal(shouldPauseForManualAction("Request denied"), true);
   assert.equal(shouldPauseForManualAction("Public submit form"), false);
   assert.match(manualActionReason("Request denied"), /denied this request/);
+});
+
+test("headless blocker helpers expose stable reason codes", () => {
+  assert.equal(headlessBlockerCodeForReason("Tumblr asked for login before the submit form was available."), headlessBlockerCodes.loginRequired);
+  assert.equal(headlessBlockerCodeForReason("Tumblr asked for captcha or identity verification."), headlessBlockerCodes.captchaRequired);
+  assert.equal(headlessBlockerCodeForReason("Tumblr denied this request."), headlessBlockerCodes.accessDenied);
+  assert.equal(headlessBlockerCodeForReason("Tumblr rate limit exceeded."), headlessBlockerCodes.rateLimited);
+  assert.match(headlessBlockerMessage("Tumblr asked for login before the submit form was available."), /^headless_login_required:/);
+  assert.match(headlessLoginRequiredMessage(), /^headless_login_required:/);
 });
 
 test("Tumblr rate-limit detection catches Tumblr rate-limit pages only", () => {

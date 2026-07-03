@@ -5,13 +5,13 @@
   "install_mode": "governance",
   "installed_at": "2026-06-17T14:01:18.240360+00:00",
   "manifest_hash": "5caff0258e95f2bf52259cdf0df5042386b3bc309d04a03dfa9b2316aac88f74",
-  "refreshed_at": "2026-07-03T17:55:46.956457+00:00",
+  "refreshed_at": "2026-07-03T19:22:11.006266+00:00",
   "governance_pack": {
     "name": "verlyn-standard",
     "version": "2026.07.03.1",
     "manifest_hash": "5caff0258e95f2bf52259cdf0df5042386b3bc309d04a03dfa9b2316aac88f74",
     "source": "verlyn_api",
-    "refreshed_at": "2026-07-03T17:55:46.956457+00:00",
+    "refreshed_at": "2026-07-03T19:22:11.006266+00:00",
     "repo_owned_paths": [
       "RULES.md"
     ],
@@ -46,7 +46,7 @@
       },
       ".verlyn/runtime_context.json": {
         "owner": "verlyn",
-        "sha256": "f32989fe21ecdd7b840c349f103fde2df071721c07e7c4f39fdbb5fe9aa5d3ec",
+        "sha256": "66e66fc18fef6aa0ed1eb8bc48c3336b32e304ffa15715d84210c882c9ad0343",
         "required": true,
         "category": "governance",
         "purpose": "assistant_runtime_context"
@@ -60,14 +60,14 @@
       },
       ".verlyn/agent-skills/verlyn-public-cli.md": {
         "owner": "verlyn",
-        "sha256": "d31cbeb01f9dc5f86770fe18dbbbb2e8650761541911158bcba29b46c4ce3b7c",
+        "sha256": "493b078b348d25a60b5246dcc781394b06d426d33b9b87967674811256b0fda8",
         "required": false,
         "category": "governance",
         "purpose": "agent_skill_reference"
       },
       ".verlyn/.codex/skills/verlyn-public-cli/SKILL.md": {
         "owner": "verlyn",
-        "sha256": "cfd127e80311b33ae23f36579d46f39d970b61ca71ec8025d5f5e680224bd46c",
+        "sha256": "ec21ba0b4d3ea93786f10cbaf73dd143214b88e057b55b1aeadeb3f2706eea3b",
         "required": false,
         "category": "governance",
         "purpose": "codex_skill"
@@ -102,7 +102,7 @@
       },
       ".github/workflows/verlyn-pr-gate.yml": {
         "owner": "verlyn",
-        "sha256": "952b83497ff763e52604f992a71565a322ef2f737cdaf8fa4b8f64c7ddfdb4bb",
+        "sha256": "e51010c3734302f4c6372a25321479f4935b43e4f98b29f9f380df2b91b7bab8",
         "required": true,
         "category": "github",
         "purpose": "ci_gate"
@@ -123,14 +123,14 @@
       },
       "Documentation/guides/VERLYN_AGENT_WORKFLOW.md": {
         "owner": "verlyn",
-        "sha256": "b62917512f1e9e8d5a87ae726c934a4447f977e3d04d9ad9c4145a6f5ce1f16b",
+        "sha256": "2ed0e4ac562e7624a82ca9007e730b5183c6fd4aba5f91fdab259c041551a494",
         "required": false,
         "category": "documentation",
         "purpose": "workflow"
       },
       "Documentation/guides/VERLYN_PUBLIC_CLI.md": {
         "owner": "verlyn",
-        "sha256": "8bfcd878beca8e96d17c4c95b16951890b3a80529dbd225bc99161ab1192d6a3",
+        "sha256": "276c3e5312404eb2028dc090cdcdd3271307b6ef1529d572188af2b1dc3c7d23",
         "required": true,
         "category": "documentation",
         "purpose": "cli_reference"
