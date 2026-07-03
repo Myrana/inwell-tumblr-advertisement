@@ -214,7 +214,6 @@ verlyn workflow assistant-startup --json
 verlyn workflow assert-edit-route --json
 verlyn target show --json
 verlyn changes list
-verlyn changes list --owner-scope all --status-scope all
 verlyn runs --limit 3 --json
 ```
 
@@ -227,9 +226,6 @@ verlyn runs --limit 3 --json
   not authorized for edits or no active route exists.
 - `target show --json` confirms which repo this checkout is bound to.
 - `changes list` shows your non-closed changes by default.
-- `changes list --owner-scope all --status-scope all` provides all-visible
-  diagnostics across owners and closed history when startup needs complete
-  workflow-state context.
 - `runs --limit 3 --json` shows recent API-backed analysis/run context.
 
 Workflow change and hint commands default to the authenticated user's own
@@ -590,10 +586,10 @@ verlyn reviews changed-files <change-id> --independent-local-agent --reviewer <a
   delivery.
 - `reviews changed-files --run-independent-review` requests or launches the
   required independent changed-file review before delivery.
-- `reviews record` writes audit evidence to the durable Verlyn workflow record;
-  for changed-file review gates, use it only after an independent review has
-  already completed and the recording command includes the required provenance,
-  reviewed-file scope, job status, and cleanup status.
+- `reviews record` writes audit records to the durable Verlyn workflow record;
+  use it for changed-file review only after an already-completed independent
+  review and only when the record includes independent provenance, reviewed-file
+  scope, review job status, and cleanup status.
 - Changed-file review evidence is required before real source-control delivery
   unless Verlyn records a no-diff exemption.
 - `prepare-pr`, `deliver`, and `deploy` all use the same blocking

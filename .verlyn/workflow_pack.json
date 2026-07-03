@@ -4,14 +4,14 @@
   "repo_name": "inwell-tumblr-advertisement",
   "install_mode": "governance",
   "installed_at": "2026-06-17T14:01:18.240360+00:00",
-  "manifest_hash": "5f01601d51b1e7e8a9c3c031a1c62a0f7a2102bf8d292e135703683d0d3b6234",
-  "refreshed_at": "2026-07-03T15:06:39.977784+00:00",
+  "manifest_hash": "5caff0258e95f2bf52259cdf0df5042386b3bc309d04a03dfa9b2316aac88f74",
+  "refreshed_at": "2026-07-03T17:55:46.956457+00:00",
   "governance_pack": {
     "name": "verlyn-standard",
     "version": "2026.07.03.1",
-    "manifest_hash": "5f01601d51b1e7e8a9c3c031a1c62a0f7a2102bf8d292e135703683d0d3b6234",
+    "manifest_hash": "5caff0258e95f2bf52259cdf0df5042386b3bc309d04a03dfa9b2316aac88f74",
     "source": "verlyn_api",
-    "refreshed_at": "2026-07-03T15:06:39.977784+00:00",
+    "refreshed_at": "2026-07-03T17:55:46.956457+00:00",
     "repo_owned_paths": [
       "RULES.md"
     ],
@@ -25,147 +25,147 @@
       },
       "CONTRIBUTING.md": {
         "owner": "verlyn",
-        "sha256": "f6ddf0c33e769a7410d3ed4ae92475fc322392e28a096f74bed615db431e910b",
+        "sha256": "aff5e7e91287363a7137abb1ac3fcc35bbdd8dc8734f5929a9839ebdafb8046b",
         "required": true,
         "category": "governance",
         "purpose": "contributor_guidance"
       },
       "RULES.md": {
         "owner": "repo",
-        "sha256": "bf7feaf69fde85539a4f702f9cc123e0d81bfc050fbd3d98180c5f29fba415d5",
+        "sha256": "0805116e4e18edcc9be1067e1f1263e37d7ad24558a2e481f89308959e1f4842",
         "required": true,
         "category": "governance",
         "purpose": "project_rules"
       },
       "CLAUDE.md": {
         "owner": "verlyn",
-        "sha256": "fdd925a4cb1cf53038f02b936ffb16929d2c888ad53919b99a5f52f2f5699708",
+        "sha256": "bb8f61be7bad1444d386bf23258cdb1d601dd0b2f59e366bb6b6c393a11b05d1",
         "required": false,
         "category": "governance",
         "purpose": "tool_wrapper"
       },
       ".verlyn/runtime_context.json": {
         "owner": "verlyn",
-        "sha256": "08f63d22fee2a9fc53a9e5b3d787710e52d7be005bb18e11005a66c7228971f0",
+        "sha256": "f32989fe21ecdd7b840c349f103fde2df071721c07e7c4f39fdbb5fe9aa5d3ec",
         "required": true,
         "category": "governance",
         "purpose": "assistant_runtime_context"
       },
       ".verlyn/.gitignore": {
         "owner": "verlyn",
-        "sha256": "e3fc7396d65933d9d5be043043a53277a24da6b95d9c93cfc88299bf19a3f943",
+        "sha256": "505e0648630b462c19bda454fa0d371e5cf71674260cd3f82dd1f56cf3994a66",
         "required": false,
         "category": "governance",
         "purpose": "helper_session_state_ignore"
       },
       ".verlyn/agent-skills/verlyn-public-cli.md": {
         "owner": "verlyn",
-        "sha256": "2f43b752f0eeb660d94185ee2eaec3f1a82084b30198bdda92861cb9105bc36f",
+        "sha256": "d31cbeb01f9dc5f86770fe18dbbbb2e8650761541911158bcba29b46c4ce3b7c",
         "required": false,
         "category": "governance",
         "purpose": "agent_skill_reference"
       },
       ".verlyn/.codex/skills/verlyn-public-cli/SKILL.md": {
         "owner": "verlyn",
-        "sha256": "dea14eda890229f9803370d80674b53f571eec29b473325f8a4af0d0a038d417",
+        "sha256": "cfd127e80311b33ae23f36579d46f39d970b61ca71ec8025d5f5e680224bd46c",
         "required": false,
         "category": "governance",
         "purpose": "codex_skill"
       },
       ".github/CODEOWNERS": {
         "owner": "verlyn",
-        "sha256": "c2b4801cc9caceb5795e71c4e5d56f3872a21c5612b47b02580bed8946db00be",
+        "sha256": "bd1e96fcf978c48afef36daa595ea87218e5d707a5f59514114a40f92f242ad2",
         "required": true,
         "category": "github",
         "purpose": "review_ownership"
       },
       ".github/pull_request_template.md": {
         "owner": "verlyn",
-        "sha256": "877e1670983382f20df168e762e52c2eb92b90d9e5622b19c226cc9a45f8ec44",
+        "sha256": "2c8ddfcd6259751495daac30ab3203cedc7628aadbb76e38c40fa82ab7e1a856",
         "required": true,
         "category": "github",
         "purpose": "pr_governance"
       },
       ".github/ISSUE_TEMPLATE/bug_report.md": {
         "owner": "verlyn",
-        "sha256": "3ba612a0ef313eaa1340f0dd83e1f0d81f7f6a9e1c64831831614690f7d0282a",
+        "sha256": "100fa5ea07a85c147730104813ea7c542387d1d6b94ed259d7f4200eb68b4998",
         "required": false,
         "category": "github",
         "purpose": "issue_template"
       },
       ".github/ISSUE_TEMPLATE/feature_request.md": {
         "owner": "verlyn",
-        "sha256": "aea3fedb12294e6cb2893d19f23a22c74086f3aac411dabf27c7721df461701b",
+        "sha256": "f0467bd09b5fe62d323f751f2c00fa0d330eff574d3085caa6e387cfa925ffed",
         "required": false,
         "category": "github",
         "purpose": "issue_template"
       },
       ".github/workflows/verlyn-pr-gate.yml": {
         "owner": "verlyn",
-        "sha256": "3a0d650cf6b045209640d8f009d6b73a1b09b630bb7b5e24d30d3797daed9844",
+        "sha256": "952b83497ff763e52604f992a71565a322ef2f737cdaf8fa4b8f64c7ddfdb4bb",
         "required": true,
         "category": "github",
         "purpose": "ci_gate"
       },
       "Documentation/AI_USAGE_POLICY.md": {
         "owner": "verlyn",
-        "sha256": "5fcf74201a69669d70d3e0f418915d2ba39e2e35d442d0a4c306d106580742b5",
+        "sha256": "c2e86155f1e2af15d0625a8005851acf4ee1fd132903be78b384ba0ba58aaaeb",
         "required": true,
         "category": "documentation",
         "purpose": "policy"
       },
       "Documentation/guides/REPO_COLLABORATION_WORKFLOW.md": {
         "owner": "verlyn",
-        "sha256": "693c9cf05af44ac41dca51556c1cfcc5d8f49af8dfb77635d3107c96e5f4e6b5",
+        "sha256": "fba761f7288be2f8175c0a918f7fe560c341e77335d2993c14236381ed225d20",
         "required": true,
         "category": "documentation",
         "purpose": "workflow"
       },
       "Documentation/guides/VERLYN_AGENT_WORKFLOW.md": {
         "owner": "verlyn",
-        "sha256": "bfa4b039a063aeb34ee01adb81a1bfc245a53f300b728d853b6a4cf6cb5fbe0f",
+        "sha256": "b62917512f1e9e8d5a87ae726c934a4447f977e3d04d9ad9c4145a6f5ce1f16b",
         "required": false,
         "category": "documentation",
         "purpose": "workflow"
       },
       "Documentation/guides/VERLYN_PUBLIC_CLI.md": {
         "owner": "verlyn",
-        "sha256": "0cd5bba0d46f6edfd98b1179232baefd0c683ff7d5a4a063c056c83ccecc22f6",
+        "sha256": "8bfcd878beca8e96d17c4c95b16951890b3a80529dbd225bc99161ab1192d6a3",
         "required": true,
         "category": "documentation",
         "purpose": "cli_reference"
       },
       "Documentation/guides/VERLYN_CLI_MCP_TRANSITION.md": {
         "owner": "verlyn",
-        "sha256": "563b4910559382af1b401fb907f58c0a70afe7a1cdca8f3886842fb37b6d9c6a",
+        "sha256": "2d9e8ef6a848b90006ca839f04bb2453472b23579d792b86ff0f54753bf29f4f",
         "required": false,
         "category": "documentation",
         "purpose": "cli_mcp_transition"
       },
       "Documentation/hooks.md": {
         "owner": "verlyn",
-        "sha256": "7eba9a332c0a369a4b36214193b1ac568dcb5e1c1028d2d33dced0920baf3c28",
+        "sha256": "4d30d743dfa046d4900b6213e5474679f89e3b692aeb336ba54175a6289c2210",
         "required": true,
         "category": "documentation",
         "purpose": "hooks"
       },
       ".git-hooks/pre-commit": {
         "owner": "verlyn",
-        "sha256": "5b459094c910e12bbb3ee3220db82a9a66bf83c17b0c07828d2baa8415c77b34",
+        "sha256": "d4fe6987ad9f270de94f15caca65378d37b3ae8c779a501b30edea6ee79311ac",
         "required": false,
         "category": "governance",
         "purpose": "hook"
       },
       "Documentation/guides/AI_INCIDENT_TEMPLATE.md": {
         "owner": "verlyn",
-        "sha256": "0a0e31840402b97f3567ea5c6034923600235d28562fc78ca24e9e490cc8e3b6",
+        "sha256": "0c8444610f419cb5076e843a7853e77a080f335c98f440d7f5d379975fa541b7",
         "required": true,
         "category": "documentation",
         "purpose": "incident_template"
       },
       "Documentation/guides/PRODUCT_INTENT_OWNERSHIP.md": {
         "owner": "verlyn",
-        "sha256": "be299298af0130696698753c7716fa051dced6b14b7679ca64846246e46f501e",
+        "sha256": "6b61f9b64ff7e2a0104c23eee6318f8c19175473d03aa88a861f42e13cd20a15",
         "required": true,
         "category": "documentation",
         "purpose": "product_ownership"

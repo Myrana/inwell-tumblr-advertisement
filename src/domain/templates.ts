@@ -1,5 +1,6 @@
 import { Advertisement, ApiTemplate, SavedTemplate } from "./types";
 import { uniqueTags } from "./tags";
+import { sanitizeHtml } from "./htmlSanitizer";
 
 function createId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -11,7 +12,7 @@ function createId() {
 
 export function normalizeTemplate(value: Partial<SavedTemplate> | null | undefined): SavedTemplate {
   const name = typeof value?.name === "string" ? value.name.trim() : "";
-  const content = typeof value?.content === "string" ? value.content : "";
+  const content = typeof value?.content === "string" ? sanitizeHtml(value.content) : "";
   const forumUrl = typeof value?.forumUrl === "string" ? value.forumUrl : "";
   const queueName = typeof value?.queueName === "string" ? value.queueName.trim() : "";
   const updatedAt = typeof value?.updatedAt === "string" ? value.updatedAt : "";

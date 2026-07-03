@@ -30,9 +30,16 @@ DEFAULT_TIMEZONE = "America/New_York"
 DEFAULT_PGHOST = "192.168.1.3"
 DEFAULT_PGDATABASE = "inwell_tumblr_advertisement"
 DEFAULT_PGUSER = "postgres"
-CURRENT_SCHEMA_VERSION = "0011_browserbase_connect"
+CURRENT_SCHEMA_VERSION = "0012_workspace_scoped_keys"
+WORKSPACE_SCOPED_KEYS_SCHEMA_VERSION = "0012_workspace_scoped_keys"
 SESSION_COOKIE_NAME = "inwell_session"
 SESSION_DAYS = 14
+DEFAULT_ALLOWED_ORIGINS = {
+    "http://127.0.0.1:8020",
+    "http://localhost:8020",
+    "http://127.0.0.1:4173",
+    "http://localhost:4173",
+}
 AUTH_LOCK_WINDOW_MINUTES = 15
 AUTH_LOGIN_EMAIL_FAILURE_LIMIT = 5
 AUTH_LOGIN_CLIENT_FAILURE_LIMIT = 25
@@ -45,6 +52,7 @@ RUNNER_PLAN_PATH = REPO_ROOT / "tumblr-runner-plan.json"
 RUNNER_PROCESS: subprocess.Popen[Any] | None = None
 RUNNER_LAST_COMMAND: list[str] = []
 RUNNER_LAST_RUN_ID = ""
+RUNNER_LAST_WORKSPACE_ID = ""
 RUNNER_LAST_BROWSER_PROVIDER = "local"
 RUNNER_LAST_LIVE_URL = ""
 LOCAL_RUNNER_TOKEN_ENV = "INWELL_LOCAL_RUNNER_TOKEN"
@@ -128,7 +136,8 @@ def initialize_database_for_startup() -> None:
 
 def initialize(connection: ConnectionLike) -> None:
     ensure_schema_version_table(connection)
-    has_schema_history = bool(connection.execute("SELECT * FROM schema_migrations ORDER BY version").fetchall())
+    applied_schema_versions = {str(row["version"]) for row in connection.execute("SELECT * FROM schema_migrations ORDER BY version").fetchall()}
+    has_schema_history = bool(applied_schema_versions)
     connection.execute(
         """
         CREATE TABLE IF NOT EXISTS users (
@@ -197,7 +206,7 @@ def initialize(connection: ConnectionLike) -> None:
     connection.execute(
         """
         CREATE TABLE IF NOT EXISTS advertisements (
-            id TEXT PRIMARY KEY,
+            id TEXT NOT NULL,
             workspace_id TEXT NOT NULL DEFAULT 'default',
             post_type TEXT NOT NULL DEFAULT 'photo',
             title TEXT NOT NULL DEFAULT '',
@@ -212,28 +221,30 @@ def initialize(connection: ConnectionLike) -> None:
             video_name TEXT NOT NULL DEFAULT '',
             status TEXT NOT NULL DEFAULT 'draft',
             created_at TIMESTAMPTZ NOT NULL,
-            updated_at TIMESTAMPTZ NOT NULL
+            updated_at TIMESTAMPTZ NOT NULL,
+            PRIMARY KEY (workspace_id, id)
         )
         """
     )
     connection.execute(
         """
         CREATE TABLE IF NOT EXISTS templates (
-            id TEXT PRIMARY KEY,
+            id TEXT NOT NULL,
             workspace_id TEXT NOT NULL DEFAULT 'default',
             name TEXT NOT NULL,
             content TEXT NOT NULL DEFAULT '',
             forum_url TEXT NOT NULL DEFAULT '',
             queue_name TEXT NOT NULL DEFAULT '',
             created_at TIMESTAMPTZ NOT NULL,
-            updated_at TIMESTAMPTZ NOT NULL
+            updated_at TIMESTAMPTZ NOT NULL,
+            PRIMARY KEY (workspace_id, id)
         )
         """
     )
     connection.execute(
         """
         CREATE TABLE IF NOT EXISTS submission_queue (
-            id TEXT PRIMARY KEY,
+            id TEXT NOT NULL,
             workspace_id TEXT NOT NULL DEFAULT 'default',
             ad_id TEXT NOT NULL,
             target_id TEXT NOT NULL,
@@ -250,13 +261,15 @@ def initialize(connection: ConnectionLike) -> None:
             updated_at TIMESTAMPTZ NOT NULL,
             last_run_at TIMESTAMPTZ,
             posted_at TIMESTAMPTZ,
-            failed_at TIMESTAMPTZ
+            failed_at TIMESTAMPTZ,
+            PRIMARY KEY (workspace_id, id)
         )
         """
     )
     connection.execute(
         """
         CREATE TABLE IF NOT EXISTS submission_queue_runner_payload_values (
+            workspace_id TEXT NOT NULL DEFAULT 'default',
             queue_item_id TEXT NOT NULL,
             payload_path TEXT NOT NULL,
             sort_order INTEGER NOT NULL DEFAULT 0,
@@ -264,14 +277,14 @@ def initialize(connection: ConnectionLike) -> None:
             value_text TEXT NOT NULL DEFAULT '',
             created_at TIMESTAMPTZ NOT NULL,
             updated_at TIMESTAMPTZ NOT NULL,
-            PRIMARY KEY (queue_item_id, payload_path)
+            PRIMARY KEY (workspace_id, queue_item_id, payload_path)
         )
         """
     )
     connection.execute(
         """
         CREATE TABLE IF NOT EXISTS tumblr_accounts (
-            id TEXT PRIMARY KEY,
+            id TEXT NOT NULL,
             workspace_id TEXT NOT NULL DEFAULT 'default',
             display_name TEXT NOT NULL DEFAULT '',
             blog_name TEXT NOT NULL DEFAULT '',
@@ -285,7 +298,8 @@ def initialize(connection: ConnectionLike) -> None:
             browserbase_live_url TEXT NOT NULL DEFAULT '',
             browserbase_session_expires_at TIMESTAMPTZ,
             created_at TIMESTAMPTZ NOT NULL,
-            updated_at TIMESTAMPTZ NOT NULL
+            updated_at TIMESTAMPTZ NOT NULL,
+            PRIMARY KEY (workspace_id, id)
         )
         """
     )
@@ -306,96 +320,108 @@ def initialize(connection: ConnectionLike) -> None:
     connection.execute(
         """
         CREATE TABLE IF NOT EXISTS advertisement_tags (
+            workspace_id TEXT NOT NULL DEFAULT 'default',
             advertisement_id TEXT NOT NULL,
             tag TEXT NOT NULL,
             sort_order INTEGER NOT NULL DEFAULT 0,
             created_at TIMESTAMPTZ NOT NULL,
             updated_at TIMESTAMPTZ NOT NULL,
-            PRIMARY KEY (advertisement_id, tag)
+            PRIMARY KEY (workspace_id, advertisement_id, tag)
         )
         """
     )
     connection.execute(
         """
         CREATE TABLE IF NOT EXISTS template_tags (
+            workspace_id TEXT NOT NULL DEFAULT 'default',
             template_id TEXT NOT NULL,
             tag TEXT NOT NULL,
             sort_order INTEGER NOT NULL DEFAULT 0,
             created_at TIMESTAMPTZ NOT NULL,
             updated_at TIMESTAMPTZ NOT NULL,
-            PRIMARY KEY (template_id, tag)
+            PRIMARY KEY (workspace_id, template_id, tag)
         )
         """
     )
     connection.execute(
         """
         CREATE TABLE IF NOT EXISTS runner_log_details (
+            workspace_id TEXT NOT NULL DEFAULT 'default',
             log_id TEXT NOT NULL,
             detail_key TEXT NOT NULL,
             detail_value TEXT NOT NULL DEFAULT '',
             created_at TIMESTAMPTZ NOT NULL,
-            PRIMARY KEY (log_id, detail_key)
+            PRIMARY KEY (workspace_id, log_id, detail_key)
         )
         """
     )
     connection.execute(
         """
         CREATE TABLE IF NOT EXISTS submit_targets (
-            id TEXT PRIMARY KEY,
+            id TEXT NOT NULL,
+            workspace_id TEXT NOT NULL DEFAULT 'default',
             name TEXT NOT NULL DEFAULT '',
             profile_name TEXT NOT NULL DEFAULT '',
             submit_url TEXT NOT NULL DEFAULT '',
             forum_url TEXT NOT NULL DEFAULT '',
             posting_rules TEXT NOT NULL DEFAULT '',
             created_at TIMESTAMPTZ NOT NULL,
-            updated_at TIMESTAMPTZ NOT NULL
+            updated_at TIMESTAMPTZ NOT NULL,
+            PRIMARY KEY (workspace_id, id)
         )
         """
     )
     connection.execute(
         """
         CREATE TABLE IF NOT EXISTS queue_definitions (
-            id TEXT PRIMARY KEY,
+            id TEXT NOT NULL,
+            workspace_id TEXT NOT NULL DEFAULT 'default',
             name TEXT NOT NULL DEFAULT '',
             created_at TIMESTAMPTZ NOT NULL,
-            updated_at TIMESTAMPTZ NOT NULL
+            updated_at TIMESTAMPTZ NOT NULL,
+            PRIMARY KEY (workspace_id, id)
         )
         """
     )
     connection.execute(
         """
         CREATE TABLE IF NOT EXISTS tag_profile_tags (
+            workspace_id TEXT NOT NULL DEFAULT 'default',
             blog_id TEXT NOT NULL,
             tag TEXT NOT NULL,
             sort_order INTEGER NOT NULL DEFAULT 0,
             created_at TIMESTAMPTZ NOT NULL,
             updated_at TIMESTAMPTZ NOT NULL,
-            PRIMARY KEY (blog_id, tag)
+            PRIMARY KEY (workspace_id, blog_id, tag)
         )
         """
     )
     connection.execute(
         """
         CREATE TABLE IF NOT EXISTS runner_settings (
-            id TEXT PRIMARY KEY,
+            id TEXT NOT NULL,
+            workspace_id TEXT NOT NULL DEFAULT 'default',
             media_dir TEXT NOT NULL DEFAULT '',
             slow_mo INTEGER NOT NULL DEFAULT 500,
             submit BOOLEAN NOT NULL DEFAULT FALSE,
             tumblr_account_id TEXT NOT NULL DEFAULT '',
             remote_browser_provider TEXT NOT NULL DEFAULT 'none',
             remote_browser_launch_url TEXT NOT NULL DEFAULT '',
-            updated_at TIMESTAMPTZ NOT NULL
+            updated_at TIMESTAMPTZ NOT NULL,
+            PRIMARY KEY (workspace_id, id)
         )
         """
     )
     connection.execute(
         """
         CREATE TABLE IF NOT EXISTS queue_schedule_settings (
-            id TEXT PRIMARY KEY,
+            id TEXT NOT NULL,
+            workspace_id TEXT NOT NULL DEFAULT 'default',
             enabled BOOLEAN NOT NULL DEFAULT FALSE,
             daily_time TEXT NOT NULL DEFAULT '09:00',
             timezone TEXT NOT NULL DEFAULT 'America/New_York',
-            updated_at TIMESTAMPTZ NOT NULL
+            updated_at TIMESTAMPTZ NOT NULL,
+            PRIMARY KEY (workspace_id, id)
         )
         """
     )
@@ -449,6 +475,8 @@ def initialize(connection: ConnectionLike) -> None:
     connection.execute("ALTER TABLE local_runner_tokens ADD COLUMN IF NOT EXISTS watching BOOLEAN NOT NULL DEFAULT FALSE")
     connection.execute("ALTER TABLE local_runner_tokens ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT ''")
     connection.execute("ALTER TABLE local_runner_tokens ADD COLUMN IF NOT EXISTS version TEXT NOT NULL DEFAULT ''")
+    if WORKSPACE_SCOPED_KEYS_SCHEMA_VERSION not in applied_schema_versions:
+        migrate_workspace_scoped_primary_keys(connection)
     connection.execute("CREATE INDEX IF NOT EXISTS idx_advertisement_tags_tag ON advertisement_tags(tag)")
     connection.execute("CREATE INDEX IF NOT EXISTS idx_template_tags_tag ON template_tags(tag)")
     connection.execute("CREATE INDEX IF NOT EXISTS idx_runner_log_details_key ON runner_log_details(detail_key)")
@@ -485,6 +513,49 @@ def initialize(connection: ConnectionLike) -> None:
     record_schema_version(connection, CURRENT_SCHEMA_VERSION)
 
 
+def workspace_scoped_primary_keys() -> dict[str, tuple[str, ...]]:
+    return {
+        "advertisements": ("workspace_id", "id"),
+        "templates": ("workspace_id", "id"),
+        "submission_queue": ("workspace_id", "id"),
+        "tumblr_accounts": ("workspace_id", "id"),
+        "submit_targets": ("workspace_id", "id"),
+        "queue_definitions": ("workspace_id", "id"),
+        "runner_settings": ("workspace_id", "id"),
+        "queue_schedule_settings": ("workspace_id", "id"),
+        "advertisement_tags": ("workspace_id", "advertisement_id", "tag"),
+        "template_tags": ("workspace_id", "template_id", "tag"),
+        "tag_profile_tags": ("workspace_id", "blog_id", "tag"),
+        "runner_log_details": ("workspace_id", "log_id", "detail_key"),
+        "submission_queue_runner_payload_values": ("workspace_id", "queue_item_id", "payload_path"),
+    }
+
+
+def primary_key_columns(connection: ConnectionLike, table: str) -> tuple[str, ...]:
+    rows = connection.execute(
+        """
+        SELECT a.attname AS column_name
+        FROM pg_index i
+        JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey)
+        WHERE i.indrelid = %s::regclass
+          AND i.indisprimary
+        ORDER BY array_position(i.indkey, a.attnum)
+        """,
+        (table,),
+    ).fetchall()
+    return tuple(str(row["column_name"]) for row in rows)
+
+
+def migrate_workspace_scoped_primary_keys(connection: ConnectionLike) -> None:
+    for table, columns in workspace_scoped_primary_keys().items():
+        if primary_key_columns(connection, table) == columns:
+            continue
+        constraint_name = f"{table}_pkey"
+        column_sql = ", ".join(columns)
+        connection.execute(f"ALTER TABLE {table} DROP CONSTRAINT IF EXISTS {constraint_name}")
+        connection.execute(f"ALTER TABLE {table} ADD CONSTRAINT {constraint_name} PRIMARY KEY ({column_sql})")
+
+
 def ensure_schema_version_table(connection: ConnectionLike) -> None:
     connection.execute(
         """
@@ -514,19 +585,20 @@ def replace_ordered_values(
     id_value: str,
     value_column: str,
     values: list[str],
+    workspace_id: str = "default",
 ) -> None:
     now = utc_now()
-    connection.execute(f"DELETE FROM {table} WHERE {id_column} = %s", (id_value,))
+    connection.execute(f"DELETE FROM {table} WHERE {id_column} = %s AND workspace_id = %s", (id_value, workspace_id))
     for index, value in enumerate(values):
         connection.execute(
             f"""
-            INSERT INTO {table} ({id_column}, {value_column}, sort_order, created_at, updated_at)
-            VALUES (%s, %s, %s, %s, %s)
-            ON CONFLICT({id_column}, {value_column}) DO UPDATE SET
+            INSERT INTO {table} ({id_column}, workspace_id, {value_column}, sort_order, created_at, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            ON CONFLICT(workspace_id, {id_column}, {value_column}) DO UPDATE SET
                 sort_order = excluded.sort_order,
                 updated_at = excluded.updated_at
             """,
-            (id_value, value, index, now, now),
+            (id_value, workspace_id, value, index, now, now),
         )
 
 
@@ -536,34 +608,42 @@ def load_ordered_values(
     id_column: str,
     id_value: str,
     value_column: str,
+    workspace_id: str = "default",
 ) -> list[str]:
     rows = connection.execute(
-        f"SELECT {value_column} FROM {table} WHERE {id_column} = %s ORDER BY sort_order, {value_column}",
-        (id_value,),
+        f"SELECT {value_column} FROM {table} WHERE {id_column} = %s AND workspace_id = %s ORDER BY sort_order, {value_column}",
+        (id_value, workspace_id),
     ).fetchall()
     return [str(row[value_column]) for row in rows]
 
 
-def replace_runner_log_details(connection: ConnectionLike, log_id: str, details: dict[str, Any]) -> None:
+def replace_runner_log_details(connection: ConnectionLike, log_id: str, details: dict[str, Any], workspace_id: str = "default") -> None:
     now = utc_now()
-    connection.execute("DELETE FROM runner_log_details WHERE log_id = %s", (log_id,))
+    connection.execute("DELETE FROM runner_log_details WHERE log_id = %s AND workspace_id = %s", (log_id, workspace_id))
     for key, value in sorted(details.items()):
         connection.execute(
             """
-            INSERT INTO runner_log_details (log_id, detail_key, detail_value, created_at)
-            VALUES (%s, %s, %s, %s)
-            ON CONFLICT(log_id, detail_key) DO UPDATE SET
-                detail_value = excluded.detail_value
+            INSERT INTO runner_log_details (log_id, workspace_id, detail_key, detail_value, created_at)
+            VALUES (%s, %s, %s, %s, %s)
+            ON CONFLICT(workspace_id, log_id, detail_key) DO UPDATE SET
+                detail_value = excluded.detail_value,
+                created_at = excluded.created_at
             """,
-            (log_id, str(key), "" if value is None else str(value), now),
+            (log_id, workspace_id, str(key), "" if value is None else str(value), now),
         )
 
 
-def load_runner_log_details(connection: ConnectionLike, log_id: str) -> dict[str, Any]:
-    rows = connection.execute(
-        "SELECT detail_key, detail_value FROM runner_log_details WHERE log_id = %s ORDER BY detail_key",
-        (log_id,),
-    ).fetchall()
+def load_runner_log_details(connection: ConnectionLike, log_id: str, workspace_id: str | None = None) -> dict[str, Any]:
+    if workspace_id:
+        rows = connection.execute(
+            "SELECT detail_key, detail_value FROM runner_log_details WHERE log_id = %s AND workspace_id = %s ORDER BY detail_key",
+            (log_id, workspace_id),
+        ).fetchall()
+    else:
+        rows = connection.execute(
+            "SELECT detail_key, detail_value FROM runner_log_details WHERE log_id = %s ORDER BY detail_key",
+            (log_id,),
+        ).fetchall()
     return {str(row["detail_key"]): parse_detail_value(str(row["detail_value"])) for row in rows}
 
 
@@ -703,35 +783,37 @@ def assign_payload_value(root: Any, segments: list[str], value: Any) -> Any:
     return root
 
 
-def replace_runner_payload_values(connection: ConnectionLike, queue_item_id: str, runner_payload: Any) -> None:
+def replace_runner_payload_values(connection: ConnectionLike, queue_item_id: str, runner_payload: Any, workspace_id: str = "default") -> None:
     now = utc_now()
-    connection.execute("DELETE FROM submission_queue_runner_payload_values WHERE queue_item_id = %s", (queue_item_id,))
+    connection.execute(
+        "DELETE FROM submission_queue_runner_payload_values WHERE queue_item_id = %s AND workspace_id = %s", (queue_item_id, workspace_id)
+    )
     for path, sort_order, value_type, value_text in flatten_payload_values(parse_runner_payload(runner_payload)):
         connection.execute(
             """
             INSERT INTO submission_queue_runner_payload_values (
-                queue_item_id, payload_path, sort_order, value_type, value_text, created_at, updated_at
+                queue_item_id, workspace_id, payload_path, sort_order, value_type, value_text, created_at, updated_at
             )
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT(queue_item_id, payload_path) DO UPDATE SET
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT(workspace_id, queue_item_id, payload_path) DO UPDATE SET
                 sort_order = excluded.sort_order,
                 value_type = excluded.value_type,
                 value_text = excluded.value_text,
                 updated_at = excluded.updated_at
             """,
-            (queue_item_id, path, sort_order, value_type, value_text, now, now),
+            (queue_item_id, workspace_id, path, sort_order, value_type, value_text, now, now),
         )
 
 
-def load_runner_payload(connection: ConnectionLike, queue_item_id: str) -> str:
+def load_runner_payload(connection: ConnectionLike, queue_item_id: str, workspace_id: str = "default") -> str:
     rows = connection.execute(
         """
         SELECT payload_path, value_type, value_text
         FROM submission_queue_runner_payload_values
-        WHERE queue_item_id = %s
+        WHERE queue_item_id = %s AND workspace_id = %s
         ORDER BY sort_order, payload_path
         """,
-        (queue_item_id,),
+        (queue_item_id, workspace_id),
     ).fetchall()
     if not rows:
         return ""
@@ -751,13 +833,17 @@ def migrate_legacy_tag_blobs(connection: ConnectionLike) -> None:
     for row in rows:
         data = row_to_dict(row)
         if "tags" in data:
-            replace_ordered_values(connection, "advertisement_tags", "advertisement_id", str(data["id"]), "tag", parse_tags(data["tags"]))
+            replace_ordered_values(
+                connection, "advertisement_tags", "advertisement_id", str(data["id"]), "tag", parse_tags(data["tags"]), str(data.get("workspace_id") or "default")
+            )
 
     rows = connection.execute("SELECT * FROM templates ORDER BY name").fetchall()
     for row in rows:
         data = row_to_dict(row)
         if "tags" in data:
-            replace_ordered_values(connection, "template_tags", "template_id", str(data["id"]), "tag", parse_tags(data["tags"]))
+            replace_ordered_values(
+                connection, "template_tags", "template_id", str(data["id"]), "tag", parse_tags(data["tags"]), str(data.get("workspace_id") or "default")
+            )
 
 
 def migrate_legacy_queue_runner_payloads(connection: ConnectionLike) -> None:
@@ -766,7 +852,7 @@ def migrate_legacy_queue_runner_payloads(connection: ConnectionLike) -> None:
         data = row_to_dict(row)
         runner_payload = data.get("runner_payload")
         if runner_payload:
-            replace_runner_payload_values(connection, str(data["id"]), runner_payload)
+            replace_runner_payload_values(connection, str(data["id"]), runner_payload, str(data.get("workspace_id") or "default"))
 
 
 def legacy_app_settings_exists(connection: ConnectionLike) -> bool:
@@ -794,7 +880,7 @@ def migrate_legacy_runner_log_details(connection: ConnectionLike) -> None:
                 loaded = {}
             details = loaded
         if isinstance(details, dict):
-            replace_runner_log_details(connection, str(data["id"]), details)
+            replace_runner_log_details(connection, str(data["id"]), details, str(data.get("workspace_id") or "default"))
 
 
 def migrate_legacy_app_settings(connection: ConnectionLike) -> None:
@@ -818,13 +904,14 @@ def seed_templates(connection: ConnectionLike) -> None:
         connection.execute(
             """
             INSERT INTO templates (
-                id, name, content, forum_url, created_at, updated_at
+                id, workspace_id, name, content, forum_url, created_at, updated_at
             )
-            VALUES (%s, %s, %s, %s, %s, %s)
-            ON CONFLICT(id) DO NOTHING
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT(workspace_id, id) DO NOTHING
             """,
             (
                 template["id"],
+                "default",
                 template["name"],
                 template["content"],
                 template["forum_url"],
@@ -832,7 +919,7 @@ def seed_templates(connection: ConnectionLike) -> None:
                 now,
             ),
         )
-        replace_ordered_values(connection, "template_tags", "template_id", template["id"], "tag", parse_tags(template["tags"]))
+        replace_ordered_values(connection, "template_tags", "template_id", template["id"], "tag", parse_tags(template["tags"]), "default")
 
 
 def parse_tags(value: Any) -> list[str]:
@@ -1050,6 +1137,15 @@ def authenticate_request(connection: ConnectionLike, cookie_header: str | None) 
 
 def row_to_dict(row: Any) -> dict[str, Any]:
     return {key: normalize_datetime(value) for key, value in dict(row).items()}
+
+
+def ensure_existing_workspace(existing: Any, workspace_id: str) -> None:
+    if not existing:
+        return
+    data = row_to_dict(existing)
+    existing_workspace_id = str(data.get("workspace_id") or "default")
+    if existing_workspace_id != str(workspace_id or "default"):
+        raise ValueError("Resource belongs to another workspace")
 
 
 def row_to_advertisement(row: Any, tags: list[str] | None = None) -> dict[str, Any]:
@@ -1470,11 +1566,14 @@ def upsert_app_settings(connection: ConnectionLike, payload: dict[str, Any], aud
     now = utc_now()
     connection.execute("DELETE FROM submit_targets WHERE workspace_id = %s", (workspace_id,))
     for target in settings["submitTargets"]:
+        existing_target = connection.execute(
+            "SELECT * FROM submit_targets WHERE id = %s AND workspace_id = %s", (target["id"], workspace_id)
+        ).fetchone()
         connection.execute(
             """
             INSERT INTO submit_targets (id, workspace_id, name, profile_name, submit_url, forum_url, posting_rules, created_at, updated_at)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT(id) DO UPDATE SET
+            ON CONFLICT(workspace_id, id) DO UPDATE SET
                 name = excluded.name,
                 profile_name = excluded.profile_name,
                 submit_url = excluded.submit_url,
@@ -1500,11 +1599,14 @@ def upsert_app_settings(connection: ConnectionLike, payload: dict[str, Any], aud
 
     connection.execute("DELETE FROM queue_definitions WHERE workspace_id = %s", (workspace_id,))
     for queue in settings["queueDefinitions"]:
+        existing_queue = connection.execute(
+            "SELECT * FROM queue_definitions WHERE id = %s AND workspace_id = %s", (queue["id"], workspace_id)
+        ).fetchone()
         connection.execute(
             """
             INSERT INTO queue_definitions (id, workspace_id, name, created_at, updated_at)
             VALUES (%s, %s, %s, %s, %s)
-            ON CONFLICT(id) DO UPDATE SET
+            ON CONFLICT(workspace_id, id) DO UPDATE SET
                 name = excluded.name,
                 updated_at = excluded.updated_at
             """,
@@ -1515,13 +1617,15 @@ def upsert_app_settings(connection: ConnectionLike, payload: dict[str, Any], aud
 
     connection.execute("DELETE FROM tag_profile_tags WHERE workspace_id = %s", (workspace_id,))
     for blog_id, tags in settings["tagProfiles"].items():
-        replace_ordered_values(connection, "tag_profile_tags", "blog_id", str(blog_id), "tag", tags)
-        connection.execute("UPDATE tag_profile_tags SET workspace_id = %s WHERE blog_id = %s", (workspace_id, str(blog_id)))
+        replace_ordered_values(connection, "tag_profile_tags", "blog_id", str(blog_id), "tag", tags, workspace_id)
         if audit:
             for tag in tags:
                 record_settings_audit(connection, "tag_profile_tags", "upsert", str(blog_id), "tag", "", tag, workspace_id)
 
     runner_settings = settings["runnerSettings"]
+    existing_runner_settings = connection.execute(
+        "SELECT * FROM runner_settings WHERE id = %s AND workspace_id = %s", ("default", workspace_id)
+    ).fetchone()
     connection.execute(
         """
         INSERT INTO runner_settings (
@@ -1529,7 +1633,7 @@ def upsert_app_settings(connection: ConnectionLike, payload: dict[str, Any], aud
             remote_browser_provider, remote_browser_launch_url, updated_at
         )
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-        ON CONFLICT(id) DO UPDATE SET
+        ON CONFLICT(workspace_id, id) DO UPDATE SET
             media_dir = excluded.media_dir,
             slow_mo = excluded.slow_mo,
             submit = excluded.submit,
@@ -1559,11 +1663,14 @@ def upsert_app_settings(connection: ConnectionLike, payload: dict[str, Any], aud
     schedule_rows = [("default", schedule_settings)]
     schedule_rows.extend((f"queue:{queue_name}", queue_settings) for queue_name, queue_settings in schedule_settings["perQueue"].items())
     for schedule_id, schedule_row in schedule_rows:
+        existing_schedule = connection.execute(
+            "SELECT * FROM queue_schedule_settings WHERE id = %s AND workspace_id = %s", (schedule_id, workspace_id)
+        ).fetchone()
         connection.execute(
             """
             INSERT INTO queue_schedule_settings (id, workspace_id, enabled, daily_time, timezone, updated_at)
             VALUES (%s, %s, %s, %s, %s, %s)
-            ON CONFLICT(id) DO UPDATE SET
+            ON CONFLICT(workspace_id, id) DO UPDATE SET
                 enabled = excluded.enabled,
                 daily_time = excluded.daily_time,
                 timezone = excluded.timezone,
@@ -1587,7 +1694,9 @@ def upsert_app_settings(connection: ConnectionLike, payload: dict[str, Any], aud
 def upsert_tumblr_account(connection: ConnectionLike, payload: dict[str, Any]) -> dict[str, Any]:
     account = tumblr_account_from_payload(payload)
     now = utc_now()
-    existing = connection.execute("SELECT created_at FROM tumblr_accounts WHERE id = %s", (account["id"],)).fetchone()
+    existing = connection.execute(
+        "SELECT * FROM tumblr_accounts WHERE id = %s AND workspace_id = %s", (account["id"], account["workspace_id"])
+    ).fetchone()
     created_at = existing["created_at"] if existing else now
 
     connection.execute(
@@ -1598,8 +1707,7 @@ def upsert_tumblr_account(connection: ConnectionLike, payload: dict[str, Any]) -
             browserbase_session_expires_at, created_at, updated_at
         )
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        ON CONFLICT(id) DO UPDATE SET
-            workspace_id = excluded.workspace_id,
+        ON CONFLICT(workspace_id, id) DO UPDATE SET
             display_name = excluded.display_name,
             blog_name = excluded.blog_name,
             user_data_dir = excluded.user_data_dir,
@@ -1631,19 +1739,22 @@ def upsert_tumblr_account(connection: ConnectionLike, payload: dict[str, Any]) -
             now,
         ),
     )
-    row = connection.execute("SELECT * FROM tumblr_accounts WHERE id = %s", (account["id"],)).fetchone()
+    row = connection.execute(
+        "SELECT * FROM tumblr_accounts WHERE id = %s AND workspace_id = %s", (account["id"], account["workspace_id"])
+    ).fetchone()
     return row_to_tumblr_account(row)
 
 
 def update_tumblr_account_status(
     connection: ConnectionLike,
     account_id: str,
+    workspace_id: str,
     status: str,
     notes: str,
     checked_at: datetime | None = None,
     login_at: datetime | None = None,
 ) -> dict[str, Any] | None:
-    existing = connection.execute("SELECT * FROM tumblr_accounts WHERE id = %s", (account_id,)).fetchone()
+    existing = connection.execute("SELECT * FROM tumblr_accounts WHERE id = %s AND workspace_id = %s", (account_id, workspace_id)).fetchone()
     if not existing:
         return None
 
@@ -1761,7 +1872,7 @@ def upsert_advertisement(connection: ConnectionLike, payload: dict[str, Any]) ->
 
     now = utc_now()
     existing = connection.execute(
-        "SELECT created_at FROM advertisements WHERE id = %s", (advertisement["id"],)
+        "SELECT * FROM advertisements WHERE id = %s AND workspace_id = %s", (advertisement["id"], advertisement["workspace_id"])
     ).fetchone()
     created_at = existing["created_at"] if existing else now
 
@@ -1773,8 +1884,7 @@ def upsert_advertisement(connection: ConnectionLike, payload: dict[str, Any]) ->
             status, created_at, updated_at
         )
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        ON CONFLICT(id) DO UPDATE SET
-            workspace_id = excluded.workspace_id,
+        ON CONFLICT(workspace_id, id) DO UPDATE SET
             post_type = excluded.post_type,
             title = excluded.title,
             campaign_name = excluded.campaign_name,
@@ -1808,18 +1918,16 @@ def upsert_advertisement(connection: ConnectionLike, payload: dict[str, Any]) ->
             now,
         ),
     )
-    replace_ordered_values(connection, "advertisement_tags", "advertisement_id", advertisement["id"], "tag", advertisement["tags"])
-    connection.execute(
-        "UPDATE advertisement_tags SET workspace_id = %s WHERE advertisement_id = %s",
-        (advertisement["workspace_id"], advertisement["id"]),
+    replace_ordered_values(
+        connection, "advertisement_tags", "advertisement_id", advertisement["id"], "tag", advertisement["tags"], advertisement["workspace_id"]
     )
 
     row = connection.execute(
-        "SELECT * FROM advertisements WHERE id = %s", (advertisement["id"],)
+        "SELECT * FROM advertisements WHERE id = %s AND workspace_id = %s", (advertisement["id"], advertisement["workspace_id"])
     ).fetchone()
     return row_to_advertisement(
         row,
-        load_ordered_values(connection, "advertisement_tags", "advertisement_id", advertisement["id"], "tag"),
+        load_ordered_values(connection, "advertisement_tags", "advertisement_id", advertisement["id"], "tag", advertisement["workspace_id"]),
     )
 
 
@@ -1831,15 +1939,16 @@ def upsert_template(connection: ConnectionLike, payload: dict[str, Any]) -> dict
         raise ValueError("name is required")
 
     now = utc_now()
-    existing = connection.execute("SELECT created_at FROM templates WHERE id = %s", (template["id"],)).fetchone()
+    existing = connection.execute(
+        "SELECT * FROM templates WHERE id = %s AND workspace_id = %s", (template["id"], template["workspace_id"])
+    ).fetchone()
     created_at = existing["created_at"] if existing else now
 
     connection.execute(
         """
         INSERT INTO templates (id, workspace_id, name, content, forum_url, queue_name, created_at, updated_at)
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-        ON CONFLICT(id) DO UPDATE SET
-            workspace_id = excluded.workspace_id,
+        ON CONFLICT(workspace_id, id) DO UPDATE SET
             name = excluded.name,
             content = excluded.content,
             forum_url = excluded.forum_url,
@@ -1857,14 +1966,12 @@ def upsert_template(connection: ConnectionLike, payload: dict[str, Any]) -> dict
             now,
         ),
     )
-    replace_ordered_values(connection, "template_tags", "template_id", template["id"], "tag", template["tags"])
-    connection.execute(
-        "UPDATE template_tags SET workspace_id = %s WHERE template_id = %s",
-        (template["workspace_id"], template["id"]),
-    )
+    replace_ordered_values(connection, "template_tags", "template_id", template["id"], "tag", template["tags"], template["workspace_id"])
 
-    row = connection.execute("SELECT * FROM templates WHERE id = %s", (template["id"],)).fetchone()
-    return row_to_template(row, load_ordered_values(connection, "template_tags", "template_id", template["id"], "tag"))
+    row = connection.execute(
+        "SELECT * FROM templates WHERE id = %s AND workspace_id = %s", (template["id"], template["workspace_id"])
+    ).fetchone()
+    return row_to_template(row, load_ordered_values(connection, "template_tags", "template_id", template["id"], "tag", template["workspace_id"]))
 
 
 def upsert_queue_item(connection: ConnectionLike, payload: dict[str, Any]) -> dict[str, Any]:
@@ -1879,7 +1986,9 @@ def upsert_queue_item(connection: ConnectionLike, payload: dict[str, Any]) -> di
         raise ValueError("submit_url is required")
 
     now = utc_now()
-    existing = connection.execute("SELECT created_at FROM submission_queue WHERE id = %s", (queue_item["id"],)).fetchone()
+    existing = connection.execute(
+        "SELECT * FROM submission_queue WHERE id = %s AND workspace_id = %s", (queue_item["id"], queue_item["workspace_id"])
+    ).fetchone()
     created_at = queue_item["created_at"] or (existing["created_at"] if existing else now)
     updated_at = queue_item["updated_at"] or now
 
@@ -1891,8 +2000,7 @@ def upsert_queue_item(connection: ConnectionLike, payload: dict[str, Any]) -> di
             last_run_at, posted_at, failed_at
         )
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        ON CONFLICT(id) DO UPDATE SET
-            workspace_id = excluded.workspace_id,
+        ON CONFLICT(workspace_id, id) DO UPDATE SET
             ad_id = excluded.ad_id,
             target_id = excluded.target_id,
             target_name = excluded.target_name,
@@ -1930,14 +2038,12 @@ def upsert_queue_item(connection: ConnectionLike, payload: dict[str, Any]) -> di
             queue_item["failed_at"],
         ),
     )
-    replace_runner_payload_values(connection, queue_item["id"], queue_item["runner_payload"])
-    connection.execute(
-        "UPDATE submission_queue_runner_payload_values SET workspace_id = %s WHERE queue_item_id = %s",
-        (queue_item["workspace_id"], queue_item["id"]),
-    )
+    replace_runner_payload_values(connection, queue_item["id"], queue_item["runner_payload"], queue_item["workspace_id"])
 
-    row = connection.execute("SELECT * FROM submission_queue WHERE id = %s", (queue_item["id"],)).fetchone()
-    return row_to_queue_item(row, load_runner_payload(connection, queue_item["id"]))
+    row = connection.execute(
+        "SELECT * FROM submission_queue WHERE id = %s AND workspace_id = %s", (queue_item["id"], queue_item["workspace_id"])
+    ).fetchone()
+    return row_to_queue_item(row, load_runner_payload(connection, queue_item["id"], queue_item["workspace_id"]))
 
 
 def runner_log_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
@@ -1972,7 +2078,12 @@ def record_runner_log(connection: ConnectionLike, payload: dict[str, Any]) -> di
     if not log["run_id"]:
         log["run_id"] = RUNNER_LAST_RUN_ID
 
-    existing_queue = connection.execute("SELECT * FROM submission_queue WHERE id = %s", (log["queue_item_id"],)).fetchone()
+    if log["workspace_id"]:
+        existing_queue = connection.execute(
+            "SELECT * FROM submission_queue WHERE id = %s AND workspace_id = %s", (log["queue_item_id"], log["workspace_id"])
+        ).fetchone()
+    else:
+        existing_queue = connection.execute("SELECT * FROM submission_queue WHERE id = %s", (log["queue_item_id"],)).fetchone()
     if existing_queue:
         queue_data = row_to_queue_item(existing_queue)
         log["workspace_id"] = queue_data["workspace_id"]
@@ -1995,18 +2106,14 @@ def record_runner_log(connection: ConnectionLike, payload: dict[str, Any]) -> di
             log["created_at"],
         ),
     )
-    replace_runner_log_details(connection, log["id"], log["details"])
-    connection.execute(
-        "UPDATE runner_log_details SET workspace_id = %s WHERE log_id = %s",
-        (log["workspace_id"], log["id"]),
-    )
+    replace_runner_log_details(connection, log["id"], log["details"], log["workspace_id"])
 
     queue_status = log["status"] or infer_runner_log_queue_status(log)
     if queue_status:
-        touch_queue_item_status(connection, log["queue_item_id"], queue_status, log["message"], log["created_at"])
+        touch_queue_item_status(connection, log["queue_item_id"], log["workspace_id"], queue_status, log["message"], log["created_at"])
 
     row = connection.execute("SELECT * FROM runner_logs WHERE id = %s", (log["id"],)).fetchone()
-    return row_to_runner_log(row, load_runner_log_details(connection, log["id"]))
+    return row_to_runner_log(row, load_runner_log_details(connection, log["id"], log["workspace_id"]))
 
 
 def infer_runner_log_queue_status(log: dict[str, Any]) -> str:
@@ -2021,15 +2128,17 @@ def infer_runner_log_queue_status(log: dict[str, Any]) -> str:
 def touch_queue_item_status(
     connection: ConnectionLike,
     queue_item_id: str,
+    workspace_id: str,
     status: str,
     notes: str,
     timestamp: datetime,
 ) -> None:
-    existing = connection.execute("SELECT * FROM submission_queue WHERE id = %s", (queue_item_id,)).fetchone()
+    existing = connection.execute("SELECT * FROM submission_queue WHERE id = %s AND workspace_id = %s", (queue_item_id, workspace_id)).fetchone()
     if not existing:
         return
 
-    data = row_to_queue_item(existing, load_runner_payload(connection, queue_item_id))
+    existing_data = row_to_dict(existing)
+    data = row_to_queue_item(existing, load_runner_payload(connection, queue_item_id, str(existing_data.get("workspace_id") or "default")))
     data["status"] = status
     data["notes"] = notes
     data["updated_at"] = timestamp
@@ -2307,13 +2416,15 @@ def local_runner_plan(connection: ConnectionLike, workspace_id: str, queue_name:
     items = []
     user_data_dir = ""
     for row in rows:
-        item = row_to_queue_item(row, load_runner_payload(connection, str(row["id"])))
+        item = row_to_queue_item(row, load_runner_payload(connection, str(row["id"]), workspace_id))
         if queue_name and item["queue_name"] != queue_name:
             continue
         if item["status"] not in {"queued", "scheduled"}:
             continue
         if not user_data_dir and item.get("tumblr_account_id"):
-            account = connection.execute("SELECT * FROM tumblr_accounts WHERE id = %s", (item["tumblr_account_id"],)).fetchone()
+            account = connection.execute(
+                "SELECT * FROM tumblr_accounts WHERE id = %s AND workspace_id = %s", (item["tumblr_account_id"], workspace_id)
+            ).fetchone()
             if account:
                 user_data_dir = local_runner_user_data_dir(str(row_to_tumblr_account(account).get("user_data_dir") or ""))
         items.append(queue_item_to_runner_plan_item(item))
@@ -2453,7 +2564,7 @@ pause
 
 
 def start_runner(payload: dict[str, Any]) -> dict[str, Any]:
-    global RUNNER_LAST_BROWSER_PROVIDER, RUNNER_LAST_COMMAND, RUNNER_LAST_LIVE_URL, RUNNER_LAST_RUN_ID, RUNNER_PROCESS
+    global RUNNER_LAST_BROWSER_PROVIDER, RUNNER_LAST_COMMAND, RUNNER_LAST_LIVE_URL, RUNNER_LAST_RUN_ID, RUNNER_LAST_WORKSPACE_ID, RUNNER_PROCESS
 
     items = payload.get("items")
     if not isinstance(items, list) or not items:
@@ -2485,9 +2596,10 @@ def start_runner(payload: dict[str, Any]) -> dict[str, Any]:
     submit = bool(payload.get("submit"))
     user_data_dir = str(payload.get("userDataDir") or "").strip()
     tumblr_account_id = str(payload.get("tumblrAccountId") or "").strip()
+    workspace_id = str(payload.get("workspace_id") or payload.get("workspaceId") or "default").strip() or "default"
     if tumblr_account_id and not user_data_dir:
         with connect() as connection:
-            account = connection.execute("SELECT * FROM tumblr_accounts WHERE id = %s", (tumblr_account_id,)).fetchone()
+            account = connection.execute("SELECT * FROM tumblr_accounts WHERE id = %s AND workspace_id = %s", (tumblr_account_id, workspace_id)).fetchone()
             if account:
                 user_data_dir = str(row_to_tumblr_account(account).get("user_data_dir") or "")
 
@@ -2505,6 +2617,8 @@ def start_runner(payload: dict[str, Any]) -> dict[str, Any]:
         os.environ.get("RUNNER_API_BASE_URL", f"http://127.0.0.1:{os.environ.get('PORT', '8021')}/api"),
         "--run-id",
         run_id,
+        "--workspace-id",
+        workspace_id,
     ]
     if media_dir:
         runner_args.extend(["--media-dir", media_dir])
@@ -2527,6 +2641,7 @@ def start_runner(payload: dict[str, Any]) -> dict[str, Any]:
 
     RUNNER_LAST_COMMAND = runner_args
     RUNNER_LAST_RUN_ID = run_id
+    RUNNER_LAST_WORKSPACE_ID = workspace_id
     RUNNER_LAST_BROWSER_PROVIDER = "local"
     RUNNER_LAST_LIVE_URL = ""
     try:
@@ -2534,6 +2649,7 @@ def start_runner(payload: dict[str, Any]) -> dict[str, Any]:
     except OSError as error:
         RUNNER_LAST_COMMAND = []
         RUNNER_LAST_RUN_ID = ""
+        RUNNER_LAST_WORKSPACE_ID = ""
         RUNNER_LAST_BROWSER_PROVIDER = "local"
         RUNNER_LAST_LIVE_URL = ""
         raise ValueError(f"Could not start the Tumblr runner process: {error.strerror or error}") from error
@@ -2573,6 +2689,26 @@ def remote_tumblr_login_launch(settings: dict[str, Any]) -> dict[str, str] | Non
 
 def powershell_quote(value: str) -> str:
     return "'" + value.replace("'", "''") + "'"
+
+
+def configured_allowed_origins() -> set[str]:
+    origins = set(DEFAULT_ALLOWED_ORIGINS)
+    for env_name in ("INWELL_ALLOWED_ORIGINS", "FRONTEND_URL", "PUBLIC_URL"):
+        for raw_origin in str(os.environ.get(env_name, "")).split(","):
+            origin = raw_origin.strip().rstrip("/")
+            if origin:
+                origins.add(origin)
+    railway_domain = str(os.environ.get("RAILWAY_PUBLIC_DOMAIN", "")).strip().strip("/")
+    if railway_domain:
+        origins.add(f"https://{railway_domain}")
+    return origins
+
+
+def origin_allowed_for_request(origin: str, request_base_url: str) -> bool:
+    clean_origin = origin.strip().rstrip("/")
+    if not clean_origin:
+        return False
+    return clean_origin in configured_allowed_origins()
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -2657,7 +2793,7 @@ class Handler(BaseHTTPRequestHandler):
                         "advertisements": [
                             row_to_advertisement(
                                 row,
-                                load_ordered_values(connection, "advertisement_tags", "advertisement_id", str(row["id"]), "tag"),
+                                load_ordered_values(connection, "advertisement_tags", "advertisement_id", str(row["id"]), "tag", workspace_id),
                             )
                             for row in rows
                         ]
@@ -2672,7 +2808,7 @@ class Handler(BaseHTTPRequestHandler):
                         "templates": [
                             row_to_template(
                                 row,
-                                load_ordered_values(connection, "template_tags", "template_id", str(row["id"]), "tag"),
+                                load_ordered_values(connection, "template_tags", "template_id", str(row["id"]), "tag", workspace_id),
                             )
                             for row in rows
                         ]
@@ -2682,7 +2818,7 @@ class Handler(BaseHTTPRequestHandler):
 
             if collection == "queue" and item_id is None:
                 rows = connection.execute("SELECT * FROM submission_queue WHERE workspace_id = %s ORDER BY updated_at DESC", (workspace_id,)).fetchall()
-                self.respond({"queue": [row_to_queue_item(row, load_runner_payload(connection, str(row["id"]))) for row in rows]})
+                self.respond({"queue": [row_to_queue_item(row, load_runner_payload(connection, str(row["id"]), workspace_id)) for row in rows]})
                 return
 
             if collection == "tumblr/accounts" and item_id is None:
@@ -2692,7 +2828,9 @@ class Handler(BaseHTTPRequestHandler):
 
             if collection == "runner/logs" and item_id is None:
                 rows = connection.execute("SELECT * FROM runner_logs WHERE workspace_id = %s ORDER BY created_at DESC LIMIT 150", (workspace_id,)).fetchall()
-                self.respond({"logs": [row_to_runner_log(row, load_runner_log_details(connection, str(row["id"]))) for row in rows]})
+                self.respond(
+                    {"logs": [row_to_runner_log(row, load_runner_log_details(connection, str(row["id"]), workspace_id)) for row in rows]}
+                )
                 return
 
             if collection == "settings" and item_id is None:
@@ -2789,7 +2927,13 @@ class Handler(BaseHTTPRequestHandler):
 
         if collection == "runner/logs":
             payload = self.read_json()
-            if str(payload.get("run_id") or "") == RUNNER_LAST_RUN_ID:
+            payload_run_id = str(payload.get("run_id") or "")
+            payload_workspace_id = str(payload.get("workspace_id") or payload.get("workspaceId") or "").strip()
+            if payload_run_id == RUNNER_LAST_RUN_ID:
+                if not payload_workspace_id or payload_workspace_id != RUNNER_LAST_WORKSPACE_ID:
+                    self.respond({"error": "workspace_id is required for this runner run"}, HTTPStatus.BAD_REQUEST)
+                    return
+                payload["workspace_id"] = RUNNER_LAST_WORKSPACE_ID
                 try:
                     with connect() as connection:
                         self.respond({"log": record_runner_log(connection, payload)}, HTTPStatus.CREATED)
@@ -2797,7 +2941,7 @@ class Handler(BaseHTTPRequestHandler):
                     self.respond({"error": str(error)}, HTTPStatus.BAD_REQUEST)
                 return
             token = bearer_token_from_header(self.headers.get("Authorization"))
-            workspace_id = str(payload.get("workspace_id") or payload.get("workspaceId") or "").strip()
+            workspace_id = payload_workspace_id
             with connect() as connection:
                 runner_token = validate_local_runner_token(connection, token, workspace_id, require_workspace=True)
             if runner_token:
@@ -2866,6 +3010,7 @@ class Handler(BaseHTTPRequestHandler):
                         update_tumblr_account_status(
                             connection,
                             account_id,
+                            workspace_id,
                             str(account_data.get("status") or "needs-login"),
                             message,
                             utc_now(),
@@ -2888,6 +3033,7 @@ class Handler(BaseHTTPRequestHandler):
                         update_tumblr_account_status(
                             connection,
                             account_id,
+                            workspace_id,
                             "checking",
                             remote_launch["message"],
                             utc_now(),
@@ -2923,6 +3069,7 @@ class Handler(BaseHTTPRequestHandler):
                     update_tumblr_account_status(
                         connection,
                         account_id,
+                        workspace_id,
                         "checking",
                         "Login helper launched. Complete Tumblr login in the visible browser.",
                         utc_now(),
@@ -3093,6 +3240,9 @@ class Handler(BaseHTTPRequestHandler):
         host = self.headers.get("X-Forwarded-Host") or self.headers.get("Host") or "127.0.0.1"
         return f"{proto}://{host}".rstrip("/")
 
+    def origin_allowed(self, origin: str) -> bool:
+        return origin_allowed_for_request(origin, self.request_base_url())
+
     def respond(self, payload: dict[str, Any], status: HTTPStatus = HTTPStatus.OK) -> None:
         self.respond_with_headers(payload, status)
 
@@ -3143,8 +3293,10 @@ class Handler(BaseHTTPRequestHandler):
     def send_common_headers(self, content_type: str = "application/json") -> None:
         self.send_header("Content-Type", content_type)
         origin = self.headers.get("Origin")
-        self.send_header("Access-Control-Allow-Origin", origin or "*")
-        self.send_header("Access-Control-Allow-Credentials", "true")
+        if origin and self.origin_allowed(origin):
+            self.send_header("Access-Control-Allow-Origin", origin.strip().rstrip("/"))
+            self.send_header("Vary", "Origin")
+            self.send_header("Access-Control-Allow-Credentials", "true")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
         self.send_header("Access-Control-Expose-Headers", "Content-Disposition")

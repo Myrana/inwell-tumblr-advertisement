@@ -3,7 +3,9 @@ from __future__ import annotations
 import io
 import json
 import os
+import re
 import unittest
+import uuid
 import zipfile
 from pathlib import Path
 import sys
@@ -26,6 +28,7 @@ from app import (
     initialize_database_for_startup,
     login_user,
     login_user_with_lock,
+    origin_allowed_for_request,
     request_password_reset,
     record_runner_log,
     run,
@@ -76,26 +79,56 @@ class ConnectionContext:
         return False
 
 
+class ScopedRows(dict[str | tuple[str, str], dict[str, Any]]):
+    @staticmethod
+    def key(workspace_id: Any, row_id: Any) -> tuple[str, str]:
+        return (str(workspace_id), str(row_id))
+
+    def _legacy_key(self, row_id: Any) -> str | tuple[str, str]:
+        key = str(row_id)
+        if dict.__contains__(self, key):
+            return key
+        matches = [stored_key for stored_key, row in self.items() if str(row.get("id")) == key]
+        if len(matches) == 1:
+            return matches[0]
+        return key
+
+    def __getitem__(self, key: str | tuple[str, str]) -> dict[str, Any]:
+        if isinstance(key, tuple):
+            return dict.__getitem__(self, key)
+        return dict.__getitem__(self, self._legacy_key(key))
+
+    def get(self, key: str | tuple[str, str], default: Any = None) -> Any:
+        if isinstance(key, tuple):
+            return dict.get(self, key, default)
+        return dict.get(self, self._legacy_key(key), default)
+
+    def pop(self, key: str | tuple[str, str], default: Any = None) -> Any:
+        if isinstance(key, tuple):
+            return dict.pop(self, key, default)
+        return dict.pop(self, self._legacy_key(key), default)
+
+
 class FakePostgresConnection:
     def __init__(self) -> None:
-        self.advertisements: dict[str, dict[str, Any]] = {}
+        self.advertisements: ScopedRows = ScopedRows()
         self.advertisement_tags: dict[tuple[str, str], dict[str, Any]] = {}
         self.auth_attempts: dict[str, dict[str, Any]] = {}
         self.local_runner_tokens: dict[str, dict[str, Any]] = {}
-        self.queue_definitions: dict[str, dict[str, Any]] = {}
-        self.queue_schedule_settings: dict[str, dict[str, Any]] = {}
+        self.queue_definitions: ScopedRows = ScopedRows()
+        self.queue_schedule_settings: ScopedRows = ScopedRows()
         self.runner_logs: dict[str, dict[str, Any]] = {}
         self.runner_log_details: dict[tuple[str, str], dict[str, Any]] = {}
-        self.runner_settings: dict[str, dict[str, Any]] = {}
+        self.runner_settings: ScopedRows = ScopedRows()
         self.schema_migrations: dict[str, dict[str, Any]] = {}
         self.settings_audit_events: dict[str, dict[str, Any]] = {}
-        self.submission_queue: dict[str, dict[str, Any]] = {}
+        self.submission_queue: ScopedRows = ScopedRows()
         self.submission_queue_runner_payload_values: dict[tuple[str, str], dict[str, Any]] = {}
-        self.submit_targets: dict[str, dict[str, Any]] = {}
+        self.submit_targets: ScopedRows = ScopedRows()
         self.tag_profile_tags: dict[tuple[str, str], dict[str, Any]] = {}
-        self.templates: dict[str, dict[str, Any]] = {}
+        self.templates: ScopedRows = ScopedRows()
         self.template_tags: dict[tuple[str, str], dict[str, Any]] = {}
-        self.tumblr_accounts: dict[str, dict[str, Any]] = {}
+        self.tumblr_accounts: ScopedRows = ScopedRows()
         self.users: dict[str, dict[str, Any]] = {}
         self.user_sessions: dict[str, dict[str, Any]] = {}
         self.workspaces: dict[str, dict[str, Any]] = {}
@@ -115,6 +148,10 @@ class FakePostgresConnection:
 
         if normalized.startswith("select * from schema_migrations order by"):
             return FakeCursor(sorted(self.schema_migrations.values(), key=lambda row: row["version"]))
+
+        if normalized.startswith("select a.attname as column_name from pg_index"):
+            primary_keys = getattr(self, "primary_keys", {})
+            return FakeCursor([{"column_name": column} for column in primary_keys.get(str(params[0]), ())])
 
         if normalized.startswith("insert into schema_migrations"):
             if str(params[0]) not in self.schema_migrations:
@@ -266,17 +303,37 @@ class FakePostgresConnection:
         if normalized.startswith("update ") and " set workspace_id = %s where workspace_id = %s" in normalized:
             table_name = normalized.split()[1]
             table = getattr(self, table_name)
-            for row in table.values():
+            updates: list[tuple[Any, tuple[str, str], dict[str, Any]]] = []
+            for key, row in list(table.items()):
                 if row.get("workspace_id", "default") == params[1]:
                     row["workspace_id"] = params[0]
+                    if isinstance(table, ScopedRows):
+                        updates.append((key, ScopedRows.key(row["workspace_id"], row["id"]), row))
+            for old_key, new_key, row in updates:
+                table.pop(old_key, None)
+                table[new_key] = row
+            if table_name in {"advertisement_tags", "template_tags", "tag_profile_tags", "submission_queue_runner_payload_values"}:
+                rekeyed: dict[tuple[str, str], dict[str, Any]] = {}
+                for row in table.values():
+                    if table_name == "advertisement_tags":
+                        key = (f"{row['workspace_id']}:{row['advertisement_id']}", str(row["tag"]))
+                    elif table_name == "template_tags":
+                        key = (f"{row['workspace_id']}:{row['template_id']}", str(row["tag"]))
+                    elif table_name == "tag_profile_tags":
+                        key = (f"{row['workspace_id']}:{row['blog_id']}", str(row["tag"]))
+                    else:
+                        key = (f"{row['workspace_id']}:{row['queue_item_id']}", str(row["payload_path"]))
+                    rekeyed[key] = row
+                table.clear()
+                table.update(rekeyed)
             return FakeCursor()
 
         if normalized.startswith("select created_at from advertisements"):
-            row = self.advertisements.get(str(params[0]))
+            row = self.advertisements.get(ScopedRows.key(params[1], params[0]) if len(params) > 1 else str(params[0]))
             return FakeCursor([{"created_at": row["created_at"]}] if row else [])
 
         if normalized.startswith("select * from advertisements where id"):
-            row = self.advertisements.get(str(params[0]))
+            row = self.advertisements.get(ScopedRows.key(params[1], params[0]) if len(params) > 1 else str(params[0]))
             return FakeCursor([row] if row else [])
 
         if normalized.startswith("select * from advertisements order by"):
@@ -304,38 +361,50 @@ class FakePostgresConnection:
                 "created_at": params[14],
                 "updated_at": params[15],
             }
-            self.advertisements[str(params[0])] = row
+            self.advertisements[ScopedRows.key(row["workspace_id"], row["id"])] = row
             return FakeCursor()
 
         if normalized.startswith("delete from advertisements"):
-            self.advertisements.pop(str(params[0]), None)
+            self.advertisements.pop(ScopedRows.key(params[1], params[0]) if len(params) > 1 else str(params[0]), None)
             return FakeCursor()
 
         if normalized.startswith("update advertisement_tags set workspace_id"):
-            for row in self.advertisement_tags.values():
+            for key, row in list(self.advertisement_tags.items()):
                 if row["advertisement_id"] == params[1]:
                     row["workspace_id"] = params[0]
+                    self.advertisement_tags.pop(key, None)
+                    self.advertisement_tags[(f"{row['workspace_id']}:{row['advertisement_id']}", str(row["tag"]))] = row
             return FakeCursor()
 
         if normalized.startswith("delete from advertisement_tags"):
-            for key in [key for key in self.advertisement_tags if key[0] == str(params[0])]:
+            workspace_id = str(params[1]) if len(params) > 1 else None
+            for key in [
+                key
+                for key, row in self.advertisement_tags.items()
+                if row["advertisement_id"] == params[0] and (workspace_id is None or row.get("workspace_id") == workspace_id)
+            ]:
                 self.advertisement_tags.pop(key, None)
             return FakeCursor()
 
         if normalized.startswith("insert into advertisement_tags"):
             row = {
                 "advertisement_id": params[0],
-                "workspace_id": "default",
-                "tag": params[1],
-                "sort_order": params[2],
-                "created_at": params[3],
-                "updated_at": params[4],
+                "workspace_id": params[1],
+                "tag": params[2],
+                "sort_order": params[3],
+                "created_at": params[4],
+                "updated_at": params[5],
             }
-            self.advertisement_tags[(str(params[0]), str(params[1]))] = row
+            self.advertisement_tags[(f"{row['workspace_id']}:{row['advertisement_id']}", str(row["tag"]))] = row
             return FakeCursor()
 
         if normalized.startswith("select tag from advertisement_tags"):
-            rows = [row for row in self.advertisement_tags.values() if row["advertisement_id"] == params[0]]
+            workspace_id = str(params[1]) if len(params) > 1 else None
+            rows = [
+                row
+                for row in self.advertisement_tags.values()
+                if row["advertisement_id"] == params[0] and (workspace_id is None or row.get("workspace_id") == workspace_id)
+            ]
             return FakeCursor(sorted(rows, key=lambda row: (row["sort_order"], row["tag"])))
 
         if normalized.startswith("select * from app_settings where key"):
@@ -361,11 +430,15 @@ class FakePostgresConnection:
                 "created_at": params[7],
                 "updated_at": params[8],
             }
-            self.submit_targets[str(params[0])] = row
+            self.submit_targets[ScopedRows.key(row["workspace_id"], row["id"])] = row
             return FakeCursor()
 
         if normalized.startswith("select * from submit_targets order by"):
             return FakeCursor(sorted(self.submit_targets.values(), key=lambda row: row["name"]))
+
+        if normalized.startswith("select * from submit_targets where id"):
+            row = self.submit_targets.get(ScopedRows.key(params[1], params[0]) if len(params) > 1 else str(params[0]))
+            return FakeCursor([row] if row else [])
 
         if normalized.startswith("select * from submit_targets where workspace_id"):
             return FakeCursor(sorted([row for row in self.submit_targets.values() if row.get("workspace_id") == params[0]], key=lambda row: row["name"]))
@@ -380,23 +453,25 @@ class FakePostgresConnection:
 
         if normalized.startswith("insert into queue_definitions"):
             row = {"id": params[0], "workspace_id": params[1], "name": params[2], "created_at": params[3], "updated_at": params[4]}
-            self.queue_definitions[str(params[0])] = row
+            self.queue_definitions[ScopedRows.key(row["workspace_id"], row["id"])] = row
             return FakeCursor()
 
         if normalized.startswith("select * from queue_definitions order by"):
             return FakeCursor(sorted(self.queue_definitions.values(), key=lambda row: row["name"]))
 
+        if normalized.startswith("select * from queue_definitions where id"):
+            row = self.queue_definitions.get(ScopedRows.key(params[1], params[0]) if len(params) > 1 else str(params[0]))
+            return FakeCursor([row] if row else [])
+
         if normalized.startswith("select * from queue_definitions where workspace_id"):
             return FakeCursor(sorted([row for row in self.queue_definitions.values() if row.get("workspace_id") == params[0]], key=lambda row: row["name"]))
 
         if normalized.startswith("select created_at from tumblr_accounts"):
-            row = self.tumblr_accounts.get(str(params[0]))
+            row = self.tumblr_accounts.get(ScopedRows.key(params[1], params[0]) if len(params) > 1 else str(params[0]))
             return FakeCursor([{"created_at": row["created_at"]}] if row else [])
 
         if normalized.startswith("select * from tumblr_accounts where id"):
-            row = self.tumblr_accounts.get(str(params[0]))
-            if row and len(params) > 1 and row.get("workspace_id") != params[1]:
-                row = None
+            row = self.tumblr_accounts.get(ScopedRows.key(params[1], params[0]) if len(params) > 1 else str(params[0]))
             return FakeCursor([row] if row else [])
 
         if normalized.startswith("select * from tumblr_accounts where workspace_id"):
@@ -424,11 +499,11 @@ class FakePostgresConnection:
                 "created_at": params[13],
                 "updated_at": params[14],
             }
-            self.tumblr_accounts[str(params[0])] = row
+            self.tumblr_accounts[ScopedRows.key(row["workspace_id"], row["id"])] = row
             return FakeCursor()
 
         if normalized.startswith("delete from tumblr_accounts"):
-            self.tumblr_accounts.pop(str(params[0]), None)
+            self.tumblr_accounts.pop(ScopedRows.key(params[1], params[0]) if len(params) > 1 else str(params[0]), None)
             return FakeCursor()
 
         if normalized.startswith("delete from tag_profile_tags") and not params:
@@ -437,29 +512,39 @@ class FakePostgresConnection:
 
         if normalized.startswith("delete from tag_profile_tags"):
             if "workspace_id" in normalized:
-                for key in [key for key, row in self.tag_profile_tags.items() if row.get("workspace_id") == params[0]]:
-                    self.tag_profile_tags.pop(key, None)
+                if len(params) > 1 and "blog_id" in normalized:
+                    for key in [
+                        key
+                        for key, row in self.tag_profile_tags.items()
+                        if row.get("blog_id") == params[0] and row.get("workspace_id") == params[1]
+                    ]:
+                        self.tag_profile_tags.pop(key, None)
+                else:
+                    for key in [key for key, row in self.tag_profile_tags.items() if row.get("workspace_id") == params[0]]:
+                        self.tag_profile_tags.pop(key, None)
             else:
-                for key in [key for key in self.tag_profile_tags if key[0] == str(params[0])]:
+                for key in [key for key, row in self.tag_profile_tags.items() if row.get("blog_id") == params[0]]:
                     self.tag_profile_tags.pop(key, None)
             return FakeCursor()
 
         if normalized.startswith("update tag_profile_tags set workspace_id"):
-            for row in self.tag_profile_tags.values():
+            for key, row in list(self.tag_profile_tags.items()):
                 if row["blog_id"] == params[1]:
                     row["workspace_id"] = params[0]
+                    self.tag_profile_tags.pop(key, None)
+                    self.tag_profile_tags[(f"{row['workspace_id']}:{row['blog_id']}", str(row["tag"]))] = row
             return FakeCursor()
 
         if normalized.startswith("insert into tag_profile_tags"):
             row = {
                 "blog_id": params[0],
-                "workspace_id": "default",
-                "tag": params[1],
-                "sort_order": params[2],
-                "created_at": params[3],
-                "updated_at": params[4],
+                "workspace_id": params[1],
+                "tag": params[2],
+                "sort_order": params[3],
+                "created_at": params[4],
+                "updated_at": params[5],
             }
-            self.tag_profile_tags[(str(params[0]), str(params[1]))] = row
+            self.tag_profile_tags[(f"{row['workspace_id']}:{row['blog_id']}", str(row["tag"]))] = row
             return FakeCursor()
 
         if normalized.startswith("select * from tag_profile_tags order by"):
@@ -481,21 +566,16 @@ class FakePostgresConnection:
                 "remote_browser_launch_url": params[7],
                 "updated_at": params[8],
             }
-            self.runner_settings[str(params[0])] = row
+            self.runner_settings[ScopedRows.key(row["workspace_id"], row["id"])] = row
             return FakeCursor()
 
         if normalized.startswith("select * from runner_settings where id"):
-            row = self.runner_settings.get(str(params[0]))
-            if row and len(params) > 1 and row.get("workspace_id") != params[1]:
-                row = None
+            row = self.runner_settings.get(ScopedRows.key(params[1], params[0]) if len(params) > 1 else str(params[0]))
             return FakeCursor([row] if row else [])
 
         if normalized.startswith("select * from runner_settings where workspace_id"):
             rows = [row for row in self.runner_settings.values() if row.get("workspace_id") == params[0]]
             return FakeCursor(rows)
-
-        if normalized.startswith("select * from runner_settings where id"):
-            return FakeCursor([row] if row else [])
 
         if normalized.startswith("delete from runner_settings"):
             if params:
@@ -514,13 +594,11 @@ class FakePostgresConnection:
                 "timezone": params[4],
                 "updated_at": params[5],
             }
-            self.queue_schedule_settings[str(params[0])] = row
+            self.queue_schedule_settings[ScopedRows.key(row["workspace_id"], row["id"])] = row
             return FakeCursor()
 
         if normalized.startswith("select * from queue_schedule_settings where id"):
-            row = self.queue_schedule_settings.get(str(params[0]))
-            if row and len(params) > 1 and row.get("workspace_id") != params[1]:
-                row = None
+            row = self.queue_schedule_settings.get(ScopedRows.key(params[1], params[0]) if len(params) > 1 else str(params[0]))
             return FakeCursor([row] if row else [])
 
         if normalized.startswith("select * from queue_schedule_settings where workspace_id"):
@@ -558,11 +636,11 @@ class FakePostgresConnection:
             return FakeCursor(sorted(rows, key=lambda row: row["created_at"], reverse=True))
 
         if normalized.startswith("select created_at from templates"):
-            row = self.templates.get(str(params[0]))
+            row = self.templates.get(ScopedRows.key(params[1], params[0]) if len(params) > 1 else str(params[0]))
             return FakeCursor([{"created_at": row["created_at"]}] if row else [])
 
         if normalized.startswith("select * from templates where id"):
-            row = self.templates.get(str(params[0]))
+            row = self.templates.get(ScopedRows.key(params[1], params[0]) if len(params) > 1 else str(params[0]))
             return FakeCursor([row] if row else [])
 
         if normalized.startswith("select * from templates order by"):
@@ -573,10 +651,11 @@ class FakePostgresConnection:
             return FakeCursor(sorted(rows, key=lambda row: row["name"]))
 
         if normalized.startswith("insert into templates"):
-            if "do nothing" in normalized and str(params[0]) in self.templates:
+            workspace_id = params[1] if "workspace_id" in normalized else "default"
+            if "do nothing" in normalized and ScopedRows.key(workspace_id, params[0]) in self.templates:
                 return FakeCursor()
 
-            if "workspace_id" in normalized:
+            if "workspace_id" in normalized and len(params) == 8:
                 row = {
                     "id": params[0],
                     "workspace_id": params[1],
@@ -586,6 +665,17 @@ class FakePostgresConnection:
                     "queue_name": params[5],
                     "created_at": params[6],
                     "updated_at": params[7],
+                }
+            elif "workspace_id" in normalized:
+                row = {
+                    "id": params[0],
+                    "workspace_id": params[1],
+                    "name": params[2],
+                    "content": params[3],
+                    "forum_url": params[4],
+                    "queue_name": "",
+                    "created_at": params[5],
+                    "updated_at": params[6],
                 }
             else:
                 row = {
@@ -598,46 +688,58 @@ class FakePostgresConnection:
                     "created_at": params[4],
                     "updated_at": params[5],
                 }
-            self.templates[str(params[0])] = row
+            self.templates[ScopedRows.key(row["workspace_id"], row["id"])] = row
             return FakeCursor()
 
         if normalized.startswith("update template_tags set workspace_id"):
-            for row in self.template_tags.values():
+            for key, row in list(self.template_tags.items()):
                 if row["template_id"] == params[1]:
                     row["workspace_id"] = params[0]
+                    self.template_tags.pop(key, None)
+                    self.template_tags[(f"{row['workspace_id']}:{row['template_id']}", str(row["tag"]))] = row
             return FakeCursor()
 
         if normalized.startswith("delete from template_tags"):
-            for key in [key for key in self.template_tags if key[0] == str(params[0])]:
+            workspace_id = str(params[1]) if len(params) > 1 else None
+            for key in [
+                key
+                for key, row in self.template_tags.items()
+                if row["template_id"] == params[0] and (workspace_id is None or row.get("workspace_id") == workspace_id)
+            ]:
                 self.template_tags.pop(key, None)
             return FakeCursor()
 
         if normalized.startswith("insert into template_tags"):
             row = {
                 "template_id": params[0],
-                "workspace_id": "default",
-                "tag": params[1],
-                "sort_order": params[2],
-                "created_at": params[3],
-                "updated_at": params[4],
+                "workspace_id": params[1],
+                "tag": params[2],
+                "sort_order": params[3],
+                "created_at": params[4],
+                "updated_at": params[5],
             }
-            self.template_tags[(str(params[0]), str(params[1]))] = row
+            self.template_tags[(f"{row['workspace_id']}:{row['template_id']}", str(row["tag"]))] = row
             return FakeCursor()
 
         if normalized.startswith("select tag from template_tags"):
-            rows = [row for row in self.template_tags.values() if row["template_id"] == params[0]]
+            workspace_id = str(params[1]) if len(params) > 1 else None
+            rows = [
+                row
+                for row in self.template_tags.values()
+                if row["template_id"] == params[0] and (workspace_id is None or row.get("workspace_id") == workspace_id)
+            ]
             return FakeCursor(sorted(rows, key=lambda row: (row["sort_order"], row["tag"])))
 
         if normalized.startswith("delete from templates"):
-            self.templates.pop(str(params[0]), None)
+            self.templates.pop(ScopedRows.key(params[1], params[0]) if len(params) > 1 else str(params[0]), None)
             return FakeCursor()
 
         if normalized.startswith("select created_at from submission_queue"):
-            row = self.submission_queue.get(str(params[0]))
+            row = self.submission_queue.get(ScopedRows.key(params[1], params[0]) if len(params) > 1 else str(params[0]))
             return FakeCursor([{"created_at": row["created_at"]}] if row else [])
 
         if normalized.startswith("select * from submission_queue where id"):
-            row = self.submission_queue.get(str(params[0]))
+            row = self.submission_queue.get(ScopedRows.key(params[1], params[0]) if len(params) > 1 else str(params[0]))
             return FakeCursor([row] if row else [])
 
         if normalized.startswith("select * from submission_queue order by"):
@@ -668,30 +770,40 @@ class FakePostgresConnection:
                 "posted_at": params[16],
                 "failed_at": params[17],
             }
-            self.submission_queue[str(params[0])] = row
+            self.submission_queue[ScopedRows.key(row["workspace_id"], row["id"])] = row
             return FakeCursor()
 
         if normalized.startswith("delete from submission_queue_runner_payload_values"):
-            for key in [key for key in self.submission_queue_runner_payload_values if key[0] == str(params[0])]:
+            workspace_id = str(params[1]) if len(params) > 1 else None
+            for key in [
+                key
+                for key, row in self.submission_queue_runner_payload_values.items()
+                if row["queue_item_id"] == params[0] and (workspace_id is None or row.get("workspace_id") == workspace_id)
+            ]:
                 self.submission_queue_runner_payload_values.pop(key, None)
             return FakeCursor()
 
         if normalized.startswith("insert into submission_queue_runner_payload_values"):
             row = {
                 "queue_item_id": params[0],
-                "workspace_id": "default",
-                "payload_path": params[1],
-                "sort_order": params[2],
-                "value_type": params[3],
-                "value_text": params[4],
-                "created_at": params[5],
-                "updated_at": params[6],
+                "workspace_id": params[1],
+                "payload_path": params[2],
+                "sort_order": params[3],
+                "value_type": params[4],
+                "value_text": params[5],
+                "created_at": params[6],
+                "updated_at": params[7],
             }
-            self.submission_queue_runner_payload_values[(str(params[0]), str(params[1]))] = row
+            self.submission_queue_runner_payload_values[(f"{row['workspace_id']}:{row['queue_item_id']}", str(row["payload_path"]))] = row
             return FakeCursor()
 
         if normalized.startswith("select payload_path, value_type, value_text from submission_queue_runner_payload_values"):
-            rows = [row for row in self.submission_queue_runner_payload_values.values() if row["queue_item_id"] == params[0]]
+            workspace_id = str(params[1]) if len(params) > 1 else None
+            rows = [
+                row
+                for row in self.submission_queue_runner_payload_values.values()
+                if row["queue_item_id"] == params[0] and (workspace_id is None or row.get("workspace_id") == workspace_id)
+            ]
             return FakeCursor(sorted(rows, key=lambda row: (row["sort_order"], row["payload_path"])))
 
         if normalized.startswith("select * from submission_queue_runner_payload_values order by"):
@@ -707,13 +819,15 @@ class FakePostgresConnection:
             return FakeCursor(sorted(rows, key=lambda row: (row["queue_item_id"], row["sort_order"], row["payload_path"])))
 
         if normalized.startswith("update submission_queue_runner_payload_values set workspace_id"):
-            for row in self.submission_queue_runner_payload_values.values():
+            for key, row in list(self.submission_queue_runner_payload_values.items()):
                 if row["queue_item_id"] == params[1]:
                     row["workspace_id"] = params[0]
+                    self.submission_queue_runner_payload_values.pop(key, None)
+                    self.submission_queue_runner_payload_values[(f"{row['workspace_id']}:{row['queue_item_id']}", str(row["payload_path"]))] = row
             return FakeCursor()
 
         if normalized.startswith("delete from submission_queue"):
-            self.submission_queue.pop(str(params[0]), None)
+            self.submission_queue.pop(ScopedRows.key(params[1], params[0]) if len(params) > 1 else str(params[0]), None)
             return FakeCursor()
 
         if normalized.startswith("insert into runner_logs"):
@@ -734,29 +848,43 @@ class FakePostgresConnection:
             if not params:
                 self.runner_log_details.clear()
                 return FakeCursor()
-            for key in [key for key in self.runner_log_details if key[0] == str(params[0])]:
+            workspace_id = str(params[1]) if len(params) > 1 else None
+            for key in [
+                key
+                for key, row in self.runner_log_details.items()
+                if row["log_id"] == params[0] and (workspace_id is None or row.get("workspace_id") == workspace_id)
+            ]:
                 self.runner_log_details.pop(key, None)
             return FakeCursor()
 
         if normalized.startswith("insert into runner_log_details"):
+            if "on conflict(log_id, detail_key)" in normalized:
+                raise AssertionError("runner_log_details writes must conflict on workspace_id, log_id, and detail_key")
             row = {
                 "log_id": params[0],
-                "workspace_id": "default",
-                "detail_key": params[1],
-                "detail_value": params[2],
-                "created_at": params[3],
+                "workspace_id": params[1],
+                "detail_key": params[2],
+                "detail_value": params[3],
+                "created_at": params[4],
             }
-            self.runner_log_details[(str(params[0]), str(params[1]))] = row
+            self.runner_log_details[(f"{row['workspace_id']}:{row['log_id']}", str(row["detail_key"]))] = row
             return FakeCursor()
 
         if normalized.startswith("select detail_key, detail_value from runner_log_details"):
-            rows = [row for row in self.runner_log_details.values() if row["log_id"] == params[0]]
+            workspace_id = str(params[1]) if len(params) > 1 else None
+            rows = [
+                row
+                for row in self.runner_log_details.values()
+                if row["log_id"] == params[0] and (workspace_id is None or row.get("workspace_id") == workspace_id)
+            ]
             return FakeCursor(sorted(rows, key=lambda row: row["detail_key"]))
 
         if normalized.startswith("update runner_log_details set workspace_id"):
-            for row in self.runner_log_details.values():
+            for key, row in list(self.runner_log_details.items()):
                 if row["log_id"] == params[1]:
                     row["workspace_id"] = params[0]
+                    self.runner_log_details.pop(key, None)
+                    self.runner_log_details[(f"{row['workspace_id']}:{row['log_id']}", str(row["detail_key"]))] = row
             return FakeCursor()
 
         if normalized.startswith("delete from runner_logs"):
@@ -781,6 +909,57 @@ class FakePostgresConnection:
         raise AssertionError(f"Unexpected query: {query}")
 
 
+class RecordingPostgresConnection(FakePostgresConnection):
+    def __init__(self) -> None:
+        super().__init__()
+        self.executed_sql: list[str] = []
+
+    def execute(self, query: str, params: tuple[Any, ...] | None = None) -> FakeCursor:
+        self.executed_sql.append(" ".join(query.split()).lower())
+        return super().execute(query, params)
+
+
+class ConstraintCheckingPostgresConnection(RecordingPostgresConnection):
+    def __init__(self, existing_old_schema: bool = False) -> None:
+        super().__init__()
+        self.existing_old_schema = existing_old_schema
+        self.primary_keys: dict[str, tuple[str, ...]] = {
+            "advertisements": ("id",),
+            "templates": ("id",),
+            "submission_queue": ("id",),
+            "tumblr_accounts": ("id",),
+            "submit_targets": ("id",),
+            "queue_definitions": ("id",),
+            "runner_settings": ("id",),
+            "queue_schedule_settings": ("id",),
+            "advertisement_tags": ("advertisement_id", "tag"),
+            "template_tags": ("template_id", "tag"),
+            "tag_profile_tags": ("blog_id", "tag"),
+            "runner_log_details": ("log_id", "detail_key"),
+            "submission_queue_runner_payload_values": ("queue_item_id", "payload_path"),
+        } if existing_old_schema else {}
+
+    def execute(self, query: str, params: tuple[Any, ...] | None = None) -> FakeCursor:
+        normalized = " ".join(query.split()).lower()
+        create_match = re.search(r"create table if not exists ([a-z_]+) .* primary key \(([^)]+)\)", normalized)
+        if create_match and not self.existing_old_schema:
+            self.primary_keys[create_match.group(1)] = tuple(column.strip() for column in create_match.group(2).split(","))
+
+        alter_match = re.search(r"alter table ([a-z_]+) add constraint [a-z_]+_pkey primary key \(([^)]+)\)", normalized)
+        if alter_match:
+            self.primary_keys[alter_match.group(1)] = tuple(column.strip() for column in alter_match.group(2).split(","))
+
+        insert_match = re.search(r"insert into ([a-z_]+).* on conflict\(([^)]+)\)", normalized)
+        if insert_match:
+            table = insert_match.group(1)
+            conflict_columns = tuple(column.strip() for column in insert_match.group(2).split(","))
+            primary_key = self.primary_keys.get(table)
+            if primary_key and conflict_columns != primary_key:
+                raise AssertionError(f"{table} conflict target {conflict_columns} does not match primary key {primary_key}")
+
+        return super().execute(query, params)
+
+
 class PersistenceTests(unittest.TestCase):
     def setUp(self) -> None:
         self.connection = FakePostgresConnection()
@@ -800,6 +979,257 @@ class PersistenceTests(unittest.TestCase):
                 os.environ.pop("PGHOST", None)
             else:
                 os.environ["PGHOST"] = old_host
+
+    def test_initialize_emits_workspace_scoped_primary_key_sql_for_scoped_tables(self) -> None:
+        connection = ConstraintCheckingPostgresConnection(existing_old_schema=True)
+        initialize(connection)
+        executed_sql = "\n".join(connection.executed_sql)
+
+        for table, key_columns in {
+            "advertisements": "workspace_id, id",
+            "templates": "workspace_id, id",
+            "submission_queue": "workspace_id, id",
+            "tumblr_accounts": "workspace_id, id",
+            "submit_targets": "workspace_id, id",
+            "queue_definitions": "workspace_id, id",
+            "runner_settings": "workspace_id, id",
+            "queue_schedule_settings": "workspace_id, id",
+            "advertisement_tags": "workspace_id, advertisement_id, tag",
+            "template_tags": "workspace_id, template_id, tag",
+            "tag_profile_tags": "workspace_id, blog_id, tag",
+            "runner_log_details": "workspace_id, log_id, detail_key",
+            "submission_queue_runner_payload_values": "workspace_id, queue_item_id, payload_path",
+        }.items():
+            self.assertIn(f"alter table {table} add constraint {table}_pkey primary key ({key_columns})", executed_sql)
+
+    def test_initialize_does_not_remap_primary_keys_after_schema_version_is_applied(self) -> None:
+        connection = RecordingPostgresConnection()
+        initialize(connection)
+        first_run_key_remaps = [
+            sql for sql in connection.executed_sql if "add constraint" in sql and "primary key" in sql
+        ]
+        self.assertGreater(len(first_run_key_remaps), 0)
+
+        connection.executed_sql.clear()
+        initialize(connection)
+
+        second_run_key_remaps = [
+            sql for sql in connection.executed_sql if "add constraint" in sql and "primary key" in sql
+        ]
+        self.assertEqual(second_run_key_remaps, [])
+
+    def test_runner_log_details_use_workspace_scoped_conflict_target(self) -> None:
+        connection = ConstraintCheckingPostgresConnection()
+        initialize(connection)
+        upsert_queue_item(
+            connection,
+            {
+                "id": "queue-log-sql",
+                "workspace_id": "workspace-sql",
+                "ad_id": "ad-1",
+                "target_id": "target-1",
+                "target_name": "Target",
+                "submit_url": "https://example.tumblr.com/submit",
+                "runner_payload": "{}",
+            },
+        )
+
+        log = record_runner_log(
+            connection,
+            {
+                "queue_item_id": "queue-log-sql",
+                "workspace_id": "workspace-sql",
+                "run_id": "run-sql",
+                "level": "info",
+                "status": "submitted",
+                "message": "Submit button clicked.",
+                "details": {"submit": True},
+            },
+        )
+
+        executed_sql = "\n".join(connection.executed_sql)
+        self.assertIn("delete from runner_log_details where log_id = %s and workspace_id = %s", executed_sql)
+        self.assertIn("on conflict(workspace_id, log_id, detail_key) do update", executed_sql)
+        self.assertNotIn("on conflict(log_id, detail_key)", executed_sql)
+        self.assertEqual(connection.runner_log_details[(f"workspace-sql:{log['id']}", "submit")]["workspace_id"], "workspace-sql")
+
+    def test_workspace_scoped_conflict_paths_match_declared_primary_keys(self) -> None:
+        connection = ConstraintCheckingPostgresConnection()
+        initialize(connection)
+
+        for workspace_id, title in (("workspace-one", "Original"), ("workspace-two", "Second")):
+            upsert_advertisement(
+                connection,
+                {
+                    "id": "shared-ad",
+                    "workspace_id": workspace_id,
+                    "title": title,
+                    "destination_blog": "snowleopardx",
+                    "tags": ["jcink", "forum rp"],
+                },
+            )
+            upsert_template(
+                connection,
+                {
+                    "id": "shared-template",
+                    "workspace_id": workspace_id,
+                    "name": f"{title} template",
+                    "content": "<p>Copy</p>",
+                    "tags": ["wanted"],
+                },
+            )
+            upsert_tumblr_account(
+                connection,
+                {
+                    "id": "shared-account",
+                    "workspace_id": workspace_id,
+                    "display_name": f"{title} account",
+                    "blog_name": "snowleopardx",
+                },
+            )
+            upsert_queue_item(
+                connection,
+                {
+                    "id": "shared-queue",
+                    "workspace_id": workspace_id,
+                    "ad_id": "shared-ad",
+                    "target_id": "shared-target",
+                    "target_name": "Target",
+                    "submit_url": "https://example.tumblr.com/submit",
+                    "runner_payload": json.dumps({"fields": {"body": title}}),
+                },
+            )
+            upsert_app_settings(
+                connection,
+                {
+                    "submitTargets": [{"id": "shared-target", "name": "Target", "submitUrl": "https://example.tumblr.com/submit"}],
+                    "queueDefinitions": [{"id": "shared-queue-definition", "name": "Default queue"}],
+                    "tagProfiles": {"snowleopardx": ["jcink"]},
+                    "runnerSettings": {"slowMo": 500},
+                    "queueScheduleSettings": {"enabled": True, "dailyTime": "09:00"},
+                },
+                workspace_id=workspace_id,
+            )
+            record_runner_log(
+                connection,
+                {
+                    "queue_item_id": "shared-queue",
+                    "workspace_id": workspace_id,
+                    "run_id": f"run-{workspace_id}",
+                    "level": "info",
+                    "status": "submitted",
+                    "message": "Submit button clicked.",
+                    "details": {"workspace": workspace_id},
+                },
+            )
+
+        self.assertEqual(connection.advertisements[("workspace-one", "shared-ad")]["title"], "Original")
+        self.assertEqual(connection.advertisements[("workspace-two", "shared-ad")]["title"], "Second")
+        self.assertEqual(connection.templates[("workspace-one", "shared-template")]["name"], "Original template")
+        self.assertEqual(connection.templates[("workspace-two", "shared-template")]["name"], "Second template")
+        self.assertEqual(connection.tumblr_accounts[("workspace-one", "shared-account")]["display_name"], "Original account")
+        self.assertEqual(connection.tumblr_accounts[("workspace-two", "shared-account")]["display_name"], "Second account")
+        self.assertEqual(connection.submission_queue[("workspace-one", "shared-queue")]["workspace_id"], "workspace-one")
+        self.assertEqual(connection.submission_queue[("workspace-two", "shared-queue")]["workspace_id"], "workspace-two")
+        self.assertEqual(connection.runner_settings[("workspace-one", "default")]["slow_mo"], 500)
+        self.assertEqual(connection.queue_schedule_settings[("workspace-two", "default")]["daily_time"], "09:00")
+
+    def test_postgres_workspace_scoped_constraints_and_conflicts(self) -> None:
+        dsn = os.environ.get("INWELL_TEST_POSTGRES_DSN")
+        if not dsn:
+            self.skipTest("INWELL_TEST_POSTGRES_DSN is not configured")
+
+        schema_name = f"inwell_test_{uuid.uuid4().hex}"
+        with app.psycopg.connect(dsn, row_factory=app.dict_row) as connection:
+            connection.execute(f'CREATE SCHEMA "{schema_name}"')
+            connection.execute(f'SET search_path TO "{schema_name}"')
+            try:
+                initialize(connection)
+                for table, columns in app.workspace_scoped_primary_keys().items():
+                    self.assertEqual(app.primary_key_columns(connection, table), columns)
+
+                for workspace_id, title in (("workspace-one", "Original"), ("workspace-two", "Second")):
+                    upsert_advertisement(
+                        connection,
+                        {
+                            "id": "shared-ad",
+                            "workspace_id": workspace_id,
+                            "title": title,
+                            "destination_blog": "snowleopardx",
+                            "tags": ["jcink", "forum rp"],
+                        },
+                    )
+                    upsert_template(
+                        connection,
+                        {
+                            "id": "shared-template",
+                            "workspace_id": workspace_id,
+                            "name": f"{title} template",
+                            "content": "<p>Copy</p>",
+                            "tags": ["wanted"],
+                        },
+                    )
+                    upsert_tumblr_account(
+                        connection,
+                        {
+                            "id": "shared-account",
+                            "workspace_id": workspace_id,
+                            "display_name": f"{title} account",
+                            "blog_name": "snowleopardx",
+                        },
+                    )
+                    upsert_queue_item(
+                        connection,
+                        {
+                            "id": "shared-queue",
+                            "workspace_id": workspace_id,
+                            "ad_id": "shared-ad",
+                            "target_id": "shared-target",
+                            "target_name": "Target",
+                            "submit_url": "https://example.tumblr.com/submit",
+                            "runner_payload": json.dumps({"fields": {"body": title}}),
+                        },
+                    )
+                    upsert_app_settings(
+                        connection,
+                        {
+                            "submitTargets": [
+                                {"id": "shared-target", "name": "Target", "submitUrl": "https://example.tumblr.com/submit"}
+                            ],
+                            "queueDefinitions": [{"id": "shared-queue-definition", "name": "Default queue"}],
+                            "tagProfiles": {"snowleopardx": ["jcink"]},
+                            "runnerSettings": {"slowMo": 500},
+                            "queueScheduleSettings": {"enabled": True, "dailyTime": "09:00"},
+                        },
+                        workspace_id=workspace_id,
+                    )
+                    record_runner_log(
+                        connection,
+                        {
+                            "queue_item_id": "shared-queue",
+                            "workspace_id": workspace_id,
+                            "run_id": f"run-{workspace_id}",
+                            "level": "info",
+                            "status": "submitted",
+                            "message": "Submit button clicked.",
+                            "details": {"workspace": workspace_id},
+                        },
+                    )
+
+                first_ad = connection.execute(
+                    "SELECT * FROM advertisements WHERE id = %s AND workspace_id = %s", ("shared-ad", "workspace-one")
+                ).fetchone()
+                second_ad = connection.execute(
+                    "SELECT * FROM advertisements WHERE id = %s AND workspace_id = %s", ("shared-ad", "workspace-two")
+                ).fetchone()
+                self.assertEqual(first_ad["title"], "Original")
+                self.assertEqual(second_ad["title"], "Second")
+                details = connection.execute(
+                    "SELECT * FROM runner_log_details WHERE workspace_id = %s ORDER BY detail_key", ("workspace-two",)
+                ).fetchall()
+                self.assertTrue(any(row["detail_key"] == "workspace" and row["detail_value"] == "workspace-two" for row in details))
+            finally:
+                connection.execute(f'DROP SCHEMA "{schema_name}" CASCADE')
 
     def test_initialize_records_current_schema_version_once(self) -> None:
         initialize(self.connection)
@@ -924,6 +1354,166 @@ class PersistenceTests(unittest.TestCase):
             [row["tag"] for row in self.connection.template_tags.values() if row["template_id"] == "template-custom"],
             ["#custom"],
         )
+
+    def test_workspace_scoped_upserts_keep_cross_workspace_ids_isolated(self) -> None:
+        upsert_advertisement(
+            self.connection,
+            {
+                "id": "shared-ad",
+                "workspace_id": "workspace-one",
+                "title": "Original",
+                "destination_blog": "snowleopardx",
+            },
+        )
+        upsert_advertisement(
+            self.connection,
+            {
+                "id": "shared-ad",
+                "workspace_id": "workspace-two",
+                "title": "Second workspace",
+                "destination_blog": "snowleopardx",
+            },
+        )
+        self.assertEqual(self.connection.advertisements[("workspace-one", "shared-ad")]["title"], "Original")
+        self.assertEqual(self.connection.advertisements[("workspace-two", "shared-ad")]["title"], "Second workspace")
+
+        upsert_template(
+            self.connection,
+            {
+                "id": "shared-template",
+                "workspace_id": "workspace-one",
+                "name": "Original template",
+                "content": "<p>Safe</p>",
+            },
+        )
+        upsert_template(
+            self.connection,
+            {
+                "id": "shared-template",
+                "workspace_id": "workspace-two",
+                "name": "Second template",
+                "content": "<p>Changed</p>",
+            },
+        )
+        self.assertEqual(self.connection.templates[("workspace-one", "shared-template")]["name"], "Original template")
+        self.assertEqual(self.connection.templates[("workspace-two", "shared-template")]["name"], "Second template")
+
+        upsert_tumblr_account(
+            self.connection,
+            {
+                "id": "shared-account",
+                "workspace_id": "workspace-one",
+                "display_name": "Original account",
+                "blog_name": "original",
+            },
+        )
+        upsert_tumblr_account(
+            self.connection,
+            {
+                "id": "shared-account",
+                "workspace_id": "workspace-two",
+                "display_name": "Second account",
+                "blog_name": "second",
+            },
+        )
+        self.assertEqual(self.connection.tumblr_accounts[("workspace-one", "shared-account")]["display_name"], "Original account")
+        self.assertEqual(self.connection.tumblr_accounts[("workspace-two", "shared-account")]["display_name"], "Second account")
+
+        upsert_queue_item(
+            self.connection,
+            {
+                "id": "shared-queue",
+                "workspace_id": "workspace-one",
+                "ad_id": "ad-1",
+                "target_id": "target-1",
+                "target_name": "Target",
+                "submit_url": "https://example.tumblr.com/submit",
+                "runner_payload": "{}",
+            },
+        )
+        upsert_queue_item(
+            self.connection,
+            {
+                "id": "shared-queue",
+                "workspace_id": "workspace-two",
+                "ad_id": "ad-2",
+                "target_id": "target-2",
+                "target_name": "Other",
+                "submit_url": "https://other.tumblr.com/submit",
+                "runner_payload": "{}",
+            },
+        )
+        self.assertEqual(self.connection.submission_queue[("workspace-one", "shared-queue")]["target_name"], "Target")
+        self.assertEqual(self.connection.submission_queue[("workspace-two", "shared-queue")]["target_name"], "Other")
+
+    def test_workspace_scoped_settings_keep_cross_workspace_ids_isolated(self) -> None:
+        upsert_app_settings(
+            self.connection,
+            {
+                "submitTargets": [
+                    {
+                        "id": "shared-target",
+                        "name": "Original target",
+                        "profileName": "Original",
+                        "submitUrl": "https://original.tumblr.com/submit",
+                    }
+                ]
+            },
+            workspace_id="workspace-one",
+        )
+        upsert_app_settings(
+            self.connection,
+            {
+                "submitTargets": [
+                    {
+                        "id": "shared-target",
+                        "name": "Second target",
+                        "profileName": "Second",
+                        "submitUrl": "https://second.tumblr.com/submit",
+                    }
+                ]
+            },
+            workspace_id="workspace-two",
+        )
+        self.assertEqual(self.connection.submit_targets[("workspace-one", "shared-target")]["name"], "Original target")
+        self.assertEqual(self.connection.submit_targets[("workspace-two", "shared-target")]["name"], "Second target")
+        self.connection.runner_settings.clear()
+        self.connection.queue_schedule_settings.clear()
+
+        upsert_app_settings(
+            self.connection,
+            {"queueDefinitions": [{"id": "shared-queue-definition", "name": "Original queue"}]},
+            workspace_id="workspace-three",
+        )
+        upsert_app_settings(
+            self.connection,
+            {"queueDefinitions": [{"id": "shared-queue-definition", "name": "Second queue"}]},
+            workspace_id="workspace-four",
+        )
+        self.assertEqual(self.connection.queue_definitions[("workspace-three", "shared-queue-definition")]["name"], "Original queue")
+        self.assertEqual(self.connection.queue_definitions[("workspace-four", "shared-queue-definition")]["name"], "Second queue")
+        self.connection.runner_settings.clear()
+        self.connection.queue_schedule_settings.clear()
+
+        upsert_app_settings(self.connection, {"runnerSettings": {"slowMo": 500}}, workspace_id="workspace-five")
+        upsert_app_settings(self.connection, {"runnerSettings": {"slowMo": 900}}, workspace_id="workspace-six")
+        self.assertEqual(self.connection.runner_settings[("workspace-five", "default")]["slow_mo"], 500)
+        self.assertEqual(self.connection.runner_settings[("workspace-six", "default")]["slow_mo"], 900)
+
+        self.connection.runner_settings.clear()
+        self.connection.queue_schedule_settings.clear()
+        upsert_app_settings(
+            self.connection,
+            {"queueScheduleSettings": {"enabled": True, "dailyTime": "09:00"}},
+            workspace_id="workspace-seven",
+        )
+        upsert_app_settings(
+            self.connection,
+            {"queueScheduleSettings": {"enabled": True, "dailyTime": "10:30"}},
+            workspace_id="workspace-eight",
+        )
+        self.assertEqual(self.connection.queue_schedule_settings[("workspace-seven", "default")]["daily_time"], "09:00")
+        self.assertEqual(self.connection.queue_schedule_settings[("workspace-eight", "default")]["daily_time"], "10:30")
 
     def test_app_settings_upsert_round_trips_shared_state(self) -> None:
         saved = upsert_app_settings(
@@ -1134,7 +1724,17 @@ class PersistenceTests(unittest.TestCase):
         self.assertEqual(auth["workspace_id"], workspace_id)
         self.assertEqual(hash_session_token(token), next(iter(self.connection.user_sessions.values()))["token_hash"])
         self.assertEqual(self.connection.templates[template["id"]]["workspace_id"], workspace_id)
-        self.assertEqual(self.connection.template_tags[(template["id"], "jcink")]["workspace_id"], workspace_id)
+        self.assertEqual(self.connection.template_tags[(f"{workspace_id}:{template['id']}", "jcink")]["workspace_id"], workspace_id)
+
+    def test_credentialed_cors_allows_only_trusted_origins(self) -> None:
+        with patch.dict(os.environ, {"INWELL_ALLOWED_ORIGINS": "https://app.example.test"}, clear=False):
+            self.assertTrue(origin_allowed_for_request("https://app.example.test", "https://api.example.test"))
+            self.assertTrue(origin_allowed_for_request("http://127.0.0.1:8020", "https://api.example.test"))
+            self.assertFalse(origin_allowed_for_request("https://api.example.test", "https://api.example.test"))
+            self.assertFalse(origin_allowed_for_request("https://spoofed.example.test", "https://spoofed.example.test"))
+            self.assertFalse(origin_allowed_for_request("https://evil.example.test", "https://evil.example.test"))
+            self.assertFalse(origin_allowed_for_request("https://evil.example.test", "https://api.example.test"))
+            self.assertFalse(origin_allowed_for_request("", "https://api.example.test"))
 
     def test_create_user_workspace_allows_additional_accounts_without_stealing_default_data(self) -> None:
         first_user, first_workspace_id = create_user_workspace(
@@ -1364,7 +1964,7 @@ class PersistenceTests(unittest.TestCase):
         self.assertEqual(log["run_id"], "run-test")
         self.assertEqual(log["target_name"], "allthingsroleplay")
         self.assertEqual(log["details"], {"submit": True})
-        self.assertEqual(self.connection.runner_log_details[(log["id"], "submit")]["detail_value"], "True")
+        self.assertEqual(self.connection.runner_log_details[(f"{log['workspace_id']}:{log['id']}", "submit")]["detail_value"], "True")
         self.assertEqual(self.connection.submission_queue["queue-log-1"]["status"], "submitted")
         self.assertIsNone(self.connection.submission_queue["queue-log-1"]["posted_at"])
 
@@ -1755,9 +2355,11 @@ class PersistenceTests(unittest.TestCase):
         process.poll.return_value = None
         old_process = app.RUNNER_PROCESS
         old_command = app.RUNNER_LAST_COMMAND
+        old_workspace_id = app.RUNNER_LAST_WORKSPACE_ID
         old_plan = app.RUNNER_PLAN_PATH
         app.RUNNER_PROCESS = None
         app.RUNNER_LAST_COMMAND = []
+        app.RUNNER_LAST_WORKSPACE_ID = ""
         app.RUNNER_PLAN_PATH = temp_plan
 
         try:
@@ -1776,8 +2378,11 @@ class PersistenceTests(unittest.TestCase):
             self.assertIn("--login-first", result["command"])
             self.assertIn("--api-base", result["command"])
             self.assertIn("--run-id", result["command"])
+            self.assertIn("--workspace-id", result["command"])
             self.assertIn("--media-dir", result["command"])
             self.assertIn("--submit", result["command"])
+            workspace_index = result["command"].index("--workspace-id") + 1
+            self.assertEqual(result["command"][workspace_index], "default")
             plan = json.loads(temp_plan.read_text(encoding="utf-8"))
             self.assertEqual(plan["items"][0]["id"], "queue-1")
             self.assertTrue(plan["runId"].startswith("run-"))
@@ -1794,6 +2399,88 @@ class PersistenceTests(unittest.TestCase):
                 temp_plan.unlink()
             app.RUNNER_PROCESS = old_process
             app.RUNNER_LAST_COMMAND = old_command
+            app.RUNNER_LAST_WORKSPACE_ID = old_workspace_id
+            app.RUNNER_PLAN_PATH = old_plan
+
+    def test_start_runner_propagates_workspace_to_active_run_logs(self) -> None:
+        temp_plan = Path("backend-test-runner-plan.json")
+        process = Mock()
+        process.pid = 123
+        process.poll.return_value = None
+        old_process = app.RUNNER_PROCESS
+        old_command = app.RUNNER_LAST_COMMAND
+        old_run_id = app.RUNNER_LAST_RUN_ID
+        old_workspace_id = app.RUNNER_LAST_WORKSPACE_ID
+        old_plan = app.RUNNER_PLAN_PATH
+        app.RUNNER_PROCESS = None
+        app.RUNNER_LAST_COMMAND = []
+        app.RUNNER_LAST_RUN_ID = ""
+        app.RUNNER_LAST_WORKSPACE_ID = ""
+        app.RUNNER_PLAN_PATH = temp_plan
+        upsert_queue_item(
+            self.connection,
+            {
+                "id": "shared-runner-queue",
+                "workspace_id": "default",
+                "ad_id": "default-ad",
+                "target_id": "default-target",
+                "target_name": "Default target",
+                "submit_url": "https://default.example/submit",
+                "status": "queued",
+                "runner_payload": "{}",
+            },
+        )
+        upsert_queue_item(
+            self.connection,
+            {
+                "id": "shared-runner-queue",
+                "workspace_id": "workspace-local",
+                "ad_id": "local-ad",
+                "target_id": "local-target",
+                "target_name": "Local target",
+                "submit_url": "https://local.example/submit",
+                "status": "queued",
+                "runner_payload": "{}",
+            },
+        )
+
+        try:
+            with patch("app.subprocess.Popen", return_value=process):
+                result = start_runner(
+                    {
+                        "items": [{"id": "shared-runner-queue", "runnerPayload": "{}"}],
+                        "workspace_id": "workspace-local",
+                    }
+                )
+
+            workspace_index = result["command"].index("--workspace-id") + 1
+            self.assertEqual(result["command"][workspace_index], "workspace-local")
+            self.assertEqual(app.RUNNER_LAST_WORKSPACE_ID, "workspace-local")
+
+            log = record_runner_log(
+                self.connection,
+                {
+                    "run_id": app.RUNNER_LAST_RUN_ID,
+                    "workspace_id": "workspace-local",
+                    "queue_item_id": "shared-runner-queue",
+                    "target_name": "Local target",
+                    "level": "info",
+                    "status": "submitted",
+                    "message": "Submit button clicked.",
+                },
+            )
+
+            self.assertEqual(log["workspace_id"], "workspace-local")
+            self.assertEqual(self.connection.submission_queue[("workspace-local", "shared-runner-queue")]["status"], "submitted")
+            self.assertEqual(self.connection.submission_queue[("default", "shared-runner-queue")]["status"], "queued")
+            self.assertTrue(all(row["workspace_id"] != "default" for row in self.connection.runner_logs.values()))
+        finally:
+            if temp_plan.exists():
+                temp_plan.unlink()
+            app.RUNNER_PROCESS = old_process
+            app.RUNNER_LAST_COMMAND = old_command
+            app.RUNNER_LAST_RUN_ID = old_run_id
+            app.RUNNER_LAST_WORKSPACE_ID = old_workspace_id
             app.RUNNER_PLAN_PATH = old_plan
 
     def test_start_runner_uses_runtime_port_for_api_callback(self) -> None:
@@ -1803,11 +2490,13 @@ class PersistenceTests(unittest.TestCase):
         process.poll.return_value = None
         old_process = app.RUNNER_PROCESS
         old_command = app.RUNNER_LAST_COMMAND
+        old_workspace_id = app.RUNNER_LAST_WORKSPACE_ID
         old_plan = app.RUNNER_PLAN_PATH
         old_port = os.environ.get("PORT")
         old_runner_api_base = os.environ.get("RUNNER_API_BASE_URL")
         app.RUNNER_PROCESS = None
         app.RUNNER_LAST_COMMAND = []
+        app.RUNNER_LAST_WORKSPACE_ID = ""
         app.RUNNER_PLAN_PATH = temp_plan
         os.environ["PORT"] = "9000"
         os.environ.pop("RUNNER_API_BASE_URL", None)
@@ -1823,6 +2512,7 @@ class PersistenceTests(unittest.TestCase):
                 temp_plan.unlink()
             app.RUNNER_PROCESS = old_process
             app.RUNNER_LAST_COMMAND = old_command
+            app.RUNNER_LAST_WORKSPACE_ID = old_workspace_id
             app.RUNNER_PLAN_PATH = old_plan
             if old_port is None:
                 os.environ.pop("PORT", None)

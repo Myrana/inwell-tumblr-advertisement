@@ -1,5 +1,6 @@
 import { Trash2 } from "lucide-react";
 import { formatDate } from "../domain/format";
+import { sanitizeHtml } from "../domain/htmlSanitizer";
 import { SavedTemplate } from "../domain/types";
 
 type TemplateLibraryProps = {
@@ -22,7 +23,7 @@ export function TemplateLibrary({ actionLabel = "Click to apply", emptyText, tem
               {template.queueName ? <span>Default queue: {template.queueName}</span> : null}
               <div
                 className="template-preview"
-                dangerouslySetInnerHTML={{ __html: template.content || "<p>No reusable content saved yet.</p>" }}
+                dangerouslySetInnerHTML={{ __html: sanitizeHtml(template.content) || "<p>No reusable content saved yet.</p>" }}
               />
             </button>
             {onDeleteTemplate ? (
