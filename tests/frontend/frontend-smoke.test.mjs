@@ -370,7 +370,17 @@ test("operations dashboard exports and imports workspace backups", { timeout: 40
         ],
       },
       submitTargets: [{ id: "importedblog", name: "Imported Blog", profileName: "Imported Blog", submitUrl: "https://importedblog.tumblr.com/submit", forumUrl: "", postingRules: "" }],
-      templates: [{ id: "imported-template", name: "Imported template", content: "Imported reusable copy", forumUrl: "", queueName: "Imported queue", tags: ["imported"], updatedAt: "2026-06-20T13:00:00.000Z" }],
+      templates: [
+        {
+          id: "imported-template",
+          name: "Imported template",
+          content: `<p onclick="window.__templateXss = 'click'">Imported reusable copy</p><img src=x onerror="window.__templateXss = 'image'"><script>window.__templateXss = 'script'</script>`,
+          forumUrl: "",
+          queueName: "Imported queue",
+          tags: ["imported"],
+          updatedAt: "2026-06-20T13:00:00.000Z",
+        },
+      ],
       queueDefinitions: [{ id: "imported-queue", name: "Imported queue" }],
       submissionQueue: [
         {
@@ -408,6 +418,10 @@ test("operations dashboard exports and imports workspace backups", { timeout: 40
   await page.getByText("Imported 1 drafts, 1 templates, and 1 queue items.").waitFor();
   await page.getByLabel("Operations dashboard").getByText("1 saved drafts").waitFor();
   await page.getByLabel("Operations dashboard").getByText("1 saved", { exact: true }).waitFor();
+  await openWorkspaceView(page, "Templates");
+  await page.getByLabel("Template library").getByText("Imported reusable copy").waitFor();
+  assert.equal(await page.locator(".template-preview img").count(), 0);
+  assert.equal(await page.evaluate(() => window.__templateXss ?? ""), "");
 
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
 });
@@ -1827,8 +1841,8 @@ test("tumblr accounts can be saved and selected for queue runs", { timeout: 4000
             blog_name: "snowleopardx",
             user_data_dir: "",
             status: "connected",
-            last_checked_at: "2026-06-20T12:00:00.000Z",
-            last_login_at: "2026-06-20T12:00:00.000Z",
+            last_checked_at: "2026-07-03T12:00:00.000Z",
+            last_login_at: "2026-07-03T12:00:00.000Z",
             notes: "Saved Tumblr login is healthy.",
             updated_at: "2026-06-20T12:00:00.000Z",
           },

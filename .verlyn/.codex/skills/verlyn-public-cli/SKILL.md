@@ -21,12 +21,12 @@ If `.verlyn/agent-skills/verlyn-public-cli.md` is missing, fall back to the repo
 Required Codex behavior:
 
 - Use the installed public `verlyn` CLI first.
-- Run the canonical startup sequence before edits:
-  `verlyn auth status`, `verlyn workflow assistant-startup --json`,
-  `verlyn workflow assert-edit-route --json`, `verlyn target show --json`,
-  `verlyn changes list`,
+- Run `verlyn auth status`, `verlyn workflow assistant-startup --json`,
+  `verlyn workflow assert-edit-route --json`, and `verlyn target show --json`
+  before edits.
+- Inspect active workflow state with `verlyn changes list`,
   `verlyn changes list --owner-scope all --status-scope all`, and
-  `verlyn runs --limit 3 --json`.
+  `verlyn runs --limit 3 --json` when current context is unclear.
 - Treat normal Verlyn commands as repo-scoped from the current governed
   checkout plus saved CLI login. Optional overrides are for bootstrap,
   diagnostics, automation outside a checkout, or explicit recovery.
@@ -55,11 +55,8 @@ Required Codex behavior:
 - Treat draft changes as planning-only. Do not write files, run modifying
   formatters, generate source artifacts, or apply patches until the change is
   active and `verlyn workflow assert-edit-route --json` returns `allowed: true`.
-- Record changed-file review evidence before delivery when real files changed.
-  Use `verlyn reviews changed-files <change-id> --run-independent-review` as the
-  primary path. Use `reviews record` for changed-file review gates only when an
-  already-completed independent review can be recorded with provenance, reviewed
-  files, job status, and cleanup status.
+- Record changed-file review evidence before delivery when real files changed,
+  using `verlyn reviews changed-files <change-id> --run-independent-review`.
 - Use `verlyn changes deliver <change-id>` for source-control closeout and
   `verlyn changes deploy <change-id>` for closeout plus provider deployment.
 

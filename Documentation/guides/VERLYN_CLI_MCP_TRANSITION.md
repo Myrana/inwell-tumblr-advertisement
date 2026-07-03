@@ -4,6 +4,11 @@ This guide defines the initial mixed CLI/MCP posture for governed repositories:
 the installed public CLI remains the bootstrap, local-control, and fallback path; MCP is
 an optional API-backed workflow lane for supported actions.
 
+Full MCP parity with the public CLI targets an installable Rust local bridge.
+The hosted API MCP endpoint remains the remote API-backed subset; it does not
+claim local checkout, git, filesystem, review-runner, or delivery-provenance
+parity on its own.
+
 ## Operating Rule
 
 Use **CLI-first, MCP-optional, CLI fallback**.
@@ -12,6 +17,10 @@ Use **CLI-first, MCP-optional, CLI fallback**.
 - MCP may be used after OAuth login for supported API-backed workflow actions.
 - If MCP auth, connectivity, or parity is missing, fall back to the CLI.
 - Both paths use the same Verlyn account and durable API/database records.
+- The Rust local bridge is the planned full-parity MCP endpoint. Its first
+  installable slice exposes bounded typed local tools, not arbitrary public CLI
+  command execution through MCP. Until each local surface is implemented and
+  verified, keep the installed CLI as the local-control path.
 
 ## What The CLI Owns
 
@@ -28,7 +37,7 @@ checkout, governance files, or hosted closeout:
 - changed-file review runner orchestration
 - prepare-pr, deliver, deploy, and deployment recovery
 
-These remain CLI-only until a later MCP/local-agent design proves equivalent local
+These remain CLI-owned until the Rust local bridge proves equivalent local
 control and provenance.
 
 ## What MCP Owns In The First Supported Phase
@@ -81,6 +90,11 @@ Scope: verlyn.mcp
 6. When switching between the two, keep the same durable identifiers in view:
    `repo_slug`, `change_id`, and `task_id`.
 
+After the Rust bridge is available, configure the client to use the local bridge
+for the local tools it explicitly exposes. The bridge should grow toward full
+parity by proxying hosted API-backed operations and executing local machine
+operations itself through typed, reviewed tools.
+
 ## Switching Proof
 
 The minimum acceptance proof for switching is:
@@ -110,5 +124,6 @@ For now:
 - Do not expose delivery/deploy/review-runner operations through remote MCP until they
   have a dedicated threat model and review.
 
-After phase 2 parity lands, skills may prefer MCP for API-backed workflow reads and
-mutations, while still requiring CLI for local and closeout operations.
+After hosted phase 2 parity lands, skills may prefer MCP for API-backed workflow reads and
+mutations. Skills may prefer MCP for local and closeout operations only when the
+Rust local bridge is installed and its parity contract is independently verified.
