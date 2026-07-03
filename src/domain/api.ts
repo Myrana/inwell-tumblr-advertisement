@@ -263,6 +263,7 @@ export type LocalCompanionStatus = {
   lastFinishedAt: string;
   lastExitCode: number | null;
   lastExitSignal: string;
+  lastBlockerCode: string;
   lastError: string;
   lastRun: {
     queueName: string;
@@ -274,6 +275,7 @@ export type LocalCompanionStatus = {
     finishedAt: string;
     exitCode: number | null;
     exitSignal: string;
+    blockerCode?: string;
     status: string;
   } | null;
   accepted?: boolean;

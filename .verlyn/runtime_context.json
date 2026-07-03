@@ -31,7 +31,7 @@
   "workflow_defaults": [
     "Treat Verlyn-managed repo binding, changes, work items, reviews, delivery state, and evidence as the active workflow source of truth.",
     "Read RULES.md for project-owned guidance; it may be empty on fresh installs, and AGENTS.md remains authoritative for system policy.",
-    "After session compaction, compressed-summary recovery, or other resume paths, reread AGENTS.md, RULES.md, .verlyn/runtime_context.json, Documentation/AI_USAGE_POLICY.md, and Documentation/guides/VERLYN_AGENT_WORKFLOW.md before continuing.",
+    "After session compaction, compressed-summary recovery, or other resume paths, reread AGENTS.md, RULES.md, .verlyn/runtime_context.json, Documentation/AI_USAGE_POLICY.md, Documentation/guides/VERLYN_AGENT_WORKFLOW.md, Documentation/guides/VERLYN_PUBLIC_CLI.md, and Documentation/guides/VERLYN_CLI_MCP_TRANSITION.md before continuing.",
     "When MCP is configured, follow Documentation/guides/VERLYN_CLI_MCP_TRANSITION.md: CLI-first, MCP-optional, CLI fallback, with CLI retained for bootstrap, local checkout state, governance, trust checks, review-runner orchestration, and hosted delivery/deploy.",
     "Run verlyn auth status, verlyn workflow assistant-startup --json, verlyn workflow assert-edit-route --json, verlyn target show --json, verlyn changes list, verlyn changes list --owner-scope all --status-scope all, and verlyn runs --limit 3 --json after resume so the local CLI identity, edit route, repo binding, visible workflow state, and recent run context are explicit.",
     "When Verlyn JSON includes workflow_hint, inspect it before flat change lists or summary next-action fields; it is the canonical chain-aware resolver payload for assistant-startup, workflow inbox, and changes next.",

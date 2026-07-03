@@ -584,12 +584,10 @@ verlyn reviews changed-files <change-id> --independent-local-agent --reviewer <a
 
 - `workflow gate` inspects whether a change is ready for a named scope such as
   delivery.
-- `reviews changed-files --run-independent-review` requests or launches the
-  required independent changed-file review before delivery.
 - `reviews record` writes audit records to the durable Verlyn workflow record;
   use it for changed-file review only after an already-completed independent
-  review and only when the record includes independent provenance, reviewed-file
-  scope, review job status, and cleanup status.
+  review and only when the record includes independent provenance,
+  reviewed-file scope, review job status, and cleanup status.
 - Changed-file review evidence is required before real source-control delivery
   unless Verlyn records a no-diff exemption.
 - `prepare-pr`, `deliver`, and `deploy` all use the same blocking

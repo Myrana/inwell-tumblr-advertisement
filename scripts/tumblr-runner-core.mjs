@@ -21,6 +21,16 @@ export const tumblrRateLimitPatterns = [
   /encountered the rate limit/i,
 ];
 
+export const headlessBlockerCodes = {
+  loginRequired: "headless_login_required",
+  manualReviewRequired: "headless_manual_review_required",
+  captchaRequired: "headless_captcha_required",
+  accessDenied: "headless_access_denied",
+  rateLimited: "headless_rate_limited",
+  operatorPauseRequired: "headless_operator_pause_required",
+  runnerFailed: "headless_runner_failed",
+};
+
 export function parseArgs(argv) {
   const options = {
     planPath: "",
@@ -38,6 +48,7 @@ export function parseArgs(argv) {
     apiToken: "",
     remoteCdpUrl: "",
     remoteLiveUrl: "",
+    resultPath: "",
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -72,6 +83,8 @@ export function parseArgs(argv) {
       options.remoteCdpUrl = String(argv[++index] ?? "");
     } else if (arg === "--remote-live-url") {
       options.remoteLiveUrl = String(argv[++index] ?? "");
+    } else if (arg === "--result-path") {
+      options.resultPath = String(argv[++index] ?? "");
     } else if (!arg.startsWith("--") && !options.planPath) {
       options.planPath = arg;
     } else {
@@ -172,6 +185,33 @@ export function manualActionReason(text, url = "") {
   return manualActionPatterns.some((pattern) => pattern.test(haystack))
     ? "Tumblr needs manual review before this item can continue."
     : "";
+}
+
+export function headlessBlockerCodeForReason(reason) {
+  const value = String(reason || "");
+  if (/captcha|identity verification/i.test(value)) {
+    return headlessBlockerCodes.captchaRequired;
+  }
+  if (/denied/i.test(value)) {
+    return headlessBlockerCodes.accessDenied;
+  }
+  if (/login|log in|sign in/i.test(value)) {
+    return headlessBlockerCodes.loginRequired;
+  }
+  if (/rate limit/i.test(value)) {
+    return headlessBlockerCodes.rateLimited;
+  }
+  return headlessBlockerCodes.manualReviewRequired;
+}
+
+export function headlessBlockerMessage(reason) {
+  const message = String(reason || "Tumblr needs manual review before this item can continue.");
+  const code = headlessBlockerCodeForReason(message);
+  return `${code}: ${message} Rerun with Run headless off, complete the browser action, then retry headless.`;
+}
+
+export function headlessLoginRequiredMessage() {
+  return headlessBlockerMessage("Tumblr asked for login before the submit form was available.");
 }
 
 export function appearsRateLimitedByTumblr(text, url = "") {

@@ -126,7 +126,6 @@ verlyn work-items list <change-id>
 verlyn work-items update <change-id> --creates-json '[{"title":"Add validation"}]'
 verlyn work-items update <change-id> --updates-json '[{"task_id":"<starter-work-item-id>","notes":"Concrete scope and acceptance for this change."}]'
 verlyn work-items update <change-id> --updates-json '[{"task_id":"<work-item-id>","status":"done"}]'
-verlyn reviews changed-files <change-id> --run-independent-review
 verlyn workflow gate <change-id> --scope delivery
 ```
 
@@ -159,12 +158,6 @@ Use the first-class runner/request path when the CLI should manage this step:
 verlyn reviews changed-files <change-id> --run-independent-review
 ```
 
-`verlyn reviews record ... --tier changed_file_review --disposition accepted`
-is only for audit records from an already-completed independent review when
-the wrapper can also provide the required independent provenance, reviewed-file
-scope, review job status, and cleanup status. Do not use that bare record path
-as the primary gating command for `prepare-pr`, `deliver`, or `deploy`.
-
 If a supported local AI launcher is not available, the command fails closed and
 returns the whole-file prompt, spawn instructions, and exact follow-up record
 command instead of recording accepted evidence. The spawn instructions require
@@ -189,6 +182,9 @@ Use the `--review-job-id`, `--agent-id`, `--review-job-status`, and
 `--agent-cleanup-status` options on `verlyn reviews changed-files` or
 `verlyn reviews record` when the wrapper has spawned and monitored an
 independent reviewer.
+Use `verlyn reviews record` for changed-file review only as audit records from
+an already-completed independent review when provenance, reviewed-file scope,
+review job status, and cleanup status are all known.
 When the independent reviewer returns structured `blocking_findings`,
 `code_quality_findings`, or `test_gaps`, the review-record path creates or
 updates review-finding work items tied to that review entry, review job,

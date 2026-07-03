@@ -10,6 +10,10 @@ import {
   frameCandidateScore,
   fieldsForItem,
   fillRichTextEditorInDocument,
+  headlessBlockerCodes,
+  headlessBlockerCodeForReason,
+  headlessBlockerMessage,
+  headlessLoginRequiredMessage,
   isReusableRemotePage,
   loginWaitMessage,
   loadRunnerPlan,
@@ -24,34 +28,68 @@ import {
 
 async function main() {
   const options = parseArgs(process.argv.slice(2));
-  const plan = await loadRunnerPlan(options.planPath);
-  const runnerBrowser = await openRunnerBrowser(options);
-
   try {
-    if (options.loginFirst) {
-      await waitForTumblrLogin(runnerBrowser.context, options);
-    }
+    const plan = await loadRunnerPlan(options.planPath);
+    const runnerBrowser = await openRunnerBrowser(options);
 
-    const reviewPages = [];
-    for (const item of plan.items) {
-      try {
-        const result = await runQueueItem(runnerBrowser.context, item, options);
-        if (result?.readyForReview && result.page) {
-          reviewPages.push(result.page);
-        }
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        console.log(`[runner:error] ${item.targetName}: ${message}`);
-        await reportRunnerEvent(options, item, "failed", `Runner failed: ${message}`, "error", { error: message });
+    try {
+      if (options.loginFirst) {
+        await waitForTumblrLogin(runnerBrowser.context, options);
       }
+
+      const reviewPages = [];
+      let failureCount = 0;
+      let headlessFailureMessage = "";
+      for (const item of plan.items) {
+        try {
+          const result = await runQueueItem(runnerBrowser.context, item, options);
+          if (result?.readyForReview && result.page) {
+            reviewPages.push(result.page);
+          }
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          failureCount += 1;
+          if (options.headless && !headlessFailureMessage) {
+            headlessFailureMessage = message;
+          }
+          console.log(`[runner:error] ${item.targetName}: ${message}`);
+          await reportRunnerEvent(options, item, "failed", `Runner failed: ${message}`, "error", { error: message });
+        }
+      }
+
+      if (reviewPages.length > 0) {
+        await waitForQueueReviewPages(options, reviewPages);
+      }
+      if (options.headless && failureCount > 0) {
+        throw new Error(headlessFailureMessage || `Headless runner failed for ${failureCount} queue item${failureCount === 1 ? "" : "s"}.`);
+      }
+    } finally {
+      await runnerBrowser.close();
     }
 
-    if (reviewPages.length > 0) {
-      await waitForQueueReviewPages(options, reviewPages);
-    }
-  } finally {
-    await runnerBrowser.close();
+    await writeRunnerResult(options, { status: "success", blockerCode: "", failureKind: "", message: "" });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await writeRunnerResult(options, {
+      status: "error",
+      blockerCode: options.headless ? runnerResultBlockerCode(message) : "",
+      failureKind: options.headless ? "headless_blocker" : "runner_error",
+      message,
+    });
+    throw error;
   }
+}
+
+function runnerResultBlockerCode(message) {
+  const knownCode = Object.values(headlessBlockerCodes).find((code) => String(message || "").includes(code));
+  return knownCode || headlessBlockerCodes.runnerFailed;
+}
+
+async function writeRunnerResult(options, result) {
+  if (!options.resultPath) {
+    return;
+  }
+  await fs.writeFile(options.resultPath, JSON.stringify(result, null, 2), "utf8").catch(() => undefined);
 }
 
 async function openRunnerBrowser(options) {
@@ -101,7 +139,16 @@ async function waitForTumblrLogin(context, options) {
     return;
   }
 
-  if (options.headless || options.noPause) {
+  if (options.headless) {
+    const message = headlessLoginRequiredMessage();
+    console.log(`[runner:error] ${message}`);
+    if (!options.remoteCdpUrl) {
+      await page.close().catch(() => undefined);
+    }
+    throw new Error(message);
+  }
+
+  if (options.noPause) {
     console.log("[login] Noninteractive mode: continuing without waiting for manual login.");
     if (!options.remoteCdpUrl) {
       await page.close().catch(() => undefined);
@@ -169,13 +216,18 @@ async function runQueueItem(context, item, options) {
 
   if (await pageNeedsManualAction(page)) {
     console.log(`[manual-action] ${item.targetName}: login, captcha, terms, or changed form detected.`);
+    const message = "Login, captcha, terms, or changed form detected before fill.";
     await reportRunnerEvent(
       options,
       item,
-      "needs-review",
-      "Login, captcha, terms, or changed form detected before fill.",
-      "warning",
+      options.headless ? "failed" : "needs-review",
+      options.headless ? headlessBlockerMessage(message) : message,
+      options.headless ? "error" : "warning",
+      options.headless ? { reason_code: headlessBlockerCodes.manualReviewRequired } : {},
     );
+    if (options.headless) {
+      throw new Error(headlessBlockerMessage(message));
+    }
     await pauseForOperator(page, options);
     return { readyForReview: false };
   }
@@ -187,8 +239,12 @@ async function runQueueItem(context, item, options) {
   if (!postTypeSelected) {
     const operatorSelected = await waitForOperatorPostTypeSelection(page, item, options);
     if (!operatorSelected) {
-      console.log(`[manual-action] ${item.targetName}: could not switch post type to ${item.postType}; stopping before fill.`);
-      await reportRunnerEvent(options, item, "needs-review", `Could not switch post type to ${item.postType}.`, "warning");
+      const message = `Could not switch post type to ${item.postType}.`;
+      console.log(`[manual-action] ${item.targetName}: ${message}`);
+      await reportRunnerEvent(options, item, options.headless ? "failed" : "needs-review", options.headless ? headlessBlockerMessage(message) : message, options.headless ? "error" : "warning", {
+        ...(options.headless ? { reason_code: headlessBlockerCodes.manualReviewRequired } : {}),
+      });
+      await failHeadlessReview(page, options, message);
       await pauseForOperator(page, options);
       return { readyForReview: false };
     }
@@ -212,8 +268,17 @@ async function runQueueItem(context, item, options) {
   });
 
   if (await pageNeedsManualAction(page)) {
-    console.log(`[manual-action] ${item.targetName}: page requires review before submit.`);
-    await reportRunnerEvent(options, item, "needs-review", "Page requires review before submit.", "warning");
+    const message = "Page requires review before submit.";
+    console.log(`[manual-action] ${item.targetName}: ${message}`);
+    await reportRunnerEvent(
+      options,
+      item,
+      options.headless ? "failed" : "needs-review",
+      options.headless ? headlessBlockerMessage(message) : message,
+      options.headless ? "error" : "warning",
+      options.headless ? { reason_code: headlessBlockerCodes.manualReviewRequired } : {},
+    );
+    await failHeadlessReview(page, options, message);
     if (shouldDeferReadyReview(options)) {
       return { readyForReview: true, page };
     }
@@ -230,11 +295,14 @@ async function runQueueItem(context, item, options) {
     await reportRunnerEvent(
       options,
       item,
-      submitted ? "submitted" : "needs-review",
-      submitResult.message,
-      submitted ? "info" : "warning",
+      submitted ? "submitted" : options.headless ? "failed" : "needs-review",
+      submitted ? submitResult.message : options.headless ? headlessBlockerMessage(submitResult.message) : submitResult.message,
+      submitted ? "info" : options.headless ? "error" : "warning",
       submitted ? { ...submitResult, postedUrl } : submitResult,
     );
+    if (!submitted) {
+      await failHeadlessReview(page, options, submitResult.message);
+    }
   } else {
     console.log(`[ready] ${item.targetName}: fields filled where possible. Review the page, then submit manually or rerun with --submit.`);
     await reportRunnerEvent(options, item, "needs-review", "Fields filled and ready for manual review.", "info");
@@ -327,12 +395,27 @@ async function handleTumblrManualBlocker(page, item, options) {
   }
 
   console.log(`[manual-action] ${item.targetName}: ${blocker.message}`);
-  await reportRunnerEvent(options, item, "needs-review", blocker.message, "warning", {
+  const headlessMessage = options.headless ? headlessBlockerMessage(blocker.message) : "";
+  const headlessReasonCode = options.headless ? headlessBlockerCodeForReason(blocker.message) : "";
+  await reportRunnerEvent(options, item, options.headless ? "failed" : "needs-review", headlessMessage || blocker.message, options.headless ? "error" : "warning", {
     explanation: blocker.message,
+    reason_code: headlessReasonCode || "manual_review_required",
+    headless_reason_code: headlessReasonCode,
     url: blocker.url,
     sample: blocker.sample,
   });
+  if (options.headless) {
+    throw new Error(headlessMessage);
+  }
   return true;
+}
+
+async function failHeadlessReview(page, options, message) {
+  if (!options.headless) {
+    return;
+  }
+  await page.close().catch(() => undefined);
+  throw new Error(headlessBlockerMessage(message));
 }
 
 async function manualBlockerReviewResult(page, options) {
@@ -350,10 +433,16 @@ async function handleTumblrRateLimit(page, item, options) {
     if (appearsRateLimitedByTumblr(text, frame.url())) {
       const message = "Tumblr rate limit exceeded. Wait before retrying this target.";
       console.log(`[manual-action] ${item.targetName}: ${message}`);
-      await reportRunnerEvent(options, item, "needs-review", message, "warning", {
+      const headlessMessage = options.headless ? headlessBlockerMessage(message) : "";
+      await reportRunnerEvent(options, item, options.headless ? "failed" : "needs-review", headlessMessage || message, options.headless ? "error" : "warning", {
         explanation: message,
+        reason_code: options.headless ? headlessBlockerCodes.rateLimited : "tumblr_rate_limited",
+        headless_reason_code: options.headless ? headlessBlockerCodes.rateLimited : "",
         url: frame.url(),
       });
+      if (options.headless) {
+        throw new Error(headlessMessage);
+      }
       return true;
     }
   }
@@ -1340,6 +1429,11 @@ async function clickSubmit(page) {
 }
 
 async function pauseForOperator(page, options) {
+  if (options.noPause || options.noReviewPause) {
+    await page.close().catch(() => undefined);
+    return;
+  }
+
   if (options.remoteCdpUrl) {
     console.log("[runner] Remote browser page remains open for review. Close the live-view tab page when done.");
     while (!page.isClosed()) {
@@ -1348,9 +1442,9 @@ async function pauseForOperator(page, options) {
     return;
   }
 
-  if (options.headless || options.noPause || options.noReviewPause) {
+  if (options.headless) {
     await page.close().catch(() => undefined);
-    return;
+    throw new Error(`${headlessBlockerCodes.operatorPauseRequired}: Headless mode cannot pause for browser review. Rerun with Run headless off, complete the browser action, then retry headless.`);
   }
 
   console.log("[runner] Browser remains open for review. Press Enter here to continue.");

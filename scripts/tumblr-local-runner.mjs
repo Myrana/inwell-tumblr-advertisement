@@ -4,6 +4,7 @@ import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
+import { headlessBlockerCodes } from "./tumblr-runner-core.mjs";
 
 const LOCAL_COMPANION_VERSION = "local-runner-2";
 
@@ -143,6 +144,7 @@ async function runPlan(options, plan) {
   await postHeartbeat(options, "running").catch(() => undefined);
   const userDataDir = String(plan.userDataDir || options.userDataDir || "").trim() || options.userDataDir;
   const planPath = path.join(os.tmpdir(), `inwell-local-runner-${plan.runId}.json`);
+  const resultPath = path.join(os.tmpdir(), `inwell-local-runner-${plan.runId}-result.json`);
   await fs.writeFile(planPath, JSON.stringify(plan, null, 2), "utf8");
   console.log(`[local-runner] Running ${plan.items.length} item(s) from ${options.queueName}.`);
 
@@ -161,6 +163,8 @@ async function runPlan(options, plan) {
     plan.runId,
     "--workspace-id",
     options.workspaceId,
+    "--result-path",
+    resultPath,
     "--user-data-dir",
     userDataDir,
     "--no-review-pause",
@@ -179,17 +183,36 @@ async function runPlan(options, plan) {
   }
 
   stateLastRunStarted(options, plan);
-  const child = spawn(process.execPath, runnerArgs, { stdio: "inherit" });
-  const result = await new Promise((resolve) => {
+  const child = spawn(process.execPath, runnerArgs, { stdio: ["ignore", "inherit", "pipe"] });
+  let stderrTail = "";
+  child.stderr?.on("data", (chunk) => {
+    const text = String(chunk);
+    process.stderr.write(text);
+    stderrTail = `${stderrTail}${text}`.slice(-4096);
+  });
+  const processResult = await new Promise((resolve) => {
     child.on("close", (code, signal) => {
       resolve({
         exitCode: typeof code === "number" ? code : 1,
         signal: signal || "",
+        stderr: stderrTail,
       });
     });
   });
+  const runnerResult = await readRunnerResult(resultPath);
+  await fs.unlink(resultPath).catch(() => undefined);
+  const result = { ...processResult, runnerResult };
   await postHeartbeat(options, result.exitCode ? "error" : options.watch ? "watching" : "idle").catch(() => undefined);
   return result;
+}
+
+async function readRunnerResult(resultPath) {
+  const raw = await fs.readFile(resultPath, "utf8").catch(() => "");
+  if (!raw) {
+    return null;
+  }
+  const parsed = JSON.parse(raw);
+  return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
 }
 
 function stateLastRunStarted(options, plan) {
@@ -206,6 +229,7 @@ function stateLastRunStarted(options, plan) {
     finishedAt: "",
     exitCode: null,
     exitSignal: "",
+    blockerCode: "",
     status: "running",
   };
 }
@@ -226,6 +250,7 @@ async function executeLocalRun(options, state) {
   state.lastFinishedAt = "";
   state.lastExitCode = null;
   state.lastExitSignal = "";
+  state.lastBlockerCode = "";
   state.lastRun = initialLastRun(options, state.lastStartedAt);
   try {
     const plan = await fetchRunnerPlan(options);
@@ -237,10 +262,12 @@ async function executeLocalRun(options, state) {
     state.lastError = code
       ? localRunnerExitMessage(code, options, state.lastExitSignal)
       : "";
+    state.lastBlockerCode = code ? localRunnerBlockerCode(result.runnerResult, options) : "";
     if (state.lastRun) {
       state.lastRun.finishedAt = state.lastFinishedAt;
       state.lastRun.exitCode = code;
       state.lastRun.exitSignal = state.lastExitSignal;
+      state.lastRun.blockerCode = state.lastBlockerCode;
       state.lastRun.status = code ? "error" : options.watch ? "watching" : "idle";
     }
     state.status = code ? "error" : options.watch ? "watching" : "idle";
@@ -248,12 +275,14 @@ async function executeLocalRun(options, state) {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     state.lastError = message;
+    state.lastBlockerCode = localRunnerBlockerCode({ message }, options);
     state.lastFinishedAt = new Date().toISOString();
     state.status = "error";
     if (state.lastRun) {
       state.lastRun.finishedAt = state.lastFinishedAt;
       state.lastRun.exitCode = 1;
       state.lastRun.exitSignal = "";
+      state.lastRun.blockerCode = state.lastBlockerCode;
       state.lastRun.status = "error";
     }
     await postHeartbeat(options, "error").catch(() => undefined);
@@ -274,8 +303,22 @@ function initialLastRun(options, startedAt) {
     finishedAt: "",
     exitCode: null,
     exitSignal: "",
+    blockerCode: "",
     status: "planning",
   };
+}
+
+function localRunnerBlockerCode(result, options) {
+  if (!options.headless) {
+    return "";
+  }
+  if (result && typeof result.blockerCode === "string" && result.blockerCode) {
+    return result.blockerCode;
+  }
+  if (result && typeof result.message === "string" && /Executable doesn't exist|browser.*install|playwright/i.test(result.message)) {
+    return "headless_browser_unavailable";
+  }
+  return headlessBlockerCodes.runnerFailed;
 }
 
 function localRunnerExitMessage(code, options, signal = "") {
@@ -302,6 +345,7 @@ function companionStatus(options, state) {
     lastFinishedAt: state.lastFinishedAt || "",
     lastExitCode: state.lastExitCode ?? null,
     lastExitSignal: state.lastExitSignal || "",
+    lastBlockerCode: state.lastBlockerCode || "",
     lastError: state.lastError || "",
     lastRun: state.lastRun || null,
   };
@@ -515,6 +559,7 @@ async function main() {
     lastFinishedAt: "",
     lastExitCode: null,
     lastExitSignal: "",
+    lastBlockerCode: "",
     lastRun: null,
   };
 
