@@ -137,7 +137,7 @@ async function runPlan(options, plan) {
   if (!plan?.items?.length) {
     console.log(`[local-runner] No runnable items in ${options.queueName}.`);
     await postHeartbeat(options, options.watch ? "watching" : "idle").catch(() => undefined);
-    return 0;
+    return { exitCode: 0, signal: "" };
   }
 
   await postHeartbeat(options, "running").catch(() => undefined);
@@ -178,10 +178,36 @@ async function runPlan(options, plan) {
     runnerArgs.push("--no-pause");
   }
 
+  stateLastRunStarted(options, plan);
   const child = spawn(process.execPath, runnerArgs, { stdio: "inherit" });
-  const code = await new Promise((resolve) => child.on("close", resolve));
-  await postHeartbeat(options, Number(code) ? "error" : options.watch ? "watching" : "idle").catch(() => undefined);
-  return Number(code) || 0;
+  const result = await new Promise((resolve) => {
+    child.on("close", (code, signal) => {
+      resolve({
+        exitCode: typeof code === "number" ? code : 1,
+        signal: signal || "",
+      });
+    });
+  });
+  await postHeartbeat(options, result.exitCode ? "error" : options.watch ? "watching" : "idle").catch(() => undefined);
+  return result;
+}
+
+function stateLastRunStarted(options, plan) {
+  if (!options.state) {
+    return;
+  }
+  options.state.lastRun = {
+    queueName: options.queueName,
+    headless: Boolean(options.headless),
+    submit: Boolean(options.submit),
+    itemCount: Array.isArray(plan.items) ? plan.items.length : 0,
+    runId: String(plan.runId || ""),
+    startedAt: new Date().toISOString(),
+    finishedAt: "",
+    exitCode: null,
+    exitSignal: "",
+    status: "running",
+  };
 }
 
 function localRunnerScriptPath() {
@@ -199,14 +225,24 @@ async function executeLocalRun(options, state) {
   state.lastStartedAt = new Date().toISOString();
   state.lastFinishedAt = "";
   state.lastExitCode = null;
+  state.lastExitSignal = "";
+  state.lastRun = initialLastRun(options, state.lastStartedAt);
   try {
     const plan = await fetchRunnerPlan(options);
-    const code = await runPlan(options, plan);
+    const result = await runPlan({ ...options, state }, plan);
+    const code = result.exitCode;
     state.lastExitCode = code;
+    state.lastExitSignal = result.signal || "";
     state.lastFinishedAt = new Date().toISOString();
     state.lastError = code
-      ? `Local runner exited with code ${code}. Close any open Inkwell Tumblr browser windows, then try again. Check the runner log for details.`
+      ? localRunnerExitMessage(code, options, state.lastExitSignal)
       : "";
+    if (state.lastRun) {
+      state.lastRun.finishedAt = state.lastFinishedAt;
+      state.lastRun.exitCode = code;
+      state.lastRun.exitSignal = state.lastExitSignal;
+      state.lastRun.status = code ? "error" : options.watch ? "watching" : "idle";
+    }
     state.status = code ? "error" : options.watch ? "watching" : "idle";
     return { accepted: true, running: false, exitCode: code };
   } catch (error) {
@@ -214,11 +250,41 @@ async function executeLocalRun(options, state) {
     state.lastError = message;
     state.lastFinishedAt = new Date().toISOString();
     state.status = "error";
+    if (state.lastRun) {
+      state.lastRun.finishedAt = state.lastFinishedAt;
+      state.lastRun.exitCode = 1;
+      state.lastRun.exitSignal = "";
+      state.lastRun.status = "error";
+    }
     await postHeartbeat(options, "error").catch(() => undefined);
     throw error;
   } finally {
     state.running = false;
   }
+}
+
+function initialLastRun(options, startedAt) {
+  return {
+    queueName: options.queueName,
+    headless: Boolean(options.headless),
+    submit: Boolean(options.submit),
+    itemCount: 0,
+    runId: "",
+    startedAt,
+    finishedAt: "",
+    exitCode: null,
+    exitSignal: "",
+    status: "planning",
+  };
+}
+
+function localRunnerExitMessage(code, options, signal = "") {
+  const signalHint = signal ? ` after signal ${signal}` : "";
+  const base = `Local runner exited with code ${code}${signalHint}.`;
+  const modeHint = options.headless
+    ? " Headless mode cannot show Tumblr login, captcha, or manual review prompts. Open the login window or rerun with Run headless off, then try again."
+    : " Close any open Inkwell Tumblr browser windows, then try again.";
+  return `${base}${modeHint} Check the runner log for details.`;
 }
 
 function companionStatus(options, state) {
@@ -235,7 +301,9 @@ function companionStatus(options, state) {
     lastStartedAt: state.lastStartedAt || "",
     lastFinishedAt: state.lastFinishedAt || "",
     lastExitCode: state.lastExitCode ?? null,
+    lastExitSignal: state.lastExitSignal || "",
     lastError: state.lastError || "",
+    lastRun: state.lastRun || null,
   };
 }
 
@@ -275,12 +343,16 @@ function launchLocalLogin(payload, options, state) {
 function readRequestJson(request) {
   return new Promise((resolve, reject) => {
     let body = "";
+    let bodyRejected = false;
     request.setEncoding("utf8");
     request.on("data", (chunk) => {
+      if (bodyRejected) {
+        return;
+      }
       body += chunk;
       if (body.length > 1024 * 64) {
+        bodyRejected = true;
         reject(new Error("Request body is too large"));
-        request.destroy();
       }
     });
     request.on("end", () => {
@@ -315,6 +387,66 @@ function sendJson(response, status, payload, origin = "") {
   response.end(JSON.stringify(payload));
 }
 
+async function readCompanionPayload(request, response, origin) {
+  try {
+    const payload = await readRequestJson(request);
+    if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+      sendJson(response, 400, { error: "Request body must be a JSON object." }, origin);
+      return null;
+    }
+    return payload;
+  } catch (error) {
+    const message = error instanceof Error && /Request body is too large/.test(error.message)
+      ? "Request body is too large."
+      : "Request body must be valid JSON.";
+    sendJson(response, 400, { error: message }, origin);
+    return null;
+  }
+}
+
+async function handleCompanionRun(request, response, options, state, origin) {
+  if (state.running) {
+    sendJson(response, 409, { ...companionStatus(options, state), accepted: false, error: "Local runner is already running." }, origin);
+    return;
+  }
+  const payload = await readCompanionPayload(request, response, origin);
+  if (!payload) {
+    return;
+  }
+  const runOptions = companionRunOptions(payload, options);
+  void executeLocalRun(runOptions, state).catch((error) => {
+    console.error(`[local-runner:error] ${error instanceof Error ? error.message : String(error)}`);
+  });
+  sendJson(response, 202, { ...companionStatus(runOptions, state), accepted: true }, origin);
+}
+
+function companionRunOptions(payload, options) {
+  const runOptions = { ...options };
+  if ("queueName" in payload) {
+    runOptions.queueName = String(payload.queueName || options.queueName) || options.queueName;
+  }
+  if ("headless" in payload) {
+    runOptions.headless = Boolean(payload.headless);
+  }
+  if ("submit" in payload) {
+    runOptions.submit = Boolean(payload.submit);
+  }
+  return runOptions;
+}
+
+async function handleCompanionLogin(request, response, options, state, origin) {
+  if (state.running) {
+    sendJson(response, 409, { ...companionStatus(options, state), accepted: false, error: "Local runner is already running." }, origin);
+    return;
+  }
+  const payload = await readCompanionPayload(request, response, origin);
+  if (!payload) {
+    return;
+  }
+  const login = launchLocalLogin(payload, options, state);
+  sendJson(response, 202, login, origin);
+}
+
 function startCompanionServer(options, state) {
   const allowedOrigins = companionAllowedOrigins(options);
   const server = http.createServer(async (request, response) => {
@@ -333,35 +465,11 @@ function startCompanionServer(options, state) {
       return;
     }
     if (request.method === "POST" && url.pathname === "/run") {
-      if (state.running) {
-        sendJson(response, 409, { ...companionStatus(options, state), accepted: false, error: "Local runner is already running." }, origin);
-        return;
-      }
-      const payload = await readRequestJson(request).catch(() => ({}));
-      const runOptions = { ...options };
-      if (payload && typeof payload === "object" && "queueName" in payload) {
-        runOptions.queueName = String(payload.queueName || options.queueName) || options.queueName;
-      }
-      if (payload && typeof payload === "object" && "headless" in payload) {
-        runOptions.headless = Boolean(payload.headless);
-      }
-      if (payload && typeof payload === "object" && "submit" in payload) {
-        runOptions.submit = Boolean(payload.submit);
-      }
-      void executeLocalRun(runOptions, state).catch((error) => {
-        console.error(`[local-runner:error] ${error instanceof Error ? error.message : String(error)}`);
-      });
-      sendJson(response, 202, { ...companionStatus(runOptions, state), accepted: true }, origin);
+      await handleCompanionRun(request, response, options, state, origin);
       return;
     }
     if (request.method === "POST" && url.pathname === "/login") {
-      if (state.running) {
-        sendJson(response, 409, { ...companionStatus(options, state), accepted: false, error: "Local runner is already running." }, origin);
-        return;
-      }
-      const payload = await readRequestJson(request).catch(() => ({}));
-      const login = launchLocalLogin(payload, options, state);
-      sendJson(response, 202, login, origin);
+      await handleCompanionLogin(request, response, options, state, origin);
       return;
     }
     sendJson(response, 404, { error: "Not found" }, origin);
@@ -406,6 +514,8 @@ async function main() {
     lastStartedAt: "",
     lastFinishedAt: "",
     lastExitCode: null,
+    lastExitSignal: "",
+    lastRun: null,
   };
 
   if (options.serve) {

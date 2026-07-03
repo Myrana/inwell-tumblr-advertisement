@@ -262,7 +262,20 @@ export type LocalCompanionStatus = {
   lastStartedAt: string;
   lastFinishedAt: string;
   lastExitCode: number | null;
+  lastExitSignal: string;
   lastError: string;
+  lastRun: {
+    queueName: string;
+    headless: boolean;
+    submit: boolean;
+    itemCount: number;
+    runId: string;
+    startedAt: string;
+    finishedAt: string;
+    exitCode: number | null;
+    exitSignal: string;
+    status: string;
+  } | null;
   accepted?: boolean;
   pid?: number;
   message?: string;

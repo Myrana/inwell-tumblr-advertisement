@@ -125,6 +125,7 @@ import {
   TumblrAccount,
   WorkspaceView,
 } from "./domain/types";
+import { startLocalCompanionRun } from "./domain/localRunner";
 function App() {
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
@@ -247,7 +248,11 @@ function App() {
   const canLaunchLocalRunner = !localCompanion?.ok;
   const localCompanionQueueStatus = (status: LocalCompanionStatus) => {
     if (status.running) {
-      return "Local companion is running the queue.";
+      const mode = status.lastRun?.headless ? "headless" : "visible";
+      return `Local companion is running the queue ${mode}.`;
+    }
+    if (status.lastError) {
+      return status.lastError;
     }
     if (status.status === "watching") {
       return status.queueName ? `Local companion is watching ${status.queueName}.` : "Local companion is watching.";
@@ -1482,35 +1487,30 @@ function App() {
       return;
     }
 
-    try {
-      const companion = localCompanion ?? await refreshLocalCompanionStatus({ quiet: true });
-      if (companion?.ok) {
-        const run = await runLocalCompanion(activeQueueName, {
-          headless: runnerSettings.headless,
-          submit,
-        });
-        setLocalCompanion(run);
-        setQueueStatus(
-          run.accepted
-            ? testRun
-              ? "Local companion started a test run. It will fill Tumblr and stop before submitting."
-              : !submit
-                ? "Live posting is not approved, so the local companion will prepare Tumblr without submitting."
-              : runnerSettings.headless
-              ? "Local companion started the runner headless. Watch this page for queue progress."
-              : "Local companion started the runner on this computer. You can leave this page open while it works."
-            : run.error || "Local companion could not start the runner.",
-        );
-        [2500, 6000].forEach((delay) => {
-          window.setTimeout(() => {
-            void refreshLocalCompanionStatus({ quiet: true });
-          }, delay);
-        });
-        void refreshRunnerStatus({ quiet: true });
-        return;
-      }
-    } catch {
-      setLocalCompanion(null);
+    const companionRun = await startLocalCompanionRun({
+      activeQueueName,
+      companion: localCompanion,
+      headless: runnerSettings.headless,
+      submit,
+      testRun,
+      refreshCompanionStatus: () => refreshLocalCompanionStatus({ quiet: true }),
+      runCompanion: runLocalCompanion,
+    });
+    if (companionRun.kind === "started") {
+      setLocalCompanion(companionRun.companion);
+      setQueueStatus(companionRun.queueStatus);
+      [2500, 6000].forEach((delay) => {
+        window.setTimeout(() => {
+          void refreshLocalCompanionStatus({ quiet: true });
+        }, delay);
+      });
+      void refreshRunnerStatus({ quiet: true });
+      return;
+    }
+    if (companionRun.kind === "companion-error") {
+      setLocalCompanion(companionRun.companion);
+      setQueueStatus(companionRun.queueStatus);
+      return;
     }
 
     await prepareLocalRunnerCommand({
