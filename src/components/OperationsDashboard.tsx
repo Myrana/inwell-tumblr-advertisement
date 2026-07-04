@@ -2,6 +2,7 @@ import { Activity, AlertTriangle, Archive, CheckCircle2, ClipboardCheck, Downloa
 import { ChangeEvent } from "react";
 import { attentionQueueItems, queueReadiness, queueStatusCounts, runnableQueueItems } from "../domain/queueAutomation";
 import { QueueDefinition, RunnerActivity, SubmissionQueueItem, TumblrAccount, WorkspaceView } from "../domain/types";
+import "./operations/operationsDashboard.css";
 
 type OperationsDashboardProps = {
   activeQueueName: string;
@@ -64,29 +65,21 @@ export function OperationsDashboard({
 
   return (
     <section className="operations-dashboard" aria-label="Operations dashboard">
-      <section className="operations-hero" aria-label="Inkwell overview">
-        <div className="operations-hero-brand">
-          <div className="operations-hero-mark" aria-hidden="true">
-            I
-          </div>
-          <div>
-            <span>Inkwell</span>
-            <h1>Create Once. Submit Everywhere.</h1>
-            <p>Draft roleplay ads, track Tumblr blogs, and keep every submission moving from one notebook.</p>
-          </div>
-        </div>
-        <div className="operations-hero-actions">
-          <button className="primary compact-button" type="button" onClick={() => onNavigate("editor")}>
-            Write advertisement
-          </button>
-          <button className="secondary compact-button" type="button" onClick={() => onNavigate("saved")}>
-            Open archive
-          </button>
-          <button className="secondary compact-button" type="button" onClick={() => onNavigate("queue-settings")}>
-            Blog tracker
-          </button>
-        </div>
-      </section>
+      <OperationsHero
+        activeQueueName={activeQueueName}
+        attentionCount={needsReviewCount}
+        queuedCount={queuedCount}
+        runnerStatus={runnerActivity.status}
+        onNavigate={onNavigate}
+      />
+
+      <WorkflowPathPanel
+        connectedAccounts={connectedAccounts}
+        hasDrafts={savedDraftCount > 0}
+        hasQueuedItems={queueItems.length > 0}
+        hasRunnerAttention={needsReviewCount > 0 || runnerActivity.status !== "Offline"}
+        onNavigate={onNavigate}
+      />
 
       {showFirstRunPanel ? (
         <section className="first-run-panel" aria-label="First-run checklist">
@@ -277,6 +270,122 @@ export function OperationsDashboard({
           </div>
         </article>
       </div>
+    </section>
+  );
+}
+
+type OperationsHeroProps = {
+  activeQueueName: string;
+  attentionCount: number;
+  queuedCount: number;
+  runnerStatus: string;
+  onNavigate: (view: WorkspaceView) => void;
+};
+
+function OperationsHero({
+  activeQueueName,
+  attentionCount,
+  queuedCount,
+  runnerStatus,
+  onNavigate,
+}: OperationsHeroProps) {
+  return (
+    <section className="operations-hero" aria-label="Operations command center">
+      <div className="operations-hero-brand">
+        <div className="operations-hero-mark" aria-hidden="true">
+          I
+        </div>
+        <div>
+          <span>Operations</span>
+          <h1>{attentionCount ? `${attentionCount} queue item${attentionCount === 1 ? "" : "s"} need attention` : "Submission flow is ready to manage"}</h1>
+          <p>
+            {activeQueueName || "No queue selected"}: {queuedCount} ready. Runner: {runnerStatus}.
+          </p>
+        </div>
+      </div>
+      <div className="operations-hero-actions">
+        <button className="primary compact-button" type="button" onClick={() => onNavigate(attentionCount ? "queue" : "editor")}>
+          {attentionCount ? "Review queue" : "Write advertisement"}
+        </button>
+        <button className="secondary compact-button" type="button" onClick={() => onNavigate("runner")}>
+          Runner controls
+        </button>
+        <button className="secondary compact-button" type="button" onClick={() => onNavigate("accounts")}>
+          Account health
+        </button>
+      </div>
+    </section>
+  );
+}
+
+type WorkflowPathPanelProps = {
+  connectedAccounts: number;
+  hasDrafts: boolean;
+  hasQueuedItems: boolean;
+  hasRunnerAttention: boolean;
+  onNavigate: (view: WorkspaceView) => void;
+};
+
+function WorkflowPathPanel({
+  connectedAccounts,
+  hasDrafts,
+  hasQueuedItems,
+  hasRunnerAttention,
+  onNavigate,
+}: WorkflowPathPanelProps) {
+  const steps: Array<{ label: string; detail: string; view: WorkspaceView; ready: boolean }> = [
+    {
+      label: "Accounts",
+      detail: connectedAccounts ? `${connectedAccounts} connected` : "Connect Tumblr",
+      view: "accounts",
+      ready: connectedAccounts > 0,
+    },
+    {
+      label: "Editor",
+      detail: hasDrafts ? "Drafts available" : "Create first ad",
+      view: "editor",
+      ready: hasDrafts,
+    },
+    {
+      label: "Preview",
+      detail: "Validate before queue",
+      view: "editor",
+      ready: hasDrafts,
+    },
+    {
+      label: "Queue",
+      detail: hasQueuedItems ? "Items queued" : "Queue targets",
+      view: "queue",
+      ready: hasQueuedItems,
+    },
+    {
+      label: "Runner",
+      detail: hasRunnerAttention ? "Review status" : "Start runner",
+      view: "runner",
+      ready: hasQueuedItems,
+    },
+    {
+      label: "History",
+      detail: "Logs and outcomes",
+      view: "logs",
+      ready: hasRunnerAttention,
+    },
+  ];
+
+  return (
+    <section className="workflow-path-panel" aria-label="Core submission flow">
+      {steps.map((step, index) => (
+        <button
+          className={step.ready ? "workflow-path-step ready" : "workflow-path-step"}
+          key={step.label}
+          type="button"
+          onClick={() => onNavigate(step.view)}
+        >
+          <span>{index + 1}</span>
+          <strong>{step.label}</strong>
+          <small>{step.detail}</small>
+        </button>
+      ))}
     </section>
   );
 }

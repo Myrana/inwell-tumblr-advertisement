@@ -222,7 +222,7 @@ test("first user can create an Inkwell login before opening the workspace", { ti
   await page.getByText("No content saved yet").waitFor();
   await page.getByRole("button", { name: "Create advertisement" }).waitFor();
   assert.equal(await page.getByRole("button", { name: "Edit" }).count(), 0);
-  await page.getByRole("button", { name: "New Submission" }).click();
+  await page.getByLabel("Workspace views").getByRole("button", { name: "New Submission", exact: true }).click();
   await page.getByRole("heading", { name: "Untitled submission" }).waitFor();
 
   assert.equal(registerPayload?.email, "myrana@example.test");
@@ -324,9 +324,9 @@ test("operations dashboard exports and imports workspace backups", { timeout: 40
   await page.getByLabel("Run readiness").getByText("Queue needs content").waitFor();
   await page.getByLabel("Run blockers").getByText("Connect a Tumblr account.").waitFor();
   await page.getByLabel("Run blockers").getByText("Add queued or scheduled submissions.").waitFor();
-  assert.equal(await page.getByLabel("Workspace views").getByRole("button", { name: "Templates", exact: true }).count(), 0);
-  assert.equal(await page.getByLabel("Workspace views").getByRole("button", { name: "Queues", exact: true }).count(), 0);
-  assert.equal(await page.getByLabel("Workspace views").getByRole("button", { name: "Tumblr Accounts", exact: true }).count(), 0);
+  assert.equal(await page.getByLabel("Workspace views").getByRole("button", { name: "Templates", exact: true }).count(), 1);
+  assert.equal(await page.getByLabel("Workspace views").getByRole("button", { name: "Queues", exact: true }).count(), 1);
+  assert.equal(await page.getByLabel("Workspace views").getByRole("button", { name: "Accounts", exact: true }).count(), 1);
   await page.getByRole("button", { name: "Prep content", exact: true }).click();
   await page.getByRole("heading", { name: "Content library", level: 1 }).waitFor();
   await page.getByRole("button", { name: "Back to Operations", exact: true }).click();
@@ -550,6 +550,48 @@ test("queue persistence quota failures do not blank the workspace", { timeout: 4
   await page.route("http://127.0.0.1:17842/status", (route) => route.abort());
   await routeAuthenticatedSession(page);
   await routeEmptyWorkspaceApis(page);
+  await page.route("http://127.0.0.1:8021/api/advertisements", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({
+        advertisements: [
+          {
+            id: "quota-ad",
+            post_type: "text",
+            title: "Quota source",
+            campaign_name: "",
+            content: "<p>Quota source body</p>",
+            destination_blog: "quotablog",
+            forum_url: "https://forum.example/quota",
+            tags: ["quota"],
+            image_caption: "",
+            image_name: "",
+            image_data_url: "",
+            video_url: "",
+            video_name: "",
+            status: "ready",
+            updated_at: "2026-06-20T12:00:00.000Z",
+          },
+        ],
+      }),
+    }),
+  );
+  await page.route("http://127.0.0.1:8021/api/settings", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({
+        settings: {
+          submitTargets: [{ id: "quotablog", name: "Quota Blog", submitUrl: "https://quotablog.tumblr.com/submit" }],
+          queueDefinitions: [],
+          tagProfiles: {},
+          runnerSettings: {},
+          scheduleSettings: {},
+        },
+      }),
+    }),
+  );
   await page.addInitScript(() => {
     const originalSetItem = Storage.prototype.setItem;
     Storage.prototype.setItem = function patchedSetItem(key, value) {
@@ -558,40 +600,12 @@ test("queue persistence quota failures do not blank the workspace", { timeout: 4
       }
       return originalSetItem.call(this, key, value);
     };
-    localStorage.setItem(
-      "inwell-ad-assistant-state",
-      JSON.stringify({
-        activeAdId: "quota-ad",
-        ads: [
-          {
-            id: "quota-ad",
-            postType: "text",
-            title: "Quota source",
-            campaignName: "",
-            content: "<p>Quota source body</p>",
-            destinationBlog: "quotablog",
-            forumUrl: "https://forum.example/quota",
-            tags: ["quota"],
-            imageCaption: "",
-            imageName: "",
-            imageDataUrl: "",
-            videoUrl: "",
-            videoName: "",
-            status: "ready",
-            updatedAt: "2026-06-20T12:00:00.000Z",
-          },
-        ],
-      }),
-    );
-    localStorage.setItem(
-      "inwell-tumblr-submit-targets",
-      JSON.stringify([{ id: "quotablog", name: "Quota Blog", submitUrl: "https://quotablog.tumblr.com/submit" }]),
-    );
   });
 
   await page.goto(appUrl);
-  await page.getByRole("button", { name: "New Submission" }).click();
-  await page.getByRole("button", { name: "Add to queue" }).click();
+  await page.getByLabel("Workspace views").getByRole("button", { name: "New Submission", exact: true }).click();
+  await page.getByRole("button", { name: "Preview queue" }).click();
+  await page.getByRole("button", { name: "Add 1 to queue" }).click();
   await page.getByRole("heading", { name: "Queues", level: 1 }).waitFor();
   await page.getByText("Create a queue before adding submissions.").waitFor();
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
@@ -625,15 +639,37 @@ test("authenticated backend workspace clears large local mirrors", { timeout: 40
   await page.addInitScript(() => {
     const largeQueuePayload = "x".repeat(50000);
     const legacyValues = {
-      "inwell-ad-assistant-state": JSON.stringify({ activeAdId: "legacy-ad", ads: [{ id: "legacy-ad", title: largeQueuePayload }] }),
-      "inwell-tumblr-submit-targets": JSON.stringify([{ id: "legacy-blog", name: largeQueuePayload }]),
-      "inwell-tumblr-submission-queue": JSON.stringify([{ id: "legacy-queue", runnerPayload: largeQueuePayload }]),
+      "inwell-ad-assistant-state": JSON.stringify({
+        activeAdId: "legacy-ad",
+        ads: [{
+          id: "legacy-ad",
+          postType: "text",
+          title: "Legacy local draft",
+          content: `<p>${largeQueuePayload}</p>`,
+          destinationBlog: "legacy-blog",
+          forumUrl: "https://legacy.example",
+          tags: ["legacy"],
+          status: "ready",
+        }],
+      }),
+      "inwell-tumblr-submit-targets": JSON.stringify([{ id: "legacy-blog", name: "Legacy Blog", submitUrl: "https://legacy.tumblr.com/submit" }]),
+      "inwell-tumblr-submission-queue": JSON.stringify([{
+        id: "legacy-queue-item",
+        adId: "legacy-ad",
+        targetId: "legacy-blog",
+        targetName: "Legacy Blog",
+        queueName: "Legacy queue",
+        submitUrl: "https://legacy.tumblr.com/submit",
+        postType: "text",
+        status: "queued",
+        runnerPayload: largeQueuePayload,
+      }]),
       "inwell-tumblr-queue-definitions": JSON.stringify([{ id: "legacy-queue", name: "Legacy queue" }]),
       "inwell-blog-tag-profiles": JSON.stringify({ legacy: [largeQueuePayload] }),
       "inwell-tumblr-runner-settings": JSON.stringify({ mediaDir: largeQueuePayload }),
       "inwell-queue-schedule-settings": JSON.stringify({ perQueue: { legacy: {} } }),
       "inkwell-saved-templates": JSON.stringify([{ id: "legacy-template", content: largeQueuePayload }]),
-      "inwell-tumblr-accounts": JSON.stringify([{ id: "legacy-account", notes: largeQueuePayload }]),
+      "inwell-tumblr-accounts": JSON.stringify([{ id: "legacy-account", displayName: "Legacy Account", blogName: "legacy", notes: largeQueuePayload }]),
       "inkwell-color-theme": "dark",
       "inkwell-color-skin": "forest-night",
     };
@@ -659,6 +695,13 @@ test("authenticated backend workspace clears large local mirrors", { timeout: 40
   assert.deepEqual(remaining, remaining.map(([key]) => [key, null]));
   assert.equal(await page.evaluate(() => localStorage.getItem("inkwell-color-theme")), "dark");
   assert.equal(await page.evaluate(() => localStorage.getItem("inkwell-color-skin")), "forest-night");
+  assert.doesNotMatch((await page.locator("main").textContent()) ?? "", /Legacy local draft|Legacy queue|Legacy Blog|Legacy Account/);
+  await openWorkspaceView(page, "Queues");
+  assert.equal(await page.getByText("Legacy queue").count(), 0);
+  await openWorkspaceView(page, "Content Library");
+  assert.equal(await page.getByText("Legacy local draft").count(), 0);
+  await openWorkspaceView(page, "Tumblr Accounts");
+  assert.equal(await page.getByText("Legacy Account").count(), 0);
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
 });
 
@@ -942,6 +985,92 @@ test("content library rows can queue a saved submission", { timeout: 40000 }, as
       ]),
     );
   });
+  await page.route("http://127.0.0.1:8021/api/advertisements", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({
+        advertisements: [
+          {
+            id: "saved-ad",
+            post_type: "text",
+            title: "Saved queue post",
+            campaign_name: "Summer campaign",
+            content: "<p>Saved content</p>",
+            destination_blog: "allthingsroleplay",
+            forum_url: "https://forum.example/thread",
+            tags: ["wanted"],
+            image_caption: "",
+            image_name: "",
+            image_data_url: "",
+            video_url: "",
+            video_name: "",
+            status: "draft",
+            updated_at: "2026-06-20T12:00:00.000Z",
+          },
+          {
+            id: "saved-ad-two",
+            post_type: "text",
+            title: "Second saved post",
+            campaign_name: "Alpha campaign",
+            content: "<p>Saved content</p>",
+            destination_blog: "allthingsroleplay",
+            forum_url: "https://forum.example/thread",
+            tags: ["wanted"],
+            image_caption: "",
+            image_name: "",
+            image_data_url: "",
+            video_url: "",
+            video_name: "",
+            status: "draft",
+            updated_at: "2026-06-20T12:05:00.000Z",
+          },
+          {
+            id: "saved-ad-needs-work",
+            post_type: "text",
+            title: "Needs forum link",
+            campaign_name: "",
+            content: "<p>Missing forum URL</p>",
+            destination_blog: "allthingsroleplay",
+            forum_url: "",
+            tags: [],
+            image_caption: "",
+            image_name: "",
+            image_data_url: "",
+            video_url: "",
+            video_name: "",
+            status: "draft",
+            updated_at: "2026-06-20T12:10:00.000Z",
+          },
+        ],
+      }),
+    }),
+  );
+  await page.route("http://127.0.0.1:8021/api/settings", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({
+        settings: {
+          submitTargets: [
+            {
+              id: "allthingsroleplay",
+              name: "allthingsroleplay",
+              profileName: "All Things Roleplay ads",
+              submitUrl: "https://allthingsroleplay.tumblr.com/submit",
+              forumUrl: "https://forum.example/thread",
+              postingRules: "Use photo posts and credit the forum.",
+            },
+          ],
+          queueDefinitions: [
+            { id: "default-queue", name: "Default queue" },
+            { id: "want-ads", name: "Want ads" },
+          ],
+          tagProfiles: {},
+        },
+      }),
+    }),
+  );
 
   await page.goto(appUrl);
   await page.getByRole("button", { name: "Operations", exact: true }).click();
@@ -1381,7 +1510,7 @@ test("custom blog submission flow does not blank the editor", { timeout: 40000 }
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await page.getByRole("status").getByText("Saved just now").waitFor();
   assert.equal(await page.getByRole("button", { name: "Keep editing" }).count(), 0);
-  assert.equal(await page.getByRole("button", { name: "Add to queue" }).count(), 1);
+  assert.equal(await page.getByRole("button", { name: "Preview queue" }).count(), 1);
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
   assert.match((await page.locator("main").textContent()) ?? "", /Submission workspace/);
 });
@@ -1492,7 +1621,7 @@ test("templates can be edited on their page and applied from the submission work
   await page.getByRole("heading", { name: "Content library", level: 1 }).waitFor();
   await page.getByRole("button", { name: "Edit" }).click();
   await page.getByRole("heading", { name: "All Things Roleplay" }).waitFor();
-  assert.equal(await page.getByLabel("Workspace views").getByRole("button", { name: "Queue", exact: true }).count(), 0);
+  assert.equal(await page.getByLabel("Workspace views").getByRole("button", { name: "Queue", exact: true }).count(), 1);
   await openWorkspaceView(page, "Queues");
   await page.getByRole("heading", { name: "Queues", level: 1 }).waitFor();
   assert.equal(await page.getByText("Default queue").count(), 0);
@@ -1523,9 +1652,10 @@ test("templates can be edited on their page and applied from the submission work
   await page.getByRole("button", { name: "New Submission" }).click();
   await page.getByRole("heading", { name: "All Things Roleplay" }).waitFor();
   await page.getByLabel("Queue destination").selectOption("Want ads");
-  await page.getByRole("button", { name: "Add to queue" }).click();
+  await page.getByRole("button", { name: "Preview queue" }).click();
+  await page.getByRole("button", { name: "Add 1 to queue" }).click();
   await page.getByText("Added to Want ads").waitFor();
-  await page.getByRole("button", { name: "View queue" }).click();
+  await page.getByRole("button", { name: "View queue", exact: true }).click();
   await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
   assert.equal(await page.getByLabel("Active queue").inputValue(), "Want ads");
 
@@ -1896,7 +2026,7 @@ test("tumblr accounts can be saved and selected for queue runs", { timeout: 4000
   await connectedAccountRow.getByRole("button", { name: "Check saved login" }).waitFor();
   await page.getByRole("button", { name: "Create submission" }).click();
   await page.getByRole("heading", { name: "Untitled submission" }).waitFor();
-  assert.equal(await page.getByLabel("Workspace views").getByRole("button", { name: "Queue", exact: true }).count(), 0);
+  assert.equal(await page.getByLabel("Workspace views").getByRole("button", { name: "Queue", exact: true }).count(), 1);
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
 });
 

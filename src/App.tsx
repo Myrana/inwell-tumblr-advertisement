@@ -24,6 +24,8 @@ import { SavedSubmissionsView } from "./components/SavedSubmissionsView";
 import { TemplatesWorkspace } from "./components/TemplatesWorkspace";
 import { TumblrAccountsWorkspace } from "./components/TumblrAccountsWorkspace";
 import { WorkspaceTopbar } from "./components/WorkspaceTopbar";
+import { useEditorQueueActions } from "./hooks/useEditorQueueActions";
+import { useWorkspaceChrome, workspacePageTitles } from "./hooks/useWorkspaceChrome";
 
 import {
   ApiError,
@@ -58,18 +60,16 @@ import {
   type LocalCompanionStatus,
 } from "./domain/api";
 import { composerContentFor, emptyAd, hasLibraryContent, normalizeStoredState } from "./domain/ads";
-import { colorSkins, defaultTagProfiles, postTypes } from "./domain/constants";
+import { defaultTagProfiles, postTypes } from "./domain/constants";
 import { MediaLibraryAsset, mediaLibraryFromAdvertisements } from "./domain/mediaLibrary";
-import { buildPreparedPost, validateAdvertisement } from "./domain/post";
+import { validateAdvertisement } from "./domain/post";
 import {
   activeQueueItems,
   refillQueueFromReadyDrafts,
   runnableQueueItems as runnableItemsForQueue,
 } from "./domain/queueAutomation";
-import { createQueueItem as createSubmissionQueueItem, queueIdFromName, uniqueQueueDefinitions } from "./domain/queue";
+import { queueIdFromName, uniqueQueueDefinitions } from "./domain/queue";
 import {
-  loadColorSkin,
-  loadColorTheme,
   loadQueueScheduleSettings,
   clearBackendOwnedLocalStorage,
   normalizeQueueScheduleSettings,
@@ -82,8 +82,6 @@ import {
   loadTagProfiles,
   loadTemplates,
   loadTumblrAccounts,
-  saveColorTheme,
-  saveColorSkin,
   saveQueueScheduleSettings,
   saveQueueDefinitions,
   saveRunnerSettings,
@@ -109,8 +107,6 @@ import {
   Advertisement,
   AppSettings,
   AuthUser,
-  ColorSkin,
-  ColorTheme,
   QueueSchedulePreference,
   QueueScheduleSettings,
   QueueDefinition,
@@ -164,9 +160,8 @@ function App() {
   const [localCompanion, setLocalCompanion] = useState<LocalCompanionStatus | null>(null);
   const [runnerLogs, setRunnerLogs] = useState<RunnerLog[]>([]);
   const [activeView, setActiveView] = useState<WorkspaceView>("dashboard");
-  const [colorTheme, setColorTheme] = useState<ColorTheme>(() => loadColorTheme());
-  const [colorSkin, setColorSkin] = useState<ColorSkin>(() => loadColorSkin());
   const [accountSetupRouteApplied, setAccountSetupRouteApplied] = useState(false);
+  const { colorTheme, colorSkin, selectColorSkin, toggleColorTheme } = useWorkspaceChrome();
 
   const activeAd = useMemo(() => {
     const normalized = normalizeStoredState(stored);
@@ -273,6 +268,22 @@ function App() {
   const activeBlogTags = tagProfiles[activeAd.destinationBlog] ?? defaultTagProfiles[activeAd.destinationBlog] ?? [];
   const checklistTags = uniqueTags([...activeBlogTags, ...activeAd.tags]);
   const mediaLibraryAssets = useMemo(() => mediaLibraryFromAdvertisements(stored.ads, activeAd.id), [activeAd.id, stored.ads]);
+  const { queueSavedDraft, queueTargets } = useEditorQueueActions({
+    activeAd,
+    activeQueueName,
+    activeView,
+    runnerSettings,
+    stored,
+    submitTargets,
+    syncQueueItem,
+    setActiveView,
+    setEditorQueueConfirmation,
+    setQueueStatus,
+    setSelectedQueueName,
+    setStored,
+    setSubmissionQueue,
+    setValidation,
+  });
   const editor = useEditor(
     {
       extensions: [
@@ -412,16 +423,6 @@ function App() {
   }, [backendOwnsWorkspaceState, queueScheduleSettings]);
 
   useEffect(() => {
-    document.documentElement.dataset.theme = colorTheme;
-    saveColorTheme(colorTheme);
-  }, [colorTheme]);
-
-  useEffect(() => {
-    document.documentElement.dataset.skin = colorSkin;
-    saveColorSkin(colorSkin);
-  }, [colorSkin]);
-
-  useEffect(() => {
     if (!authUser || !backendStateLoaded) {
       return;
     }
@@ -502,38 +503,26 @@ function App() {
 
         const backendAds = advertisementResponse;
         const nextStored = normalizeStoredState({
-          ads: backendAds.length ? backendAds : stored.ads,
+          ads: backendAds,
           activeAdId: stored.activeAdId,
         });
 
         setStored(nextStored);
         setTemplates(backendTemplates);
-        if (backendQueue.length) {
-          setSubmissionQueue(backendQueue);
-        }
-        setSubmitTargets(
-          backendSettings.submitTargets?.length ? uniqueSubmitTargets(backendSettings.submitTargets) : submitTargets,
-        );
+        setSubmissionQueue(backendQueue);
+        setSubmitTargets(uniqueSubmitTargets(backendSettings.submitTargets ?? []));
         setQueueDefinitions(
-          backendSettings.queueDefinitions?.length
-            ? uniqueQueueDefinitions(backendSettings.queueDefinitions, backendQueue)
-            : uniqueQueueDefinitions(queueDefinitions, backendQueue),
+          uniqueQueueDefinitions(backendSettings.queueDefinitions ?? [], backendQueue),
         );
-        setTagProfiles(
-          backendSettings.tagProfiles && Object.keys(backendSettings.tagProfiles).length
-            ? normalizeTagProfiles(backendSettings.tagProfiles)
-            : tagProfiles,
-        );
-        setRunnerSettings(backendSettings.runnerSettings ? normalizeRunnerSettings({ ...runnerSettings, ...backendSettings.runnerSettings }) : runnerSettings);
+        setTagProfiles(normalizeTagProfiles(backendSettings.tagProfiles ?? {}));
+        setRunnerSettings(normalizeRunnerSettings(backendSettings.runnerSettings ?? {}));
         setQueueScheduleSettings(
           backendSettings.queueScheduleSettings
             ? normalizeQueueScheduleSettings(backendSettings.queueScheduleSettings)
-            : queueScheduleSettings,
+            : normalizeQueueScheduleSettings({}),
         );
         setRunnerLogs(backendLogs);
-        if (backendTumblrAccounts.length) {
-          setTumblrAccounts(backendTumblrAccounts);
-        }
+        setTumblrAccounts(backendTumblrAccounts);
         setApiAvailable(true);
         setBackendStateLoaded(true);
       } catch {
@@ -569,18 +558,6 @@ function App() {
     void saveAdvertisement(advertisement)
       .then(() => setApiAvailable(true))
       .catch(() => setApiAvailable(false));
-  }
-
-  function selectColorSkin(nextSkin: ColorSkin) {
-    const skinConfig = colorSkins.find((option) => option.value === nextSkin);
-    setColorSkin(nextSkin);
-    if (skinConfig) {
-      setColorTheme(skinConfig.theme);
-    }
-  }
-
-  function toggleColorTheme() {
-    selectColorSkin(colorTheme === "dark" ? "soft-green" : "inkwell-dark");
   }
 
   function authLockMessage(error: unknown, fallback: string) {
@@ -872,79 +849,6 @@ function App() {
     updateActiveAd({ status: "draft" });
     setValidation([]);
     setSaveStatus("Saved just now");
-  }
-
-  function validateAd() {
-    const missing = validateAdvertisement(activeAd);
-    setValidation(missing);
-    return missing;
-  }
-
-  function buildPost() {
-    return buildPreparedPost(activeAd);
-  }
-
-  function createQueueItem(target: TumblrSubmitTarget): SubmissionQueueItem {
-    return createSubmissionQueueItem(activeAd, target, buildPost(), activeQueueName, runnerSettings.tumblrAccountId);
-  }
-
-  function queueTargets(targets: TumblrSubmitTarget[]) {
-    if (!activeQueueName) {
-      setQueueStatus("Create a queue before adding submissions.");
-      setActiveView("queue-settings");
-      return;
-    }
-
-    const missing = validateAd();
-    if (missing.length) {
-      return;
-    }
-
-    const nextItems = targets.map((target) => createQueueItem(target));
-    setSubmissionQueue((current) => {
-      const withoutExisting = current.filter(
-        (item) => item.queueName !== activeQueueName || item.adId !== activeAd.id || !nextItems.some((next) => next.targetId === item.targetId),
-      );
-      return [...nextItems, ...withoutExisting];
-    });
-    nextItems.forEach(syncQueueItem);
-    setQueueStatus(`Queued ${nextItems.length} target${nextItems.length === 1 ? "" : "s"} in ${activeQueueName}.`);
-    if (activeView === "editor") {
-      setEditorQueueConfirmation({ count: nextItems.length, queueName: activeQueueName });
-    }
-  }
-
-  function queueSavedDraft(id: string, queueName = activeQueueName) {
-    const ad = stored.ads.find((item) => item.id === id);
-    if (!ad) {
-      return;
-    }
-    if (!queueName) {
-      setQueueStatus("Create a queue before adding submissions.");
-      setActiveView("queue-settings");
-      return;
-    }
-
-    const missing = validateAdvertisement(ad);
-    if (missing.length) {
-      setStored((current) => ({ ...current, activeAdId: id }));
-      setValidation(missing);
-      setActiveView("editor");
-      return;
-    }
-
-    const target = submitTargets.find((item) => item.id === ad.destinationBlog) ?? fallbackTarget(ad.destinationBlog);
-    const nextItem = createSubmissionQueueItem(ad, target, buildPreparedPost(ad), queueName, runnerSettings.tumblrAccountId);
-    setSubmissionQueue((current) => {
-      const withoutExisting = current.filter(
-        (item) => item.queueName !== queueName || item.adId !== ad.id || item.targetId !== nextItem.targetId,
-      );
-      return [nextItem, ...withoutExisting];
-    });
-    syncQueueItem(nextItem);
-    setSelectedQueueName(queueName);
-    setQueueStatus(`Queued ${ad.title || target.name} in ${queueName}.`);
-    setActiveView("queue");
   }
 
   function renameQueueDefinition(currentName: string, nextNameValue: string) {
@@ -1691,18 +1595,7 @@ function App() {
   }
 
   const submissionComplete = activeAd.status === "submitted";
-  const pageTitles: Record<WorkspaceView, { eyebrow: string; title: string }> = {
-    dashboard: { eyebrow: "Operations", title: "Operations dashboard" },
-    editor: { eyebrow: "Submission workspace", title: activeAd.title || "Untitled submission" },
-    saved: { eyebrow: "Content library", title: "Content library" },
-    templates: { eyebrow: "Reusable copy library", title: "Saved templates" },
-    queue: { eyebrow: "Tumblr automation", title: "Submission queue" },
-    runner: { eyebrow: "Tumblr automation", title: "Runner" },
-    "queue-settings": { eyebrow: "Tumblr automation", title: "Queues" },
-    accounts: { eyebrow: "Tumblr automation", title: "Tumblr accounts" },
-    logs: { eyebrow: "Tumblr automation", title: "Runner logs" },
-    docs: { eyebrow: "Reference", title: "Testing and change guide" },
-  };
+  const pageTitles = workspacePageTitles(activeAd.title);
   const toolbarButtons = [
     {
       label: "Bold",

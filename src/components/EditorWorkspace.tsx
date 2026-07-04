@@ -5,6 +5,8 @@ import { postTypes } from "../domain/constants";
 import { MediaLibraryAsset } from "../domain/mediaLibrary";
 import { scoreDraftReadiness, validateAdvertisement } from "../domain/post";
 import { Advertisement, PostType, QueueDefinition, SavedTemplate, TumblrSubmitTarget } from "../domain/types";
+import { useQueuePreview } from "../hooks/useQueuePreview";
+import { QueuePreviewPanel } from "./editor/QueuePreviewPanel";
 import { TemplateLibrary } from "./TemplateLibrary";
 
 type ToolbarButton = {
@@ -113,6 +115,8 @@ export function EditorWorkspace({
   const selectedTargetSummary = activeSubmitTarget.id
     ? `${activeSubmitTarget.name} - ${activeSubmitTarget.submitUrl}`
     : "No blog selected";
+  const { clearPreview, openPreview, previewTargets } = useQueuePreview();
+  const previewableTargets = targetOptions.filter((target) => target.id && target.submitUrl);
 
   function setSectionOpen(section: WorkflowSectionKey, open: boolean) {
     setOpenSections((current) => ({ ...current, [section]: open }));
@@ -121,6 +125,14 @@ export function EditorWorkspace({
   function statusLabel(ready: boolean, optional = false) {
     if (ready) return "Ready";
     return optional ? "Optional" : "Needs info";
+  }
+
+  function confirmQueuePreview() {
+    if (!previewTargets.length) {
+      return;
+    }
+    onQueueTargets(previewTargets);
+    clearPreview();
   }
 
   return (
@@ -161,14 +173,31 @@ export function EditorWorkspace({
             <button
               className="primary"
               type="button"
-              onClick={() => onQueueTargets([activeSubmitTarget])}
+              onClick={() => openPreview([activeSubmitTarget])}
               disabled={!queueReady}
             >
               <Send size={18} />
-              Add to queue
+              Preview queue
             </button>
+            {previewableTargets.length > 1 ? (
+              <button
+                className="secondary"
+                type="button"
+                onClick={() => openPreview(previewableTargets)}
+                disabled={!queueReady}
+              >
+                Preview all blogs
+              </button>
+            ) : null}
           </div>
         </div>
+
+        <QueuePreviewPanel
+          queueName={selectedQueueName}
+          targets={previewTargets}
+          onCancel={clearPreview}
+          onConfirm={confirmQueuePreview}
+        />
 
         {queueConfirmation ? (
           <div className="queue-confirmation" role="status" aria-label="Queue confirmation">
