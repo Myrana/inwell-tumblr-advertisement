@@ -8,6 +8,7 @@ import { Advertisement, PostType, QueueDefinition, SavedTemplate, TumblrSubmitTa
 import { useQueuePreview } from "../hooks/useQueuePreview";
 import { QueuePreviewPanel } from "./editor/QueuePreviewPanel";
 import { TemplateLibrary } from "./TemplateLibrary";
+import "./editor/editorWorkspace.css";
 
 type ToolbarButton = {
   label: string;
@@ -95,9 +96,9 @@ export function EditorWorkspace({
   onVideoUpload,
 }: EditorWorkspaceProps) {
   const [openSections, setOpenSections] = useState<Record<WorkflowSectionKey, boolean>>({
-    details: true,
+    details: false,
     templates: false,
-    composer: false,
+    composer: true,
   });
   const queueBlockers = validateAdvertisement(activeAd);
   const readiness = scoreDraftReadiness(activeAd);
@@ -344,7 +345,7 @@ export function EditorWorkspace({
           ) : null}
         </section>
 
-        <section className="workflow-section">
+        <section className="workflow-section composer-workflow-section">
           <div className="workflow-section-header">
             <button type="button" aria-label="Toggle post content section" onClick={() => setSectionOpen("composer", !openSections.composer)}>
               <ChevronDown size={18} className={openSections.composer ? "open" : ""} />

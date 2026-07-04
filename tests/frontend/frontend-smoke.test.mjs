@@ -1,45 +1,21 @@
 import assert from "node:assert/strict";
-import { spawn, spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { spawn } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { chromium } from "playwright";
+import {
+  createFrontendTestContext,
+  stopProcessTree,
+  waitForServer,
+} from "./helpers/appTestServer.mjs";
 
-const appUrl = "http://127.0.0.1:8123";
-const apiHeaders = {
-  "Access-Control-Allow-Credentials": "true",
-  "Access-Control-Allow-Headers": "Content-Type",
-  "Access-Control-Allow-Methods": "DELETE,GET,OPTIONS,POST,PUT",
-  "Access-Control-Allow-Origin": appUrl,
-};
-const authenticatedSession = {
-  authenticated: true,
-  bootstrapRequired: false,
-  user: {
-    id: "user-test",
-    email: "myrana@example.test",
-    displayName: "Myrana",
-    workspace: { id: "workspace-test", name: "Myrana workspace" },
-  },
-};
-
-test("site background uses CSS overlays without remote image artifacts", () => {
-  const styles = readFileSync("src/styles.css", "utf8");
-
-  assert.doesNotMatch(styles, /rawpixel|site-overlay-image|image_png_800/);
-  assert.match(styles, /\.app-shell::before\s*\{/);
-  assert.match(styles, /\.app-shell::after\s*\{/);
-  assert.match(styles, /\.app-shell\s*\{[\s\S]*radial-gradient/);
-  assert.match(styles, /ellipse 72px 420px/);
-  assert.match(styles, /html\[data-theme="dark"\]\s+\.app-shell::before\s*\{/);
-  assert.match(styles, /html\[data-theme="dark"\]\s+\.app-shell::after\s*\{/);
-  assert.match(styles, /html\[data-theme="dark"\]\[data-skin="forest-night"\]/);
-  assert.match(styles, /html\[data-theme="light"\]\[data-skin="soft-green"\]/);
-  assert.match(styles, /\.queue-workspace::before\s*\{/);
-  assert.match(styles, /html\[data-theme="dark"\]\s+\.queue-workspace::before\s*\{/);
-  assert.match(styles, /ellipse 240px 110px/);
-  assert.match(styles, /linear-gradient\(180deg, rgba\(0, 0, 0, 0\.36\)/);
-});
+const {
+  apiHeaders,
+  appUrl,
+  authenticatedSession,
+  routeAuthenticatedSession,
+  routeEmptyWorkspaceApis,
+} = createFrontendTestContext(8123);
 
 test("render crashes show a recovery panel instead of a blank page", { timeout: 40000 }, async (t) => {
   const server = spawn("npx vite --host 127.0.0.1 --port 8123 --strictPort", {
@@ -65,80 +41,6 @@ test("render crashes show a recovery panel instead of a blank page", { timeout: 
   await page.getByText("Forced local render crash.").waitFor();
   await page.getByRole("button", { name: "Reset local cache" }).waitFor();
 });
-
-function stopProcessTree(childProcess) {
-  if (!childProcess.pid) {
-    return;
-  }
-
-  if (process.platform === "win32") {
-    spawnSync("taskkill", ["/pid", String(childProcess.pid), "/t", "/f"], { stdio: "ignore" });
-    return;
-  }
-
-  childProcess.kill();
-}
-
-function waitForServer(url, timeoutMs = 20000) {
-  const startedAt = Date.now();
-
-  return new Promise((resolve, reject) => {
-    async function poll() {
-      try {
-        const response = await fetch(url);
-        if (response.ok) {
-          resolve();
-          return;
-        }
-      } catch {
-        // Vite is still starting.
-      }
-
-      if (Date.now() - startedAt > timeoutMs) {
-        reject(new Error(`Timed out waiting for ${url}`));
-        return;
-      }
-
-      setTimeout(poll, 250);
-    }
-
-    void poll();
-  });
-}
-
-async function routeAuthenticatedSession(page) {
-  await page.route("http://127.0.0.1:8021/api/auth/session", (route) =>
-    route.fulfill({
-      contentType: "application/json",
-      headers: apiHeaders,
-      body: JSON.stringify(authenticatedSession),
-    }),
-  );
-}
-
-async function routeEmptyWorkspaceApis(page) {
-  await page.route("http://127.0.0.1:8021/api/tumblr/accounts", (route) =>
-    route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ accounts: [] }) }),
-  );
-  await page.route("http://127.0.0.1:8021/api/advertisements", (route) =>
-    route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ advertisements: [] }) }),
-  );
-  await page.route("http://127.0.0.1:8021/api/templates", (route) =>
-    route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ templates: [] }) }),
-  );
-  await page.route("http://127.0.0.1:8021/api/queue", (route) =>
-    route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ queue: [] }) }),
-  );
-  await page.route("http://127.0.0.1:8021/api/runner/logs", (route) =>
-    route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ logs: [] }) }),
-  );
-  await page.route("http://127.0.0.1:8021/api/settings", (route) =>
-    route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ settings: {} }) }),
-  );
-  await page.route("http://127.0.0.1:8021/api/settings/app", (route) =>
-    route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ settings: route.request().postDataJSON() }) }),
-  );
-}
 
 async function openWorkspaceView(page, viewName) {
   const directButton = page.getByLabel("Workspace views").getByRole("button", { name: viewName, exact: true });
@@ -1453,6 +1355,7 @@ test("custom blog submission flow does not blank the editor", { timeout: 40000 }
   await page.reload();
   await page.getByRole("button", { name: "New Submission" }).click();
   await page.getByRole("heading", { name: "Custom target ad" }).waitFor();
+  await page.getByRole("button", { name: "Toggle submission details section" }).click();
   assert.equal(await page.getByRole("button", { name: "Dark mode" }).count(), 1);
   assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), "light");
   assert.equal(await page.evaluate(() => document.documentElement.dataset.skin), "soft-green");
@@ -1461,7 +1364,7 @@ test("custom blog submission flow does not blank the editor", { timeout: 40000 }
   const addBlogInput = page.locator('label:has-text("Add Tumblr submit URL") input');
   const forumInput = page.getByLabel("Forum link");
   const savedNameInput = page.getByLabel("Submission name");
-  assert.equal(await page.getByLabel("Tumblr post content").count(), 0);
+  assert.ok((await page.getByLabel("Tumblr post content").count()) > 0);
 
   await addBlogInput.fill("https://another-rp.tumblr.com/submit");
   await page.getByRole("button", { name: "Add blog" }).click();
@@ -1493,7 +1396,6 @@ test("custom blog submission flow does not blank the editor", { timeout: 40000 }
   await page.getByRole("button", { name: "Toggle reusable copy section" }).click();
   await page.getByRole("button", { name: /Editor quick template/ }).click();
   assert.equal(await page.getByLabel("Queue destination").inputValue(), "Want ads");
-  await page.getByRole("button", { name: "Toggle post content section" }).click();
   await page.locator(".tumblr-rich-editor strong", { hasText: "Quick saved copy" }).waitFor();
   await page.getByLabel("Preview mode").getByText("Desktop", { exact: true }).waitFor();
   assert.equal(await page.getByLabel("Preview mode").getByText("Mobile", { exact: true }).count(), 0);
@@ -1581,6 +1483,7 @@ test("templates can be edited on their page and applied from the submission work
 
   await page.goto(appUrl);
   await page.getByRole("button", { name: "New Submission" }).click();
+  await page.getByRole("button", { name: "Toggle submission details section" }).click();
   await page.getByLabel("Target Tumblr blog").selectOption("custom-ads");
   assert.equal(await page.getByText("Inkwell Ads").count(), 0);
   assert.equal(await page.getByText("jcink-directory").count(), 0);
@@ -1611,8 +1514,8 @@ test("templates can be edited on their page and applied from the submission work
   await page.getByRole("heading", { name: "All Things Roleplay" }).waitFor();
   await page.getByRole("button", { name: "Toggle reusable copy section" }).click();
   await page.getByRole("button", { name: /Reusable premium ad updated/ }).click();
-  await page.getByRole("button", { name: "Toggle post content section" }).click();
   assert.match((await page.locator(".tumblr-rich-editor").textContent()) ?? "", /Edited template copy/);
+  await page.getByRole("button", { name: "Toggle submission details section" }).click();
   assert.equal(await page.getByLabel("Forum link").inputValue(), "https://forum.example/original");
   assert.equal(await page.getByLabel("jcink site").isChecked(), true);
   assert.equal(await page.getByLabel("premium jcink").count(), 0);

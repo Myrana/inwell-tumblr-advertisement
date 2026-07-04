@@ -209,7 +209,7 @@ export function SavedSubmissionsView({
             ) : null}
             {sortedLibraryAds.map((ad) => {
               const duplicateMatch = duplicateMatchesByAdId.get(ad.id);
-              const duplicatePeerNames = duplicateMatch?.labels.filter((label, index) => duplicateMatch.adIds[index] !== ad.id) ?? [];
+              const duplicatePeerNames = duplicateMatch?.labels.filter((_, index) => duplicateMatch.adIds[index] !== ad.id) ?? [];
               const readiness = scoreDraftReadiness(ad);
 
               return (

@@ -1,8 +1,8 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
+import "./styles.css";
 import App from "./App";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
-import "./styles.css";
 
 function LocalCrashProbe() {
   if (window.location.hostname === "127.0.0.1" && new URLSearchParams(window.location.search).get("forceCrash") === "1") {

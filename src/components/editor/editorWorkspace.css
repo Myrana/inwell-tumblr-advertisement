@@ -1,0 +1,301 @@
+.editor-surface {
+  padding: 18px;
+  display: grid;
+  gap: 12px;
+  border: 0;
+  background: transparent;
+}
+
+.editor-notebook-intro {
+  min-width: 0;
+  padding: 14px 16px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  border: 1px solid rgba(46, 143, 163, 0.16);
+  border-left: 4px solid var(--cyan);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.76);
+}
+
+.editor-notebook-intro span {
+  color: var(--coral);
+  font-size: 0.76rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.editor-notebook-intro p {
+  margin: 0;
+  color: var(--muted);
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.editor-notebook-title {
+  display: block;
+  margin: 3px 0 4px;
+  color: var(--text);
+  font-size: 1.28rem;
+  overflow-wrap: anywhere;
+}
+
+.editor-save-pill {
+  flex: 0 0 auto;
+  min-height: 30px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid rgba(47, 118, 93, 0.18);
+  border-radius: 999px;
+  background: #f3faf6;
+  color: var(--green);
+  font-size: 0.76rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.editor-surface .queue-readiness,
+.editor-surface .queue-confirmation {
+  min-height: 56px;
+  padding: 11px 12px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  border-color: transparent;
+  border-left: 4px solid var(--amber);
+  border-radius: 8px;
+  background: #fff9ef;
+}
+
+.editor-surface .queue-readiness.ready,
+.editor-surface .queue-confirmation {
+  border-left-color: var(--green);
+  background: #f3faf6;
+}
+
+.editor-surface .queue-readiness strong,
+.editor-surface .queue-readiness span,
+.editor-surface .queue-confirmation strong,
+.editor-surface .queue-confirmation span {
+  display: block;
+}
+
+.editor-surface .queue-readiness span,
+.editor-surface .queue-confirmation span {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.editor-surface .queue-readiness-actions {
+  display: inline-flex;
+  align-items: end;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.editor-surface .queue-confirmation-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.editor-surface .workflow-section {
+  overflow: hidden;
+  border: 1px solid rgba(46, 143, 163, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.68);
+}
+
+.editor-surface .workflow-section-header {
+  min-height: 52px;
+  padding: 8px 10px;
+  background: rgba(248, 250, 251, 0.7);
+}
+
+.editor-surface .workflow-section-body {
+  padding: 12px;
+}
+
+.editor-surface .composer-workflow-section {
+  order: -1;
+  border-color: rgba(46, 143, 163, 0.22);
+  background: #ffffff;
+  box-shadow: 0 12px 34px rgba(27, 30, 36, 0.08);
+}
+
+.editor-surface .composer-workflow-section .workflow-section-header {
+  background: #ffffff;
+}
+
+.editor-surface .composer-section-body {
+  padding: 0;
+}
+
+.editor-surface .quality-checklist {
+  display: grid;
+  gap: 0.85rem;
+  padding: 12px;
+  border: 1px solid rgba(46, 143, 163, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.64);
+}
+
+.editor-surface .quality-checklist > div:first-child {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.editor-surface .quality-checklist span {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.editor-surface .quality-checklist-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.editor-surface .tumblr-submit-shell {
+  overflow: hidden;
+  border: 0;
+  border-radius: 8px;
+  background: #f7f9fb;
+}
+
+.editor-surface .preview-mode-switcher {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  padding: 10px 12px 0;
+  border-bottom: 1px solid var(--line);
+  background: #f5f9fa;
+}
+
+.editor-surface .preview-mode-switcher span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 0.75rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.editor-surface .preview-mode-switcher span.active {
+  border-color: rgba(42, 109, 132, 0.34);
+  background: #e8f5f7;
+  color: var(--text);
+}
+
+.editor-surface .tumblr-composer {
+  border: 1px solid rgba(46, 143, 163, 0.14);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.editor-surface .tumblr-composer-header {
+  min-height: 52px;
+}
+
+.editor-surface .tumblr-photo-stage,
+.editor-surface .tumblr-body-field,
+.editor-surface .tumblr-tag-panel,
+.editor-surface .media-library-panel {
+  border-color: rgba(46, 143, 163, 0.12);
+}
+
+.editor-surface .tumblr-editor-tools {
+  background: #f8fafb;
+}
+
+html[data-theme="dark"] .editor-surface {
+  background: transparent;
+}
+
+html[data-theme="dark"] .editor-notebook-intro,
+html[data-theme="dark"] .editor-surface .workflow-section,
+html[data-theme="dark"] .editor-surface .quality-checklist,
+html[data-theme="dark"] .editor-surface .composer-workflow-section,
+html[data-theme="dark"] .editor-surface .composer-workflow-section .workflow-section-header,
+html[data-theme="dark"] .editor-surface .tumblr-composer {
+  border-color: rgba(95, 179, 197, 0.16);
+  background: #151d28;
+}
+
+html[data-theme="dark"] .editor-surface .queue-readiness {
+  background: #241a18;
+}
+
+html[data-theme="dark"] .editor-surface .queue-readiness.ready,
+html[data-theme="dark"] .editor-surface .queue-confirmation {
+  background: #10231d;
+}
+
+html[data-theme="dark"] .editor-surface .tumblr-submit-shell,
+html[data-theme="dark"] .editor-surface .tumblr-editor-tools {
+  background: #111923;
+}
+
+html[data-theme="dark"] .editor-surface .preview-mode-switcher span.active {
+  border-color: #375c6b;
+  background: #183242;
+  color: var(--ink);
+}
+
+@media (max-width: 720px) {
+  .editor-surface,
+  .editor-surface .tumblr-submit-shell {
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  .editor-surface {
+    padding: 0;
+  }
+
+  .editor-surface .queue-readiness,
+  .editor-surface .queue-confirmation {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .editor-notebook-intro {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 14px;
+  }
+
+  .editor-notebook-title {
+    font-size: 1.22rem;
+    line-height: 1.2;
+  }
+
+  .editor-surface .queue-readiness-actions,
+  .editor-surface .queue-confirmation-actions {
+    width: 100%;
+  }
+
+  .editor-surface .queue-readiness-actions > button,
+  .editor-surface .queue-confirmation-actions > button {
+    flex: 1;
+  }
+
+  .editor-save-pill {
+    width: 100%;
+    justify-content: center;
+    white-space: normal;
+    text-align: center;
+  }
+}

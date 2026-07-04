@@ -1,4 +1,4 @@
-import { defaultSubmitTargets, submitTargetStorageKey } from "./constants";
+import { submitTargetStorageKey } from "./constants";
 import { TumblrSubmitTarget } from "./types";
 
 const removedSeedTargetIds = new Set(["inwell-ads", "jcink-directory", "roleplay-finder"]);
