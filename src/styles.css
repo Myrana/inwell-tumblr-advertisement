@@ -2536,6 +2536,50 @@ pre {
   color: #8b4d13;
 }
 
+.duplicate-review-panel {
+  margin-bottom: 14px;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+  border: 1px solid rgba(217, 101, 82, 0.22);
+  border-left: 4px solid var(--coral);
+  border-radius: 8px;
+  background: #fff8f6;
+}
+
+.duplicate-review-panel > div:first-child {
+  display: grid;
+  gap: 2px;
+}
+
+.duplicate-review-panel strong,
+.duplicate-review-panel span {
+  overflow-wrap: anywhere;
+}
+
+.duplicate-review-panel span {
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.duplicate-review-panel article {
+  padding: 10px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.74);
+}
+
+.duplicate-review-panel article div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .batch-prep-panel label {
   display: grid;
   gap: 6px;
@@ -2580,10 +2624,15 @@ pre {
 }
 
 .campaign-filter-panel > strong {
+  margin-top: 8px;
   color: var(--text);
   font-size: 0.78rem;
   font-weight: 900;
   text-transform: uppercase;
+}
+
+.campaign-filter-panel > strong:first-child {
+  margin-top: 0;
 }
 
 .campaign-filter-button {
@@ -2615,6 +2664,85 @@ pre {
 
 .campaign-library-results {
   min-width: 0;
+}
+
+.advertisement-card.archived {
+  border-style: dashed;
+  opacity: 0.76;
+}
+
+.advertisement-card.archived .draft-card-kicker::after {
+  content: " archived";
+}
+
+.settings-workspace {
+  display: grid;
+  gap: 14px;
+}
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.settings-panel {
+  min-width: 0;
+  padding: 14px;
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.settings-panel-wide {
+  grid-column: span 3;
+}
+
+.settings-panel-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.settings-panel-heading svg {
+  color: var(--cyan);
+}
+
+.settings-panel-heading span {
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.settings-panel-heading h2 {
+  margin: 2px 0 0;
+  font-size: 1rem;
+}
+
+.settings-panel label {
+  display: grid;
+  gap: 6px;
+  color: #384151;
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.settings-panel small,
+.settings-panel p {
+  margin: 0;
+  color: var(--muted);
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.settings-action-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 .bulk-edit-panel label,
 .bulk-select {
@@ -3259,6 +3387,16 @@ html[data-theme="dark"] .workspace-saved .batch-prep-panel .duplicate-check-summ
   color: #f2c36d;
 }
 
+html[data-theme="dark"] .duplicate-review-panel {
+  border-color: rgba(255, 170, 160, 0.28);
+  border-left-color: var(--coral);
+  background: #321b19;
+}
+
+html[data-theme="dark"] .duplicate-review-panel article {
+  background: rgba(255, 255, 255, 0.06);
+}
+
 html[data-theme="dark"] .bulk-edit-panel {
   border-color: rgba(95, 179, 197, 0.24);
   background: rgba(15, 23, 32, 0.62);
@@ -3582,6 +3720,19 @@ html[data-theme="dark"] .queue-workspace::before {
   opacity: 1;
 }
 
+html[data-theme="dark"] .settings-panel {
+  border-color: rgba(95, 179, 197, 0.18);
+  background: #151d28;
+}
+
+html[data-theme="dark"] .settings-panel label {
+  color: #d7e3e8;
+}
+
+html[data-theme="dark"] .advertisement-card.archived {
+  opacity: 0.82;
+}
+
 html[data-theme="dark"] .queue-workspace .workflow-section {
   border-color: #2d4352;
 }
@@ -3900,6 +4051,7 @@ html[data-theme="dark"] .selected-tags button {
   .runner-install-steps,
   .docs-grid,
   .account-settings-grid,
+  .settings-grid,
   .queue-management-form,
   .queue-monitor-grid,
   .submit-target-manager,
@@ -3985,5 +4137,9 @@ html[data-theme="dark"] .selected-tags button {
   .skin-picker select {
     min-width: 0;
     flex: 1;
+  }
+
+  .settings-panel-wide {
+    grid-column: auto;
   }
 }

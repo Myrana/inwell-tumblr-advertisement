@@ -18,6 +18,7 @@ import { QueueManagerWorkspace } from "./components/QueueManagerWorkspace";
 import { DocumentationWorkspace } from "./components/DocumentationWorkspace";
 import { LoginWorkspace, type LoginMode } from "./components/LoginWorkspace";
 import { OperationsDashboard } from "./components/OperationsDashboard";
+import { OperationalSettingsWorkspace } from "./components/OperationalSettingsWorkspace";
 import { RunnerLogsWorkspace } from "./components/RunnerLogsWorkspace";
 import { RunnerWorkspace } from "./components/RunnerWorkspace";
 import { SavedSubmissionsView } from "./components/SavedSubmissionsView";
@@ -120,6 +121,27 @@ import {
   WorkspaceView,
 } from "./domain/types";
 import { startLocalCompanionRun } from "./domain/localRunner";
+
+function applyArchiveDraftState(current: StoredState, id: string, archived: boolean) {
+  const normalized = normalizeStoredState(current);
+  let updatedDraft: Advertisement | null = null;
+  const nextStored = {
+    ...normalized,
+    ads: normalized.ads.map((ad) => {
+      if (ad.id !== id) {
+        return ad;
+      }
+      updatedDraft = {
+        ...ad,
+        archived,
+        updatedAt: new Date().toISOString(),
+      };
+      return updatedDraft;
+    }),
+  };
+  return { nextStored, updatedDraft };
+}
+
 function App() {
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
@@ -128,6 +150,7 @@ function App() {
   const [loginStatus, setLoginStatus] = useState("");
   const [loginForm, setLoginForm] = useState({ email: "", password: "", displayName: "", workspaceName: "Inkwell workspace" });
   const [stored, setStored] = useState<StoredState>(() => loadStoredState());
+  const storedRef = useRef(stored);
   const [submitTargets, setSubmitTargets] = useState<TumblrSubmitTarget[]>(() => loadSubmitTargets());
   const [submissionQueue, setSubmissionQueue] = useState<SubmissionQueueItem[]>(() => loadSubmissionQueue());
   const [queueDefinitions, setQueueDefinitions] = useState<QueueDefinition[]>(() => loadQueueDefinitions());
@@ -341,6 +364,7 @@ function App() {
   }, [backendOwnsWorkspaceState]);
 
   useEffect(() => {
+    storedRef.current = stored;
     if (backendOwnsWorkspaceState) {
       return;
     }
@@ -433,8 +457,14 @@ function App() {
     };
 
     void saveBackendAppSettings(settings)
-      .then(() => setApiAvailable(true))
-      .catch(() => setApiAvailable(false));
+      .then(() => {
+        setApiAvailable(true);
+        setSaveStatus((current) => current === "Could not save operational settings. Try again." ? "Operational settings saved" : current);
+      })
+      .catch(() => {
+        setApiAvailable(false);
+        setSaveStatus("Could not save operational settings. Try again.");
+      });
   }, [authUser, backendStateLoaded, queueOptions, queueScheduleSettings, runnerSettings, submitTargets, tagProfiles]);
 
   useEffect(() => {
@@ -840,6 +870,32 @@ function App() {
     void removeAdvertisement(id)
       .then(() => setApiAvailable(true))
       .catch(() => setApiAvailable(false));
+  }
+
+  async function archiveDraft(id: string, archived: boolean) {
+    const { nextStored, updatedDraft } = applyArchiveDraftState(storedRef.current, id, archived);
+    if (!updatedDraft) {
+      return;
+    }
+    if (backendOwnsWorkspaceState) {
+      setSaveStatus(archived ? "Archiving saved ad..." : "Restoring saved ad...");
+      try {
+        await saveAdvertisement(updatedDraft);
+        storedRef.current = nextStored;
+        setStored(nextStored);
+        setApiAvailable(true);
+        setSaveStatus(archived ? "Archived saved ad" : "Restored saved ad");
+      } catch {
+        setApiAvailable(false);
+        setSaveStatus(archived ? "Could not archive saved ad. Try again." : "Could not restore saved ad. Try again.");
+      }
+      return;
+    }
+
+    storedRef.current = nextStored;
+    setStored(nextStored);
+    syncAdvertisement(updatedDraft);
+    setSaveStatus(archived ? "Archived saved ad" : "Restored saved ad");
   }
 
   function saveDraft() {
@@ -1681,6 +1737,7 @@ function App() {
             runnerConnectionLabel={runnerConnectionLabel}
             runnerSubmitApproved={runnerSettings.submit}
             savedDraftCount={stored.ads.filter(hasLibraryContent).length}
+            savedDrafts={stored.ads.filter(hasLibraryContent)}
             templateCount={templates.length}
             tumblrAccounts={tumblrAccounts}
             onCreateSampleAd={createSampleAdvertisement}
@@ -1760,6 +1817,19 @@ function App() {
           />
         ) : null}
 
+        {activeView === "settings" ? (
+          <OperationalSettingsWorkspace
+            activeQueueName={activeQueueName}
+            queueOptions={queueOptions}
+            queueScheduleSettings={queueScheduleSettings}
+            runnerSettings={runnerSettings}
+            tumblrAccounts={tumblrAccounts}
+            onNavigate={setActiveView}
+            onQueueScheduleSettingsChange={(patch) => setQueueScheduleSettings((current) => ({ ...current, ...patch }))}
+            onRunnerSettingsChange={(patch) => setRunnerSettings((current) => ({ ...current, ...patch }))}
+          />
+        ) : null}
+
         {activeView === "docs" ? (
           <DocumentationWorkspace />
         ) : null}
@@ -1805,6 +1875,7 @@ function App() {
             activeQueueName={activeQueueName}
             queueOptions={queueOptions}
             onDeleteDraft={deleteDraft}
+            onArchiveDraft={archiveDraft}
             onQueueDraft={queueSavedDraft}
             onCreateDraft={() => setActiveView("editor")}
             onSelectDraft={(id) => {

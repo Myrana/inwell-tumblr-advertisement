@@ -1,6 +1,7 @@
 import { Activity, AlertTriangle, Archive, CheckCircle2, ClipboardCheck, FilePlus2, ListChecks, Play, ShieldCheck } from "lucide-react";
+import { isQueueableAdvertisement } from "../domain/adEligibility";
 import { attentionQueueItems, queueReadiness, queueStatusCounts, runnableQueueItems } from "../domain/queueAutomation";
-import { QueueDefinition, RunnerActivity, SubmissionQueueItem, TumblrAccount, WorkspaceView } from "../domain/types";
+import { Advertisement, QueueDefinition, RunnerActivity, SubmissionQueueItem, TumblrAccount, WorkspaceView } from "../domain/types";
 import "./operations/operationsDashboard.css";
 
 type OperationsDashboardProps = {
@@ -11,6 +12,7 @@ type OperationsDashboardProps = {
   runnerConnectionLabel: string;
   runnerSubmitApproved: boolean;
   savedDraftCount: number;
+  savedDrafts: Advertisement[];
   templateCount: number;
   tumblrAccounts: TumblrAccount[];
   onCreateSampleAd: () => void;
@@ -25,6 +27,7 @@ export function OperationsDashboard({
   runnerConnectionLabel,
   runnerSubmitApproved,
   savedDraftCount,
+  savedDrafts,
   templateCount,
   tumblrAccounts,
   onCreateSampleAd,
@@ -40,6 +43,7 @@ export function OperationsDashboard({
   const connectedAccounts = tumblrAccounts.filter((account) => account.status === "connected").length;
   const needsLoginAccounts = tumblrAccounts.filter((account) => account.status !== "connected").length;
   const showFirstRunPanel = connectedAccounts === 0 && savedDraftCount === 0 && queueItems.length === 0;
+  const campaignSnapshots = buildCampaignSnapshots(savedDrafts, queueItems);
   const readiness = queueReadiness({
     activeQueueName,
     activeQueue: activeQueueItems,
@@ -171,12 +175,46 @@ export function OperationsDashboard({
         {readiness.blockers.length ? (
           <ul className="run-readiness-blockers" aria-label="Run blockers">
             {readiness.blockers.slice(0, 3).map((blocker) => (
-              <li key={blocker}>{blocker}</li>
+              <li key={blocker}>
+                <span>{blocker}</span>
+                <button className="secondary compact-button" type="button" onClick={() => onNavigate(readinessActionFor(blocker).view)}>
+                  {readinessActionFor(blocker).label}
+                </button>
+              </li>
             ))}
           </ul>
         ) : (
           <p className="run-readiness-blockers ready">No blockers detected for {activeQueueName || "the selected queue"}.</p>
         )}
+      </section>
+
+      <section className="campaign-snapshot-panel" aria-label="Campaign dashboard">
+        <div className="campaign-snapshot-heading">
+          <div>
+            <span>Campaign dashboard</span>
+            <h2>{campaignSnapshots.length ? "Campaign readiness at a glance" : "No campaigns assigned yet"}</h2>
+          </div>
+          <button className="secondary compact-button" type="button" onClick={() => onNavigate("saved")}>
+            Open library
+          </button>
+        </div>
+        <div className="campaign-snapshot-list">
+          {campaignSnapshots.length ? (
+            campaignSnapshots.slice(0, 4).map((campaign) => (
+              <article key={campaign.name}>
+                <strong>{campaign.name}</strong>
+                <span>{campaign.total} saved - {campaign.ready} ready - {campaign.needsWork} need edits</span>
+                <small>{campaign.archived} archived - {campaign.queued} queued</small>
+              </article>
+            ))
+          ) : (
+            <article>
+              <strong>Unassigned</strong>
+              <span>{savedDraftCount} saved drafts available</span>
+              <small>Assign campaigns from the editor to track batches here.</small>
+            </article>
+          )}
+        </div>
       </section>
 
       <section className="content-readiness-panel" aria-label="Content readiness">
@@ -304,6 +342,37 @@ export function OperationsDashboard({
   );
 }
 
+function readinessActionFor(blocker: string): { label: string; view: WorkspaceView } {
+  if (blocker.includes("Tumblr")) {
+    return { label: "Fix account", view: "accounts" };
+  }
+  if (blocker.includes("runner")) {
+    return { label: "Open runner", view: "runner" };
+  }
+  if (blocker.includes("queued") || blocker.includes("queue")) {
+    return { label: "Fix queue", view: "queue" };
+  }
+  return { label: "Prep content", view: "saved" };
+}
+
+function buildCampaignSnapshots(savedDrafts: Advertisement[], queueItems: SubmissionQueueItem[]) {
+  const campaigns = new Map<string, { name: string; total: number; ready: number; needsWork: number; archived: number; queued: number }>();
+  const queuedAdIds = new Set(queueItems.filter((item) => item.status === "queued" || item.status === "scheduled" || item.status === "running").map((item) => item.adId));
+  for (const ad of savedDrafts) {
+    const name = ad.campaignName?.trim() || "Unassigned";
+    const current = campaigns.get(name) ?? { name, total: 0, ready: 0, needsWork: 0, archived: 0, queued: 0 };
+    const ready = isQueueableAdvertisement(ad);
+    current.total += 1;
+    current.ready += ready ? 1 : 0;
+    current.needsWork += !ad.archived && !ready ? 1 : 0;
+    current.archived += ad.archived ? 1 : 0;
+    current.queued += queuedAdIds.has(ad.id) ? 1 : 0;
+    campaigns.set(name, current);
+  }
+
+  return Array.from(campaigns.values()).sort((first, second) => second.ready - first.ready || second.total - first.total || first.name.localeCompare(second.name));
+}
+
 type OperationsHeroProps = {
   activeQueueName: string;
   attentionCount: number;
@@ -342,6 +411,9 @@ function OperationsHero({
         </button>
         <button className="secondary compact-button" type="button" onClick={() => onNavigate("accounts")}>
           Account health
+        </button>
+        <button className="secondary compact-button" type="button" onClick={() => onNavigate("settings")}>
+          Settings
         </button>
       </div>
     </section>

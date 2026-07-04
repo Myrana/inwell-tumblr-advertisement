@@ -48,6 +48,7 @@ export function AppSidebar({
       items: [
         { view: "accounts", label: "Accounts", icon: <ShieldCheck size={18} /> },
         { view: "queue-settings", label: "Queues", icon: <Settings size={18} /> },
+        { view: "settings", label: "Settings", icon: <Settings size={18} /> },
       ],
     },
     {

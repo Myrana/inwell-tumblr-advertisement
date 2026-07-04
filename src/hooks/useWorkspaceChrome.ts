@@ -18,6 +18,7 @@ export function workspacePageTitles(activeDraftTitle: string): Record<WorkspaceV
     runner: { eyebrow: "Tumblr automation", title: "Runner" },
     "queue-settings": { eyebrow: "Tumblr automation", title: "Queues" },
     accounts: { eyebrow: "Tumblr automation", title: "Tumblr accounts" },
+    settings: { eyebrow: "Operations", title: "Operational settings" },
     logs: { eyebrow: "Tumblr automation", title: "Runner logs" },
     docs: { eyebrow: "Reference", title: "Testing and change guide" },
   };

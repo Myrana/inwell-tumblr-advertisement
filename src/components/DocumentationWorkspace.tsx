@@ -20,6 +20,7 @@ const docsSections = [
     title: "Content and templates",
     items: [
       "Content Library shows saved drafts, readiness, duplicate warnings, queue choices, and bulk edit controls for campaign names and tags.",
+      "Archive saved ads when they should leave the active library without being deleted; switch to Archived to restore them later.",
       "Saved Templates is back to a library-first view. Click a saved template to edit it on that page; the New Submission page still uses templates for applying copy.",
       "The editor readiness score is a quick health check for title, content, tags, forum link, media, target, and submission readiness.",
     ],
@@ -37,6 +38,7 @@ const docsSections = [
     items: [
       "Operations now focuses on the submission flow: account setup, draft readiness, queue coverage, runner status, and review blockers.",
       "Use Content readiness to move from saved drafts and templates into queue preparation without hunting through secondary cards.",
+      "Operational Settings keeps runner defaults, schedule defaults, account defaults, and maintenance guidance out of the dashboard.",
       "Backup import and export controls are intentionally out of the primary operations flow.",
     ],
   },

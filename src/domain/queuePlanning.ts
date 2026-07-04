@@ -1,4 +1,5 @@
-import { buildPreparedPost, validateAdvertisement } from "./post";
+import { queueEligibilityBlockers } from "./adEligibility";
+import { buildPreparedPost } from "./post";
 import { createQueueItem } from "./queue";
 import { Advertisement, SubmissionQueueItem, TumblrSubmitTarget } from "./types";
 
@@ -17,7 +18,7 @@ export function planQueueTargetAdditions(params: {
     return { status: "missing-queue", message: "Create a queue before adding submissions." };
   }
 
-  const validation = validateAdvertisement(params.ad);
+  const validation = queueEligibilityBlockers(params.ad);
   if (validation.length) {
     return { status: "validation-error", validation };
   }

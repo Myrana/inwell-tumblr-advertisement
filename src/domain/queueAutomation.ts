@@ -1,4 +1,5 @@
-import { buildPreparedPost, validateAdvertisement } from "./post";
+import { isQueueableAdvertisement } from "./adEligibility";
+import { buildPreparedPost } from "./post";
 import { createQueueItem, isCompletedQueueItem } from "./queue";
 import { fallbackTarget } from "./submitTargets";
 import {
@@ -154,7 +155,7 @@ export function refillQueueFromReadyDrafts(options: {
     return { queue: options.queue, addedItems, skippedReasons };
   }
 
-  const candidates = options.sourceAds.filter((ad) => ad.status === "ready" && validateAdvertisement(ad).length === 0);
+  const candidates = options.sourceAds.filter((ad) => ad.status === "ready" && isQueueableAdvertisement(ad));
   for (const ad of candidates) {
     if (addedItems.length >= needed) {
       break;
