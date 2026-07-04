@@ -1,0 +1,145 @@
+.sidebar {
+  min-height: 100vh;
+  padding: 18px 16px;
+  background: #17202a;
+  color: #f8fbfc;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.sidebar .brand,
+.sidebar .account-strip,
+.sidebar .nav-list button {
+  display: flex;
+  align-items: center;
+}
+
+.sidebar .brand {
+  gap: 10px;
+}
+
+.sidebar .brand-mark {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--cyan);
+  color: #ffffff;
+  font-weight: 800;
+}
+
+.sidebar .brand strong,
+.sidebar .brand span {
+  display: block;
+}
+
+.sidebar .brand span {
+  margin-top: 2px;
+  color: #b9c5ce;
+  font-size: 0.78rem;
+  line-height: 1.25;
+}
+
+.sidebar .account-strip {
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.045);
+  color: #c5d1d8;
+}
+
+.sidebar .account-strip span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar .account-strip button {
+  min-height: 30px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #f8fbfc;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.sidebar .nav-list {
+  display: grid;
+  gap: 12px;
+}
+
+.sidebar .nav-group {
+  display: grid;
+  gap: 4px;
+}
+
+.sidebar .nav-group-label {
+  padding: 0 9px;
+  color: #91a2ad;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.sidebar .nav-list button {
+  min-height: 38px;
+  gap: 9px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #dbe5ea;
+  font: inherit;
+  font-size: 0.92rem;
+  font-weight: 700;
+  text-align: left;
+}
+
+.sidebar .nav-list button svg {
+  flex: 0 0 auto;
+}
+
+.sidebar .nav-list button.active {
+  background: #253443;
+  color: #ffffff;
+  box-shadow: inset 3px 0 0 var(--cyan);
+}
+
+.sidebar .nav-list button:hover {
+  background: rgba(255, 255, 255, 0.09);
+}
+
+html[data-theme="dark"] .sidebar {
+  background: #121925;
+  border-right-color: #243244;
+}
+
+html[data-theme="dark"] .sidebar .account-strip {
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+html[data-theme="dark"] .sidebar .nav-group-label {
+  color: #aebbc5;
+}
+
+@media (max-width: 1120px) {
+  .sidebar {
+    min-height: auto;
+    padding: 14px 16px;
+  }
+}
+
+@media (max-width: 720px) {
+  .sidebar {
+    padding: 16px;
+  }
+}

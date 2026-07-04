@@ -60,9 +60,8 @@ import {
   type LocalCompanionStatus,
 } from "./domain/api";
 import { composerContentFor, emptyAd, hasLibraryContent, normalizeStoredState } from "./domain/ads";
-import { defaultTagProfiles, postTypes } from "./domain/constants";
+import { defaultTagProfiles } from "./domain/constants";
 import { MediaLibraryAsset, mediaLibraryFromAdvertisements } from "./domain/mediaLibrary";
-import { validateAdvertisement } from "./domain/post";
 import {
   activeQueueItems,
   refillQueueFromReadyDrafts,
@@ -138,7 +137,7 @@ function App() {
   const [tumblrAccounts, setTumblrAccounts] = useState<TumblrAccount[]>(() => loadTumblrAccounts());
   const [accountDraft, setAccountDraft] = useState({ displayName: "", blogName: "" });
   const [accountStatus, setAccountStatus] = useState("");
-  const [apiAvailable, setApiAvailable] = useState(false);
+  const [, setApiAvailable] = useState(false);
   const [backendStateLoaded, setBackendStateLoaded] = useState(false);
   const [customTag, setCustomTag] = useState("");
   const [templateDraft, setTemplateDraft] = useState({ name: "", content: "" });

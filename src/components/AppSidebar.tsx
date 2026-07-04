@@ -11,6 +11,7 @@ import {
   TerminalSquare,
 } from "lucide-react";
 import { AuthUser, WorkspaceView } from "../domain/types";
+import "./AppSidebar.css";
 
 type AppSidebarProps = {
   activeView: WorkspaceView;
