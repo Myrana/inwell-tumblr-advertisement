@@ -283,7 +283,21 @@ button {
 
 .nav-list {
   display: grid;
-  gap: 8px;
+  gap: 14px;
+}
+
+.nav-group {
+  display: grid;
+  gap: 6px;
+}
+
+.nav-group-label {
+  padding: 0 12px;
+  color: #8fa0aa;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
 }
 
 .nav-list button {
@@ -4272,6 +4286,10 @@ html[data-theme="dark"] .operations-hero {
   background:
     linear-gradient(135deg, rgba(20, 17, 32, 0.98), rgba(17, 24, 42, 0.96) 58%, rgba(52, 31, 58, 0.88)),
     #171421;
+}
+
+html[data-theme="dark"] .nav-group-label {
+  color: #aebbc5;
 }
 
 html[data-theme="dark"] .editor-notebook-intro {

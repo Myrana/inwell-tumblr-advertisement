@@ -1,4 +1,15 @@
-import { BookOpenText, FileText, Gauge, PlayCircle } from "lucide-react";
+import {
+  Archive,
+  BookOpenText,
+  FileText,
+  Gauge,
+  ListChecks,
+  PlayCircle,
+  Settings,
+  ShieldCheck,
+  Tags,
+  TerminalSquare,
+} from "lucide-react";
 import { AuthUser, WorkspaceView } from "../domain/types";
 
 type AppSidebarProps = {
@@ -14,6 +25,39 @@ export function AppSidebar({
   onViewChange,
   onLogout,
 }: AppSidebarProps) {
+  const navGroups: Array<{ label: string; items: Array<{ view: WorkspaceView; label: string; icon: JSX.Element }> }> = [
+    {
+      label: "Create",
+      items: [
+        { view: "editor", label: "New Submission", icon: <FileText size={18} /> },
+        { view: "saved", label: "Content Library", icon: <Archive size={18} /> },
+        { view: "templates", label: "Templates", icon: <Tags size={18} /> },
+      ],
+    },
+    {
+      label: "Operate",
+      items: [
+        { view: "dashboard", label: "Operations", icon: <Gauge size={18} /> },
+        { view: "queue", label: "Queue", icon: <ListChecks size={18} /> },
+        { view: "runner", label: "Runner", icon: <PlayCircle size={18} /> },
+      ],
+    },
+    {
+      label: "Setup",
+      items: [
+        { view: "accounts", label: "Accounts", icon: <ShieldCheck size={18} /> },
+        { view: "queue-settings", label: "Queues", icon: <Settings size={18} /> },
+      ],
+    },
+    {
+      label: "Inspect",
+      items: [
+        { view: "logs", label: "Runner Logs", icon: <TerminalSquare size={18} /> },
+        { view: "docs", label: "Docs", icon: <BookOpenText size={18} /> },
+      ],
+    },
+  ];
+
   return (
     <aside className="sidebar">
       <div className="brand">
@@ -32,22 +76,22 @@ export function AppSidebar({
       </div>
 
       <nav className="nav-list" aria-label="Workspace views">
-        <button className={activeView === "dashboard" ? "active" : ""} type="button" onClick={() => onViewChange("dashboard")}>
-          <Gauge size={18} />
-          Operations
-        </button>
-        <button className={activeView === "editor" ? "active" : ""} type="button" onClick={() => onViewChange("editor")}>
-          <FileText size={18} />
-          New Submission
-        </button>
-        <button className={activeView === "runner" ? "active" : ""} type="button" onClick={() => onViewChange("runner")}>
-          <PlayCircle size={18} />
-          Runner
-        </button>
-        <button className={activeView === "docs" ? "active" : ""} type="button" onClick={() => onViewChange("docs")}>
-          <BookOpenText size={18} />
-          Docs
-        </button>
+        {navGroups.map((group) => (
+          <div className="nav-group" key={group.label}>
+            <span className="nav-group-label">{group.label}</span>
+            {group.items.map((item) => (
+              <button
+                className={activeView === item.view ? "active" : ""}
+                key={item.view}
+                type="button"
+                onClick={() => onViewChange(item.view)}
+              >
+                {item.icon}
+                {item.label}
+              </button>
+            ))}
+          </div>
+        ))}
       </nav>
 
     </aside>
