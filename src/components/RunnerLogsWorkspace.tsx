@@ -7,6 +7,7 @@ import {
   runnerLogsOutsideQueue,
   visibleRunnerLogs,
 } from "../domain/runnerLogs";
+import type { RunnerLogTargetSummary, RunnerTimelineStep } from "../domain/runnerLogs";
 import { RunnerLog, RunnerStatus, SubmissionQueueItem } from "../domain/types";
 
 type RunnerLogsWorkspaceProps = {
@@ -24,6 +25,7 @@ export function RunnerLogsWorkspace({
 }: RunnerLogsWorkspaceProps) {
   const [showLogHistory, setShowLogHistory] = useState(false);
   const [openRunIds, setOpenRunIds] = useState<Set<string>>(new Set());
+  const [collapsedSubmissionIds, setCollapsedSubmissionIds] = useState<Set<string>>(new Set());
   const latestRunId = latestRunnerRunId(runnerLogs);
   const scopedLogs = useMemo(() => visibleRunnerLogs(runnerLogs, showLogHistory), [runnerLogs, showLogHistory]);
   const runGroups = useMemo(() => runnerLogRunGroups(scopedLogs), [scopedLogs]);
@@ -37,6 +39,7 @@ export function RunnerLogsWorkspace({
   useEffect(() => {
     if (!runGroups.length) {
       setOpenRunIds((current) => (current.size ? new Set() : current));
+      setCollapsedSubmissionIds((current) => (current.size ? new Set() : current));
       return;
     }
 
@@ -47,6 +50,14 @@ export function RunnerLogsWorkspace({
 
       return new Set([runGroups[0].id]);
     });
+
+    const visibleSubmissionIds = new Set(
+      runGroups.flatMap((group) => group.targetSummaries.map((summary) => submissionTimelineKey(group.id, summary))),
+    );
+    setCollapsedSubmissionIds((current) => {
+      const next = new Set([...current].filter((id) => visibleSubmissionIds.has(id)));
+      return next.size === current.size ? current : next;
+    });
   }, [runGroups]);
 
   function toggleRunGroup(groupId: string) {
@@ -56,6 +67,18 @@ export function RunnerLogsWorkspace({
         next.delete(groupId);
       } else {
         next.add(groupId);
+      }
+      return next;
+    });
+  }
+
+  function setSubmissionTimelineOpen(submissionId: string, isOpen: boolean) {
+    setCollapsedSubmissionIds((current) => {
+      const next = new Set(current);
+      if (isOpen) {
+        next.delete(submissionId);
+      } else {
+        next.add(submissionId);
       }
       return next;
     });
@@ -153,6 +176,11 @@ export function RunnerLogsWorkspace({
           {runGroups.map((group, index) => {
             const isOpen = openRunIds.has(group.id);
             const groupTitle = group.runId ? `Run ${group.runId}` : "Untracked runner logs";
+            const runLevelTimeline = group.unscopedTimeline.length
+              ? group.unscopedTimeline
+              : group.targetSummaries.length
+                ? []
+                : group.timeline;
             const statusSummary = [
               `${group.logs.length} entr${group.logs.length === 1 ? "y" : "ies"}`,
               group.errorCount ? `${group.errorCount} failed` : "",
@@ -191,14 +219,19 @@ export function RunnerLogsWorkspace({
                       {isRunning && latestRunId === group.runId ? <span>{runningTargetCount ? `${runningTargetCount} running` : "Runner active"} - {pendingTargetCount} waiting</span> : null}
                     </div>
                     {group.targetSummaries.length ? (
-                      <div className="runner-target-summary-list" aria-label={`${groupTitle} target summaries`}>
-                        {group.targetSummaries.map((summary) => (
-                          <div className={`runner-target-summary runner-target-summary-${summary.status}`} key={summary.id}>
-                            <strong>{summary.name}</strong>
-                            <span>{targetSummaryLabel(summary.status)}</span>
-                            {summary.explanation ? <span>{summary.explanation}</span> : null}
-                          </div>
-                        ))}
+                      <div className="runner-target-timeline-list" aria-label={`${groupTitle} submission timelines`}>
+                        {group.targetSummaries.map((summary, summaryIndex) => {
+                          const submissionId = submissionTimelineKey(group.id, summary);
+                          return (
+                            <SubmissionTimelineGroup
+                              isOpen={!collapsedSubmissionIds.has(submissionId)}
+                              onOpenChange={(isOpen) => setSubmissionTimelineOpen(submissionId, isOpen)}
+                              ordinal={summaryIndex + 1}
+                              summary={summary}
+                              key={submissionId}
+                            />
+                          );
+                        })}
                       </div>
                     ) : null}
                     {group.failureExplanations.length ? (
@@ -209,28 +242,10 @@ export function RunnerLogsWorkspace({
                         ))}
                       </div>
                     ) : null}
-                    {group.timeline.length ? (
-                      <div className="runner-step-timeline" aria-label={`${groupTitle} step timeline`}>
-                        {group.timeline.map((step) => (
-                          <article className={`runner-step runner-step-${step.level}`} key={step.id}>
-                            <div className="runner-step-marker" aria-hidden="true" />
-                            <div>
-                              <strong>{step.label}</strong>
-                              <span>{step.targetName} - {formatDate(step.createdAt)}</span>
-                              <p>{step.message}</p>
-                              {step.screenshotUrl ? (
-                                <a href={step.screenshotUrl} target="_blank" rel="noreferrer">
-                                  <Camera size={14} />
-                                  Screenshot
-                                </a>
-                              ) : null}
-                              {step.postedUrl ? (
-                                <a href={step.postedUrl} target="_blank" rel="noreferrer">
-                                  Posted Tumblr link
-                                </a>
-                              ) : null}
-                            </div>
-                          </article>
+                    {runLevelTimeline.length ? (
+                      <div className="runner-step-timeline" aria-label={`${groupTitle} general timeline`}>
+                        {runLevelTimeline.map((step) => (
+                          <TimelineStep step={step} key={step.id} />
                         ))}
                       </div>
                     ) : null}
@@ -249,6 +264,74 @@ export function RunnerLogsWorkspace({
         <p className="queue-empty">No runner logs yet.</p>
       )}
     </section>
+  );
+}
+
+function SubmissionTimelineGroup({
+  isOpen,
+  onOpenChange,
+  ordinal,
+  summary,
+}: {
+  isOpen: boolean;
+  onOpenChange: (isOpen: boolean) => void;
+  ordinal: number;
+  summary: RunnerLogTargetSummary;
+}) {
+  const timelineLabel = `${summary.name} submission ${ordinal} timeline`;
+
+  return (
+    <details
+      className={`runner-target-timeline runner-target-summary-${summary.status}`}
+      open={isOpen}
+      onToggle={(event) => onOpenChange(event.currentTarget.open)}
+    >
+      <summary className="runner-target-timeline-summary">
+        <span>
+          <strong>{summary.name}</strong>
+          <small>
+            {targetSummaryLabel(summary.status)}
+            {summary.timeline.length ? ` - ${summary.timeline.length} event${summary.timeline.length === 1 ? "" : "s"}` : ""}
+          </small>
+        </span>
+        {summary.explanation ? <small>{summary.explanation}</small> : null}
+      </summary>
+      {summary.timeline.length ? (
+        <div className="runner-step-timeline nested" aria-label={timelineLabel}>
+          {summary.timeline.map((step) => (
+            <TimelineStep step={step} key={step.id} />
+          ))}
+        </div>
+      ) : null}
+    </details>
+  );
+}
+
+function submissionTimelineKey(runGroupId: string, summary: RunnerLogTargetSummary) {
+  return `${runGroupId}:${summary.id}`;
+}
+
+function TimelineStep({ step }: { step: RunnerTimelineStep }) {
+  return (
+    <article className={`runner-step runner-step-${step.level}`}>
+      <div className="runner-step-marker" aria-hidden="true" />
+      <div>
+        <strong>{step.label}</strong>
+        <span>{step.targetName} - {formatDate(step.createdAt)}</span>
+        <p>{step.message}</p>
+        {step.screenshotUrl ? (
+          <a href={step.screenshotUrl} target="_blank" rel="noreferrer">
+            <Camera size={14} />
+            Screenshot
+          </a>
+        ) : null}
+        {step.postedUrl ? (
+          <a href={step.postedUrl} target="_blank" rel="noreferrer">
+            Posted Tumblr link
+          </a>
+        ) : null}
+      </div>
+    </article>
   );
 }
 
