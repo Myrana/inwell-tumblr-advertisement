@@ -2594,6 +2594,61 @@ pre {
   background: #f3faf6;
 }
 
+.runner-target-timeline-list {
+  display: grid;
+  gap: 8px;
+}
+
+.runner-target-timeline {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--cyan);
+  border-radius: 8px;
+  background: #f8fafb;
+}
+
+.runner-target-timeline-summary {
+  min-height: 58px;
+  padding: 10px 12px;
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) auto;
+  gap: 4px 12px;
+  align-items: center;
+  cursor: pointer;
+  list-style: none;
+}
+
+.runner-target-timeline-summary::-webkit-details-marker {
+  display: none;
+}
+
+.runner-target-timeline-summary::after {
+  content: "Show";
+  min-width: 68px;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-align: center;
+}
+
+.runner-target-timeline[open] .runner-target-timeline-summary::after {
+  content: "Hide";
+}
+
+.runner-target-timeline-summary span {
+  display: grid;
+  gap: 3px;
+}
+
+.runner-target-timeline-summary small {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
   .runner-log-run .queue-log-list {
     padding: 10px;
   }
@@ -2602,6 +2657,12 @@ pre {
     display: grid;
     gap: 0;
     padding: 4px 0 8px;
+  }
+
+  .runner-step-timeline.nested {
+    margin: 0 12px 4px;
+    padding: 6px 0 0;
+    border-top: 1px solid var(--line);
   }
 
   .runner-step {
@@ -4125,11 +4186,18 @@ html[data-theme="dark"] .runner-target-summary-needs-review {
 }
 
 html[data-theme="dark"] .runner-target-summary,
+html[data-theme="dark"] .runner-target-timeline,
 html[data-theme="dark"] .queue-item-log-list .queue-log,
 html[data-theme="dark"] .tag-check,
 html[data-theme="dark"] .type-picker,
 html[data-theme="dark"] .video-drop {
   background: #111a23;
+}
+
+html[data-theme="dark"] .runner-target-timeline-summary::after {
+  border-color: rgba(95, 179, 197, 0.2);
+  background: rgba(17, 26, 35, 0.82);
+  color: #a9c4ca;
 }
 
 html[data-theme="dark"] .queue-workspace {

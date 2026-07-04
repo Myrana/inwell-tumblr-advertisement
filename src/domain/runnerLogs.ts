@@ -13,6 +13,7 @@ export type RunnerLogRunGroup = {
   targetNames: string[];
   targetSummaries: RunnerLogTargetSummary[];
   timeline: RunnerTimelineStep[];
+  unscopedTimeline: RunnerTimelineStep[];
   warningCount: number;
   errorCount: number;
   failureExplanations: string[];
@@ -24,6 +25,7 @@ export type RunnerLogTargetSummary = {
   status: "ready" | "submitted" | "failed" | "needs-review" | "running";
   latestAt: string;
   explanation: string;
+  timeline: RunnerTimelineStep[];
 };
 
 export type RunnerTimelineStep = {
@@ -63,7 +65,7 @@ export function queueLogGroups(queue: SubmissionQueueItem[], logs: RunnerLog[]):
 
 export function runnerLogsOutsideQueue(queue: SubmissionQueueItem[], logs: RunnerLog[]) {
   const queueIds = new Set(queue.map((item) => item.id));
-  return logs.filter((log) => !queueIds.has(log.queueItemId));
+  return logs.filter((log) => log.queueItemId && !queueIds.has(log.queueItemId));
 }
 
 export function displayLogTarget(log: RunnerLog, queue: SubmissionQueueItem[]) {
@@ -71,45 +73,37 @@ export function displayLogTarget(log: RunnerLog, queue: SubmissionQueueItem[]) {
 }
 
 export function runnerLogRunGroups(logs: RunnerLog[]): RunnerLogRunGroup[] {
-  const groups = new Map<string, RunnerLogRunGroup>();
+  const logsByRun = new Map<string, RunnerLog[]>();
 
   logs.forEach((log) => {
     const groupId = log.runId || "untracked-run";
-    const targetName = log.targetName.trim();
-    const existing = groups.get(groupId);
-
-    if (existing) {
-      existing.logs.push(log);
-      if (targetName && !existing.targetNames.includes(targetName)) {
-        existing.targetNames.push(targetName);
-      }
-      existing.warningCount += log.level === "warning" ? 1 : 0;
-      existing.errorCount += log.level === "error" ? 1 : 0;
-      const explanation = runnerLogExplanation(log);
-      if (explanation && !existing.failureExplanations.includes(explanation)) {
-        existing.failureExplanations.push(explanation);
-      }
-      existing.targetSummaries = runnerLogTargetSummaries(existing.logs);
-      existing.timeline = runnerLogTimeline(existing.logs);
-      return;
-    }
-
-    const explanation = runnerLogExplanation(log);
-    groups.set(groupId, {
-      id: groupId,
-      runId: log.runId,
-      logs: [log],
-      latestAt: log.createdAt,
-      targetNames: targetName ? [targetName] : [],
-      targetSummaries: runnerLogTargetSummaries([log]),
-      timeline: runnerLogTimeline([log]),
-      warningCount: log.level === "warning" ? 1 : 0,
-      errorCount: log.level === "error" ? 1 : 0,
-      failureExplanations: explanation ? [explanation] : [],
-    });
+    logsByRun.set(groupId, [...(logsByRun.get(groupId) ?? []), log]);
   });
 
-  return Array.from(groups.values());
+  return Array.from(logsByRun.entries()).map(([groupId, groupLogs]) => runnerLogRunGroup(groupId, groupLogs));
+}
+
+function runnerLogRunGroup(groupId: string, logs: RunnerLog[]): RunnerLogRunGroup {
+  const targetNames = uniqueStrings(logs.map((log) => log.targetName.trim()).filter(Boolean));
+  const failureExplanations = uniqueStrings(logs.map((log) => runnerLogExplanation(log)).filter(Boolean));
+
+  return {
+    id: groupId,
+    runId: logs[0]?.runId ?? "",
+    logs,
+    latestAt: logs[0]?.createdAt ?? "",
+    targetNames,
+    targetSummaries: runnerLogTargetSummaries(logs),
+    timeline: runnerLogTimeline(logs),
+    unscopedTimeline: runnerLogTimeline(logs.filter((log) => !runnerLogSubmissionKey(log))),
+    warningCount: logs.filter((log) => log.level === "warning").length,
+    errorCount: logs.filter((log) => log.level === "error").length,
+    failureExplanations,
+  };
+}
+
+function uniqueStrings(values: string[]) {
+  return Array.from(new Set(values));
 }
 
 export function runnerLogTimeline(logs: RunnerLog[]): RunnerTimelineStep[] {
@@ -122,25 +116,34 @@ export function runnerLogTimeline(logs: RunnerLog[]): RunnerTimelineStep[] {
       targetName: log.targetName || log.queueItemId || "Queue item",
       level: log.level,
       createdAt: log.createdAt,
-      screenshotUrl: stringDetail(log.details, "screenshotUrl") || stringDetail(log.details, "screenshot_url"),
+      screenshotUrl: runnerLogScreenshotUrl(log),
       postedUrl: runnerLogPostedUrl(log),
     }));
 }
 
 export function runnerLogPostedUrl(log: RunnerLog) {
   const value = stringDetail(log.details, "postedUrl") || stringDetail(log.details, "posted_url");
-  return /^https?:\/\//i.test(value) ? value : "";
+  return safeHttpUrl(value);
+}
+
+export function runnerLogScreenshotUrl(log: RunnerLog) {
+  const value = stringDetail(log.details, "screenshotUrl") || stringDetail(log.details, "screenshot_url");
+  return safeHttpUrl(value);
 }
 
 export function runnerLogTargetSummaries(logs: RunnerLog[]): RunnerLogTargetSummary[] {
-  const byTarget = new Map<string, RunnerLog[]>();
+  const bySubmission = new Map<string, RunnerLog[]>();
 
   logs.forEach((log) => {
-    const key = log.targetName || log.queueItemId || "Queue item";
-    byTarget.set(key, [...(byTarget.get(key) ?? []), log]);
+    const key = runnerLogSubmissionKey(log);
+    if (!key) {
+      return;
+    }
+    bySubmission.set(key, [...(bySubmission.get(key) ?? []), log]);
   });
 
-  return Array.from(byTarget.entries()).map(([target, targetLogs]) => {
+  return Array.from(bySubmission.entries()).map(([submissionId, targetLogs]) => {
+    const displayTarget = targetLogs.find((log) => log.targetName)?.targetName || targetLogs[0]?.queueItemId || "Queue item";
     const failedLog = targetLogs.find((log) => log.level === "error");
     const warningLog = targetLogs.find((log) => log.level === "warning");
     const submittedLog = targetLogs.find((log) => /submit button clicked|submitted/i.test(log.message));
@@ -148,15 +151,27 @@ export function runnerLogTargetSummaries(logs: RunnerLog[]): RunnerLogTargetSumm
     const runningLog = targetLogs.find((log) => /opening|launched|filled/i.test(log.message));
     const selectedLog = failedLog ?? warningLog ?? submittedLog ?? readyLog ?? runningLog ?? targetLogs[0];
     const explanation = failedLog || warningLog ? runnerLogExplanation(selectedLog) : "";
+    const timeline = runnerLogTimeline(targetLogs);
 
     return {
-      id: target,
-      name: target,
+      id: submissionId,
+      name: displayTarget,
       status: failedLog ? "failed" : warningLog ? "needs-review" : submittedLog ? "submitted" : readyLog ? "ready" : "running",
-      latestAt: targetLogs[0]?.createdAt ?? "",
+      latestAt: timeline[timeline.length - 1]?.createdAt ?? targetLogs[0]?.createdAt ?? "",
       explanation,
+      timeline,
     };
   });
+}
+
+function runnerLogSubmissionKey(log: RunnerLog) {
+  if (log.queueItemId) {
+    return log.queueItemId;
+  }
+  if (log.targetName) {
+    return `target:${log.targetName}`;
+  }
+  return "";
 }
 
 export function runnerLogExplanation(log: RunnerLog) {
@@ -196,6 +211,10 @@ export function runnerLogExplanation(log: RunnerLog) {
 function stringDetail(details: Record<string, unknown>, key: string) {
   const value = details[key];
   return typeof value === "string" ? value.trim() : "";
+}
+
+function safeHttpUrl(value: string) {
+  return /^https?:\/\//i.test(value) ? value : "";
 }
 
 function runnerLogStepLabel(log: RunnerLog) {

@@ -2277,6 +2277,7 @@ test("runner logs are grouped by expandable queue run", { timeout: 40000 }, asyn
 
   const page = await browser.newPage();
   const pageErrors = [];
+  let runnerLogsRequestCount = 0;
   const apiHeaders = {
     "Access-Control-Allow-Headers": "Content-Type",
     "Access-Control-Allow-Methods": "DELETE,GET,OPTIONS,POST,PUT",
@@ -2290,54 +2291,57 @@ test("runner logs are grouped by expandable queue run", { timeout: 40000 }, asyn
     route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ accounts: [] }) }),
   );
   await page.route("http://127.0.0.1:8021/api/runner/logs", (route) =>
-    route.fulfill({
-      contentType: "application/json",
-      headers: apiHeaders,
-      body: JSON.stringify({
-        logs: [
-          {
-            id: "log-new-ready",
-            run_id: "run-new",
-            queue_item_id: "queue-new",
-            target_name: "allthingsroleplay",
-            level: "info",
-            message: "Submit button clicked.",
-            details: { postedUrl: "https://allthingsroleplay.tumblr.com/post/123/posted-ad" },
-            created_at: "2026-06-18T21:30:00.000Z",
-          },
-          {
-            id: "log-new-ready-jcink",
-            run_id: "run-new",
-            queue_item_id: "queue-new-jcink",
-            target_name: "jcinktinder",
-            level: "info",
-            message: "Fields filled and ready for manual review.",
-            details: { screenshotUrl: "https://example.test/screenshots/jcinktinder-ready.png" },
-            created_at: "2026-06-18T21:30:00.000Z",
-          },
-          {
-            id: "log-new-open",
-            run_id: "run-new",
-            queue_item_id: "queue-new",
-            target_name: "allthingsroleplay",
-            level: "info",
-            message: "Opening allthingsroleplay.",
-            details: {},
-            created_at: "2026-06-18T21:29:00.000Z",
-          },
-          {
-            id: "log-old-warning",
-            run_id: "run-old",
-            queue_item_id: "queue-old",
-            target_name: "jcinktinder",
-            level: "warning",
-            message: "Needs manual review.",
-            details: {},
-            created_at: "2026-06-18T20:00:00.000Z",
-          },
-        ],
-      }),
-    }),
+    {
+      runnerLogsRequestCount += 1;
+      return route.fulfill({
+        contentType: "application/json",
+        headers: apiHeaders,
+        body: JSON.stringify({
+          logs: [
+            {
+              id: "log-new-ready",
+              run_id: "run-new",
+              queue_item_id: "queue-new",
+              target_name: "allthingsroleplay",
+              level: "info",
+              message: "Submit button clicked.",
+              details: { postedUrl: "https://allthingsroleplay.tumblr.com/post/123/posted-ad" },
+              created_at: "2026-06-18T21:30:00.000Z",
+            },
+            {
+              id: "log-new-ready-jcink",
+              run_id: "run-new",
+              queue_item_id: "queue-new-jcink",
+              target_name: "jcinktinder",
+              level: "info",
+              message: "Fields filled and ready for manual review.",
+              details: { screenshotUrl: "https://example.test/screenshots/jcinktinder-ready.png" },
+              created_at: "2026-06-18T21:30:00.000Z",
+            },
+            {
+              id: "log-new-open",
+              run_id: "run-new",
+              queue_item_id: "queue-new",
+              target_name: "allthingsroleplay",
+              level: "info",
+              message: "Opening allthingsroleplay.",
+              details: {},
+              created_at: "2026-06-18T21:29:00.000Z",
+            },
+            {
+              id: "log-old-warning",
+              run_id: "run-old",
+              queue_item_id: "queue-old",
+              target_name: "jcinktinder",
+              level: "warning",
+              message: "Needs manual review.",
+              details: {},
+              created_at: "2026-06-18T20:00:00.000Z",
+            },
+          ],
+        }),
+      });
+    },
   );
   await page.route("http://127.0.0.1:8021/api/runner/status", (route) =>
     route.fulfill({
@@ -2441,21 +2445,35 @@ test("runner logs are grouped by expandable queue run", { timeout: 40000 }, asyn
   await page.getByLabel("Run run-new timeline overview").getByText("3 timeline steps").waitFor();
   await page.getByLabel("Run run-new timeline overview").getByText("2 targets").waitFor();
   await page.getByLabel("Run run-new timeline overview").getByText("1 running - 1 waiting").waitFor();
-  await page.getByLabel("Run run-new target summaries").getByText("allthingsroleplay").waitFor();
-  await page.getByLabel("Run run-new target summaries").getByText("jcinktinder").waitFor();
-  await page.getByLabel("Run run-new target summaries").getByText("Submitted").waitFor();
-  await page.getByLabel("Run run-new step timeline").getByText("Open submit page").waitFor();
-  await page.getByLabel("Run run-new step timeline").getByText("Fill form").waitFor();
-  await page.getByLabel("Run run-new step timeline").getByRole("link", { name: "Posted Tumblr link" }).waitFor();
-  await page.getByLabel("Run run-new step timeline").getByRole("link", { name: "Screenshot" }).waitFor();
-  assert.equal(await page.getByLabel("Run run-new target summaries").getByText("Ready for manual review").count(), 1);
+  const runNewSubmissionTimelines = page.getByLabel("Run run-new submission timelines");
+  await runNewSubmissionTimelines.locator("summary").getByText("allthingsroleplay", { exact: true }).waitFor();
+  await runNewSubmissionTimelines.locator("summary").getByText("jcinktinder", { exact: true }).waitFor();
+  await runNewSubmissionTimelines.getByText("Submitted - 2 events").waitFor();
+  await runNewSubmissionTimelines.getByText("Ready for manual review - 1 event").waitFor();
+  await page.getByLabel("allthingsroleplay submission 1 timeline").getByText("Open submit page").waitFor();
+  await page.getByLabel("allthingsroleplay submission 1 timeline").locator("strong").getByText("Submit", { exact: true }).waitFor();
+  await page.getByLabel("allthingsroleplay submission 1 timeline").getByRole("link", { name: "Posted Tumblr link" }).waitFor();
+  await page.getByLabel("jcinktinder submission 2 timeline").getByText("Fill form").waitFor();
+  await page.getByLabel("jcinktinder submission 2 timeline").getByRole("link", { name: "Screenshot" }).waitFor();
+  assert.equal(await page.getByLabel("Run run-new step timeline").count(), 0);
+  await runNewSubmissionTimelines.locator("details", { hasText: "allthingsroleplay" }).locator("summary").click();
+  assert.equal(await page.getByLabel("allthingsroleplay submission 1 timeline").isVisible(), false);
+  assert.equal(await page.getByLabel("jcinktinder submission 2 timeline").isVisible(), true);
+  const collapsedAtRequestCount = runnerLogsRequestCount;
+  await page.waitForResponse(
+    (response) =>
+      response.url() === "http://127.0.0.1:8021/api/runner/logs" &&
+      runnerLogsRequestCount > collapsedAtRequestCount,
+  );
+  assert.equal(await page.getByLabel("allthingsroleplay submission 1 timeline").isVisible(), false);
+  assert.equal(await page.getByLabel("jcinktinder submission 2 timeline").isVisible(), true);
   assert.equal(await page.getByRole("button", { name: /Run run-old/ }).count(), 0);
 
   await page.getByRole("button", { name: "Show all history" }).click();
   await page.getByRole("button", { name: /Run run-old/ }).waitFor();
   assert.equal(await page.locator(".queue-log strong", { hasText: "Needs manual review." }).count(), 0);
   await page.getByRole("button", { name: /Run run-old/ }).click();
-  await page.getByLabel("Run run-old step timeline").getByText("Needs review").waitFor();
+  await page.getByLabel("jcinktinder submission 1 timeline").getByText("Needs review").waitFor();
   assert.match((await page.getByRole("button", { name: /Run run-old/ }).textContent()) ?? "", /1 warning/);
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
 });
@@ -2921,6 +2939,6 @@ test("running the queue prepares the local runner and shows failure explanations
   await openWorkspaceView(page, "Runner Logs");
   await page.getByRole("button", { name: /Latest run run-visible/ }).waitFor();
   await page.getByText("Why this run failed").waitFor();
-  await page.getByLabel("Run run-visible target summaries").getByText("Failed").waitFor();
+  await page.getByLabel("Run run-visible submission timelines").getByText("Failed - 1 event").waitFor();
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
 });
