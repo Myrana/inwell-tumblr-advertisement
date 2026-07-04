@@ -1,4 +1,4 @@
-import { QueueSchedulePreference } from "./types";
+import type { QueueSchedulePreference } from "./types";
 
 const easternTimeZone = "America/New_York";
 
@@ -16,7 +16,7 @@ export function nextDailyRunAt(settings: QueueSchedulePreference, now = new Date
     return todayCandidate.toISOString();
   }
 
-  const tomorrow = new Date(Date.UTC(easternParts.year, easternParts.month - 1, easternParts.day + 1));
+  const tomorrow = new Date(Date.UTC(easternParts.year, easternParts.month - 1, easternParts.day + 1, 12));
   const tomorrowParts = easternDateParts(tomorrow);
   return zonedDateTimeToUtc(tomorrowParts.year, tomorrowParts.month, tomorrowParts.day, hour, minute).toISOString();
 }

@@ -2758,18 +2758,6 @@ pre {
   line-height: 1.4;
 }
 
-.file-action-button {
-  position: relative;
-  cursor: pointer;
-}
-
-.file-action-button input {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-  cursor: pointer;
-}
-
 .template-actions {
   margin-bottom: 16px;
   display: flex;

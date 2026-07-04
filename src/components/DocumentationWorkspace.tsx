@@ -33,11 +33,11 @@ const docsSections = [
     ],
   },
   {
-    title: "Import and export",
+    title: "Operations dashboard",
     items: [
-      "Operations has Import workspace and Export workspace. Export downloads a JSON backup of drafts, templates, queues, queue items, schedules, runner settings, submit targets, tag profiles, and Tumblr accounts.",
-      "Import validates an Inkwell workspace JSON file, replaces the browser workspace state, and syncs included records to the backend when the API is available.",
-      "Import does not delete backend records that are missing from the backup. Treat it as a restore or copy-in workflow, not a destructive reset.",
+      "Operations now focuses on the submission flow: account setup, draft readiness, queue coverage, runner status, and review blockers.",
+      "Use Content readiness to move from saved drafts and templates into queue preparation without hunting through secondary cards.",
+      "Backup import and export controls are intentionally out of the primary operations flow.",
     ],
   },
   {

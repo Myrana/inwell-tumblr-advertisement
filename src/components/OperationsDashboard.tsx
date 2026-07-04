@@ -1,5 +1,4 @@
-import { Activity, AlertTriangle, Archive, CheckCircle2, ClipboardCheck, Download, FilePlus2, ListChecks, Play, ShieldCheck, Upload } from "lucide-react";
-import { ChangeEvent } from "react";
+import { Activity, AlertTriangle, Archive, CheckCircle2, ClipboardCheck, FilePlus2, ListChecks, Play, ShieldCheck } from "lucide-react";
 import { attentionQueueItems, queueReadiness, queueStatusCounts, runnableQueueItems } from "../domain/queueAutomation";
 import { QueueDefinition, RunnerActivity, SubmissionQueueItem, TumblrAccount, WorkspaceView } from "../domain/types";
 import "./operations/operationsDashboard.css";
@@ -14,10 +13,7 @@ type OperationsDashboardProps = {
   savedDraftCount: number;
   templateCount: number;
   tumblrAccounts: TumblrAccount[];
-  workspaceTransferStatus: string;
   onCreateSampleAd: () => void;
-  onExportWorkspace: () => void;
-  onImportWorkspace: (file: File) => void;
   onNavigate: (view: WorkspaceView) => void;
 };
 
@@ -31,10 +27,7 @@ export function OperationsDashboard({
   savedDraftCount,
   templateCount,
   tumblrAccounts,
-  workspaceTransferStatus,
   onCreateSampleAd,
-  onExportWorkspace,
-  onImportWorkspace,
   onNavigate,
 }: OperationsDashboardProps) {
   const activeQueueItems = queueItems.filter((item) => item.queueName === activeQueueName);
@@ -55,13 +48,47 @@ export function OperationsDashboard({
     savedDraftCount,
     submitApproved: runnerSubmitApproved,
   });
-  function handleImport(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-    if (file) {
-      onImportWorkspace(file);
-    }
-  }
+  const contentReadinessItems = [
+    {
+      label: "Saved drafts",
+      value: savedDraftCount.toString(),
+      detail: savedDraftCount ? "Ready to review, edit, or queue." : "Create an ad before building a queue.",
+      ready: savedDraftCount > 0,
+      action: savedDraftCount ? "Open library" : "Write ad",
+      view: savedDraftCount ? "saved" : "editor",
+    },
+    {
+      label: "Reusable templates",
+      value: templateCount.toString(),
+      detail: templateCount ? "Reusable copy is available." : "Save common copy for repeat campaigns.",
+      ready: templateCount > 0,
+      action: "Templates",
+      view: "templates",
+    },
+    {
+      label: "Queue coverage",
+      value: activeQueueItems.length ? `${queuedCount}/${activeQueueItems.length}` : "0/0",
+      detail: activeQueueName ? `${queueOptions.length} queues available for ${activeQueueName}.` : "Create a queue lane for the next run.",
+      ready: queuedCount > 0,
+      action: "Open queue",
+      view: "queue",
+    },
+    {
+      label: "Account path",
+      value: connectedAccounts.toString(),
+      detail: needsLoginAccounts ? `${needsLoginAccounts} account${needsLoginAccounts === 1 ? "" : "s"} need login.` : "Tumblr account path is connected.",
+      ready: connectedAccounts > 0 && needsLoginAccounts === 0,
+      action: "Accounts",
+      view: "accounts",
+    },
+  ] satisfies Array<{
+    label: string;
+    value: string;
+    detail: string;
+    ready: boolean;
+    action: string;
+    view: WorkspaceView;
+  }>;
 
   return (
     <section className="operations-dashboard" aria-label="Operations dashboard">
@@ -152,6 +179,40 @@ export function OperationsDashboard({
         )}
       </section>
 
+      <section className="content-readiness-panel" aria-label="Content readiness">
+        <div className="content-readiness-heading">
+          <div className="operation-card-icon">
+            <Archive size={20} />
+          </div>
+          <div>
+            <span>Content readiness</span>
+            <h2>{savedDraftCount ? `${savedDraftCount} draft${savedDraftCount === 1 ? "" : "s"} available` : "Build the next submission"}</h2>
+            <p>
+              {queuedCount
+                ? `${queuedCount} runnable item${queuedCount === 1 ? "" : "s"} in ${activeQueueName || "the selected queue"}.`
+                : "Prepare content first, then queue it into the runner path."}
+            </p>
+          </div>
+          <button className="primary compact-button" type="button" onClick={() => onNavigate(savedDraftCount ? "saved" : "editor")}>
+            {savedDraftCount ? "Prep content" : "Write advertisement"}
+          </button>
+        </div>
+        <div className="content-readiness-list">
+          {contentReadinessItems.map((item) => (
+            <article className={item.ready ? "content-readiness-item ready" : "content-readiness-item"} key={item.label}>
+              <div>
+                <span>{item.label}</span>
+                <strong>{item.value}</strong>
+                <small>{item.detail}</small>
+              </div>
+              <button className="secondary compact-button" type="button" onClick={() => onNavigate(item.view)}>
+                {item.action}
+              </button>
+            </article>
+          ))}
+        </div>
+      </section>
+
       {attentionItems.length ? (
         <section className="attention-queue-panel" aria-label="Attention required">
           <div className="attention-queue-heading">
@@ -226,18 +287,6 @@ export function OperationsDashboard({
           </button>
         </article>
 
-        <article className="operation-card">
-          <div className="operation-card-icon">
-            <Archive size={20} />
-          </div>
-          <span>Content readiness</span>
-          <strong>{savedDraftCount} saved drafts</strong>
-          <small>{queueOptions.length} queues available - {queuedCount} runnable in {activeQueueName || "selected queue"}</small>
-          <button className="secondary compact-button" type="button" onClick={() => onNavigate("saved")}>
-            Prep content
-          </button>
-        </article>
-
         <article className="operation-card operation-card-double">
           <div className="operation-card-icon">
             <ClipboardCheck size={20} />
@@ -250,25 +299,6 @@ export function OperationsDashboard({
           </button>
         </article>
 
-        <article className="operation-card operation-card-wide">
-          <div className="operation-card-icon">
-            <Download size={20} />
-          </div>
-          <span>Workspace backup</span>
-          <strong>Import and export</strong>
-          <small>{workspaceTransferStatus || "Back up or restore drafts, queues, templates, targets, and account settings."}</small>
-          <div className="operation-card-actions">
-            <button className="secondary compact-button" type="button" onClick={onExportWorkspace}>
-              <Download size={16} />
-              Export workspace
-            </button>
-            <label className="secondary compact-button file-action-button">
-              <Upload size={16} />
-              Import workspace
-              <input aria-label="Import workspace file" type="file" accept="application/json,.json" onChange={handleImport} />
-            </label>
-          </div>
-        </article>
       </div>
     </section>
   );

@@ -85,6 +85,7 @@ test("visual domain source ownership stays segmented", () => {
 
   assert.doesNotMatch(globalStyles, /\.operations-hero\s*\{/);
   assert.doesNotMatch(globalStyles, /\.operation-card\s*\{/);
+  assert.doesNotMatch(globalStyles, /\.content-readiness-panel\s*\{/);
   assert.doesNotMatch(globalStyles, /\.editor-notebook-intro\s*\{/);
   assert.doesNotMatch(globalStyles, /\.queue-readiness\s*\{/);
   assert.match(sidebarStyles, /\.sidebar\s+\.brand\s*\{/);
@@ -93,6 +94,8 @@ test("visual domain source ownership stays segmented", () => {
   assert.doesNotMatch(editorStyles, /^\.workflow-section\s*\{/m);
   assert.match(operationsStyles, /\.operations-hero\s*\{/);
   assert.match(operationsStyles, /\.operation-card\s*\{/);
+  assert.match(operationsStyles, /\.content-readiness-panel\s*\{/);
+  assert.match(operationsStyles, /\.content-readiness-item\.ready\s*\{/);
   assert.match(operationsStyles, /\.run-readiness-empty\s*\{/);
   assert.match(operationsStyles, /\.run-readiness-review\s*\{/);
   assert.match(operationsStyles, /\.run-readiness-blocked\s*\{/);
