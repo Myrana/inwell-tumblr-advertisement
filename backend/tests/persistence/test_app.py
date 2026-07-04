@@ -358,8 +358,9 @@ class FakePostgresConnection:
                 "video_url": params[11],
                 "video_name": params[12],
                 "status": params[13],
-                "created_at": params[14],
-                "updated_at": params[15],
+                "archived": params[14],
+                "created_at": params[15],
+                "updated_at": params[16],
             }
             self.advertisements[ScopedRows.key(row["workspace_id"], row["id"])] = row
             return FakeCursor()
@@ -1272,6 +1273,7 @@ class PersistenceTests(unittest.TestCase):
                 "video_url": "https://video.example.test/watch",
                 "video_name": "tour.mp4",
                 "status": "draft",
+                "archived": False,
             },
         )
 
@@ -1284,6 +1286,7 @@ class PersistenceTests(unittest.TestCase):
         self.assertEqual(saved["image_caption"], "Picture post caption")
         self.assertEqual(saved["video_url"], "https://video.example.test/watch")
         self.assertEqual(saved["video_name"], "tour.mp4")
+        self.assertFalse(saved["archived"])
 
         updated = upsert_advertisement(
             self.connection,
@@ -1292,6 +1295,7 @@ class PersistenceTests(unittest.TestCase):
                 "title": "Updated title",
                 "tags": [],
                 "status": "ready",
+                "archived": True,
             },
         )
 
@@ -1299,6 +1303,7 @@ class PersistenceTests(unittest.TestCase):
         self.assertEqual(updated["tags"], [])
         self.assertEqual(self.connection.advertisement_tags, {})
         self.assertEqual(updated["status"], "ready")
+        self.assertTrue(updated["archived"])
 
     def test_invalid_post_type_defaults_to_photo(self) -> None:
         saved = upsert_advertisement(

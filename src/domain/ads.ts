@@ -40,6 +40,7 @@ export const emptyAd = (destinationBlog = blogs[0] ?? ""): Advertisement => ({
   videoUrl: "",
   videoName: "",
   status: "draft",
+  archived: false,
   updatedAt: new Date().toISOString(),
 });
 
@@ -63,6 +64,7 @@ export function normalizeAd(value: Partial<Advertisement> | null | undefined): A
     videoUrl: normalizedText(value?.videoUrl),
     videoName: normalizedText(value?.videoName),
     status: value?.status === "ready" || value?.status === "submitted" ? value.status : "draft",
+    archived: value?.archived === true,
     updatedAt: normalizedUpdatedAt(value?.updatedAt, fallback.updatedAt),
   };
 }
@@ -95,6 +97,7 @@ export function fromApiAdvertisement(value: ApiAdvertisement): Advertisement {
     videoUrl: value.video_url ?? "",
     videoName: value.video_name ?? "",
     status: value.status,
+    archived: value.archived === true,
     updatedAt: value.updated_at,
   });
 }
@@ -115,6 +118,7 @@ export function toApiAdvertisement(advertisement: Advertisement): ApiAdvertiseme
     video_url: advertisement.videoUrl,
     video_name: advertisement.videoName,
     status: advertisement.status,
+    archived: advertisement.archived,
     updated_at: advertisement.updatedAt,
   };
 }
@@ -136,6 +140,7 @@ export function hasLibraryContent(advertisement: Advertisement) {
       advertisement.imageDataUrl.trim() !== starterImageDataUrl ||
       advertisement.videoUrl.trim() ||
       advertisement.videoName.trim() ||
+      advertisement.archived ||
       advertisement.status !== "draft",
   );
 }

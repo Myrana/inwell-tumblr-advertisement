@@ -82,7 +82,7 @@ export function WorkspaceTopbar({
             </select>
           </label>
         </div>
-        {actionsVisible && saveStatus ? (
+        {saveStatus ? (
           <div className="save-next-step compact" role="status">
             <span>{saveStatus}</span>
           </div>

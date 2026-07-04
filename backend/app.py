@@ -220,6 +220,7 @@ def initialize(connection: ConnectionLike) -> None:
             video_url TEXT NOT NULL DEFAULT '',
             video_name TEXT NOT NULL DEFAULT '',
             status TEXT NOT NULL DEFAULT 'draft',
+            archived BOOLEAN NOT NULL DEFAULT FALSE,
             created_at TIMESTAMPTZ NOT NULL,
             updated_at TIMESTAMPTZ NOT NULL,
             PRIMARY KEY (workspace_id, id)
@@ -449,6 +450,7 @@ def initialize(connection: ConnectionLike) -> None:
     for table in ("advertisements", "templates", "submission_queue", "tumblr_accounts", "runner_logs"):
         connection.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS workspace_id TEXT NOT NULL DEFAULT 'default'")
     connection.execute("ALTER TABLE advertisements ADD COLUMN IF NOT EXISTS campaign_name TEXT NOT NULL DEFAULT ''")
+    connection.execute("ALTER TABLE advertisements ADD COLUMN IF NOT EXISTS archived BOOLEAN NOT NULL DEFAULT FALSE")
     for table in (
         "advertisement_tags",
         "template_tags",
@@ -1210,6 +1212,8 @@ def advertisement_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
     post_type = str(payload.get("post_type", "photo")).strip().lower()
     if post_type not in POST_TYPES:
         post_type = "photo"
+    archived_value = payload.get("archived", False)
+    archived = archived_value if isinstance(archived_value, bool) else str(archived_value).strip().lower() in {"1", "true", "yes"}
 
     return {
         "id": str(payload.get("id", "")).strip(),
@@ -1227,6 +1231,7 @@ def advertisement_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "video_url": str(payload.get("video_url", "")),
         "video_name": str(payload.get("video_name", "")),
         "status": str(payload.get("status", "draft")).strip() or "draft",
+        "archived": archived,
     }
 
 
@@ -1881,9 +1886,9 @@ def upsert_advertisement(connection: ConnectionLike, payload: dict[str, Any]) ->
         INSERT INTO advertisements (
             id, workspace_id, post_type, title, campaign_name, content, destination_blog, forum_url,
             image_caption, image_name, image_data_url, video_url, video_name,
-            status, created_at, updated_at
+            status, archived, created_at, updated_at
         )
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT(workspace_id, id) DO UPDATE SET
             post_type = excluded.post_type,
             title = excluded.title,
@@ -1897,6 +1902,7 @@ def upsert_advertisement(connection: ConnectionLike, payload: dict[str, Any]) ->
             video_url = excluded.video_url,
             video_name = excluded.video_name,
             status = excluded.status,
+            archived = excluded.archived,
             updated_at = excluded.updated_at
         """,
         (
@@ -1914,6 +1920,7 @@ def upsert_advertisement(connection: ConnectionLike, payload: dict[str, Any]) ->
             advertisement["video_url"],
             advertisement["video_name"],
             advertisement["status"],
+            advertisement.get("archived", False),
             created_at,
             now,
         ),

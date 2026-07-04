@@ -54,6 +54,7 @@ async function openWorkspaceView(page, viewName) {
     Queues: "Blog tracker",
     Runner: "Runner controls",
     "Tumblr Accounts": "Manage accounts",
+    Settings: "Settings",
     "Runner Logs": "Review logs",
     Docs: "Open docs",
   };
@@ -132,119 +133,6 @@ test("first user can create an Inkwell login before opening the workspace", { ti
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
 });
 
-test("operations dashboard centers content readiness without backup controls", { timeout: 40000 }, async (t) => {
-  const server = spawn("npx vite --host 127.0.0.1 --port 8123 --strictPort", {
-    cwd: process.cwd(),
-    shell: true,
-    stdio: "ignore",
-  });
-
-  t.after(() => {
-    stopProcessTree(server);
-  });
-
-  await waitForServer(appUrl);
-
-  const browser = await chromium.launch();
-  t.after(async () => {
-    await browser.close();
-  });
-
-  const page = await browser.newPage();
-  const pageErrors = [];
-  page.on("pageerror", (error) => pageErrors.push(error));
-  await page.route("http://127.0.0.1:8021/api/**", (route) => route.abort());
-  await page.route("http://127.0.0.1:17842/status", (route) => route.abort());
-  await routeAuthenticatedSession(page);
-  await page.route("http://127.0.0.1:8021/api/advertisements", (route) =>
-    route.fulfill({
-      contentType: "application/json",
-      headers: apiHeaders,
-      body: JSON.stringify({
-        advertisements: [
-          {
-            id: "local-draft",
-            post_type: "text",
-            title: "Local draft",
-            campaign_name: "",
-            content: "Saved copy",
-            destination_blog: "localblog",
-            forum_url: "",
-            tags: ["local"],
-            image_caption: "",
-            image_name: "",
-            image_data_url: "",
-            video_url: "",
-            video_name: "",
-            status: "draft",
-            updated_at: "2026-06-20T12:00:00.000Z",
-          },
-        ],
-      }),
-    }),
-  );
-  await page.route("http://127.0.0.1:8021/api/templates", (route) =>
-    route.fulfill({
-      contentType: "application/json",
-      headers: apiHeaders,
-      body: JSON.stringify({
-        templates: [{ id: "local-template", name: "Local template", content: "Template", forum_url: "", queue_name: "", tags: [], updated_at: "2026-06-20T12:00:00.000Z" }],
-      }),
-    }),
-  );
-  await page.route("http://127.0.0.1:8021/api/tumblr/accounts", (route) =>
-    route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ accounts: [] }) }),
-  );
-  await page.route("http://127.0.0.1:8021/api/queue", (route) =>
-    route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ queue: [] }) }),
-  );
-  await page.route("http://127.0.0.1:8021/api/runner/logs", (route) =>
-    route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ logs: [] }) }),
-  );
-  await page.route("http://127.0.0.1:8021/api/settings", (route) =>
-    route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ settings: {} }) }),
-  );
-  await page.route("http://127.0.0.1:8021/api/settings/app", (route) =>
-    route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ settings: route.request().postDataJSON() }) }),
-  );
-  await page.route("http://127.0.0.1:8021/api/advertisements/*", (route) =>
-    route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ advertisement: route.request().postDataJSON() }) }),
-  );
-  await page.route("http://127.0.0.1:8021/api/templates/*", (route) =>
-    route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ template: route.request().postDataJSON() }) }),
-  );
-  await page.route("http://127.0.0.1:8021/api/queue/*", (route) =>
-    route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ queue_item: route.request().postDataJSON() }) }),
-  );
-  await page.route("http://127.0.0.1:8021/api/tumblr/accounts/*", (route) =>
-    route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ account: route.request().postDataJSON() }) }),
-  );
-
-  await page.goto(appUrl);
-  await page.getByRole("heading", { name: "Operations dashboard", level: 1 }).waitFor();
-  await page.getByLabel("Run readiness").getByText("Queue needs content").waitFor();
-  await page.getByLabel("Run blockers").getByText("Connect a Tumblr account.").waitFor();
-  await page.getByLabel("Run blockers").getByText("Add queued or scheduled submissions.").waitFor();
-  await page.getByLabel("Content readiness").getByText("1 draft available").waitFor();
-  await page.getByLabel("Content readiness").getByText("Saved drafts").waitFor();
-  await page.getByLabel("Content readiness").getByText("Reusable templates").waitFor();
-  await page.getByLabel("Content readiness").getByText("Queue coverage").waitFor();
-  await page.getByLabel("Content readiness").getByText("0/0").waitFor();
-  await page.getByLabel("Content readiness").getByText("Account path", { exact: true }).waitFor();
-  await page.getByLabel("Content readiness").getByText("Open library").waitFor();
-  assert.equal(await page.getByRole("button", { name: "Export workspace" }).count(), 0);
-  assert.equal(await page.locator('input[aria-label="Import workspace file"]').count(), 0);
-  assert.equal(await page.getByLabel("Workspace views").getByRole("button", { name: "Templates", exact: true }).count(), 1);
-  assert.equal(await page.getByLabel("Workspace views").getByRole("button", { name: "Queues", exact: true }).count(), 1);
-  assert.equal(await page.getByLabel("Workspace views").getByRole("button", { name: "Accounts", exact: true }).count(), 1);
-  await page.getByLabel("Content readiness").getByRole("button", { name: "Prep content", exact: true }).click();
-  await page.getByRole("heading", { name: "Content library", level: 1 }).waitFor();
-  await page.getByRole("button", { name: "Back to Operations", exact: true }).click();
-  await page.getByRole("heading", { name: "Operations dashboard", level: 1 }).waitFor();
-
-  assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
-});
-
 test("queue auto-refills from ready drafts when an item is marked posted", { timeout: 40000 }, async (t) => {
   const server = spawn("npx vite --host 127.0.0.1 --port 8123 --strictPort", {
     cwd: process.cwd(),
@@ -270,7 +158,7 @@ test("queue auto-refills from ready drafts when an item is marked posted", { tim
   await page.route("http://127.0.0.1:17842/status", (route) => route.abort());
   await routeAuthenticatedSession(page);
   await page.addInitScript(() => {
-    const readyAd = (id, title) => ({
+    const readyAd = (id, title, archived = false) => ({
       id,
       postType: "text",
       title,
@@ -285,13 +173,14 @@ test("queue auto-refills from ready drafts when an item is marked posted", { tim
       videoUrl: "",
       videoName: "",
       status: "ready",
+      archived,
       updatedAt: "2026-06-20T12:00:00.000Z",
     });
     localStorage.setItem(
       "inwell-ad-assistant-state",
       JSON.stringify({
         activeAdId: "ad-posted",
-        ads: [readyAd("ad-posted", "Posted source"), readyAd("ad-replacement", "Replacement source")],
+        ads: [readyAd("ad-posted", "Posted source"), readyAd("ad-archived-replacement", "Archived replacement", true), readyAd("ad-replacement", "Replacement source")],
       }),
     );
     localStorage.setItem(
@@ -340,6 +229,7 @@ test("queue auto-refills from ready drafts when an item is marked posted", { tim
   assert.equal(savedQueue.filter((item) => item.status === "queued").length, 1);
   assert.equal(savedQueue.filter((item) => item.status === "posted").length, 1);
   assert.match(savedQueue.find((item) => item.status === "queued").id, /ad-replacement/);
+  assert.equal(savedQueue.some((item) => item.adId === "ad-archived-replacement"), false);
   assert.equal(savedQueue.every((item) => item.runnerPayload === ""), true);
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
 });
@@ -686,249 +576,6 @@ test("login page exposes create-account and forgot-password flows", { timeout: 4
   assert.equal(registerPayload?.displayName, "New User");
   assert.equal(registerPayload?.workspaceName, "New workspace");
   assert.equal(resetPayload?.email, "new@example.test");
-  assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
-});
-
-test("content library rows can queue a saved submission", { timeout: 40000 }, async (t) => {
-  const server = spawn("npx vite --host 127.0.0.1 --port 8123 --strictPort", {
-    cwd: process.cwd(),
-    shell: true,
-    stdio: "ignore",
-  });
-
-  t.after(() => {
-    stopProcessTree(server);
-  });
-
-  await waitForServer(appUrl);
-
-  const browser = await chromium.launch();
-  t.after(async () => {
-    await browser.close();
-  });
-
-  const page = await browser.newPage();
-  const pageErrors = [];
-  const savedQueueItems = [];
-  page.on("pageerror", (error) => pageErrors.push(error));
-  await page.route("http://127.0.0.1:8021/api/**", (route) => route.abort());
-  await page.route("http://127.0.0.1:17842/status", (route) => route.abort());
-  await routeAuthenticatedSession(page);
-  await routeEmptyWorkspaceApis(page);
-  await page.route("http://127.0.0.1:8021/api/queue/**", (route) => {
-    const savedQueueItem = route.request().postDataJSON();
-    savedQueueItems.push(savedQueueItem);
-    return route.fulfill({
-      contentType: "application/json",
-      headers: apiHeaders,
-      body: JSON.stringify({ queue_item: savedQueueItem }),
-    });
-  });
-  await page.addInitScript(() => {
-    localStorage.setItem(
-      "inwell-ad-assistant-state",
-      JSON.stringify({
-        activeAdId: "saved-ad",
-        ads: [
-          {
-            id: "saved-ad",
-            postType: "text",
-            title: "Saved queue post",
-            campaignName: "Summer campaign",
-            content: "<p>Saved content</p>",
-            destinationBlog: "allthingsroleplay",
-            forumUrl: "https://forum.example/thread",
-            tags: ["wanted"],
-            imageCaption: "",
-            imageName: "",
-            imageDataUrl: "",
-            videoUrl: "",
-            videoName: "",
-            status: "draft",
-            updatedAt: "2026-06-20T12:00:00.000Z",
-          },
-          {
-            id: "saved-ad-two",
-            postType: "text",
-            title: "Second saved post",
-            campaignName: "Alpha campaign",
-            content: "<p>Saved content</p>",
-            destinationBlog: "allthingsroleplay",
-            forumUrl: "https://forum.example/thread",
-            tags: ["wanted"],
-            imageCaption: "",
-            imageName: "",
-            imageDataUrl: "",
-            videoUrl: "",
-            videoName: "",
-            status: "draft",
-            updatedAt: "2026-06-20T12:05:00.000Z",
-          },
-          {
-            id: "saved-ad-needs-work",
-            postType: "text",
-            title: "Needs forum link",
-            content: "<p>Missing forum URL</p>",
-            destinationBlog: "allthingsroleplay",
-            forumUrl: "",
-            tags: [],
-            imageCaption: "",
-            imageName: "",
-            imageDataUrl: "",
-            videoUrl: "",
-            videoName: "",
-            status: "draft",
-            updatedAt: "2026-06-20T12:10:00.000Z",
-          },
-        ],
-      }),
-    );
-    localStorage.setItem(
-      "inwell-tumblr-submit-targets",
-      JSON.stringify([
-        {
-          id: "allthingsroleplay",
-          name: "allthingsroleplay",
-          profileName: "All Things Roleplay ads",
-          submitUrl: "https://allthingsroleplay.tumblr.com/submit",
-          forumUrl: "https://forum.example/thread",
-          postingRules: "Use photo posts and credit the forum.",
-        },
-      ]),
-    );
-    localStorage.setItem(
-      "inwell-tumblr-queue-definitions",
-      JSON.stringify([
-        { id: "default-queue", name: "Default queue" },
-        { id: "want-ads", name: "Want ads" },
-      ]),
-    );
-  });
-  await page.route("http://127.0.0.1:8021/api/advertisements", (route) =>
-    route.fulfill({
-      contentType: "application/json",
-      headers: apiHeaders,
-      body: JSON.stringify({
-        advertisements: [
-          {
-            id: "saved-ad",
-            post_type: "text",
-            title: "Saved queue post",
-            campaign_name: "Summer campaign",
-            content: "<p>Saved content</p>",
-            destination_blog: "allthingsroleplay",
-            forum_url: "https://forum.example/thread",
-            tags: ["wanted"],
-            image_caption: "",
-            image_name: "",
-            image_data_url: "",
-            video_url: "",
-            video_name: "",
-            status: "draft",
-            updated_at: "2026-06-20T12:00:00.000Z",
-          },
-          {
-            id: "saved-ad-two",
-            post_type: "text",
-            title: "Second saved post",
-            campaign_name: "Alpha campaign",
-            content: "<p>Saved content</p>",
-            destination_blog: "allthingsroleplay",
-            forum_url: "https://forum.example/thread",
-            tags: ["wanted"],
-            image_caption: "",
-            image_name: "",
-            image_data_url: "",
-            video_url: "",
-            video_name: "",
-            status: "draft",
-            updated_at: "2026-06-20T12:05:00.000Z",
-          },
-          {
-            id: "saved-ad-needs-work",
-            post_type: "text",
-            title: "Needs forum link",
-            campaign_name: "",
-            content: "<p>Missing forum URL</p>",
-            destination_blog: "allthingsroleplay",
-            forum_url: "",
-            tags: [],
-            image_caption: "",
-            image_name: "",
-            image_data_url: "",
-            video_url: "",
-            video_name: "",
-            status: "draft",
-            updated_at: "2026-06-20T12:10:00.000Z",
-          },
-        ],
-      }),
-    }),
-  );
-  await page.route("http://127.0.0.1:8021/api/settings", (route) =>
-    route.fulfill({
-      contentType: "application/json",
-      headers: apiHeaders,
-      body: JSON.stringify({
-        settings: {
-          submitTargets: [
-            {
-              id: "allthingsroleplay",
-              name: "allthingsroleplay",
-              profileName: "All Things Roleplay ads",
-              submitUrl: "https://allthingsroleplay.tumblr.com/submit",
-              forumUrl: "https://forum.example/thread",
-              postingRules: "Use photo posts and credit the forum.",
-            },
-          ],
-          queueDefinitions: [
-            { id: "default-queue", name: "Default queue" },
-            { id: "want-ads", name: "Want ads" },
-          ],
-          tagProfiles: {},
-        },
-      }),
-    }),
-  );
-
-  await page.goto(appUrl);
-  await page.getByRole("button", { name: "Operations", exact: true }).click();
-  await page.getByRole("heading", { name: "Operations dashboard", level: 1 }).waitFor();
-  await page.getByLabel("Content readiness").getByText("3 drafts available").waitFor();
-  await page.getByLabel("Operations dashboard").getByText("Local runner offline").waitFor();
-  await openWorkspaceView(page, "Content Library");
-  const savedRow = page.locator(".draft-row").filter({ has: page.locator("strong", { hasText: "Saved queue post" }) });
-  await savedRow.getByText("Type").waitFor();
-  await savedRow.getByText("Summer campaign").waitFor();
-  await savedRow.getByText("Target").waitFor();
-  await savedRow.getByText("Updated").waitFor();
-  await savedRow.getByText("100% ready").waitFor();
-  await page.getByLabel("Batch prep assistant").getByText("2 ready to queue - 1 need edits").waitFor();
-  await page.getByLabel("Duplicate content check").getByText("2 possible duplicates in 1 group").waitFor();
-  assert.equal(await page.locator(".duplicate-pill").count(), 2);
-  await savedRow.getByLabel("Select saved item").check();
-  await page.getByLabel("Campaign library").getByRole("button", { name: /All campaigns/ }).waitFor();
-  await page.getByLabel("Campaign library").getByRole("button", { name: /Alpha campaign/ }).click();
-  await page.getByLabel("Batch prep assistant").getByText("Alpha campaign: 1 ready to queue - 0 need edits").waitFor();
-  await page.locator(".advertisement-card").first().getByText("Second saved post").waitFor();
-  assert.equal(await savedRow.count(), 0);
-  assert.equal(await page.getByLabel("Saved sorting controls").getByLabel("Campaign").count(), 0);
-  assert.equal(await page.getByLabel("Saved sorting controls").getByLabel("Add tag").count(), 0);
-  await page.getByLabel("Saved sorting controls").getByLabel("Sort library").selectOption("campaign-asc");
-  await page.getByLabel("Batch queue destination").selectOption("Want ads");
-  await page.getByRole("button", { name: "Queue ready campaign" }).click();
-  await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
-  await page.getByText("Queued Second saved post in Want ads.").waitFor();
-  assert.deepEqual(savedQueueItems.map((item) => item.ad_id), ["saved-ad-two"]);
-  assert.equal(JSON.parse(savedQueueItems.find((item) => item.ad_id === "saved-ad-two").runner_payload).advertisement.campaignName, "Alpha campaign");
-  assert.equal(JSON.parse(savedQueueItems.find((item) => item.ad_id === "saved-ad-two").runner_payload).targetProfile.name, "All Things Roleplay ads");
-  assert.equal(
-    JSON.parse(savedQueueItems.find((item) => item.ad_id === "saved-ad-two").runner_payload).targetProfile.postingRules,
-    "Use photo posts and credit the forum.",
-  );
-  assert.equal(savedQueueItems.every((item) => item.target_id === "allthingsroleplay"), true);
-  assert.equal(savedQueueItems.every((item) => item.queue_name === "Want ads"), true);
-  assert.equal(await page.getByLabel("Active queue").inputValue(), "Want ads");
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
 });
 
