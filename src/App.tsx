@@ -101,7 +101,6 @@ import {
 import { normalizeTag, normalizeTagProfiles, uniqueTags } from "./domain/tags";
 import { applyTemplateToAdvertisement, normalizeTemplate, templateFromAdvertisement } from "./domain/templates";
 import { fromApiTumblrAccount, normalizeTumblrAccount, tumblrAccountId, upsertTumblrAccount } from "./domain/tumblrAccounts";
-import { createWorkspaceExport, parseWorkspaceImport, WorkspaceTransferData } from "./domain/workspaceTransfer";
 import {
   Advertisement,
   AppSettings,
@@ -148,7 +147,6 @@ function App() {
   const [submitTargetStatus, setSubmitTargetStatus] = useState("");
   const [validation, setValidation] = useState<string[]>([]);
   const [queueStatus, setQueueStatus] = useState("");
-  const [workspaceTransferStatus, setWorkspaceTransferStatus] = useState("");
   const [editorQueueConfirmation, setEditorQueueConfirmation] = useState<{ count: number; queueName: string } | null>(null);
   const [queueNameDraft, setQueueNameDraft] = useState("");
   const [selectedQueueName, setSelectedQueueName] = useState("");
@@ -1463,78 +1461,6 @@ function App() {
     await prepareLocalRunnerCommand({ copy: true, target: "setup", submit: runnerSettings.submit });
   }
 
-  function exportWorkspace() {
-    const payload = createWorkspaceExport({
-      stored,
-      submitTargets,
-      templates,
-      queueDefinitions: queueOptions,
-      submissionQueue,
-      queueScheduleSettings,
-      tagProfiles,
-      tumblrAccounts,
-      runnerSettings,
-    });
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `inkwell-workspace-${payload.exportedAt.slice(0, 10)}.json`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
-    setWorkspaceTransferStatus("Workspace export downloaded.");
-  }
-
-  async function importWorkspace(file: File) {
-    try {
-      const imported = parseWorkspaceImport(await file.text());
-      setStored(imported.stored);
-      setSubmitTargets(imported.submitTargets);
-      setTemplates(imported.templates);
-      setQueueDefinitions(imported.queueDefinitions);
-      setSubmissionQueue(imported.submissionQueue);
-      setQueueScheduleSettings(imported.queueScheduleSettings);
-      setTagProfiles(imported.tagProfiles);
-      setTumblrAccounts(imported.tumblrAccounts);
-      setRunnerSettings(imported.runnerSettings);
-      setWorkspaceTransferStatus(
-        `Imported ${imported.stored.ads.length} drafts, ${imported.templates.length} templates, and ${imported.submissionQueue.length} queue items.`,
-      );
-      await syncImportedWorkspace(imported);
-    } catch (error) {
-      setWorkspaceTransferStatus(error instanceof Error ? error.message : "Could not import this workspace file.");
-    }
-  }
-
-  async function syncImportedWorkspace(imported: WorkspaceTransferData) {
-    if (!authUser) {
-      return;
-    }
-
-    try {
-      const settings: AppSettings = {
-        submitTargets: imported.submitTargets,
-        queueDefinitions: imported.queueDefinitions,
-        tagProfiles: imported.tagProfiles,
-        runnerSettings: imported.runnerSettings,
-        queueScheduleSettings: imported.queueScheduleSettings,
-      };
-      await Promise.all([
-        saveBackendAppSettings(settings),
-        ...imported.stored.ads.map((ad) => saveAdvertisement(ad)),
-        ...imported.templates.map((template) => saveTemplate(template)),
-        ...imported.submissionQueue.map((item) => saveQueueItem(item)),
-        ...imported.tumblrAccounts.map((account) => saveTumblrAccount(account)),
-      ]);
-      setApiAvailable(true);
-    } catch {
-      setApiAvailable(false);
-      setWorkspaceTransferStatus("Workspace imported locally. Backend sync failed, so try again when the API is available.");
-    }
-  }
-
   async function clearRunnerLogHistory() {
     try {
       await clearRunnerLogs();
@@ -1757,10 +1683,7 @@ function App() {
             savedDraftCount={stored.ads.filter(hasLibraryContent).length}
             templateCount={templates.length}
             tumblrAccounts={tumblrAccounts}
-            workspaceTransferStatus={workspaceTransferStatus}
             onCreateSampleAd={createSampleAdvertisement}
-            onExportWorkspace={exportWorkspace}
-            onImportWorkspace={importWorkspace}
             onNavigate={setActiveView}
           />
         ) : null}

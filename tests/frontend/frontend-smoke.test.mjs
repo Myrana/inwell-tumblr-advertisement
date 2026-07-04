@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { chromium } from "playwright";
 import {
@@ -133,7 +132,7 @@ test("first user can create an Inkwell login before opening the workspace", { ti
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
 });
 
-test("operations dashboard exports and imports workspace backups", { timeout: 40000 }, async (t) => {
+test("operations dashboard centers content readiness without backup controls", { timeout: 40000 }, async (t) => {
   const server = spawn("npx vite --host 127.0.0.1 --port 8123 --strictPort", {
     cwd: process.cwd(),
     shell: true,
@@ -226,104 +225,22 @@ test("operations dashboard exports and imports workspace backups", { timeout: 40
   await page.getByLabel("Run readiness").getByText("Queue needs content").waitFor();
   await page.getByLabel("Run blockers").getByText("Connect a Tumblr account.").waitFor();
   await page.getByLabel("Run blockers").getByText("Add queued or scheduled submissions.").waitFor();
+  await page.getByLabel("Content readiness").getByText("1 draft available").waitFor();
+  await page.getByLabel("Content readiness").getByText("Saved drafts").waitFor();
+  await page.getByLabel("Content readiness").getByText("Reusable templates").waitFor();
+  await page.getByLabel("Content readiness").getByText("Queue coverage").waitFor();
+  await page.getByLabel("Content readiness").getByText("0/0").waitFor();
+  await page.getByLabel("Content readiness").getByText("Account path", { exact: true }).waitFor();
+  await page.getByLabel("Content readiness").getByText("Open library").waitFor();
+  assert.equal(await page.getByRole("button", { name: "Export workspace" }).count(), 0);
+  assert.equal(await page.locator('input[aria-label="Import workspace file"]').count(), 0);
   assert.equal(await page.getByLabel("Workspace views").getByRole("button", { name: "Templates", exact: true }).count(), 1);
   assert.equal(await page.getByLabel("Workspace views").getByRole("button", { name: "Queues", exact: true }).count(), 1);
   assert.equal(await page.getByLabel("Workspace views").getByRole("button", { name: "Accounts", exact: true }).count(), 1);
-  await page.getByRole("button", { name: "Prep content", exact: true }).click();
+  await page.getByLabel("Content readiness").getByRole("button", { name: "Prep content", exact: true }).click();
   await page.getByRole("heading", { name: "Content library", level: 1 }).waitFor();
   await page.getByRole("button", { name: "Back to Operations", exact: true }).click();
   await page.getByRole("heading", { name: "Operations dashboard", level: 1 }).waitFor();
-
-  const downloadPromise = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Export workspace" }).click();
-  const download = await downloadPromise;
-  const downloadPath = await download.path();
-  const exported = JSON.parse(await readFile(downloadPath, "utf8"));
-  assert.equal(exported.schema, "inkwell-workspace-export");
-  assert.equal(exported.version, 1);
-  assert.equal(exported.data.stored.ads[0].title, "Local draft");
-  assert.equal(exported.data.templates[0].name, "Local template");
-
-  const importedBackup = {
-    schema: "inkwell-workspace-export",
-    version: 1,
-    exportedAt: "2026-06-20T13:00:00.000Z",
-    data: {
-      stored: {
-        activeAdId: "imported-draft",
-        ads: [
-          {
-            id: "imported-draft",
-            postType: "photo",
-            title: "Imported draft",
-            campaignName: "Imported campaign",
-            content: "",
-            destinationBlog: "importedblog",
-            forumUrl: "https://forum.example/imported",
-            tags: ["imported"],
-            imageCaption: "Imported caption",
-            imageName: "",
-            imageDataUrl: "",
-            videoUrl: "",
-            videoName: "",
-            status: "ready",
-            updatedAt: "2026-06-20T13:00:00.000Z",
-          },
-        ],
-      },
-      submitTargets: [{ id: "importedblog", name: "Imported Blog", profileName: "Imported Blog", submitUrl: "https://importedblog.tumblr.com/submit", forumUrl: "", postingRules: "" }],
-      templates: [
-        {
-          id: "imported-template",
-          name: "Imported template",
-          content: `<p onclick="window.__templateXss = 'click'">Imported reusable copy</p><img src=x onerror="window.__templateXss = 'image'"><script>window.__templateXss = 'script'</script>`,
-          forumUrl: "",
-          queueName: "Imported queue",
-          tags: ["imported"],
-          updatedAt: "2026-06-20T13:00:00.000Z",
-        },
-      ],
-      queueDefinitions: [{ id: "imported-queue", name: "Imported queue" }],
-      submissionQueue: [
-        {
-          id: "imported-queue-item",
-          adId: "imported-draft",
-          targetId: "importedblog",
-          targetName: "Imported Blog",
-          tumblrAccountId: "",
-          queueName: "Imported queue",
-          submitUrl: "https://importedblog.tumblr.com/submit",
-          postType: "photo",
-          status: "queued",
-          scheduledFor: "",
-          timezone: "America/New_York",
-          createdAt: "2026-06-20T13:00:00.000Z",
-          updatedAt: "2026-06-20T13:00:00.000Z",
-          lastRunAt: "",
-          postedAt: "",
-          failedAt: "",
-          notes: "",
-          runnerPayload: "{}",
-        },
-      ],
-      queueScheduleSettings: { enabled: true, dailyTime: "10:30", timezone: "America/New_York", perQueue: {} },
-      tagProfiles: { importedblog: ["imported"] },
-      tumblrAccounts: [{ id: "imported-account", displayName: "Imported Account", blogName: "importedblog", userDataDir: "", status: "connected", lastCheckedAt: "", lastLoginAt: "", notes: "", browserbaseContextId: "", browserbaseSessionId: "", browserbaseLiveUrl: "", browserbaseSessionExpiresAt: "", updatedAt: "2026-06-20T13:00:00.000Z" }],
-      runnerSettings: { mediaDir: "", slowMo: 500, headless: true, submit: false, tumblrAccountId: "imported-account", remoteBrowserProvider: "none", remoteBrowserLaunchUrl: "" },
-    },
-  };
-  await page.locator('input[aria-label="Import workspace file"]').setInputFiles({
-    name: "inkwell-workspace.json",
-    mimeType: "application/json",
-    buffer: Buffer.from(JSON.stringify(importedBackup)),
-  });
-  await page.getByText("Imported 1 drafts, 1 templates, and 1 queue items.").waitFor();
-  await page.getByLabel("Operations dashboard").getByText("1 saved drafts").waitFor();
-  await page.getByLabel("Operations dashboard").getByText("1 saved", { exact: true }).waitFor();
-  await openWorkspaceView(page, "Templates");
-  await page.getByLabel("Template library").getByText("Imported reusable copy").waitFor();
-  assert.equal(await page.locator(".template-preview img").count(), 0);
-  assert.equal(await page.evaluate(() => window.__templateXss ?? ""), "");
 
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
 });
@@ -637,7 +554,7 @@ test("documentation page explains recent workflow changes", { timeout: 40000 }, 
   await openWorkspaceView(page, "Docs");
   await page.getByRole("heading", { name: "Testing and change guide", level: 1 }).waitFor();
   await page.getByLabel("Inkwell documentation").getByRole("heading", { name: "Local runner" }).waitFor();
-  await page.getByLabel("Inkwell documentation").getByRole("heading", { name: "Import and export" }).waitFor();
+  await page.getByLabel("Inkwell documentation").getByRole("heading", { name: "Operations dashboard" }).waitFor();
   await page.getByLabel("Inkwell documentation").getByRole("heading", { name: "Suggested testing flow" }).waitFor();
   await page.getByText("Only turn Submit approved on when the queue looks right and you are ready for real Tumblr submission.").waitFor();
 
@@ -977,7 +894,7 @@ test("content library rows can queue a saved submission", { timeout: 40000 }, as
   await page.goto(appUrl);
   await page.getByRole("button", { name: "Operations", exact: true }).click();
   await page.getByRole("heading", { name: "Operations dashboard", level: 1 }).waitFor();
-  await page.getByLabel("Operations dashboard").getByText("3 saved drafts").waitFor();
+  await page.getByLabel("Content readiness").getByText("3 drafts available").waitFor();
   await page.getByLabel("Operations dashboard").getByText("Local runner offline").waitFor();
   await openWorkspaceView(page, "Content Library");
   const savedRow = page.locator(".draft-row").filter({ has: page.locator("strong", { hasText: "Saved queue post" }) });
