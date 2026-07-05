@@ -4,10 +4,10 @@ import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
-import { postDiscordRunSummary } from "./discord-run-summary.mjs";
+import { discordDeliveryFailureSummary, postDiscordRunSummary } from "./discord-run-summary.mjs";
 import { headlessBlockerCodes } from "./tumblr-runner-core.mjs";
 
-const LOCAL_COMPANION_VERSION = "local-runner-2";
+const LOCAL_COMPANION_VERSION = "local-runner-3";
 
 function companionAllowedOrigins(options) {
   const origins = new Set([
@@ -140,10 +140,12 @@ async function fetchRunnerPlan(options) {
 }
 
 async function runPlan(options, plan) {
+  stateLastRunStarted(options, plan);
   if (!plan?.items?.length) {
     console.log(`[local-runner] No runnable items in ${options.queueName}.`);
     await postHeartbeat(options, options.watch ? "watching" : "idle").catch(() => undefined);
-    return { exitCode: 0, signal: "" };
+    const discordSummary = await recordDiscordRunSummary(options, plan, { exitCode: 0, signal: "", runnerResult: null });
+    return { exitCode: 0, signal: "", discordSummary };
   }
 
   await postHeartbeat(options, "running").catch(() => undefined);
@@ -187,7 +189,6 @@ async function runPlan(options, plan) {
     runnerArgs.push("--no-pause");
   }
 
-  stateLastRunStarted(options, plan);
   const child = spawn(process.execPath, runnerArgs, { stdio: ["ignore", "inherit", "pipe"] });
   let stderrTail = "";
   child.stderr?.on("data", (chunk) => {
@@ -208,10 +209,43 @@ async function runPlan(options, plan) {
   await fs.unlink(resultPath).catch(() => undefined);
   const result = { ...processResult, runnerResult };
   await postHeartbeat(options, result.exitCode ? "error" : options.watch ? "watching" : "idle").catch(() => undefined);
-  await postDiscordRunSummary(options, plan, result, { log: console.log }).catch((error) => {
-    console.log(`[local-runner] Could not send Discord summary: ${error instanceof Error ? error.message : String(error)}`);
-  });
-  return result;
+  const discordSummary = await recordDiscordRunSummary(options, plan, result);
+  return { ...result, discordSummary };
+}
+
+async function recordDiscordRunSummary(options, plan, result) {
+  let summary;
+  try {
+    const delivery = await postDiscordRunSummary(options, plan, result, { log: console.log });
+    summary = {
+      status: delivery.sent ? "sent" : "skipped",
+      reason: delivery.reason || (delivery.sent ? "sent" : "skipped"),
+      message: discordSummaryMessage(delivery),
+    };
+  } catch (error) {
+    const failureSummary = discordDeliveryFailureSummary(error);
+    console.log(`[local-runner] Could not send Discord summary: ${failureSummary.logMessage}`);
+    summary = {
+      status: failureSummary.status,
+      reason: failureSummary.reason,
+      message: failureSummary.message,
+    };
+  }
+  stateLastDiscordSummary(options, summary);
+  return summary;
+}
+
+function discordSummaryMessage(delivery) {
+  if (delivery.sent) {
+    return "Discord summary sent.";
+  }
+  const messages = {
+    "not-live-run": "Discord summary skipped because this was a test run.",
+    "empty-plan": "Discord summary skipped because there were no runnable items.",
+    "not-configured": "Discord summary skipped because no webhook is configured for this runner.",
+    "invalid-url": "Discord summary skipped because the configured webhook URL is not a Discord webhook.",
+  };
+  return messages[delivery.reason] || "Discord summary skipped.";
 }
 
 async function readRunnerResult(resultPath) {
@@ -236,15 +270,26 @@ function stateLastRunStarted(options, plan) {
     queueName: options.queueName,
     headless: Boolean(options.headless),
     submit: Boolean(options.submit),
-    itemCount: Array.isArray(plan.items) ? plan.items.length : 0,
-    runId: String(plan.runId || ""),
+    itemCount: Array.isArray(plan?.items) ? plan.items.length : 0,
+    runId: String(plan?.runId || ""),
     startedAt: new Date().toISOString(),
     finishedAt: "",
     exitCode: null,
     exitSignal: "",
     blockerCode: "",
     status: "running",
+    discordSummary: null,
   };
+}
+
+function stateLastDiscordSummary(options, summary) {
+  if (!options.state) {
+    return;
+  }
+  options.state.lastDiscordSummary = summary;
+  if (options.state.lastRun) {
+    options.state.lastRun.discordSummary = summary;
+  }
 }
 
 function localRunnerScriptPath() {
@@ -264,6 +309,7 @@ async function executeLocalRun(options, state) {
   state.lastExitCode = null;
   state.lastExitSignal = "";
   state.lastBlockerCode = "";
+  state.lastDiscordSummary = null;
   state.lastRun = initialLastRun(options, state.lastStartedAt);
   try {
     const { plan, discordWebhookUrl } = await fetchRunnerPlan(options);
@@ -318,6 +364,7 @@ function initialLastRun(options, startedAt) {
     exitSignal: "",
     blockerCode: "",
     status: "planning",
+    discordSummary: null,
   };
 }
 
@@ -359,6 +406,7 @@ function companionStatus(options, state) {
     lastExitCode: state.lastExitCode ?? null,
     lastExitSignal: state.lastExitSignal || "",
     lastBlockerCode: state.lastBlockerCode || "",
+    lastDiscordSummary: state.lastDiscordSummary || null,
     lastError: state.lastError || "",
     lastRun: state.lastRun || null,
   };
@@ -573,6 +621,7 @@ async function main() {
     lastExitCode: null,
     lastExitSignal: "",
     lastBlockerCode: "",
+    lastDiscordSummary: null,
     lastRun: null,
   };
 

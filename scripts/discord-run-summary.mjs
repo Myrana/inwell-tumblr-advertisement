@@ -17,7 +17,6 @@ export async function postDiscordRunSummary(options, plan, result, settings = {}
     settings.log?.("[local-runner] Discord webhook is configured but is not a valid Discord webhook URL; summary was skipped.");
     return { sent: false, reason: "invalid-url" };
   }
-
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), DISCORD_WEBHOOK_TIMEOUT_MS);
   const fetchImpl = settings.fetchImpl || fetch;
@@ -31,6 +30,22 @@ export async function postDiscordRunSummary(options, plan, result, settings = {}
     throw new Error(`Discord webhook returned ${response.status}`);
   }
   return { sent: true, reason: "sent" };
+}
+
+export function discordDeliveryFailureSummary(error) {
+  return {
+    status: "failed",
+    reason: "delivery-failed",
+    message: "Discord summary failed. Check the local runner log for details.",
+    logMessage: sanitizeDiscordFailureMessage(error instanceof Error ? error.message : String(error)),
+  };
+}
+
+export function sanitizeDiscordFailureMessage(message) {
+  return String(message || "Unknown Discord delivery error").replace(
+    /https:\/\/(?:discord|discordapp)\.com\/api\/webhooks\/[^\s"'<>]+/gi,
+    "[discord-webhook-url]",
+  );
 }
 
 export function discordRunSummaryPayload(options, plan, result) {

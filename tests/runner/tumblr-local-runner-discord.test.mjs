@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import http from "node:http";
 import { spawn } from "node:child_process";
 import test from "node:test";
+import { discordDeliveryFailureSummary } from "../../scripts/discord-run-summary.mjs";
 
 function waitForOutput(child, pattern) {
   return new Promise((resolve, reject) => {
@@ -114,10 +115,13 @@ function startRunnerApiMock(plan, discordWebhookUrl = "") {
   });
 }
 
-async function runCompanionDiscordScenario(t, { plan, webhookUrl, planWebhookUrl = "", result, exitCode = 0, submit = true, skipResultWrite = false, malformedResult = false }) {
+const discordFailureHookUrl = new URL("../fixtures/discord-fetch-failure-hook.mjs", import.meta.url).href;
+
+async function runCompanionDiscordScenario(t, { plan, webhookUrl, planWebhookUrl = "", result, exitCode = 0, submit = true, skipResultWrite = false, malformedResult = false, forceDiscordFetchFailure = false }) {
   const port = 33000 + Math.floor(Math.random() * 1000);
   let output = "";
   const api = planWebhookUrl ? await startRunnerApiMock(plan, planWebhookUrl) : null;
+  const planItems = Array.isArray(plan?.items) ? plan.items : [];
   if (api) {
     t.after(async () => api.close());
   }
@@ -146,10 +150,13 @@ async function runCompanionDiscordScenario(t, { plan, webhookUrl, planWebhookUrl
         INWELL_LOCAL_PLAN_JSON: api ? "" : JSON.stringify(plan),
         INWELL_LOCAL_PLAN_DISCORD_WEBHOOK_URL: planWebhookUrl,
         INWELL_LOCAL_RUNNER_SCRIPT: "tests/fixtures/local-runner-result-stub.mjs",
-        INWELL_LOCAL_RUNNER_RESULT_JSON: JSON.stringify(result ?? runnerResult(plan.items.map((item) => ({ id: item.id, targetName: item.targetName, status: "completed" })))),
+        INWELL_LOCAL_RUNNER_RESULT_JSON: JSON.stringify(result ?? runnerResult(planItems.map((item) => ({ id: item.id, targetName: item.targetName, status: "completed" })))),
         INWELL_LOCAL_RUNNER_SKIP_RESULT_WRITE: skipResultWrite ? "1" : "",
         INWELL_LOCAL_RUNNER_MALFORMED_RESULT: malformedResult ? "1" : "",
         INWELL_LOCAL_RUNNER_EXIT_CODE: String(exitCode),
+        NODE_OPTIONS: forceDiscordFetchFailure
+          ? `${process.env.NODE_OPTIONS || ""} --import=${discordFailureHookUrl}`.trim()
+          : process.env.NODE_OPTIONS || "",
       },
       stdio: ["ignore", "pipe", "pipe"],
     },
@@ -188,7 +195,10 @@ test("local companion sends Discord run summary with queue and targets", async (
   t.after(async () => webhook.close());
   const plan = discordPlan("local-run-discord-summary-test", ["allthingsroleplay", "rpadverts"]);
 
-  await runCompanionDiscordScenario(t, { plan, webhookUrl: webhook.url });
+  const { status } = await runCompanionDiscordScenario(t, { plan, webhookUrl: webhook.url });
+  assert.equal(status.lastDiscordSummary.status, "sent");
+  assert.equal(status.lastDiscordSummary.reason, "sent");
+  assert.equal(status.lastRun.discordSummary.status, "sent");
   const payload = discordPayload(webhook);
   assert.match(payload.content, /Tumblr queue run completed/);
   assert.match(payload.content, /Queue: Default queue/);
@@ -249,6 +259,10 @@ test("local companion does not fail a run when Discord summary delivery fails", 
 
   assert.equal(status.lastExitCode, 0);
   assert.equal(status.lastError, "");
+  assert.equal(status.lastDiscordSummary.status, "failed");
+  assert.equal(status.lastDiscordSummary.reason, "delivery-failed");
+  assert.equal(status.lastDiscordSummary.message, "Discord summary failed. Check the local runner log for details.");
+  assert.doesNotMatch(status.lastDiscordSummary.message, /api\/webhooks/);
   assert.equal(webhook.requests.length, 1);
 });
 
@@ -263,7 +277,81 @@ test("local companion does not send Discord summary for prep runs", async (t) =>
 
   assert.equal(status.lastExitCode, 0);
   assert.equal(status.lastError, "");
+  assert.equal(status.lastDiscordSummary.status, "skipped");
+  assert.equal(status.lastDiscordSummary.reason, "not-live-run");
   assert.equal(webhook.requests.length, 0);
+});
+
+test("local companion records empty-plan Discord skip for live runs", async (t) => {
+  const webhook = await startDiscordWebhookMock();
+  t.after(async () => webhook.close());
+  const { status } = await runCompanionDiscordScenario(t, {
+    plan: discordPlan("local-run-discord-empty-plan-test", []),
+    webhookUrl: webhook.url,
+  });
+
+  assert.equal(status.lastExitCode, 0);
+  assert.equal(status.lastError, "");
+  assert.equal(status.lastRun.runId, "local-run-discord-empty-plan-test");
+  assert.equal(status.lastRun.itemCount, 0);
+  assert.equal(status.lastRun.status, "idle");
+  assert.equal(status.lastDiscordSummary.status, "skipped");
+  assert.equal(status.lastDiscordSummary.reason, "empty-plan");
+  assert.equal(status.lastRun.discordSummary.status, "skipped");
+  assert.equal(status.lastRun.discordSummary.reason, "empty-plan");
+  assert.equal(webhook.requests.length, 0);
+});
+
+test("local companion records malformed empty plans without losing Discord diagnostics", async (t) => {
+  const webhook = await startDiscordWebhookMock();
+  t.after(async () => webhook.close());
+  const { status } = await runCompanionDiscordScenario(t, {
+    plan: null,
+    webhookUrl: webhook.url,
+  });
+
+  assert.equal(status.lastExitCode, 0);
+  assert.equal(status.lastError, "");
+  assert.equal(status.lastRun.runId, "");
+  assert.equal(status.lastRun.itemCount, 0);
+  assert.equal(status.lastRun.status, "idle");
+  assert.equal(status.lastDiscordSummary.status, "skipped");
+  assert.equal(status.lastDiscordSummary.reason, "empty-plan");
+  assert.equal(status.lastRun.discordSummary.reason, "empty-plan");
+  assert.equal(webhook.requests.length, 0);
+});
+
+test("Discord delivery failure summary does not expose webhook secrets", () => {
+  const webhookUrl = "https://discord.com/api/webhooks/123456/private-token-value";
+  const summary = discordDeliveryFailureSummary(new Error(`request failed for ${webhookUrl}`));
+
+  assert.equal(summary.status, "failed");
+  assert.equal(summary.reason, "delivery-failed");
+  assert.equal(summary.message, "Discord summary failed. Check the local runner log for details.");
+  assert.equal(summary.message.includes("private-token-value"), false);
+  assert.equal(summary.logMessage.includes("private-token-value"), false);
+  assert.equal(summary.logMessage.includes("/api/webhooks/123456"), false);
+  assert.match(summary.logMessage, /\[discord-webhook-url\]/);
+});
+
+test("local companion failure status does not expose Discord webhook secrets", async (t) => {
+  const webhookUrl = "https://discord.com/api/webhooks/123456/private-token-value";
+  const { status, output } = await runCompanionDiscordScenario(t, {
+    plan: discordPlan("local-run-discord-secret-failure-test", ["allthingsroleplay"]),
+    webhookUrl,
+    forceDiscordFetchFailure: true,
+  });
+
+  assert.equal(status.lastExitCode, 0);
+  assert.equal(status.lastError, "");
+  assert.equal(status.lastDiscordSummary.status, "failed");
+  assert.equal(status.lastDiscordSummary.reason, "delivery-failed");
+  assert.equal(status.lastDiscordSummary.message, "Discord summary failed. Check the local runner log for details.");
+  assert.equal(status.lastRun.discordSummary.message, "Discord summary failed. Check the local runner log for details.");
+  assert.equal(JSON.stringify(status).includes("private-token-value"), false);
+  assert.equal(JSON.stringify(status).includes("/api/webhooks/123456"), false);
+  assert.equal(output().includes("private-token-value"), false);
+  assert.equal(output().includes("/api/webhooks/123456"), false);
 });
 
 test("local companion reports invalid Discord webhook configuration without failing run", async (t) => {
@@ -274,6 +362,8 @@ test("local companion reports invalid Discord webhook configuration without fail
 
   assert.equal(status.lastExitCode, 0);
   assert.equal(status.lastError, "");
+  assert.equal(status.lastDiscordSummary.status, "skipped");
+  assert.equal(status.lastDiscordSummary.reason, "invalid-url");
   assert.match(output(), /Discord webhook is configured but is not a valid Discord webhook URL/);
   assert.doesNotMatch(output(), /example\.com\/not-discord/);
 });
