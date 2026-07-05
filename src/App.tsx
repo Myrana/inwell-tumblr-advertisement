@@ -1514,12 +1514,18 @@ function App() {
       return;
     }
 
+    const offlineFallbackReason = submit
+      ? "Local companion was not detected on this computer, so the queue was not started and Discord will not post until a live local runner command runs."
+      : testRun
+        ? "Local companion was not detected on this computer, so the test run was not started."
+        : "Local companion was not detected on this computer, so the prep run was not started.";
+
     await prepareLocalRunnerCommand({
       copy: true,
       target: "run",
       submit,
       testRun,
-      fallbackReason: "Local companion was not detected on this computer, so the command was copied instead.",
+      fallbackReason: offlineFallbackReason,
     });
   }
 

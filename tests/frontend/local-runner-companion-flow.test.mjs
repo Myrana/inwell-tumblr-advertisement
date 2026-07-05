@@ -106,6 +106,149 @@ test("local companion run errors do not fall back to copied runner commands", { 
   assert.equal(localCommandRequestCount, 0);
 });
 
+test("offline live runs copy a command and warn that Discord will not post yet", { timeout: 40000 }, async (t) => {
+  const server = spawn("npx vite --host 127.0.0.1 --port 8123 --strictPort", {
+    cwd: process.cwd(),
+    shell: true,
+    stdio: "ignore",
+  });
+
+  t.after(() => {
+    stopProcessTree(server);
+  });
+
+  await waitForServer(appUrl);
+
+  const browser = await chromium.launch();
+  t.after(async () => {
+    await browser.close();
+  });
+
+  const page = await browser.newPage();
+  let companionRunRequestCount = 0;
+  let localCommandSubmit = "";
+
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        writeText: async (value) => {
+          window.__copiedText = String(value);
+        },
+      },
+    });
+  });
+  await routeRunnerWorkspace(page, {
+    runnerSettings: { mediaDir: "", slowMo: 500, headless: true, submit: true, tumblrAccountId: "", discordWebhookConfigured: true },
+  });
+  await page.route("http://127.0.0.1:17842/status", (route) => route.abort());
+  await page.route("http://127.0.0.1:17842/run", (route) => {
+    companionRunRequestCount += 1;
+    return route.abort();
+  });
+  await page.route("http://127.0.0.1:8021/api/runner/local-command?**", (route) => {
+    localCommandSubmit = new URL(route.request().url()).searchParams.get("submit") || "";
+    return route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({
+        localRunner: {
+          command: "npm.cmd run tumblr:runner:local -- --token private --submit",
+          autoStartCommand: "",
+          tokenConfigured: true,
+          usesDeviceToken: true,
+          tokenEnv: "INWELL_LOCAL_RUNNER_TOKEN",
+          message: "Run this on your Windows computer from the repo checkout.",
+        },
+      }),
+    });
+  });
+
+  await page.goto(appUrl);
+  await openWorkspaceView(page, "Runner");
+  const localCommandResponse = page.waitForResponse((response) => response.url().includes("/api/runner/local-command"));
+  await page.getByLabel("Runner controls").getByRole("button", { name: "Run", exact: true }).click();
+  await localCommandResponse;
+
+  await page.getByText("Local runner command copied.").waitFor();
+  await page.getByText("Local companion was not detected on this computer, so the queue was not started and Discord will not post until a live local runner command runs.").waitFor();
+  assert.equal(localCommandSubmit, "true");
+  assert.equal(companionRunRequestCount, 0);
+  assert.match(await page.evaluate(() => window.__copiedText), /--submit/);
+});
+
+test("offline test runs copy a prep command without the live Discord warning", { timeout: 40000 }, async (t) => {
+  const server = spawn("npx vite --host 127.0.0.1 --port 8123 --strictPort", {
+    cwd: process.cwd(),
+    shell: true,
+    stdio: "ignore",
+  });
+
+  t.after(() => {
+    stopProcessTree(server);
+  });
+
+  await waitForServer(appUrl);
+
+  const browser = await chromium.launch();
+  t.after(async () => {
+    await browser.close();
+  });
+
+  const page = await browser.newPage();
+  let companionRunRequestCount = 0;
+  let localCommandSubmit = "";
+
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        writeText: async (value) => {
+          window.__copiedText = String(value);
+        },
+      },
+    });
+  });
+  await routeRunnerWorkspace(page, {
+    runnerSettings: { mediaDir: "", slowMo: 500, headless: true, submit: true, tumblrAccountId: "", discordWebhookConfigured: true },
+  });
+  await page.route("http://127.0.0.1:17842/status", (route) => route.abort());
+  await page.route("http://127.0.0.1:17842/run", (route) => {
+    companionRunRequestCount += 1;
+    return route.abort();
+  });
+  await page.route("http://127.0.0.1:8021/api/runner/local-command?**", (route) => {
+    localCommandSubmit = new URL(route.request().url()).searchParams.get("submit") || "";
+    return route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({
+        localRunner: {
+          command: "npm.cmd run tumblr:runner:local -- --token private",
+          autoStartCommand: "",
+          tokenConfigured: true,
+          usesDeviceToken: true,
+          tokenEnv: "INWELL_LOCAL_RUNNER_TOKEN",
+          message: "Run this on your Windows computer from the repo checkout.",
+        },
+      }),
+    });
+  });
+
+  await page.goto(appUrl);
+  await openWorkspaceView(page, "Runner");
+  const localCommandResponse = page.waitForResponse((response) => response.url().includes("/api/runner/local-command"));
+  await page.getByLabel("Runner controls").getByRole("button", { name: "Test run", exact: true }).click();
+  await localCommandResponse;
+
+  await page.getByText("Local runner command copied.").waitFor();
+  await page.getByText("Local companion was not detected on this computer, so the test run was not started.").waitFor();
+  await page.getByText("Discord will not post until a live local runner command runs.", { exact: false }).waitFor({ state: "detached" });
+  assert.equal(localCommandSubmit, "false");
+  assert.equal(companionRunRequestCount, 0);
+  assert.doesNotMatch(await page.evaluate(() => window.__copiedText), /--submit/);
+});
+
 test("scheduled queue shows runner recovery when daily automation is blocked offline", { timeout: 40000 }, async (t) => {
   const server = spawn("npx vite --host 127.0.0.1 --port 8123 --strictPort", {
     cwd: process.cwd(),
