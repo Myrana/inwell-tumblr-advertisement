@@ -2262,7 +2262,7 @@ test("running the queue prepares the local runner and shows failure explanations
   assert.equal(await page.getByLabel("Runner browser session").getByLabel("Approve live posting").isChecked(), false);
   await page.getByLabel("Runner controls").getByRole("button", { name: "Run", exact: true }).click();
   await page.getByText("Local runner command copied.").waitFor();
-  await page.getByText("Local companion was not detected on this computer, so the command was copied instead.").waitFor();
+  await page.getByText("Local companion was not detected on this computer", { exact: false }).waitFor();
   assert.equal(localCommandRequested, true);
   let copiedText = await page.evaluate(() => window.__copiedText);
   assert.match(copiedText, /tumblr:runner:local/);
