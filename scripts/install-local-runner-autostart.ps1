@@ -11,6 +11,7 @@ param(
   [int]$IntervalSeconds = 15,
   [int]$CompanionPort = 17842,
   [string]$RunnerToken = "",
+  [string]$DiscordWebhookUrl = "",
   [switch]$Submit
 )
 
@@ -19,6 +20,9 @@ $ErrorActionPreference = "Stop"
 $sourceRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 if (-not [string]::IsNullOrWhiteSpace($RunnerToken)) {
   [Environment]::SetEnvironmentVariable("INWELL_LOCAL_RUNNER_TOKEN", $RunnerToken, "User")
+}
+if (-not [string]::IsNullOrWhiteSpace($DiscordWebhookUrl)) {
+  [Environment]::SetEnvironmentVariable("INWELL_DISCORD_WEBHOOK_URL", $DiscordWebhookUrl, "User")
 }
 
 $token = [Environment]::GetEnvironmentVariable("INWELL_LOCAL_RUNNER_TOKEN", "User")
@@ -94,6 +98,7 @@ function Install-RunnerLauncher {
     'try { Start-Transcript -Path $logPath -Append | Out-Null } catch {}',
     'try {',
     '  $env:INWELL_LOCAL_RUNNER_TOKEN = [Environment]::GetEnvironmentVariable("INWELL_LOCAL_RUNNER_TOKEN", "User")',
+    '  $env:INWELL_DISCORD_WEBHOOK_URL = [Environment]::GetEnvironmentVariable("INWELL_DISCORD_WEBHOOK_URL", "User")',
     "  Set-Location -LiteralPath $(Quote-PowerShell $repoRoot.Path)",
     "  & $(Quote-PowerShell $npmCommand) run tumblr:runner:local -- --api-base $(Quote-PowerShell $ApiBase) --workspace-id $(Quote-PowerShell $WorkspaceId) --queue $(Quote-PowerShell $Queue) --user-data-dir $(Quote-PowerShell $UserDataDir) --watch --serve --companion-port $CompanionPort$submitArg --interval-seconds $IntervalSeconds",
     '  if ($LASTEXITCODE -ne 0) { throw "Local runner exited with code $LASTEXITCODE." }',
@@ -180,3 +185,6 @@ try {
 Start-RunnerLauncher
 Write-Host "Queue: $Queue"
 Write-Host "API: $ApiBase"
+if (-not [string]::IsNullOrWhiteSpace($DiscordWebhookUrl)) {
+  Write-Host "Discord webhook: configured"
+}

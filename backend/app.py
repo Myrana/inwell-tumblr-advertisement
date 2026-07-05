@@ -2560,9 +2560,11 @@ pause
         archive.writestr(f"{package_name}/install.cmd", install_cmd)
         for script_name in (
             "tumblr-local-runner.mjs",
+            "discord-run-summary.mjs",
             "tumblr-login.mjs",
             "tumblr-runner.mjs",
             "tumblr-runner-core.mjs",
+            "tumblr-runner-results.mjs",
             "install-local-runner-autostart.ps1",
         ):
             script_path = REPO_ROOT / "scripts" / script_name
