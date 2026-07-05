@@ -280,6 +280,7 @@ export type LocalCompanionStatus = {
   lastExitCode: number | null;
   lastExitSignal: string;
   lastBlockerCode: string;
+  lastDiscordSummary: LocalCompanionDiscordSummary | null;
   lastError: string;
   lastRun: {
     queueName: string;
@@ -293,11 +294,18 @@ export type LocalCompanionStatus = {
     exitSignal: string;
     blockerCode?: string;
     status: string;
+    discordSummary?: LocalCompanionDiscordSummary | null;
   } | null;
   accepted?: boolean;
   pid?: number;
   message?: string;
   error?: string;
+};
+
+export type LocalCompanionDiscordSummary = {
+  status: "sent" | "skipped" | "failed" | string;
+  reason: string;
+  message: string;
 };
 
 const localCompanionBaseUrl = "http://127.0.0.1:17842";

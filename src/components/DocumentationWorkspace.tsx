@@ -5,7 +5,7 @@ const docsSections = [
       "Use Download runner for the first install, then use Start from the Runner page after Windows registers the launcher.",
       "When headless mode is on, the browser window may not stay visible. Watch the Runner page, queue item status, and runner logs on the website.",
       "Run locally processes the active queue. Test run keeps submit approval off so you can verify login, page loading, media fill, and failure handling without posting.",
-      "Save a Discord webhook in Settings to post a run summary with the queue name and targets hit after each real run. INWELL_DISCORD_WEBHOOK_URL remains available as a local-runner override.",
+      "Save a Discord webhook in Settings to post a run summary with the queue name and targets hit after each real live run. Restart or download the local runner after saving the webhook so the runner can consume the saved setting. INWELL_DISCORD_WEBHOOK_URL remains available as a local-runner override.",
       "Remote browser providers are no longer part of the supported workflow. The supported Tumblr automation path is the local runner on your Windows computer.",
     ],
   },

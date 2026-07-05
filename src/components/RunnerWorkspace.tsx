@@ -1,5 +1,6 @@
 import { Activity, Download, ListChecks, Play, PlugZap, Send, Terminal, TestTube2 } from "lucide-react";
 import { formatDate } from "../domain/format";
+import type { LocalCompanionStatus } from "../domain/api";
 import { runnableQueueItems } from "../domain/queueAutomation";
 import { latestRunnerRunId, runnerLogRunGroups } from "../domain/runnerLogs";
 import {
@@ -11,11 +12,15 @@ import {
   TumblrAccount,
 } from "../domain/types";
 
+const minimumDiscordWebhookRunnerVersion = 3;
+
 type RunnerWorkspaceProps = {
   activeQueue: SubmissionQueueItem[];
   activeQueueName: string;
   queueOptions: QueueDefinition[];
   queueStatus: string;
+  discordWebhookConfigured: boolean;
+  localCompanion: LocalCompanionStatus | null;
   runnerActivity: RunnerActivity;
   runnerConnectionLabel: string;
   runnerHeadless: boolean;
@@ -42,6 +47,8 @@ export function RunnerWorkspace({
   activeQueueName,
   queueOptions,
   queueStatus,
+  discordWebhookConfigured,
+  localCompanion,
   runnerActivity,
   runnerConnectionLabel,
   runnerHeadless,
@@ -68,6 +75,18 @@ export function RunnerWorkspace({
   const latestRunId = latestRunnerRunId(runnerLogs);
   const latestRunGroup = runnerLogRunGroups(runnerLogs)[0] ?? null;
   const localRunner = runnerState?.local_runner;
+  const companionVersion = localCompanion?.version || localRunner?.version || "";
+  const hasRunnerVersionEvidence = Boolean((localCompanion?.ok || localRunner?.online) && companionVersion);
+  const runnerVersionNumber = localRunnerVersionNumber(companionVersion);
+  const discordRunnerTooOld = Boolean(discordWebhookConfigured && hasRunnerVersionEvidence && runnerVersionNumber !== null && runnerVersionNumber < minimumDiscordWebhookRunnerVersion);
+  const discordRunnerUnverified = Boolean(discordWebhookConfigured && (!hasRunnerVersionEvidence || runnerVersionNumber === null));
+  const discordRunnerNeedsAttention = discordRunnerTooOld || discordRunnerUnverified;
+  const discordSummary = localCompanion?.lastDiscordSummary || localCompanion?.lastRun?.discordSummary || null;
+  const discordSummaryDetail = discordRunnerTooOld
+    ? "Discord webhook saved, but this local runner is older. Restart or download the runner before expecting Discord summaries."
+    : discordRunnerUnverified
+      ? "Discord webhook saved, but this runner version could not be verified. Restart or download the runner before expecting Discord summaries."
+    : discordSummary?.message || (discordWebhookConfigured ? "Discord summaries will post after live runs." : "Save a Discord webhook in Settings to post live run summaries.");
   const showInstallGuide = !localRunner?.online && !runnableItems.length;
   const readinessItems = [
     {
@@ -89,6 +108,11 @@ export function RunnerWorkspace({
       label: "Live posting",
       ready: runnerSubmitApproved,
       detail: runnerSubmitApproved ? "Approved for submission." : "Test/prep mode until approved.",
+    },
+    {
+      label: "Discord summary",
+      ready: !discordRunnerNeedsAttention,
+      detail: discordSummaryDetail,
     },
   ];
 
@@ -220,12 +244,17 @@ export function RunnerWorkspace({
           <div>
             <strong>{runnerConnectionLabel}</strong>
             <span>
-              {localRunner?.online
-                ? `Version ${localRunner.version || "unknown"}${localRunner.last_seen_at ? ` - last seen ${formatDate(localRunner.last_seen_at)}` : ""}`
+              {localRunner?.online || localCompanion?.ok
+                ? `Version ${companionVersion || "unknown"}${localRunner?.last_seen_at ? ` - last seen ${formatDate(localRunner.last_seen_at)}` : ""}`
                 : selectedAccount
                   ? `Selected account: ${selectedAccount.displayName}`
                   : "Use a connected Tumblr account for live posting."}
             </span>
+            {discordSummary || discordRunnerNeedsAttention ? (
+              <span className={discordSummary?.status === "failed" || discordRunnerNeedsAttention ? "runner-discord-status warning" : "runner-discord-status"}>
+                {discordSummaryDetail}
+              </span>
+            ) : null}
           </div>
           <label className="runner-submit-toggle runner-headless-toggle">
             <input
@@ -283,4 +312,9 @@ export function RunnerWorkspace({
       </div>
     </section>
   );
+}
+
+function localRunnerVersionNumber(version: string) {
+  const match = /^local-runner-(\d+)(?:\D.*)?$/.exec(version.trim());
+  return match ? Number(match[1]) : null;
 }

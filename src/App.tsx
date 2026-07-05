@@ -1816,6 +1816,8 @@ function App() {
             activeQueueName={activeQueueName}
             queueOptions={queueOptions}
             queueStatus={queueStatus}
+            discordWebhookConfigured={runnerSettings.discordWebhookConfigured}
+            localCompanion={localCompanion}
             runnerActivity={runnerActivity}
             runnerConnectionLabel={runnerConnectionLabel}
             runnerHeadless={runnerSettings.headless}

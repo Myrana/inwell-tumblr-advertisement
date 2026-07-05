@@ -256,12 +256,97 @@ test("scheduled queue prioritizes local companion recovery states", { timeout: 4
   }
 });
 
+test("runner workspace shows Discord webhook runner diagnostics", { timeout: 40000 }, async (t) => {
+  await withRunnerDiagnosticsPage(
+    t,
+    {
+      localCompanion: localCompanionStatus({
+        version: "local-runner-2",
+        lastDiscordSummary: {
+          status: "skipped",
+          reason: "not-live-run",
+          message: "Discord summary skipped because this was a test run.",
+        },
+        lastRun: discordCompanionLastRun({
+          discordSummary: {
+            status: "skipped",
+            reason: "not-live-run",
+            message: "Discord summary skipped because this was a test run.",
+          },
+        }),
+      }),
+    },
+    async (page) => {
+      const runnerSession = page.getByLabel("Runner browser session");
+      await runnerSession.getByText("Discord webhook saved, but this local runner is older.", { exact: false }).waitFor();
+      await runnerSession.getByText("Restart or download the runner before expecting Discord summaries.", { exact: false }).waitFor();
+    },
+  );
+});
+
+test("runner workspace warns for older backend runner heartbeat when companion status is unavailable", { timeout: 40000 }, async (t) => {
+  await withRunnerDiagnosticsPage(t, { runnerVersion: "local-runner-2" }, async (page) => {
+    const runnerSession = page.getByLabel("Runner browser session");
+    await runnerSession.getByText("Version local-runner-2", { exact: false }).waitFor();
+    await runnerSession.getByText("Discord webhook saved, but this local runner is older.", { exact: false }).waitFor();
+  });
+});
+
+test("runner workspace accepts newer local runner versions for Discord webhooks", { timeout: 40000 }, async (t) => {
+  await withRunnerDiagnosticsPage(t, { runnerVersion: "local-runner-4" }, async (page) => {
+    const runnerSession = page.getByLabel("Runner browser session");
+    await runnerSession.getByText("Version local-runner-4", { exact: false }).waitFor();
+    await runnerSession.getByText("Discord webhook saved, but this local runner is older.", { exact: false }).waitFor({ state: "detached" });
+    await page.getByLabel("Runner readiness").getByText("Discord summaries will post after live runs.").waitFor();
+  });
+});
+
+test("runner workspace warns when Discord webhook runner version is unverified", { timeout: 40000 }, async (t) => {
+  await withRunnerDiagnosticsPage(t, { runnerVersion: "local-runner-test" }, async (page) => {
+    const runnerSession = page.getByLabel("Runner browser session");
+    await runnerSession.getByText("Version local-runner-test", { exact: false }).waitFor();
+    await runnerSession.getByText("Discord webhook saved, but this runner version could not be verified.", { exact: false }).waitFor();
+    await page.getByLabel("Runner readiness").getByText("Discord summaries will post after live runs.").waitFor({ state: "detached" });
+  });
+});
+
+async function withRunnerDiagnosticsPage(t, routeOptions, assertion) {
+  const server = spawn("npx vite --host 127.0.0.1 --port 8123 --strictPort", {
+    cwd: process.cwd(),
+    shell: true,
+    stdio: "ignore",
+  });
+
+  t.after(() => {
+    stopProcessTree(server);
+  });
+
+  await waitForServer(appUrl);
+
+  const browser = await chromium.launch();
+  t.after(async () => {
+    await browser.close();
+  });
+
+  const page = await browser.newPage();
+  await routeRunnerWorkspace(page, {
+    ...routeOptions,
+    runnerSettings: { mediaDir: "", slowMo: 500, headless: true, submit: true, tumblrAccountId: "", discordWebhookConfigured: true },
+  });
+
+  await page.goto(appUrl);
+  await openWorkspaceView(page, "Runner");
+  await assertion(page);
+}
+
 async function routeRunnerWorkspace(page, options = {}) {
   const runnerOnline = options.runnerOnline ?? true;
   const runnerWatching = options.runnerWatching ?? runnerOnline;
   const runnerQueueName = options.runnerQueueName ?? "Default queue";
   const runnerStatus = options.runnerStatus ?? (runnerWatching ? "watching" : "offline");
+  const runnerVersion = options.runnerVersion ?? "local-runner-test";
   const scheduleEnabled = options.scheduleEnabled ?? false;
+  const runnerSettings = options.runnerSettings ?? { mediaDir: "", slowMo: 500, headless: true, submit: true, tumblrAccountId: "" };
   await page.route("http://127.0.0.1:8021/api/auth/session", (route) =>
     route.fulfill({
       contentType: "application/json",
@@ -293,7 +378,7 @@ async function routeRunnerWorkspace(page, options = {}) {
       headers: apiHeaders,
       body: JSON.stringify({
         settings: {
-          runnerSettings: { mediaDir: "", slowMo: 500, headless: true, submit: true, tumblrAccountId: "" },
+          runnerSettings,
           queueScheduleSettings: {
             enabled: false,
             dailyTime: "09:00",
@@ -334,7 +419,7 @@ async function routeRunnerWorkspace(page, options = {}) {
             queue_name: runnerQueueName,
             watching: runnerWatching,
             status: runnerOnline ? runnerStatus : "offline",
-            version: "local-runner-test",
+            version: runnerVersion,
           },
         },
       }),
@@ -389,8 +474,27 @@ function localCompanionStatus(overrides = {}) {
     lastFinishedAt: "",
     lastExitCode: null,
     lastExitSignal: "",
+    lastBlockerCode: "",
+    lastDiscordSummary: null,
     lastError: "",
     lastRun: null,
+    ...overrides,
+  };
+}
+
+function discordCompanionLastRun(overrides = {}) {
+  return {
+    queueName: "Default queue",
+    headless: true,
+    submit: false,
+    itemCount: 1,
+    runId: "discord-status-test",
+    startedAt: "2026-06-20T00:00:00.000Z",
+    finishedAt: "2026-06-20T00:01:00.000Z",
+    exitCode: 0,
+    exitSignal: "",
+    blockerCode: "",
+    status: "idle",
     ...overrides,
   };
 }
