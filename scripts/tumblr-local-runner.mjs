@@ -4,6 +4,7 @@ import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
+import { postDiscordRunSummary } from "./discord-run-summary.mjs";
 import { headlessBlockerCodes } from "./tumblr-runner-core.mjs";
 
 const LOCAL_COMPANION_VERSION = "local-runner-2";
@@ -57,6 +58,7 @@ function parseLocalArgs(argv) {
     companionPort: 17842,
     intervalSeconds: 15,
     limit: "",
+    discordWebhookUrl: process.env.INWELL_DISCORD_WEBHOOK_URL || "",
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -203,6 +205,9 @@ async function runPlan(options, plan) {
   await fs.unlink(resultPath).catch(() => undefined);
   const result = { ...processResult, runnerResult };
   await postHeartbeat(options, result.exitCode ? "error" : options.watch ? "watching" : "idle").catch(() => undefined);
+  await postDiscordRunSummary(options, plan, result, { log: console.log }).catch((error) => {
+    console.log(`[local-runner] Could not send Discord summary: ${error instanceof Error ? error.message : String(error)}`);
+  });
   return result;
 }
 
@@ -211,8 +216,13 @@ async function readRunnerResult(resultPath) {
   if (!raw) {
     return null;
   }
-  const parsed = JSON.parse(raw);
-  return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
+  } catch {
+    console.log("[local-runner] Runner result file could not be parsed; Discord summary will treat target results as unknown.");
+    return null;
+  }
 }
 
 function stateLastRunStarted(options, plan) {

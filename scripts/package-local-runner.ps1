@@ -15,11 +15,18 @@ if (Test-Path $packageRoot) {
 }
 New-Item -ItemType Directory -Force -Path (Join-Path $packageRoot "scripts") | Out-Null
 
-Copy-Item -LiteralPath (Join-Path $repoRoot "scripts\tumblr-local-runner.mjs") -Destination (Join-Path $packageRoot "scripts\tumblr-local-runner.mjs")
-Copy-Item -LiteralPath (Join-Path $repoRoot "scripts\tumblr-login.mjs") -Destination (Join-Path $packageRoot "scripts\tumblr-login.mjs")
-Copy-Item -LiteralPath (Join-Path $repoRoot "scripts\tumblr-runner.mjs") -Destination (Join-Path $packageRoot "scripts\tumblr-runner.mjs")
-Copy-Item -LiteralPath (Join-Path $repoRoot "scripts\tumblr-runner-core.mjs") -Destination (Join-Path $packageRoot "scripts\tumblr-runner-core.mjs")
-Copy-Item -LiteralPath (Join-Path $repoRoot "scripts\install-local-runner-autostart.ps1") -Destination (Join-Path $packageRoot "scripts\install-local-runner-autostart.ps1")
+$runnerScripts = @(
+  "tumblr-local-runner.mjs",
+  "discord-run-summary.mjs",
+  "tumblr-login.mjs",
+  "tumblr-runner.mjs",
+  "tumblr-runner-core.mjs",
+  "tumblr-runner-results.mjs",
+  "install-local-runner-autostart.ps1"
+)
+foreach ($scriptName in $runnerScripts) {
+  Copy-Item -LiteralPath (Join-Path $repoRoot "scripts\$scriptName") -Destination (Join-Path $packageRoot "scripts\$scriptName")
+}
 
 $packageJson = @{
   name = "inkwell-local-runner"

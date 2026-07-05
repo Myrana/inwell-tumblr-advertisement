@@ -444,6 +444,7 @@ test("documentation page explains recent workflow changes", { timeout: 40000 }, 
   await openWorkspaceView(page, "Docs");
   await page.getByRole("heading", { name: "Testing and change guide", level: 1 }).waitFor();
   await page.getByLabel("Inkwell documentation").getByRole("heading", { name: "Local runner" }).waitFor();
+  await page.getByText("Set INWELL_DISCORD_WEBHOOK_URL, or pass -DiscordWebhookUrl to the runner installer", { exact: false }).waitFor();
   await page.getByLabel("Inkwell documentation").getByRole("heading", { name: "Operations dashboard" }).waitFor();
   await page.getByLabel("Inkwell documentation").getByRole("heading", { name: "Suggested testing flow" }).waitFor();
   await page.getByText("Only turn Submit approved on when the queue looks right and you are ready for real Tumblr submission.").waitFor();

@@ -25,9 +25,11 @@ import {
   shouldDeferReadyReview,
   tumblrPostSelectOptionSelector,
 } from "./tumblr-runner-core.mjs";
+import { collectRunnerTargetResults, writeRunnerResult } from "./tumblr-runner-results.mjs";
 
 async function main() {
   const options = parseArgs(process.argv.slice(2));
+  let targetResults = [];
   try {
     const plan = await loadRunnerPlan(options.planPath);
     const runnerBrowser = await openRunnerBrowser(options);
@@ -37,37 +39,28 @@ async function main() {
         await waitForTumblrLogin(runnerBrowser.context, options);
       }
 
-      const reviewPages = [];
-      let failureCount = 0;
-      let headlessFailureMessage = "";
-      for (const item of plan.items) {
-        try {
-          const result = await runQueueItem(runnerBrowser.context, item, options);
-          if (result?.readyForReview && result.page) {
-            reviewPages.push(result.page);
-          }
-        } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
-          failureCount += 1;
-          if (options.headless && !headlessFailureMessage) {
-            headlessFailureMessage = message;
-          }
+      const runResults = await collectRunnerTargetResults(
+        plan.items,
+        (item) => runQueueItem(runnerBrowser.context, item, options),
+        async (item, error, message) => {
           console.log(`[runner:error] ${item.targetName}: ${message}`);
           await reportRunnerEvent(options, item, "failed", `Runner failed: ${message}`, "error", { error: message });
-        }
-      }
+        },
+      );
+      targetResults = runResults.targetResults;
+      const { reviewPages, failureCount } = runResults;
 
       if (reviewPages.length > 0) {
         await waitForQueueReviewPages(options, reviewPages);
       }
       if (options.headless && failureCount > 0) {
-        throw new Error(headlessFailureMessage || `Headless runner failed for ${failureCount} queue item${failureCount === 1 ? "" : "s"}.`);
+        throw new Error(runResults.firstFailureMessage || `Headless runner failed for ${failureCount} queue item${failureCount === 1 ? "" : "s"}.`);
       }
     } finally {
       await runnerBrowser.close();
     }
 
-    await writeRunnerResult(options, { status: "success", blockerCode: "", failureKind: "", message: "" });
+    await writeRunnerResult(options, { status: "success", blockerCode: "", failureKind: "", message: "", targetResults });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     await writeRunnerResult(options, {
@@ -75,6 +68,7 @@ async function main() {
       blockerCode: options.headless ? runnerResultBlockerCode(message) : "",
       failureKind: options.headless ? "headless_blocker" : "runner_error",
       message,
+      targetResults,
     });
     throw error;
   }
@@ -83,13 +77,6 @@ async function main() {
 function runnerResultBlockerCode(message) {
   const knownCode = Object.values(headlessBlockerCodes).find((code) => String(message || "").includes(code));
   return knownCode || headlessBlockerCodes.runnerFailed;
-}
-
-async function writeRunnerResult(options, result) {
-  if (!options.resultPath) {
-    return;
-  }
-  await fs.writeFile(options.resultPath, JSON.stringify(result, null, 2), "utf8").catch(() => undefined);
 }
 
 async function openRunnerBrowser(options) {
@@ -229,7 +216,7 @@ async function runQueueItem(context, item, options) {
       throw new Error(headlessBlockerMessage(message));
     }
     await pauseForOperator(page, options);
-    return { readyForReview: false };
+    return { readyForReview: false, status: "needs-review" };
   }
 
   await logFrameDiagnostics(page);
@@ -246,7 +233,7 @@ async function runQueueItem(context, item, options) {
       });
       await failHeadlessReview(page, options, message);
       await pauseForOperator(page, options);
-      return { readyForReview: false };
+      return { readyForReview: false, status: options.headless ? "failed" : "needs-review" };
     }
   }
   await page.waitForLoadState("domcontentloaded", { timeout: 10000 }).catch(() => undefined);
@@ -280,11 +267,11 @@ async function runQueueItem(context, item, options) {
     );
     await failHeadlessReview(page, options, message);
     if (shouldDeferReadyReview(options)) {
-      return { readyForReview: true, page };
+      return { readyForReview: true, page, status: "needs-review" };
     }
 
     await pauseForOperator(page, options);
-    return { readyForReview: false };
+    return { readyForReview: false, status: options.headless ? "failed" : "needs-review" };
   }
 
   if (options.submit) {
@@ -303,17 +290,18 @@ async function runQueueItem(context, item, options) {
     if (!submitted) {
       await failHeadlessReview(page, options, submitResult.message);
     }
+    return { readyForReview: false, status: submitted ? "submitted" : options.headless ? "failed" : "needs-review" };
   } else {
     console.log(`[ready] ${item.targetName}: fields filled where possible. Review the page, then submit manually or rerun with --submit.`);
     await reportRunnerEvent(options, item, "needs-review", "Fields filled and ready for manual review.", "info");
     if (shouldDeferReadyReview(options)) {
-      return { readyForReview: true, page };
+      return { readyForReview: true, page, status: "needs-review" };
     }
 
     await pauseForOperator(page, options);
   }
 
-  return { readyForReview: false };
+  return { readyForReview: false, status: "needs-review" };
 }
 
 async function postedUrlFromPage(page, submitUrl) {
@@ -420,11 +408,11 @@ async function failHeadlessReview(page, options, message) {
 
 async function manualBlockerReviewResult(page, options) {
   if (shouldDeferReadyReview(options)) {
-    return { readyForReview: true, page };
+    return { readyForReview: true, page, status: "needs-review" };
   }
 
   await pauseForOperator(page, options);
-  return { readyForReview: false };
+  return { readyForReview: false, status: "needs-review" };
 }
 
 async function handleTumblrRateLimit(page, item, options) {
@@ -452,11 +440,11 @@ async function handleTumblrRateLimit(page, item, options) {
 
 async function rateLimitReviewResult(page, options) {
   if (shouldDeferReadyReview(options)) {
-    return { readyForReview: true, page };
+    return { readyForReview: true, page, status: "needs-review" };
   }
 
   await pauseForOperator(page, options);
-  return { readyForReview: false };
+  return { readyForReview: false, status: "needs-review" };
 }
 
 async function automationTarget(page) {
