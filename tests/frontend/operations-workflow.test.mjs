@@ -63,6 +63,8 @@ test("operations dashboard centers content readiness without backup controls", {
   const page = await browser.newPage();
   const pageErrors = [];
   const savedAppSettings = [];
+  const savedDiscordWebhooks = [];
+  const testedDiscordWebhooks = [];
   page.on("pageerror", (error) => pageErrors.push(error));
   await page.route("http://127.0.0.1:8021/api/**", (route) => route.abort());
   await page.route("http://127.0.0.1:17842/status", (route) => route.abort());
@@ -155,6 +157,25 @@ test("operations dashboard centers content readiness without backup controls", {
     savedAppSettings.push(settings);
     return route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ settings }) });
   });
+  await page.route("http://127.0.0.1:8021/api/settings/discord-webhook", (route) => {
+    const payload = route.request().postDataJSON();
+    savedDiscordWebhooks.push(payload.webhookUrl);
+    return route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({ discordWebhook: { configured: Boolean(payload.webhookUrl) } }),
+    });
+  });
+  await page.route("http://127.0.0.1:8021/api/settings/discord-webhook-test", (route) => {
+    const payload = route.request().postDataJSON();
+    testedDiscordWebhooks.push(payload.webhookUrl);
+    return route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      status: 201,
+      body: JSON.stringify({ discordWebhook: { tested: true } }),
+    });
+  });
   await page.route("http://127.0.0.1:8021/api/advertisements/*", (route) =>
     route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ advertisement: route.request().postDataJSON() }) }),
   );
@@ -197,11 +218,21 @@ test("operations dashboard centers content readiness without backup controls", {
   await page.getByLabel("Operational settings").getByLabel("Runner defaults").getByText("Automation mode").waitFor();
   await page.getByLabel("Operational settings").getByLabel("Schedule defaults").getByText("Daily queue timing").waitFor();
   await page.getByLabel("Operational settings").getByLabel("Account defaults").getByText("Posting identity").waitFor();
+  await page.getByLabel("Operational settings").getByLabel("Discord notifications").getByText("Run summaries").waitFor();
   await page.getByLabel("Runner defaults").getByLabel("Headless browser").check();
   await page.getByLabel("Runner defaults").getByLabel("Approve live posting").check();
   await page.getByLabel("Runner defaults").getByLabel("Runner pacing").fill("400");
   await page.getByLabel("Schedule defaults").getByLabel("Enable daily automation by default").check();
   await page.getByLabel("Schedule defaults").getByLabel("Default daily run time").fill("10:30");
+  await page.getByLabel("Discord notifications").getByLabel("Discord webhook URL").fill("https://discord.com/api/webhooks/123/token");
+  await page.getByLabel("Discord notifications").getByRole("button", { name: "Save webhook" }).click();
+  await page.getByLabel("Discord notifications").getByText("Discord webhook saved.").waitFor();
+  await page.getByLabel("Discord notifications").getByText("Configured").waitFor();
+  await page.getByLabel("Discord notifications").getByRole("button", { name: "Send test" }).click();
+  await page.getByLabel("Discord notifications").getByText("Discord test sent.").waitFor();
+  await page.getByLabel("Discord notifications").getByRole("button", { name: "Clear" }).click();
+  await page.getByLabel("Discord notifications").getByText("Discord webhook cleared.").waitFor();
+  await page.getByLabel("Discord notifications").getByText("Not configured").waitFor();
   const settingsSave = page.waitForResponse((response) => {
     if (!response.url().includes("/api/settings/app") || response.request().method() !== "PUT") {
       return false;
@@ -215,8 +246,11 @@ test("operations dashboard centers content readiness without backup controls", {
   assert.equal(latestSettings.runnerSettings.submit, true);
   assert.equal(latestSettings.runnerSettings.slowMo, 400);
   assert.equal(latestSettings.runnerSettings.tumblrAccountId, "tumblr-ops");
+  assert.equal(latestSettings.runnerSettings.discordWebhookUrl, undefined);
   assert.equal(latestSettings.queueScheduleSettings.enabled, true);
   assert.equal(latestSettings.queueScheduleSettings.dailyTime, "10:30");
+  assert.deepEqual(savedDiscordWebhooks, ["https://discord.com/api/webhooks/123/token", ""]);
+  assert.deepEqual(testedDiscordWebhooks, [""]);
 
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
 });
@@ -243,6 +277,8 @@ test("operational settings show backend save failures", { timeout: 40000 }, asyn
   const page = await browser.newPage();
   const pageErrors = [];
   let failSettingsSaves = false;
+  let failDiscordSave = false;
+  let failDiscordTest = false;
   page.on("pageerror", (error) => pageErrors.push(error));
   await page.route("http://127.0.0.1:8021/api/**", (route) => route.abort());
   await page.route("http://127.0.0.1:17842/status", (route) => route.abort());
@@ -294,6 +330,38 @@ test("operational settings show backend save failures", { timeout: 40000 }, asyn
     }
     return route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ settings }) });
   });
+  await page.route("http://127.0.0.1:8021/api/settings/discord-webhook", (route) => {
+    if (failDiscordSave) {
+      return route.fulfill({
+        contentType: "application/json",
+        headers: apiHeaders,
+        status: 400,
+        body: JSON.stringify({ error: "Discord webhook URL must be a Discord webhook URL." }),
+      });
+    }
+    const payload = route.request().postDataJSON();
+    return route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({ discordWebhook: { configured: Boolean(payload.webhookUrl) } }),
+    });
+  });
+  await page.route("http://127.0.0.1:8021/api/settings/discord-webhook-test", (route) => {
+    if (failDiscordTest) {
+      return route.fulfill({
+        contentType: "application/json",
+        headers: apiHeaders,
+        status: 400,
+        body: JSON.stringify({ error: "Save a Discord webhook URL before sending a test." }),
+      });
+    }
+    return route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      status: 201,
+      body: JSON.stringify({ discordWebhook: { tested: true } }),
+    });
+  });
 
   await page.goto(appUrl);
   await page.getByRole("heading", { name: "Operations dashboard", level: 1 }).waitFor();
@@ -308,6 +376,15 @@ test("operational settings show backend save failures", { timeout: 40000 }, asyn
   await page.getByLabel("Account defaults").getByLabel("Runner account").selectOption("tumblr-settings");
   await failedSettingsSave;
   await page.getByRole("status").getByText("Could not save operational settings. Try again.").waitFor();
+  failDiscordSave = true;
+  await page.getByLabel("Discord notifications").getByLabel("Discord webhook URL").fill("https://discord.example.com/api/webhooks/123/token");
+  await page.getByLabel("Discord notifications").getByRole("button", { name: "Save webhook" }).click();
+  await page.getByLabel("Discord notifications").getByText("Discord webhook URL must be a Discord webhook URL.").waitFor();
+  failDiscordSave = false;
+  failDiscordTest = true;
+  await page.getByLabel("Discord notifications").getByLabel("Discord webhook URL").fill("https://discord.com/api/webhooks/123/token");
+  await page.getByLabel("Discord notifications").getByRole("button", { name: "Send test" }).click();
+  await page.getByLabel("Discord notifications").getByText("Save a Discord webhook URL before sending a test.").waitFor();
   assert.equal(await page.getByLabel("Runner defaults").getByLabel("Headless browser").isChecked(), true);
   assert.equal(await page.getByLabel("Runner defaults").getByLabel("Approve live posting").isChecked(), true);
   assert.equal(await page.getByLabel("Schedule defaults").getByLabel("Enable daily automation by default").isChecked(), true);

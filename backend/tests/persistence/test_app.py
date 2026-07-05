@@ -4,6 +4,7 @@ import io
 import json
 import os
 import re
+import threading
 import unittest
 import uuid
 import zipfile
@@ -11,6 +12,8 @@ from pathlib import Path
 import sys
 from typing import Any
 from unittest.mock import Mock, patch
+from urllib import request as urllib_request
+from urllib.error import HTTPError
 
 sys.path.insert(0, str(Path(__file__).parents[2]))
 import app
@@ -23,9 +26,11 @@ from app import (
     create_user_workspace,
     create_user_workspace_with_lock,
     database_settings,
+    discord_webhook_status,
     hash_session_token,
     initialize,
     initialize_database_for_startup,
+    is_discord_webhook_url,
     login_user,
     login_user_with_lock,
     origin_allowed_for_request,
@@ -33,7 +38,9 @@ from app import (
     record_runner_log,
     run,
     settings_statistics,
+    stored_discord_webhook_url,
     start_runner,
+    upsert_discord_webhook_settings,
     upsert_app_settings,
     upsert_advertisement,
     upsert_queue_item,
@@ -44,6 +51,7 @@ from app import (
     local_runner_command,
     local_runner_package,
     local_runner_plan,
+    local_runner_plan_response,
     local_runner_status,
     latest_local_runner_status,
     local_runner_token_valid,
@@ -565,7 +573,8 @@ class FakePostgresConnection:
                 "tumblr_account_id": params[5],
                 "remote_browser_provider": params[6],
                 "remote_browser_launch_url": params[7],
-                "updated_at": params[8],
+                "discord_webhook_url": params[8],
+                "updated_at": params[9],
             }
             self.runner_settings[ScopedRows.key(row["workspace_id"], row["id"])] = row
             return FakeCursor()
@@ -965,6 +974,32 @@ class PersistenceTests(unittest.TestCase):
     def setUp(self) -> None:
         self.connection = FakePostgresConnection()
         initialize(self.connection)
+
+    def request_json(
+        self,
+        base_url: str,
+        path: str,
+        method: str = "GET",
+        payload: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> tuple[int, dict[str, Any]]:
+        body = json.dumps(payload or {}).encode("utf-8") if payload is not None else None
+        request = urllib_request.Request(
+            f"{base_url}{path}",
+            data=body,
+            headers={"Content-Type": "application/json", **(headers or {})},
+            method=method,
+        )
+        try:
+            with urllib_request.urlopen(request, timeout=5) as response:
+                response_body = response.read().decode("utf-8") or "{}"
+                return response.status, json.loads(response_body)
+        except HTTPError as error:
+            try:
+                response_body = error.read().decode("utf-8") or "{}"
+                return error.code, json.loads(response_body)
+            finally:
+                error.close()
 
     def test_database_settings_default_to_requested_postgres_host(self) -> None:
         self.assertEqual(database_settings()["host"], "192.168.1.3")
@@ -1568,6 +1603,7 @@ class PersistenceTests(unittest.TestCase):
                 "tumblrAccountId": "snowleopardx",
                 "remoteBrowserProvider": "none",
                 "remoteBrowserLaunchUrl": "",
+                "discordWebhookConfigured": False,
             },
         )
         self.assertEqual(saved["queueScheduleSettings"]["dailyTime"], "08:30")
@@ -1580,9 +1616,171 @@ class PersistenceTests(unittest.TestCase):
         self.assertEqual(self.connection.runner_settings["default"]["tumblr_account_id"], "snowleopardx")
         self.assertEqual(self.connection.runner_settings["default"]["remote_browser_provider"], "none")
         self.assertEqual(self.connection.runner_settings["default"]["remote_browser_launch_url"], "")
+        self.assertEqual(self.connection.runner_settings["default"]["discord_webhook_url"], "")
+        self.assertIn("updated_at", self.connection.runner_settings["default"])
         self.assertEqual(self.connection.queue_schedule_settings["default"]["daily_time"], "08:30")
         self.assertEqual(self.connection.queue_schedule_settings["queue:Daily adverts"]["daily_time"], "10:15")
         self.assertGreater(len(self.connection.settings_audit_events), 0)
+
+    def test_discord_webhook_settings_save_clear_and_do_not_disclose_secret(self) -> None:
+        webhook_url = "https://discord.com/api/webhooks/123/token"
+
+        self.assertTrue(is_discord_webhook_url(webhook_url))
+        saved = upsert_discord_webhook_settings(self.connection, {"webhookUrl": webhook_url})
+
+        self.assertEqual(saved, {"configured": True})
+        self.assertEqual(discord_webhook_status(self.connection), {"configured": True})
+        self.assertEqual(stored_discord_webhook_url(self.connection), webhook_url)
+        self.assertEqual(self.connection.runner_settings["default"]["discord_webhook_url"], webhook_url)
+        self.assertIn("updated_at", self.connection.runner_settings["default"])
+
+        app_settings = get_app_settings(self.connection)
+        self.assertEqual(app_settings["runnerSettings"]["discordWebhookConfigured"], True)
+        self.assertNotIn("discordWebhookUrl", app_settings["runnerSettings"])
+        self.assertNotIn(webhook_url, json.dumps(app_settings))
+
+        cleared = upsert_discord_webhook_settings(self.connection, {"webhookUrl": ""})
+        self.assertEqual(cleared, {"configured": False})
+        self.assertEqual(stored_discord_webhook_url(self.connection), "")
+        self.assertEqual(get_app_settings(self.connection)["runnerSettings"]["discordWebhookConfigured"], False)
+
+    def test_discord_webhook_settings_reject_lookalike_urls(self) -> None:
+        for value in (
+            "https://discord.example.com/api/webhooks/123/token",
+            "http://discord.com/api/webhooks/123/token",
+            "https://example.com/api/webhooks/123/token",
+        ):
+            self.assertFalse(is_discord_webhook_url(value))
+            with self.assertRaises(ValueError):
+                upsert_discord_webhook_settings(self.connection, {"webhookUrl": value})
+
+    def test_local_runner_plan_response_exposes_webhook_only_for_token_workspace(self) -> None:
+        webhook_url = "https://discord.com/api/webhooks/123/token"
+        upsert_discord_webhook_settings(self.connection, {"webhookUrl": webhook_url}, workspace_id="workspace-local")
+        upsert_discord_webhook_settings(
+            self.connection,
+            {"webhookUrl": "https://discord.com/api/webhooks/456/other"},
+            workspace_id="other-workspace",
+        )
+        created = create_local_runner_token(self.connection, "workspace-local", "Mandy laptop")
+        token = created["token"]
+
+        self.assertIsNotNone(validate_local_runner_token(self.connection, token, "workspace-local", require_workspace=True))
+        self.assertIsNone(validate_local_runner_token(self.connection, token, "other-workspace", require_workspace=True))
+        self.assertIsNone(validate_local_runner_token(self.connection, "invalid-token", "workspace-local", require_workspace=True))
+
+        response = local_runner_plan_response(self.connection, "workspace-local", "Default queue")
+        self.assertEqual(response["discordWebhookUrl"], webhook_url)
+        self.assertNotIn(webhook_url, json.dumps(response["plan"]))
+
+    def test_discord_webhook_http_routes_enforce_auth_non_disclosure_and_runner_token_scope(self) -> None:
+        user, workspace_id = create_user_workspace(
+            self.connection,
+            {
+                "email": "webhook@example.test",
+                "password": "super-secret-password",
+                "displayName": "Webhook User",
+                "workspaceName": "Webhook workspace",
+            },
+        )
+        session_token = create_session(self.connection, user["id"], workspace_id)
+        auth_headers = {"Cookie": f"inwell_session={session_token}"}
+        webhook_url = "https://discord.com/api/webhooks/123/token"
+        server = app.ThreadingHTTPServer(("127.0.0.1", 0), app.Handler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        address = server.server_address
+        base_url = f"http://127.0.0.1:{address[1]}"
+
+        try:
+            with patch("app.connect", return_value=ConnectionContext(self.connection)), patch("app.post_discord_webhook_test") as post_test:
+                for method, path in (
+                    ("GET", "/api/settings"),
+                    ("GET", "/api/settings/discord-webhook"),
+                    ("PUT", "/api/settings/discord-webhook"),
+                    ("POST", "/api/settings/discord-webhook-test"),
+                ):
+                    status, payload = self.request_json(base_url, path, method=method, payload={} if method in {"PUT", "POST"} else None)
+                    self.assertEqual(status, 401, (method, path, payload))
+
+                status, payload = self.request_json(
+                    base_url,
+                    "/api/settings/discord-webhook",
+                    method="PUT",
+                    payload={"webhookUrl": "https://discord.example.com/api/webhooks/123/token"},
+                    headers=auth_headers,
+                )
+                self.assertEqual(status, 400)
+                self.assertIn("Discord webhook URL", payload["error"])
+
+                status, payload = self.request_json(
+                    base_url,
+                    "/api/settings/discord-webhook",
+                    method="PUT",
+                    payload={"webhookUrl": webhook_url},
+                    headers=auth_headers,
+                )
+                self.assertEqual(status, 200)
+                self.assertEqual(payload, {"discordWebhook": {"configured": True}})
+
+                status, payload = self.request_json(base_url, "/api/settings", headers=auth_headers)
+                self.assertEqual(status, 200)
+                self.assertEqual(payload["settings"]["runnerSettings"]["discordWebhookConfigured"], True)
+                self.assertNotIn("discordWebhookUrl", payload["settings"]["runnerSettings"])
+                self.assertNotIn(webhook_url, json.dumps(payload))
+
+                status, payload = self.request_json(base_url, "/api/settings/discord-webhook", headers=auth_headers)
+                self.assertEqual(status, 200)
+                self.assertEqual(payload, {"discordWebhook": {"configured": True}})
+                self.assertNotIn(webhook_url, json.dumps(payload))
+
+                status, payload = self.request_json(
+                    base_url,
+                    "/api/settings/discord-webhook-test",
+                    method="POST",
+                    payload={},
+                    headers=auth_headers,
+                )
+                self.assertEqual(status, 201)
+                post_test.assert_called_once_with(webhook_url)
+
+                device = create_local_runner_token(self.connection, workspace_id, "Mandy laptop")
+                status, payload = self.request_json(
+                    base_url,
+                    f"/api/runner/local-plan?workspaceId={workspace_id}&queueName=Default%20queue",
+                    headers={"Authorization": f"Bearer {device['token']}"},
+                )
+                self.assertEqual(status, 200)
+                self.assertEqual(payload["discordWebhookUrl"], webhook_url)
+                self.assertNotIn(webhook_url, json.dumps(payload["plan"]))
+
+                status, payload = self.request_json(
+                    base_url,
+                    f"/api/runner/local-plan?workspaceId={workspace_id}&queueName=Default%20queue",
+                    headers={"Authorization": "Bearer invalid-token"},
+                )
+                self.assertEqual(status, 401)
+
+                status, payload = self.request_json(
+                    base_url,
+                    "/api/runner/local-plan?workspaceId=other-workspace&queueName=Default%20queue",
+                    headers={"Authorization": f"Bearer {device['token']}"},
+                )
+                self.assertEqual(status, 401)
+
+                status, payload = self.request_json(
+                    base_url,
+                    "/api/settings/discord-webhook",
+                    method="PUT",
+                    payload={"webhookUrl": ""},
+                    headers=auth_headers,
+                )
+                self.assertEqual(status, 200)
+                self.assertEqual(payload, {"discordWebhook": {"configured": False}})
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=5)
 
     def test_app_settings_normalize_invalid_values(self) -> None:
         saved = upsert_app_settings(

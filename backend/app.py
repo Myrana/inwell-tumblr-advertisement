@@ -18,6 +18,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Protocol
 from urllib.parse import parse_qs, urlparse
+from urllib import request as urllib_request
+from urllib.error import HTTPError, URLError
 
 import psycopg
 from psycopg.rows import dict_row
@@ -472,6 +474,7 @@ def initialize(connection: ConnectionLike) -> None:
     connection.execute("ALTER TABLE runner_settings ADD COLUMN IF NOT EXISTS tumblr_account_id TEXT NOT NULL DEFAULT ''")
     connection.execute("ALTER TABLE runner_settings ADD COLUMN IF NOT EXISTS remote_browser_provider TEXT NOT NULL DEFAULT 'none'")
     connection.execute("ALTER TABLE runner_settings ADD COLUMN IF NOT EXISTS remote_browser_launch_url TEXT NOT NULL DEFAULT ''")
+    connection.execute("ALTER TABLE runner_settings ADD COLUMN IF NOT EXISTS discord_webhook_url TEXT NOT NULL DEFAULT ''")
     connection.execute("ALTER TABLE local_runner_tokens ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMPTZ")
     connection.execute("ALTER TABLE local_runner_tokens ADD COLUMN IF NOT EXISTS queue_name TEXT NOT NULL DEFAULT ''")
     connection.execute("ALTER TABLE local_runner_tokens ADD COLUMN IF NOT EXISTS watching BOOLEAN NOT NULL DEFAULT FALSE")
@@ -1342,6 +1345,28 @@ def environment_remote_browser_provider() -> str:
     return provider if provider in REMOTE_BROWSER_ACTIVE_PROVIDERS else "none"
 
 
+def normalize_discord_webhook_url(value: Any) -> str:
+    return str(value or "").strip()
+
+
+def discord_webhook_configured(value: Any) -> bool:
+    return bool(normalize_discord_webhook_url(value))
+
+
+def is_discord_webhook_url(value: Any) -> bool:
+    webhook_url = normalize_discord_webhook_url(value)
+    if not webhook_url:
+        return False
+    try:
+        parsed = urlparse(webhook_url)
+    except ValueError:
+        return False
+    allow_local = os.environ.get("INWELL_DISCORD_WEBHOOK_ALLOW_LOCAL") == "1"
+    if allow_local and parsed.scheme == "http" and parsed.hostname in {"127.0.0.1", "localhost"} and parsed.path.startswith("/api/webhooks/"):
+        return True
+    return parsed.scheme == "https" and parsed.hostname in {"discord.com", "discordapp.com"} and parsed.path.startswith("/api/webhooks/")
+
+
 def normalize_runner_settings(value: Any) -> dict[str, Any]:
     data = value if isinstance(value, dict) else {}
     try:
@@ -1352,6 +1377,7 @@ def normalize_runner_settings(value: Any) -> dict[str, Any]:
     if provider not in REMOTE_BROWSER_PROVIDERS:
         provider = "none"
 
+    discord_webhook_url = normalize_discord_webhook_url(data.get("discordWebhookUrl") or data.get("discord_webhook_url"))
     return {
         "mediaDir": str(data.get("mediaDir") or ""),
         "slowMo": max(0, min(slow_mo, 5000)),
@@ -1359,6 +1385,7 @@ def normalize_runner_settings(value: Any) -> dict[str, Any]:
         "tumblrAccountId": str(data.get("tumblrAccountId") or data.get("tumblr_account_id") or "").strip(),
         "remoteBrowserProvider": provider,
         "remoteBrowserLaunchUrl": "" if provider == "none" else str(data.get("remoteBrowserLaunchUrl") or data.get("remote_browser_launch_url") or "").strip(),
+        "discordWebhookConfigured": bool(data.get("discordWebhookConfigured")) or discord_webhook_configured(discord_webhook_url),
     }
 
 
@@ -1493,6 +1520,7 @@ def get_app_settings(connection: ConnectionLike, workspace_id: str = "default") 
     remote_browser_provider = runner_row["remote_browser_provider"] if runner_row else "none"
     if remote_browser_provider == "none":
         remote_browser_provider = environment_remote_browser_provider()
+    runner_values = row_to_dict(runner_row) if runner_row else {}
 
     return {
         "submitTargets": submit_targets,
@@ -1506,6 +1534,7 @@ def get_app_settings(connection: ConnectionLike, workspace_id: str = "default") 
                 "tumblrAccountId": runner_row["tumblr_account_id"] if runner_row else "",
                 "remoteBrowserProvider": remote_browser_provider,
                 "remoteBrowserLaunchUrl": runner_row["remote_browser_launch_url"] if runner_row else "",
+                "discordWebhookConfigured": discord_webhook_configured(runner_values.get("discord_webhook_url", "")),
             }
         ),
         "queueScheduleSettings": normalize_queue_schedule_settings(
@@ -1564,6 +1593,63 @@ def settings_statistics(connection: ConnectionLike, workspace_id: str = "default
     for key, query in queries.items():
         counts[key] = len(connection.execute(query, (workspace_id,)).fetchall())
     return counts
+
+
+def stored_discord_webhook_url(connection: ConnectionLike, workspace_id: str = "default") -> str:
+    row = connection.execute("SELECT * FROM runner_settings WHERE id = %s AND workspace_id = %s", ("default", workspace_id)).fetchone()
+    return normalize_discord_webhook_url(row_to_dict(row).get("discord_webhook_url", "") if row else "")
+
+
+def discord_webhook_status(connection: ConnectionLike, workspace_id: str = "default") -> dict[str, bool]:
+    return {"configured": discord_webhook_configured(stored_discord_webhook_url(connection, workspace_id))}
+
+
+def upsert_discord_webhook_settings(connection: ConnectionLike, payload: dict[str, Any], workspace_id: str = "default") -> dict[str, bool]:
+    webhook_url = normalize_discord_webhook_url(payload.get("webhookUrl") or payload.get("discordWebhookUrl"))
+    if webhook_url and not is_discord_webhook_url(webhook_url):
+        raise ValueError("Discord webhook URL must be a Discord webhook URL.")
+
+    existing_settings = get_app_settings(connection, workspace_id)
+    runner_settings = {**existing_settings["runnerSettings"], "discordWebhookUrl": webhook_url}
+    upsert_app_settings(connection, {**existing_settings, "runnerSettings": runner_settings}, workspace_id=workspace_id)
+    record_settings_audit(
+        connection,
+        "runner_settings",
+        "upsert",
+        "default",
+        "discordWebhookConfigured",
+        "",
+        "configured" if webhook_url else "cleared",
+        workspace_id,
+    )
+    return discord_webhook_status(connection, workspace_id)
+
+
+def post_discord_webhook_test(webhook_url: str) -> None:
+    if not is_discord_webhook_url(webhook_url):
+        raise ValueError("Discord webhook URL must be a Discord webhook URL.")
+
+    body = json.dumps(
+        {
+            "content": "Inkwell Discord webhook test. Queue summaries will include the queue name and targets hit after live runs.",
+            "allowed_mentions": {"parse": []},
+        }
+    ).encode("utf-8")
+    request = urllib_request.Request(
+        webhook_url,
+        data=body,
+        headers={"Content-Type": "application/json", "User-Agent": "Inkwell-Discord-Webhook-Test"},
+        method="POST",
+    )
+    try:
+        with urllib_request.urlopen(request, timeout=8) as response:
+            if response.status >= 400:
+                raise ValueError(f"Discord webhook returned {response.status}.")
+    except HTTPError as error:
+        raise ValueError(f"Discord webhook returned {error.code}.") from error
+    except URLError as error:
+        reason = getattr(error, "reason", error)
+        raise ValueError(f"Could not reach Discord webhook: {reason}") from error
 
 
 def upsert_app_settings(connection: ConnectionLike, payload: dict[str, Any], audit: bool = True, workspace_id: str = "default") -> dict[str, Any]:
@@ -1631,13 +1717,21 @@ def upsert_app_settings(connection: ConnectionLike, payload: dict[str, Any], aud
     existing_runner_settings = connection.execute(
         "SELECT * FROM runner_settings WHERE id = %s AND workspace_id = %s", ("default", workspace_id)
     ).fetchone()
+    raw_runner_payload = payload.get("runnerSettings") if isinstance(payload.get("runnerSettings"), dict) else {}
+    existing_runner_values = row_to_dict(existing_runner_settings) if existing_runner_settings else {}
+    existing_discord_webhook_url = str(existing_runner_values.get("discord_webhook_url") or "")
+    discord_webhook_url = (
+        normalize_discord_webhook_url(raw_runner_payload.get("discordWebhookUrl") or raw_runner_payload.get("discord_webhook_url"))
+        if "discordWebhookUrl" in raw_runner_payload or "discord_webhook_url" in raw_runner_payload
+        else existing_discord_webhook_url
+    )
     connection.execute(
         """
         INSERT INTO runner_settings (
             id, workspace_id, media_dir, slow_mo, submit, tumblr_account_id,
-            remote_browser_provider, remote_browser_launch_url, updated_at
+            remote_browser_provider, remote_browser_launch_url, discord_webhook_url, updated_at
         )
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT(workspace_id, id) DO UPDATE SET
             media_dir = excluded.media_dir,
             slow_mo = excluded.slow_mo,
@@ -1645,6 +1739,7 @@ def upsert_app_settings(connection: ConnectionLike, payload: dict[str, Any], aud
             tumblr_account_id = excluded.tumblr_account_id,
             remote_browser_provider = excluded.remote_browser_provider,
             remote_browser_launch_url = excluded.remote_browser_launch_url,
+            discord_webhook_url = excluded.discord_webhook_url,
             updated_at = excluded.updated_at
         """,
         (
@@ -1656,6 +1751,7 @@ def upsert_app_settings(connection: ConnectionLike, payload: dict[str, Any], aud
             runner_settings["tumblrAccountId"],
             runner_settings["remoteBrowserProvider"],
             runner_settings["remoteBrowserLaunchUrl"],
+            discord_webhook_url,
             now,
         ),
     )
@@ -2451,6 +2547,13 @@ def local_runner_plan(connection: ConnectionLike, workspace_id: str, queue_name:
     }
 
 
+def local_runner_plan_response(connection: ConnectionLike, workspace_id: str, queue_name: str = "", limit: int = 0) -> dict[str, Any]:
+    return {
+        "plan": local_runner_plan(connection, workspace_id, queue_name, limit),
+        "discordWebhookUrl": stored_discord_webhook_url(connection, workspace_id),
+    }
+
+
 def local_runner_command(api_base_url: str, workspace_id: str, queue_name: str, token: str = "", submit: bool = True) -> dict[str, Any]:
     queue_arg = queue_name or "Default queue"
     token_arg = f"--token {powershell_quote(token)} " if token else ""
@@ -2751,7 +2854,7 @@ class Handler(BaseHTTPRequestHandler):
                 if not validate_local_runner_token(connection, token, workspace_id, require_workspace=True):
                     self.respond({"error": "Local runner token is required"}, HTTPStatus.UNAUTHORIZED)
                     return
-                self.respond({"plan": local_runner_plan(connection, workspace_id, queue_name, limit)})
+                self.respond(local_runner_plan_response(connection, workspace_id, queue_name, limit))
             return
 
         auth = self.require_auth()
@@ -2853,6 +2956,10 @@ class Handler(BaseHTTPRequestHandler):
             if collection == "settings/audit" and item_id is None:
                 rows = connection.execute("SELECT * FROM settings_audit_events WHERE workspace_id = %s ORDER BY created_at DESC LIMIT 150", (workspace_id,)).fetchall()
                 self.respond({"audit": [row_to_dict(row) for row in rows]})
+                return
+
+            if collection == "settings/discord-webhook" and item_id is None:
+                self.respond({"discordWebhook": discord_webhook_status(connection, workspace_id)})
                 return
 
         self.send_error(HTTPStatus.NOT_FOUND)
@@ -2976,6 +3083,23 @@ class Handler(BaseHTTPRequestHandler):
         if not auth:
             return
         workspace_id = auth["workspace_id"]
+
+        if collection == "settings/discord-webhook-test":
+            try:
+                payload = self.read_json()
+                with connect() as connection:
+                    webhook_url = normalize_discord_webhook_url(
+                        payload.get("webhookUrl")
+                        or payload.get("discordWebhookUrl")
+                        or stored_discord_webhook_url(connection, workspace_id)
+                    )
+                if not webhook_url:
+                    raise ValueError("Save a Discord webhook URL before sending a test.")
+                post_discord_webhook_test(webhook_url)
+                self.respond({"discordWebhook": {"tested": True}}, HTTPStatus.CREATED)
+            except ValueError as error:
+                self.respond({"error": str(error)}, HTTPStatus.BAD_REQUEST)
+            return
 
         if collection == "runner/start":
             try:
@@ -3105,6 +3229,18 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_PUT(self) -> None:
         collection, item_id = self.route()
+        if collection == "settings/discord-webhook" and item_id is None:
+            auth = self.require_auth()
+            if not auth:
+                return
+            try:
+                payload = self.read_json()
+                with connect() as connection:
+                    self.respond({"discordWebhook": upsert_discord_webhook_settings(connection, payload, auth["workspace_id"])}, HTTPStatus.OK)
+            except ValueError as error:
+                self.respond({"error": str(error)}, HTTPStatus.BAD_REQUEST)
+            return
+
         if item_id is None:
             self.send_error(HTTPStatus.NOT_FOUND)
             return
@@ -3219,6 +3355,8 @@ class Handler(BaseHTTPRequestHandler):
         if len(parts) == 3 and parts[0] == "api" and parts[1] == "settings" and parts[2] == "stats":
             return f"{parts[1]}/{parts[2]}", None
         if len(parts) == 3 and parts[0] == "api" and parts[1] == "settings" and parts[2] == "audit":
+            return f"{parts[1]}/{parts[2]}", None
+        if len(parts) == 3 and parts[0] == "api" and parts[1] == "settings" and parts[2] in {"discord-webhook", "discord-webhook-test"}:
             return f"{parts[1]}/{parts[2]}", None
         if len(parts) == 3 and parts[0] == "api" and parts[1] == "tags":
             return f"{parts[1]}/{parts[2]}", None

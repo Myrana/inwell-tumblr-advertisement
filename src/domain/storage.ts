@@ -96,6 +96,7 @@ export function normalizeRunnerSettings(value: unknown): RunnerSettings {
     tumblrAccountId: typeof parsed.tumblrAccountId === "string" ? parsed.tumblrAccountId : "",
     remoteBrowserProvider: provider,
     remoteBrowserLaunchUrl: provider === "none" ? "" : typeof parsed.remoteBrowserLaunchUrl === "string" ? parsed.remoteBrowserLaunchUrl : "",
+    discordWebhookConfigured: Boolean(parsed.discordWebhookConfigured),
   };
 }
 
@@ -108,6 +109,7 @@ function defaultRunnerSettings(): RunnerSettings {
     tumblrAccountId: "",
     remoteBrowserProvider: "none",
     remoteBrowserLaunchUrl: "",
+    discordWebhookConfigured: false,
   };
 }
 
