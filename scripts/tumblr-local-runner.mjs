@@ -573,8 +573,17 @@ async function main() {
   }
 
   do {
-    const result = await executeLocalRun(options, state);
-    const code = result.exitCode ?? 0;
+    let code = 0;
+    try {
+      const result = await executeLocalRun(options, state);
+      code = result.exitCode ?? 0;
+    } catch (error) {
+      if (!options.watch) {
+        throw error;
+      }
+      code = 1;
+      console.error(`[local-runner:error] ${error instanceof Error ? error.message : String(error)}`);
+    }
     if (!options.watch) {
       process.exitCode = code;
       return;

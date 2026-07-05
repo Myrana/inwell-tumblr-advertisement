@@ -2268,6 +2268,11 @@ pre {
   font-weight: 800;
 }
 
+.queue-schedule-recovery {
+  align-items: center;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
 .runner-target-summary-list {
   display: grid;
   gap: 8px;

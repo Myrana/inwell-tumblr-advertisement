@@ -106,7 +106,162 @@ test("local companion run errors do not fall back to copied runner commands", { 
   assert.equal(localCommandRequestCount, 0);
 });
 
-async function routeRunnerWorkspace(page) {
+test("scheduled queue shows runner recovery when daily automation is blocked offline", { timeout: 40000 }, async (t) => {
+  const server = spawn("npx vite --host 127.0.0.1 --port 8123 --strictPort", {
+    cwd: process.cwd(),
+    shell: true,
+    stdio: "ignore",
+  });
+
+  t.after(() => {
+    stopProcessTree(server);
+  });
+
+  await waitForServer(appUrl);
+
+  const browser = await chromium.launch();
+  t.after(async () => {
+    await browser.close();
+  });
+
+  const page = await browser.newPage();
+  await routeRunnerWorkspace(page, { runnerOnline: false, scheduleEnabled: true });
+
+  await page.goto(appUrl);
+  await openWorkspaceView(page, "Queue");
+  await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
+  await page.getByRole("button", { name: "Toggle schedule section" }).click();
+
+  await page.getByText("Daily automation is waiting for the local runner").waitFor();
+  await page.getByText("Headless mode is enabled. Start the local runner to run in the background.").waitFor();
+  await page.getByText("If the scheduled time already passed today", { exact: false }).waitFor();
+
+  await page.getByRole("button", { name: "Open runner" }).click();
+  await page.getByLabel("Runner controls").getByRole("button", { name: "Test run", exact: true }).waitFor();
+});
+
+test("scheduled queue shows recovery when local runner is online but not watching", { timeout: 40000 }, async (t) => {
+  const server = spawn("npx vite --host 127.0.0.1 --port 8123 --strictPort", {
+    cwd: process.cwd(),
+    shell: true,
+    stdio: "ignore",
+  });
+
+  t.after(() => {
+    stopProcessTree(server);
+  });
+
+  await waitForServer(appUrl);
+
+  const browser = await chromium.launch();
+  t.after(async () => {
+    await browser.close();
+  });
+
+  const page = await browser.newPage();
+  await routeRunnerWorkspace(page, { runnerOnline: true, runnerWatching: false, runnerStatus: "idle", scheduleEnabled: true });
+
+  await page.goto(appUrl);
+  await openWorkspaceView(page, "Queue");
+  await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
+  await page.getByRole("button", { name: "Toggle schedule section" }).click();
+
+  await page.getByText("Runner idle").waitFor();
+  await page.getByText("Local runner is online but is not watching this queue.").waitFor();
+  await page.getByText("Daily automation is waiting for the local runner").waitFor();
+});
+
+test("scheduled queue shows recovery when local runner watches a different queue", { timeout: 40000 }, async (t) => {
+  const server = spawn("npx vite --host 127.0.0.1 --port 8123 --strictPort", {
+    cwd: process.cwd(),
+    shell: true,
+    stdio: "ignore",
+  });
+
+  t.after(() => {
+    stopProcessTree(server);
+  });
+
+  await waitForServer(appUrl);
+
+  const browser = await chromium.launch();
+  t.after(async () => {
+    await browser.close();
+  });
+
+  const page = await browser.newPage();
+  await routeRunnerWorkspace(page, { runnerQueueName: "Other queue", scheduleEnabled: true });
+
+  await page.goto(appUrl);
+  await openWorkspaceView(page, "Queue");
+  await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
+  await page.getByRole("button", { name: "Toggle schedule section" }).click();
+
+  await page.getByText("Wrong queue").waitFor();
+  await page.getByText("Local runner is watching Other queue. Switch it to Default queue before the daily run.").waitFor();
+  await page.getByText("Daily automation is waiting for the local runner").waitFor();
+});
+
+test("scheduled queue prioritizes local companion recovery states", { timeout: 40000 }, async (t) => {
+  const server = spawn("npx vite --host 127.0.0.1 --port 8123 --strictPort", {
+    cwd: process.cwd(),
+    shell: true,
+    stdio: "ignore",
+  });
+
+  t.after(() => {
+    stopProcessTree(server);
+  });
+
+  await waitForServer(appUrl);
+
+  const browser = await chromium.launch();
+  t.after(async () => {
+    await browser.close();
+  });
+
+  const cases = [
+    {
+      companion: localCompanionStatus({ watching: false, status: "idle" }),
+      label: "Runner idle",
+      detail: "Local companion is connected but is not watching this queue.",
+    },
+    {
+      companion: localCompanionStatus({ watching: false, status: "error", lastError: "Runner failed." }),
+      label: "Needs attention",
+      detail: "Runner failed.",
+    },
+    {
+      companion: localCompanionStatus({ queueName: "Other queue", watching: true, status: "watching" }),
+      label: "Wrong queue",
+      detail: "Local runner is watching Other queue. Switch it to Default queue before the daily run.",
+    },
+  ];
+
+  for (const scenario of cases) {
+    const page = await browser.newPage();
+    await routeRunnerWorkspace(page, { localCompanion: scenario.companion, scheduleEnabled: true });
+
+    await page.goto(appUrl);
+    await openWorkspaceView(page, "Queue");
+    await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
+    await page.getByRole("button", { name: "Toggle schedule section" }).click();
+
+    await page.getByText(scenario.label).waitFor();
+    await page.getByText(scenario.detail).waitFor();
+    await page.getByText("Daily automation is waiting for the local runner").waitFor();
+    await page.getByRole("button", { name: "Open runner" }).click();
+    await page.getByLabel("Runner controls").getByRole("button", { name: "Test run", exact: true }).waitFor();
+    await page.close();
+  }
+});
+
+async function routeRunnerWorkspace(page, options = {}) {
+  const runnerOnline = options.runnerOnline ?? true;
+  const runnerWatching = options.runnerWatching ?? runnerOnline;
+  const runnerQueueName = options.runnerQueueName ?? "Default queue";
+  const runnerStatus = options.runnerStatus ?? (runnerWatching ? "watching" : "offline");
+  const scheduleEnabled = options.scheduleEnabled ?? false;
   await page.route("http://127.0.0.1:8021/api/auth/session", (route) =>
     route.fulfill({
       contentType: "application/json",
@@ -136,7 +291,23 @@ async function routeRunnerWorkspace(page) {
     route.fulfill({
       contentType: "application/json",
       headers: apiHeaders,
-      body: JSON.stringify({ settings: { runnerSettings: { mediaDir: "", slowMo: 500, headless: true, submit: true, tumblrAccountId: "" } } }),
+      body: JSON.stringify({
+        settings: {
+          runnerSettings: { mediaDir: "", slowMo: 500, headless: true, submit: true, tumblrAccountId: "" },
+          queueScheduleSettings: {
+            enabled: false,
+            dailyTime: "09:00",
+            timezone: "America/New_York",
+            perQueue: {
+              "Default queue": {
+                enabled: scheduleEnabled,
+                dailyTime: "09:00",
+                timezone: "America/New_York",
+              },
+            },
+          },
+        },
+      }),
     }),
   );
   await page.route("http://127.0.0.1:8021/api/settings/app", (route) =>
@@ -157,18 +328,26 @@ async function routeRunnerWorkspace(page) {
           command: [],
           run_id: "",
           local_runner: {
-            online: true,
+            online: runnerOnline,
             last_seen_at: "2026-06-20T01:00:00.000Z",
             workspace_id: "workspace-test",
-            queue_name: "Default queue",
-            watching: true,
-            status: "watching",
+            queue_name: runnerQueueName,
+            watching: runnerWatching,
+            status: runnerOnline ? runnerStatus : "offline",
             version: "local-runner-test",
           },
         },
       }),
     }),
   );
+  if (options.localCompanion) {
+    await page.route("http://127.0.0.1:17842/status", (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify(options.localCompanion),
+      }),
+    );
+  }
   await page.route("http://127.0.0.1:8021/api/queue", (route) =>
     route.fulfill({
       contentType: "application/json",
@@ -217,15 +396,22 @@ function localCompanionStatus(overrides = {}) {
 }
 
 async function openWorkspaceView(page, viewName) {
-  const directButton = page.getByLabel("Workspace views").getByRole("button", { name: viewName, exact: true });
+  const workspaceViews = page.getByLabel("Workspace views");
+  await workspaceViews.waitFor();
+  const directButton = workspaceViews.getByRole("button", { name: viewName, exact: true });
   if ((await directButton.count()) > 0 && await directButton.first().isVisible()) {
     await directButton.first().click();
     return;
   }
 
+  const operationCardNames = {
+    Queue: "Submission queue",
+    Runner: "Runner controls",
+  };
+
   await page.getByRole("button", { name: "Operations", exact: true }).click();
   await page.getByRole("heading", { name: "Operations dashboard", level: 1 }).waitFor();
-  await page.getByRole("button", { name: "Runner controls", exact: true }).first().click();
+  await page.getByRole("button", { name: operationCardNames[viewName] ?? viewName, exact: true }).first().click();
 }
 
 function waitForServer(url, timeoutMs = 20000) {
