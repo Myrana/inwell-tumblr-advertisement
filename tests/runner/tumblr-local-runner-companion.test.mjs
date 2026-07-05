@@ -75,6 +75,113 @@ function startRunnerApiMock(plans) {
   });
 }
 
+function startTransientFailureRunnerApiMock(successPlan) {
+  let planRequests = 0;
+  const server = http.createServer((request, response) => {
+    if (request.method === "POST" && request.url?.startsWith("/api/runner/local-heartbeat")) {
+      response.writeHead(200, { "Content-Type": "application/json" });
+      response.end(JSON.stringify({ ok: true }));
+      return;
+    }
+
+    if (request.method === "GET" && request.url?.startsWith("/api/runner/local-plan")) {
+      planRequests += 1;
+      if (planRequests === 1) {
+        response.writeHead(503, { "Content-Type": "application/json" });
+        response.end(JSON.stringify({ error: "temporary plan outage" }));
+        return;
+      }
+      response.writeHead(200, { "Content-Type": "application/json" });
+      response.end(JSON.stringify({ plan: successPlan }));
+      return;
+    }
+
+    response.writeHead(404, { "Content-Type": "application/json" });
+    response.end(JSON.stringify({ error: "not found" }));
+  });
+
+  return new Promise((resolve) => {
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+      resolve({
+        baseUrl: `http://127.0.0.1:${address.port}/api`,
+        planRequests: () => planRequests,
+        close: () => new Promise((closeResolve) => server.close(closeResolve)),
+      });
+    });
+  });
+}
+
+test("watched local companion stays online after a transient plan failure", async () => {
+  const port = 32000 + Math.floor(Math.random() * 1000);
+  const api = await startTransientFailureRunnerApiMock({
+    runId: "local-run-recovered-after-plan-failure",
+    userDataDir: ".tumblr-test-profile",
+    items: [
+      {
+        id: "queue-item-1",
+        targetName: "inkwell-test",
+        submitUrl: "https://inkwell-test.tumblr.com/submit",
+        postType: "photo",
+        runnerPayload: "{}",
+      },
+    ],
+  });
+  const child = spawn(
+    process.execPath,
+    [
+      "scripts/tumblr-local-runner.mjs",
+      "--serve",
+      "--watch",
+      "--interval-seconds",
+      "1",
+      "--companion-port",
+      String(port),
+      "--api-base",
+      api.baseUrl,
+      "--workspace-id",
+      "workspace-test",
+      "--queue",
+      "Adverts",
+      "--token",
+      "test-token",
+      "--submit",
+    ],
+    {
+      cwd: process.cwd(),
+      env: {
+        ...process.env,
+        INWELL_LOCAL_RUNNER_SCRIPT: "tests/fixtures/local-runner-args-stub.mjs",
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
+
+  try {
+    await waitForOutput(child, /Companion server listening/);
+    const failedStatus = await waitForCompanionStatus(
+      port,
+      (candidate) => !candidate.running && candidate.status === "error",
+      "transient plan failure status",
+    );
+    assert.match(failedStatus.lastError, /temporary plan outage/);
+
+    const recoveredStatus = await waitForCompanionStatus(
+      port,
+      (candidate) => !candidate.running && candidate.status === "watching" && candidate.lastRun?.runId === "local-run-recovered-after-plan-failure",
+      "recovered watching status",
+    );
+
+    assert.equal(recoveredStatus.lastRun.status, "watching");
+    assert.equal(recoveredStatus.lastRun.exitCode, 0);
+    assert.equal(child.exitCode, null);
+    assert.ok(api.planRequests() >= 2);
+  } finally {
+    child.kill();
+    await api.close();
+  }
+});
+
 test("local companion grants private network access for deployed app preflight", async () => {
   const port = 19000 + Math.floor(Math.random() * 1000);
   const child = spawn(

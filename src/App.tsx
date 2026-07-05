@@ -121,6 +121,7 @@ import {
   WorkspaceView,
 } from "./domain/types";
 import { startLocalCompanionRun } from "./domain/localRunner";
+import { scheduleRunnerReadinessFromState } from "./domain/localRunnerReadiness";
 
 function applyArchiveDraftState(current: StoredState, id: string, archived: boolean) {
   const normalized = normalizeStoredState(current);
@@ -260,6 +261,16 @@ function App() {
       detail: runnerSettings.headless ? "Headless mode is enabled. Start the local runner to run in the background." : "Start the local runner on this computer.",
     };
   }, [activeQueueName, localCompanion, runnerSettings.headless, runnerState]);
+  const scheduleRunnerReadiness = useMemo(
+    () =>
+      scheduleRunnerReadinessFromState({
+        activeQueueName,
+        offlineDetail: runnerActivity.detail,
+        localCompanion,
+        runnerState,
+      }),
+    [activeQueueName, localCompanion, runnerActivity, runnerState],
+  );
   const canLaunchLocalRunner = !localCompanion?.ok;
   const localCompanionQueueStatus = (status: LocalCompanionStatus) => {
     if (status.running) {
@@ -1751,6 +1762,8 @@ function App() {
             queueOptions={queueOptions}
             queueStatus={queueStatus}
             queueScheduleSettings={activeQueueScheduleSettings}
+            runnerActivity={runnerActivity}
+            scheduleRunnerReadiness={scheduleRunnerReadiness}
             runnerLogs={runnerLogs}
             onEditQueueItem={editQueuedSubmission}
             onRenameQueue={renameQueueDefinition}
@@ -1761,6 +1774,7 @@ function App() {
             onUpdateQueueItem={updateQueueItem}
             onCreateSubmission={() => setActiveView("editor")}
             onManageBlogs={() => setActiveView("queue-settings")}
+            onOpenRunner={() => setActiveView("runner")}
           />
         ) : null}
         {activeView === "runner" ? (

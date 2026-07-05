@@ -1,12 +1,14 @@
-import { Archive, ChevronDown, Clipboard, FilePlus2, ListChecks, Pencil, Send, TestTube2 } from "lucide-react";
+import { Archive, ChevronDown, Clipboard, FilePlus2, ListChecks, Pencil, PlayCircle, Send, TestTube2 } from "lucide-react";
 import { useState } from "react";
 import { formatDate, formatSubmissionStatus } from "../domain/format";
 import { isCompletedQueueItem, postHistoryArchiveItems } from "../domain/queue";
 import { queueLogGroups, runnerLogExplanation, runnerLogPostedUrl, visibleRunnerLogs } from "../domain/runnerLogs";
 import { formatEasternRun, nextDailyRunAt, scheduleSummary } from "../domain/schedule";
+import { ScheduleRunnerReadiness } from "../domain/localRunnerReadiness";
 import {
   QueueDefinition,
   QueueSchedulePreference,
+  RunnerActivity,
   RunnerLog,
   SubmissionQueueItem,
   SubmissionStatus,
@@ -18,6 +20,8 @@ type QueueWorkspaceProps = {
   queueOptions: QueueDefinition[];
   queueStatus: string;
   queueScheduleSettings: QueueSchedulePreference;
+  runnerActivity: RunnerActivity;
+  scheduleRunnerReadiness: ScheduleRunnerReadiness;
   runnerLogs: RunnerLog[];
   onEditQueueItem: (id: string) => void;
   onRenameQueue: (currentName: string, nextName: string) => void;
@@ -28,6 +32,7 @@ type QueueWorkspaceProps = {
   onUpdateQueueItem: (id: string, status: SubmissionStatus, notes: string) => void;
   onCreateSubmission: () => void;
   onManageBlogs: () => void;
+  onOpenRunner: () => void;
 };
 
 type QueueSectionKey = "overview" | "schedule" | "submissions" | "history";
@@ -44,6 +49,8 @@ export function QueueWorkspace({
   queueOptions,
   queueStatus,
   queueScheduleSettings,
+  runnerActivity,
+  scheduleRunnerReadiness,
   runnerLogs,
   onEditQueueItem,
   onRenameQueue,
@@ -54,6 +61,7 @@ export function QueueWorkspace({
   onUpdateQueueItem,
   onCreateSubmission,
   onManageBlogs,
+  onOpenRunner,
 }: QueueWorkspaceProps) {
   const [openSections, setOpenSections] = useState<Record<QueueSectionKey, boolean>>({
     overview: true,
@@ -74,6 +82,7 @@ export function QueueWorkspace({
   const logGroups = queueLogGroups(activeQueue, scopedLogs);
   const allLogGroups = queueLogGroups(activeQueue, runnerLogs);
   const nextRunAt = queueScheduleSettings.enabled ? nextDailyRunAt(queueScheduleSettings) : "";
+  const scheduleRunnerBlocked = queueScheduleSettings.enabled && !scheduleRunnerReadiness.ready;
   const activeSubmissionItems = activeQueue.filter((item) => !isCompletedQueueItem(item));
   const postHistoryItems = postHistoryArchiveItems(activeQueue);
   const selectedActiveQueueCount = selectedQueueItemIds.filter((id) => activeSubmissionItems.some((item) => item.id === id)).length;
@@ -209,8 +218,8 @@ export function QueueWorkspace({
       <section className="workflow-section queue-workflow-section">
         <div className="workflow-section-header">
           {sectionToggle("schedule", "Schedule", scheduleSummary(queueScheduleSettings))}
-          <span className={queueScheduleSettings.enabled ? "section-state ready" : "section-state warning"}>
-            {queueScheduleSettings.enabled ? "On" : "Off"}
+          <span className={queueScheduleSettings.enabled && !scheduleRunnerBlocked ? "section-state ready" : "section-state warning"}>
+            {scheduleRunnerBlocked ? scheduleRunnerReadiness.label : queueScheduleSettings.enabled ? "On" : "Off"}
           </span>
         </div>
 
@@ -254,6 +263,19 @@ export function QueueWorkspace({
                 ))}
               </div>
               <p className="queue-schedule-summary">{scheduleSummary(queueScheduleSettings)}</p>
+              {scheduleRunnerBlocked ? (
+                <div className="queue-item-explanation warning queue-schedule-recovery" role="status">
+                  <div>
+                    <strong>Daily automation is waiting for the local runner</strong>
+                    <span>{scheduleRunnerReadiness.detail || runnerActivity.detail}</span>
+                    <small>If the scheduled time already passed today, open Runner controls and run this queue once after the runner is watching.</small>
+                  </div>
+                  <button className="secondary compact-button" type="button" onClick={onOpenRunner}>
+                    <PlayCircle size={16} />
+                    Open runner
+                  </button>
+                </div>
+              ) : null}
               <p className="queue-empty">This schedule applies only to {activeQueueName || "the selected queue"}.</p>
               {nextRunAt ? <p className="queue-empty">Next queued local run: {formatEasternRun(nextRunAt)} ET</p> : null}
             </div>
