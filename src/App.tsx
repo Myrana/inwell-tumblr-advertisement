@@ -53,11 +53,13 @@ import {
   removeTumblrAccount,
   saveAdvertisement,
   saveBackendAppSettings,
+  saveDiscordWebhookSettings,
   saveQueueItem,
   saveTemplate,
   saveTumblrAccount,
   runLocalCompanion,
   registerInkwellUser,
+  testDiscordWebhookSettings,
   type LocalCompanionStatus,
 } from "./domain/api";
 import { composerContentFor, emptyAd, hasLibraryContent, normalizeStoredState } from "./domain/ads";
@@ -477,6 +479,37 @@ function App() {
         setSaveStatus("Could not save operational settings. Try again.");
       });
   }, [authUser, backendStateLoaded, queueOptions, queueScheduleSettings, runnerSettings, submitTargets, tagProfiles]);
+
+  async function saveDiscordWebhook(webhookUrl: string) {
+    try {
+      const status = await saveDiscordWebhookSettings(webhookUrl);
+      setApiAvailable(true);
+      setRunnerSettings((current) => ({ ...current, discordWebhookConfigured: status.configured }));
+      const message = status.configured ? "Discord webhook saved." : "Discord webhook cleared.";
+      setSaveStatus(message);
+      return { ok: true, message };
+    } catch (error) {
+      setApiAvailable(false);
+      const message = error instanceof ApiError ? error.message : "Could not save Discord webhook. Try again.";
+      setSaveStatus(message);
+      return { ok: false, message };
+    }
+  }
+
+  async function testDiscordWebhook(webhookUrl?: string) {
+    try {
+      await testDiscordWebhookSettings(webhookUrl);
+      setApiAvailable(true);
+      const message = "Discord test sent.";
+      setSaveStatus(message);
+      return { ok: true, message };
+    } catch (error) {
+      setApiAvailable(false);
+      const message = error instanceof ApiError ? error.message : "Could not send Discord test. Check the webhook URL.";
+      setSaveStatus(message);
+      return { ok: false, message };
+    }
+  }
 
   useEffect(() => {
     if (!authUser) {
@@ -1841,6 +1874,8 @@ function App() {
             onNavigate={setActiveView}
             onQueueScheduleSettingsChange={(patch) => setQueueScheduleSettings((current) => ({ ...current, ...patch }))}
             onRunnerSettingsChange={(patch) => setRunnerSettings((current) => ({ ...current, ...patch }))}
+            onSaveDiscordWebhook={saveDiscordWebhook}
+            onTestDiscordWebhook={testDiscordWebhook}
           />
         ) : null}
 

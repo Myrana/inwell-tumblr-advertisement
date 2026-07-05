@@ -85,9 +85,42 @@ function startDiscordWebhookMock(statusCode = 204) {
   });
 }
 
-async function runCompanionDiscordScenario(t, { plan, webhookUrl, result, exitCode = 0, submit = true, skipResultWrite = false, malformedResult = false }) {
+function startRunnerApiMock(plan, discordWebhookUrl = "") {
+  const server = http.createServer((request, response) => {
+    if (request.method === "POST" && request.url?.startsWith("/api/runner/local-heartbeat")) {
+      response.writeHead(200, { "Content-Type": "application/json" });
+      response.end(JSON.stringify({ ok: true }));
+      return;
+    }
+
+    if (request.method === "GET" && request.url?.startsWith("/api/runner/local-plan")) {
+      response.writeHead(200, { "Content-Type": "application/json" });
+      response.end(JSON.stringify({ plan, discordWebhookUrl }));
+      return;
+    }
+
+    response.writeHead(404, { "Content-Type": "application/json" });
+    response.end(JSON.stringify({ error: "not found" }));
+  });
+
+  return new Promise((resolve) => {
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+      resolve({
+        baseUrl: `http://127.0.0.1:${address.port}/api`,
+        close: () => new Promise((closeResolve) => server.close(closeResolve)),
+      });
+    });
+  });
+}
+
+async function runCompanionDiscordScenario(t, { plan, webhookUrl, planWebhookUrl = "", result, exitCode = 0, submit = true, skipResultWrite = false, malformedResult = false }) {
   const port = 33000 + Math.floor(Math.random() * 1000);
   let output = "";
+  const api = planWebhookUrl ? await startRunnerApiMock(plan, planWebhookUrl) : null;
+  if (api) {
+    t.after(async () => api.close());
+  }
   const child = spawn(
     process.execPath,
     [
@@ -96,7 +129,7 @@ async function runCompanionDiscordScenario(t, { plan, webhookUrl, result, exitCo
       "--companion-port",
       String(port),
       "--api-base",
-      "https://inkwell-production-f037.up.railway.app/api",
+      api?.baseUrl || "https://inkwell-production-f037.up.railway.app/api",
       "--workspace-id",
       "workspace-test",
       "--queue",
@@ -108,9 +141,10 @@ async function runCompanionDiscordScenario(t, { plan, webhookUrl, result, exitCo
       cwd: process.cwd(),
       env: {
         ...process.env,
-        INWELL_DISCORD_WEBHOOK_URL: webhookUrl,
+        INWELL_DISCORD_WEBHOOK_URL: webhookUrl || "",
         INWELL_DISCORD_WEBHOOK_ALLOW_LOCAL: "1",
-        INWELL_LOCAL_PLAN_JSON: JSON.stringify(plan),
+        INWELL_LOCAL_PLAN_JSON: api ? "" : JSON.stringify(plan),
+        INWELL_LOCAL_PLAN_DISCORD_WEBHOOK_URL: planWebhookUrl,
         INWELL_LOCAL_RUNNER_SCRIPT: "tests/fixtures/local-runner-result-stub.mjs",
         INWELL_LOCAL_RUNNER_RESULT_JSON: JSON.stringify(result ?? runnerResult(plan.items.map((item) => ({ id: item.id, targetName: item.targetName, status: "completed" })))),
         INWELL_LOCAL_RUNNER_SKIP_RESULT_WRITE: skipResultWrite ? "1" : "",
@@ -164,6 +198,19 @@ test("local companion sends Discord run summary with queue and targets", async (
   assert.match(payload.content, /allthingsroleplay \(completed\), rpadverts \(completed\)/);
   assert.equal(payload.content.includes("test-token"), false);
   assert.deepEqual(payload.allowed_mentions, { parse: [] });
+});
+
+test("local companion uses Discord webhook returned by authenticated runner plan", async (t) => {
+  const webhook = await startDiscordWebhookMock();
+  t.after(async () => webhook.close());
+  const plan = discordPlan("local-run-discord-plan-webhook-test", ["allthingsroleplay"]);
+
+  await runCompanionDiscordScenario(t, { plan, planWebhookUrl: webhook.url });
+  const payload = discordPayload(webhook);
+  assert.match(payload.content, /Queue: Default queue/);
+  assert.match(payload.content, /Targets attempted: 1/);
+  assert.match(payload.content, /Targets hit: 1/);
+  assert.match(payload.content, /allthingsroleplay \(completed\)/);
 });
 
 test("local companion reports mixed Discord target outcomes without counting failures as hits", async (t) => {

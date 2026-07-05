@@ -2712,6 +2712,17 @@ pre {
   gap: 10px;
 }
 
+.settings-panel-heading-split {
+  justify-content: space-between;
+}
+
+.settings-panel-heading-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
 .settings-panel-heading svg {
   color: var(--cyan);
 }
@@ -2748,6 +2759,29 @@ pre {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.settings-action-row .compact-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.settings-status-pill {
+  flex: 0 0 auto;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.settings-status-pill.ready {
+  border-color: rgba(24, 122, 94, 0.28);
+  color: #187a5e;
+  background: rgba(24, 122, 94, 0.08);
 }
 .bulk-edit-panel label,
 .bulk-select {

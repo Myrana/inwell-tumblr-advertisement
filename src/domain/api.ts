@@ -147,6 +147,22 @@ export async function saveBackendAppSettings(settings: AppSettings) {
   return response.settings;
 }
 
+export async function saveDiscordWebhookSettings(webhookUrl: string) {
+  const response = await apiRequest<{ discordWebhook: { configured: boolean } }>("/settings/discord-webhook", {
+    method: "PUT",
+    body: JSON.stringify({ webhookUrl }),
+  });
+  return response.discordWebhook;
+}
+
+export async function testDiscordWebhookSettings(webhookUrl?: string) {
+  const response = await apiRequest<{ discordWebhook: { tested: boolean } }>("/settings/discord-webhook-test", {
+    method: "POST",
+    body: JSON.stringify({ webhookUrl: webhookUrl ?? "" }),
+  });
+  return response.discordWebhook;
+}
+
 export function fromApiQueueItem(item: ApiQueueItem): SubmissionQueueItem {
   const normalized = normalizeQueueItem({
     id: item.id,

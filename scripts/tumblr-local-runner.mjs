@@ -113,7 +113,10 @@ function parseLocalArgs(argv) {
 
 async function fetchRunnerPlan(options) {
   if (process.env.INWELL_LOCAL_PLAN_JSON) {
-    return JSON.parse(process.env.INWELL_LOCAL_PLAN_JSON);
+    return {
+      plan: JSON.parse(process.env.INWELL_LOCAL_PLAN_JSON),
+      discordWebhookUrl: process.env.INWELL_LOCAL_PLAN_DISCORD_WEBHOOK_URL || "",
+    };
   }
 
   await postHeartbeat(options, "polling").catch(() => undefined);
@@ -132,8 +135,8 @@ async function fetchRunnerPlan(options) {
     throw new Error(payload.error || `Could not fetch local runner plan: ${response.status}`);
   }
 
-  const { plan } = await response.json();
-  return plan;
+  const { plan, discordWebhookUrl = "" } = await response.json();
+  return { plan, discordWebhookUrl };
 }
 
 async function runPlan(options, plan) {
@@ -263,8 +266,8 @@ async function executeLocalRun(options, state) {
   state.lastBlockerCode = "";
   state.lastRun = initialLastRun(options, state.lastStartedAt);
   try {
-    const plan = await fetchRunnerPlan(options);
-    const result = await runPlan({ ...options, state }, plan);
+    const { plan, discordWebhookUrl } = await fetchRunnerPlan(options);
+    const result = await runPlan({ ...options, state, discordWebhookUrl: options.discordWebhookUrl || discordWebhookUrl || "" }, plan);
     const code = result.exitCode;
     state.lastExitCode = code;
     state.lastExitSignal = result.signal || "";

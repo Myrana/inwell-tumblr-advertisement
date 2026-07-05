@@ -1,5 +1,11 @@
-import { Clock3, PlayCircle, ShieldCheck, SlidersHorizontal } from "lucide-react";
+import { BellRing, Clock3, PlayCircle, Send, ShieldCheck, SlidersHorizontal, Trash2 } from "lucide-react";
+import { useState } from "react";
 import { QueueDefinition, QueueScheduleSettings, RunnerSettings, TumblrAccount, WorkspaceView } from "../domain/types";
+
+export type DiscordWebhookActionResult = {
+  ok: boolean;
+  message: string;
+};
 
 type OperationalSettingsWorkspaceProps = {
   activeQueueName: string;
@@ -10,6 +16,8 @@ type OperationalSettingsWorkspaceProps = {
   onNavigate: (view: WorkspaceView) => void;
   onQueueScheduleSettingsChange: (patch: Partial<QueueScheduleSettings>) => void;
   onRunnerSettingsChange: (patch: Partial<RunnerSettings>) => void;
+  onSaveDiscordWebhook: (webhookUrl: string) => Promise<DiscordWebhookActionResult>;
+  onTestDiscordWebhook: (webhookUrl?: string) => Promise<DiscordWebhookActionResult>;
 };
 
 export function OperationalSettingsWorkspace({
@@ -21,9 +29,41 @@ export function OperationalSettingsWorkspace({
   onNavigate,
   onQueueScheduleSettingsChange,
   onRunnerSettingsChange,
+  onSaveDiscordWebhook,
+  onTestDiscordWebhook,
 }: OperationalSettingsWorkspaceProps) {
   const connectedAccounts = tumblrAccounts.filter((account) => account.status === "connected");
   const selectedAccount = connectedAccounts.find((account) => account.id === runnerSettings.tumblrAccountId);
+  const [discordWebhookDraft, setDiscordWebhookDraft] = useState("");
+  const [discordWebhookStatus, setDiscordWebhookStatus] = useState("");
+  const [discordWebhookBusy, setDiscordWebhookBusy] = useState<"save" | "test" | "clear" | "">("");
+
+  async function saveDiscordWebhook() {
+    setDiscordWebhookBusy("save");
+    const result = await onSaveDiscordWebhook(discordWebhookDraft);
+    setDiscordWebhookBusy("");
+    setDiscordWebhookStatus(result.message);
+    if (result.ok) {
+      setDiscordWebhookDraft("");
+    }
+  }
+
+  async function clearDiscordWebhook() {
+    setDiscordWebhookBusy("clear");
+    const result = await onSaveDiscordWebhook("");
+    setDiscordWebhookBusy("");
+    setDiscordWebhookStatus(result.message);
+    if (result.ok) {
+      setDiscordWebhookDraft("");
+    }
+  }
+
+  async function testDiscordWebhook() {
+    setDiscordWebhookBusy("test");
+    const result = await onTestDiscordWebhook(discordWebhookDraft || undefined);
+    setDiscordWebhookBusy("");
+    setDiscordWebhookStatus(result.message);
+  }
 
   return (
     <section className="settings-workspace" aria-label="Operational settings">
@@ -112,6 +152,50 @@ export function OperationalSettingsWorkspace({
           <button className="secondary compact-button" type="button" onClick={() => onNavigate("accounts")}>
             Account health
           </button>
+        </section>
+
+        <section className="settings-panel settings-panel-wide" aria-label="Discord notifications">
+          <div className="settings-panel-heading settings-panel-heading-split">
+            <div className="settings-panel-heading-main">
+              <BellRing size={18} />
+              <div>
+                <span>Discord notifications</span>
+                <h2>Run summaries</h2>
+              </div>
+            </div>
+            <span className={runnerSettings.discordWebhookConfigured ? "settings-status-pill ready" : "settings-status-pill"}>
+              {runnerSettings.discordWebhookConfigured ? "Configured" : "Not configured"}
+            </span>
+          </div>
+          <p>
+            Paste a Discord webhook once. Inkwell keeps it masked here and passes it to the local runner only through the runner's device-token plan request.
+          </p>
+          <label>
+            Discord webhook URL
+            <input
+              autoComplete="off"
+              inputMode="url"
+              placeholder={runnerSettings.discordWebhookConfigured ? "Paste a new webhook to replace the saved one" : "https://discord.com/api/webhooks/..."}
+              type="password"
+              value={discordWebhookDraft}
+              onChange={(event) => setDiscordWebhookDraft(event.target.value)}
+            />
+          </label>
+          <div className="settings-action-row">
+            <button className="primary compact-button" type="button" onClick={() => void saveDiscordWebhook()} disabled={discordWebhookBusy !== "" || !discordWebhookDraft.trim()}>
+              <BellRing size={15} />
+              {discordWebhookBusy === "save" ? "Saving" : runnerSettings.discordWebhookConfigured ? "Replace webhook" : "Save webhook"}
+            </button>
+            <button className="secondary compact-button" type="button" onClick={() => void testDiscordWebhook()} disabled={discordWebhookBusy !== "" || (!discordWebhookDraft.trim() && !runnerSettings.discordWebhookConfigured)}>
+              <Send size={15} />
+              {discordWebhookBusy === "test" ? "Sending" : "Send test"}
+            </button>
+            <button className="secondary compact-button" type="button" onClick={() => void clearDiscordWebhook()} disabled={discordWebhookBusy !== "" || !runnerSettings.discordWebhookConfigured}>
+              <Trash2 size={15} />
+              {discordWebhookBusy === "clear" ? "Clearing" : "Clear"}
+            </button>
+          </div>
+          {discordWebhookStatus ? <small role="status">{discordWebhookStatus}</small> : null}
         </section>
 
         <section className="settings-panel settings-panel-wide" aria-label="Workspace maintenance">

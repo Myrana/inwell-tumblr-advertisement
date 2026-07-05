@@ -95,6 +95,7 @@ export type RunnerSettings = {
   tumblrAccountId: string;
   remoteBrowserProvider: RemoteBrowserProvider;
   remoteBrowserLaunchUrl: string;
+  discordWebhookConfigured: boolean;
 };
 
 export type TumblrAccountStatus = "connected" | "needs-login" | "expired" | "checking";
