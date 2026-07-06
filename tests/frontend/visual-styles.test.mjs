@@ -302,6 +302,24 @@ test("editor scoped styles prioritize the composer without leaking globally", { 
   assert.equal(editorStylesApplied.looseWorkflowBackground, "rgb(255, 255, 255)");
 });
 
+test("runner health summary keeps four metric columns on desktop", { timeout: 40000 }, async (t) => {
+  const page = await openAuthenticatedPage(t, { width: 1280, height: 900 });
+  await page.goto(appUrl);
+  await page.getByRole("heading", { name: "Operations dashboard", level: 1 }).waitFor();
+  await page.getByLabel("Workspace views").getByRole("button", { name: "Runner", exact: true }).click();
+  await page.getByLabel("Runner health summary").waitFor();
+
+  const runnerSummary = await page.evaluate(() => {
+    const summary = document.querySelector(".runner-mission-summary");
+    return {
+      columns: summary ? getComputedStyle(summary).gridTemplateColumns.split(" ").length : 0,
+      cardCount: summary?.querySelectorAll("article").length ?? 0,
+    };
+  });
+  assert.equal(runnerSummary.columns, 4);
+  assert.equal(runnerSummary.cardCount, 4);
+});
+
 test("visual domain styles handle mobile layout without overflow or stale sidebar insets", { timeout: 40000 }, async (t) => {
   const page = await openAuthenticatedPage(t, { width: 390, height: 900 });
   await page.goto(appUrl);

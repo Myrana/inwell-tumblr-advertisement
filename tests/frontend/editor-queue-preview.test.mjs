@@ -155,6 +155,12 @@ test("editor batch queue preview supports cancel and multi-target confirm", { ti
 
   await page.goto(appUrl);
   await page.getByLabel("Workspace views").getByRole("button", { name: "New Submission", exact: true }).click();
+  await page.getByLabel("Content quality checklist").getByRole("button", { name: "Submission name" }).click();
+  await page.locator(".editor-detail-grid").getByLabel("Submission name").waitFor();
+  await page.getByRole("button", { name: "Toggle post content section" }).click();
+  await page.locator(".tumblr-body-field").waitFor({ state: "detached" });
+  await page.getByLabel("Content quality checklist").getByRole("button", { name: "Media" }).click();
+  await page.locator(".tumblr-body-field").waitFor();
   await page.getByLabel("Queue destination").selectOption("Want ads");
   await page.getByRole("button", { name: "Preview all blogs" }).click();
   await page.getByLabel("Queue preview").getByText("Blog One").waitFor();

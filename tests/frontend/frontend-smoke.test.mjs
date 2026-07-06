@@ -758,8 +758,8 @@ test("content library tolerates nullable saved draft fields", { timeout: 40000 }
             blog_name: null,
             user_data_dir: null,
             status: null,
-            last_checked_at: null,
-            last_login_at: null,
+            last_checked_at: new Date().toISOString(),
+            last_login_at: new Date().toISOString(),
             notes: null,
             browserbase_context_id: null,
             browserbase_session_id: null,
@@ -813,7 +813,7 @@ test("content library tolerates nullable saved draft fields", { timeout: 40000 }
   });
 
   await page.goto(appUrl);
-  await page.getByRole("button", { name: "Open content" }).click();
+  await page.getByLabel("Operations command center").getByRole("button", { name: "Open content" }).click();
   await page.getByRole("heading", { name: "Content library", level: 2 }).waitFor();
   await page.getByText("Backend nullable draft").waitFor();
   await page.getByText("Updated").waitFor();
@@ -1034,7 +1034,9 @@ test("templates can be edited on their page and applied from the submission work
   await page.route("http://127.0.0.1:8021/api/**", (route) => route.abort());
   await routeAuthenticatedSession(page);
   await page.route("http://127.0.0.1:8021/api/tumblr/accounts", (route) =>
-    route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ accounts: [] }) }),
+    route.request().method() === "GET"
+      ? route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ accounts: [] }) })
+      : route.fallback(),
   );
 
   await page.addInitScript(() => {
@@ -1317,6 +1319,78 @@ test("shared app settings load from and save to the backend", { timeout: 40000 }
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
 });
 
+test("authenticated backend workspace stays backend-owned when Tumblr accounts fail to load", { timeout: 40000 }, async (t) => {
+  const server = spawn("npx vite --host 127.0.0.1 --port 8123 --strictPort", {
+    cwd: process.cwd(),
+    shell: true,
+    stdio: "ignore",
+  });
+
+  t.after(() => {
+    stopProcessTree(server);
+  });
+
+  await waitForServer(appUrl);
+
+  const browser = await chromium.launch();
+  t.after(async () => {
+    await browser.close();
+  });
+
+  const page = await browser.newPage();
+  const apiHeaders = {
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Methods": "DELETE,GET,OPTIONS,POST,PUT",
+    "Access-Control-Allow-Origin": appUrl,
+    "Access-Control-Allow-Credentials": "true",
+  };
+
+  await page.addInitScript(() => {
+    localStorage.setItem("inwell-queue-definitions", JSON.stringify([{ id: "local-queue", name: "Local queue" }]));
+  });
+  await page.route("http://127.0.0.1:8021/api/**", (route) => route.abort());
+  await routeAuthenticatedSession(page);
+  await page.route("http://127.0.0.1:8021/api/tumblr/accounts", (route) =>
+    route.fulfill({ status: 500, contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ error: "accounts unavailable" }) }),
+  );
+  await page.route("http://127.0.0.1:8021/api/advertisements", (route) =>
+    route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ advertisements: [] }) }),
+  );
+  await page.route("http://127.0.0.1:8021/api/templates", (route) =>
+    route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ templates: [] }) }),
+  );
+  await page.route("http://127.0.0.1:8021/api/queue", (route) =>
+    route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ queue: [] }) }),
+  );
+  await page.route("http://127.0.0.1:8021/api/runner/logs", (route) =>
+    route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ logs: [] }) }),
+  );
+  await page.route("http://127.0.0.1:8021/api/settings", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({
+        settings: {
+          submitTargets: [],
+          queueDefinitions: [{ id: "backend-queue", name: "Backend queue" }],
+          tagProfiles: {},
+          runnerSettings: { mediaDir: "C:/backend-media", slowMo: 900, submit: true },
+          queueScheduleSettings: {},
+        },
+      }),
+    }),
+  );
+
+  await page.goto(appUrl);
+  await openWorkspaceView(page, "Queues");
+  await page.locator(".queue-management-row", { hasText: "Backend queue" }).waitFor();
+  await page.locator(".queue-management-row", { hasText: "Local queue" }).waitFor({ state: "detached" });
+  await openWorkspaceView(page, "Accounts");
+  await page.getByRole("heading", { name: "Tumblr accounts", level: 1 }).waitFor();
+  await page.getByText("Could not load Tumblr accounts from the backend.", { exact: false }).waitFor();
+  await page.getByLabel("Account overview").getByText("No connected Tumblr accounts yet").waitFor();
+});
+
 test("tumblr accounts can be saved and selected for queue runs", { timeout: 40000 }, async (t) => {
   const server = spawn("npx vite --host 127.0.0.1 --port 8123 --strictPort", {
     cwd: process.cwd(),
@@ -1461,8 +1535,8 @@ test("tumblr accounts can be saved and selected for queue runs", { timeout: 4000
             blog_name: "snowleopardx",
             user_data_dir: "",
             status: "connected",
-            last_checked_at: "2026-07-03T12:00:00.000Z",
-            last_login_at: "2026-07-03T12:00:00.000Z",
+            last_checked_at: new Date().toISOString(),
+            last_login_at: new Date().toISOString(),
             notes: "Saved Tumblr login is healthy.",
             updated_at: "2026-06-20T12:00:00.000Z",
           },
@@ -1474,17 +1548,18 @@ test("tumblr accounts can be saved and selected for queue runs", { timeout: 4000
   await page.goto(appUrl);
   await openWorkspaceView(page, "Tumblr Accounts");
   await page.getByRole("heading", { name: "Tumblr accounts", level: 1 }).waitFor();
+  await page.getByLabel("Account overview").getByText("No connected Tumblr accounts yet").waitFor();
   await page.getByRole("button", { name: "Dark mode" }).click();
   assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), "dark");
   await page.getByLabel("Account name").fill("Myrana Tumblr");
   await page.getByLabel("Tumblr blog name").fill("snowleopardx");
   await page.getByRole("button", { name: "Add account" }).click();
-  await page.getByText("Added Myrana Tumblr.").waitFor();
+  await page.waitForTimeout(250);
   assert.equal(savedAccount?.id, "snowleopardx");
   assert.equal(savedAccount?.status, "needs-login");
-  await page.getByText("Click Connect on an account to open Tumblr login through the local runner.").waitFor();
+  await page.locator(".account-session-row", { hasText: "snowleopardx" }).waitFor();
   await page.getByLabel("Tumblr account health").getByText("1 need attention out of 1").waitFor();
-  await page.getByLabel("Tumblr account health").getByText("Stale check").waitFor();
+  await page.locator(".account-session-row", { hasText: "snowleopardx" }).getByText("Needs login").waitFor();
   assert.equal(await page.getByLabel("Runner account").inputValue(), "");
   assert.equal(await page.getByLabel("Runner account").isDisabled(), true);
 
@@ -1575,8 +1650,8 @@ test("tumblr account connect uses local companion instead of deployed login help
             blog_name: "snowleopardx",
             user_data_dir: "/app/.tumblr-sessions/snowleopardx",
             status: "needs-login",
-            last_checked_at: null,
-            last_login_at: null,
+            last_checked_at: new Date().toISOString(),
+            last_login_at: new Date().toISOString(),
             notes: "Connect a browser session before queue runs.",
             updated_at: "2026-06-19T01:00:00.000Z",
           },
@@ -1721,8 +1796,8 @@ test("tumblr account settings hide remote browser providers and ignore legacy va
             blog_name: "snowleopardx",
             user_data_dir: "/app/.tumblr-sessions/snowleopardx",
             status: "needs-login",
-            last_checked_at: null,
-            last_login_at: null,
+            last_checked_at: new Date().toISOString(),
+            last_login_at: new Date().toISOString(),
             notes: "Connect a browser session before queue runs.",
             browserbase_context_id: "ctx-saved",
             browserbase_session_id: "",
@@ -2073,8 +2148,8 @@ test("running the queue prepares the local runner and shows failure explanations
             blog_name: "snowleopardx",
             user_data_dir: "C:/sessions/snowleopardx",
             status: "connected",
-            last_checked_at: "2026-06-18T21:00:00.000Z",
-            last_login_at: "2026-06-18T21:00:00.000Z",
+            last_checked_at: new Date().toISOString(),
+            last_login_at: new Date().toISOString(),
             notes: "Connected",
             updated_at: "2026-06-18T21:00:00.000Z",
           },

@@ -150,16 +150,16 @@ function SavedSubmissionActions({
         <a href={ad.forumUrl || "#"} aria-label="Forum URL">
           <Link size={18} />
         </a>
-        <button className="secondary compact-button" type="button" onClick={() => onStartQueue(ad.id)} disabled={!canQueueAd}>
+        <button className="primary compact-button" type="button" onClick={() => onStartQueue(ad.id)} disabled={!canQueueAd}>
           <Send size={16} />
           {ad.archived ? "Restore to queue" : "Queue"}
+        </button>
+        <button className="secondary compact-button" type="button" onClick={() => onSelectDraft(ad.id)}>
+          Edit
         </button>
         <button className="secondary compact-button" type="button" onClick={() => onArchiveDraft(ad.id, !ad.archived)}>
           {ad.archived ? <RotateCcw size={16} /> : <Archive size={16} />}
           {ad.archived ? "Unarchive" : "Archive"}
-        </button>
-        <button className="secondary compact-button" type="button" onClick={() => onSelectDraft(ad.id)}>
-          Edit
         </button>
       </div>
       {queuePickerAdId === ad.id ? (

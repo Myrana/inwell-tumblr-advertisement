@@ -2,8 +2,9 @@ import { Activity, Download, ListChecks, Play, PlugZap, Send, Terminal, TestTube
 import { formatDate } from "../domain/format";
 import type { LocalCompanionStatus } from "../domain/api";
 import type { ScheduleRunnerReadiness } from "../domain/localRunnerReadiness";
-import { attentionQueueItems, runnableQueueItems } from "../domain/queueAutomation";
+import { attentionQueueItems, runnableQueueItems, runnerExecutionReadiness as buildRunnerExecutionReadiness } from "../domain/queueAutomation";
 import { latestRunnerRunId, runnerLogRunGroups } from "../domain/runnerLogs";
+import { runnerAccountReadiness } from "../domain/tumblrAccounts";
 import { RunnerFlowStrip } from "./runner/RunnerFlowStrip";
 import "./runner/runnerWorkspace.css";
 import {
@@ -76,8 +77,9 @@ export function RunnerWorkspace({
 }: RunnerWorkspaceProps) {
   const runnableItems = runnableQueueItems(activeQueue);
   const attentionItems = attentionQueueItems(activeQueue);
-  const connectedAccounts = tumblrAccounts.filter((account) => account.status === "connected");
-  const selectedAccount = tumblrAccounts.find((account) => account.id === selectedTumblrAccountId);
+  const accountReadiness = runnerAccountReadiness(tumblrAccounts, selectedTumblrAccountId);
+  const connectedAccounts = accountReadiness.connectedAccounts;
+  const selectedConnectedAccount = accountReadiness.readyAccount;
   const latestRunId = latestRunnerRunId(runnerLogs);
   const latestRunGroup = runnerLogRunGroups(runnerLogs)[0] ?? null;
   const localRunner = runnerState?.local_runner;
@@ -93,6 +95,16 @@ export function RunnerWorkspace({
     : discordRunnerUnverified
       ? "Discord webhook saved, but this runner version could not be verified. Restart or download the runner before expecting Discord summaries."
     : discordSummary?.message || (discordWebhookConfigured ? "Discord summaries will post after live runs." : "Save a Discord webhook in Settings to post live run summaries.");
+  const runnerExecutionReadiness = buildRunnerExecutionReadiness({
+    activeQueueName,
+    activeQueue,
+    connectedAccountCount: connectedAccounts.length,
+    scheduledRunnerReady: scheduleRunnerReadiness.ready,
+    scheduledRunnerDetail: scheduleRunnerReadiness.detail,
+    accountBlocker: accountReadiness.blocker,
+    selectedAccountName: selectedConnectedAccount?.displayName || "",
+    selectedConnectedAccount: accountReadiness.ready,
+  });
   const showInstallGuide = !localRunner?.online && !runnableItems.length;
   const readinessItems = [
     {
@@ -102,8 +114,8 @@ export function RunnerWorkspace({
     },
     {
       label: "Tumblr account",
-      ready: connectedAccounts.length > 0,
-      detail: connectedAccounts.length ? `${connectedAccounts.length} connected` : "Connect an account before live runs.",
+      ready: accountReadiness.ready,
+      detail: selectedConnectedAccount ? `${selectedConnectedAccount.displayName} selected for runs.` : accountReadiness.blocker || "Select a connected account before live runs.",
     },
     {
       label: "Queue content",
@@ -121,25 +133,58 @@ export function RunnerWorkspace({
       detail: discordSummaryDetail,
     },
   ];
+  const diagnostics = [
+    { label: "Runner version", ready: hasRunnerVersionEvidence, detail: companionVersion || "Unknown" },
+    {
+      label: "Tumblr auth",
+      ready: accountReadiness.ready,
+      detail: selectedConnectedAccount
+        ? `${selectedConnectedAccount.displayName} selected for runs`
+        : accountReadiness.blocker || "No connected account",
+    },
+    { label: "Queue integrity", ready: runnableItems.length > 0 && attentionItems.length === 0, detail: attentionItems.length ? `${attentionItems.length} need review` : `${runnableItems.length} runnable` },
+    { label: "Discord summary", ready: !discordRunnerNeedsAttention, detail: discordWebhookConfigured ? "Configured" : "Optional" },
+  ];
 
   return (
     <section className="submission-queue-panel queue-workspace runner-workspace" aria-label="Runner workspace">
       <section className="runner-hero" aria-label="Runner status">
         <div>
-          <span>Runner</span>
-          <h2>{runnerActivity.status}</h2>
-          <p>{runnerActivity.detail}</p>
+          <span>Runner mission control</span>
+          <h2>{runnerExecutionReadiness.title}</h2>
+          <p>
+            {runnerExecutionReadiness.detail} {runnerActivity.detail}
+          </p>
         </div>
         <div className="runner-hero-actions">
-          <button className="primary" type="button" onClick={onStartRunner} disabled={!runnableItems.length}>
+          <button className="primary" type="button" onClick={onStartRunner} disabled={!runnerExecutionReadiness.manualCanRun}>
             <Play size={18} />
             Run queue
           </button>
-          <button className="secondary" type="button" onClick={onStartTestRun} disabled={!runnableItems.length}>
+          <button className="secondary" type="button" onClick={onStartTestRun} disabled={!runnerExecutionReadiness.manualCanRun}>
             <TestTube2 size={18} />
             Test run
           </button>
         </div>
+      </section>
+
+      <section className="runner-mission-summary" aria-label="Runner health summary">
+        <article className={runnerExecutionReadiness.ready ? "ready" : ""}>
+          <strong>{runnerActivity.status}</strong>
+          <span>Runner state</span>
+        </article>
+        <article className={connectedAccounts.length ? "ready" : ""}>
+          <strong>{connectedAccounts.length}</strong>
+          <span>Accounts</span>
+        </article>
+        <article className={runnableItems.length ? "ready" : ""}>
+          <strong>{runnableItems.length}</strong>
+          <span>Runnable</span>
+        </article>
+        <article className={runnerSubmitApproved ? "ready" : ""}>
+          <strong>{runnerSubmitApproved ? "Live" : "Test"}</strong>
+          <span>Mode</span>
+        </article>
       </section>
 
       <RunnerFlowStrip
@@ -147,7 +192,7 @@ export function RunnerWorkspace({
         connectedAccountCount={connectedAccounts.length}
         latestRunGroup={latestRunGroup}
         runnableCount={runnableItems.length}
-        runnerReady={scheduleRunnerReadiness.ready}
+        runnerReady={runnerExecutionReadiness.ready}
         submitApproved={runnerSubmitApproved}
       />
 
@@ -228,11 +273,11 @@ export function RunnerWorkspace({
           </div>
           <div className="workflow-section-body">
             <div className="queue-action-row runner-action-grid">
-              <button className="primary" type="button" onClick={onStartRunner} disabled={!runnableItems.length}>
+              <button className="primary" type="button" onClick={onStartRunner} disabled={!runnerExecutionReadiness.manualCanRun}>
                 <Play size={18} />
                 Run
               </button>
-              <button className="secondary" type="button" onClick={onStartTestRun} disabled={!runnableItems.length}>
+              <button className="secondary" type="button" onClick={onStartTestRun} disabled={!runnerExecutionReadiness.manualCanRun}>
                 <TestTube2 size={18} />
                 Test run
               </button>
@@ -246,12 +291,34 @@ export function RunnerWorkspace({
                 <Download size={18} />
                 Download
               </button>
-              <button className="secondary" type="button" onClick={onCopyLocalRunnerSetup} disabled={!runnableItems.length}>
+              <button className="secondary" type="button" onClick={onCopyLocalRunnerSetup} disabled={!runnableItems.length || !accountReadiness.ready}>
                 <Terminal size={18} />
                 Setup
               </button>
             </div>
             {queueStatus ? <p className="queue-status">{queueStatus}</p> : null}
+          </div>
+        </section>
+
+        <section className="workflow-section runner-diagnostics-panel" aria-label="System diagnostics">
+          <div className="workflow-section-header">
+            <div>
+              <strong>System diagnostics</strong>
+              <small>Quick checks before automation starts</small>
+            </div>
+            <span className={diagnostics.every((item) => item.ready) ? "section-state ready" : "section-state warning"}>
+              {diagnostics.every((item) => item.ready) ? "Healthy" : "Check"}
+            </span>
+          </div>
+          <div className="workflow-section-body">
+            <div className="runner-diagnostics-list">
+              {diagnostics.map((item) => (
+                <article className={item.ready ? "ready" : ""} key={item.label}>
+                  <strong>{item.label}</strong>
+                  <span>{item.detail}</span>
+                </article>
+              ))}
+            </div>
           </div>
         </section>
 
@@ -261,8 +328,8 @@ export function RunnerWorkspace({
             <span>
               {localRunner?.online || localCompanion?.ok
                 ? `Version ${companionVersion || "unknown"}${localRunner?.last_seen_at ? ` - last seen ${formatDate(localRunner.last_seen_at)}` : ""}`
-                : selectedAccount
-                  ? `Selected account: ${selectedAccount.displayName}`
+                : accountReadiness.selectedAccount
+                  ? `Selected account: ${accountReadiness.selectedAccount.displayName}`
                   : "Use a connected Tumblr account for live posting."}
             </span>
             {discordSummary || discordRunnerNeedsAttention ? (

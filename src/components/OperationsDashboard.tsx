@@ -2,6 +2,7 @@ import { Activity, AlertTriangle, Archive, CheckCircle2, ClipboardCheck, FilePlu
 import { isQueueableAdvertisement } from "../domain/adEligibility";
 import type { ScheduleRunnerReadiness } from "../domain/localRunnerReadiness";
 import { attentionQueueItems, queueReadiness, queueStatusCounts, runnableQueueItems } from "../domain/queueAutomation";
+import { runnerAccountReadiness } from "../domain/tumblrAccounts";
 import { Advertisement, QueueDefinition, RunnerActivity, SubmissionQueueItem, TumblrAccount, WorkspaceView } from "../domain/types";
 import "./operations/operationsDashboard.css";
 
@@ -15,6 +16,7 @@ type OperationsDashboardProps = {
   runnerSubmitApproved: boolean;
   savedDraftCount: number;
   savedDrafts: Advertisement[];
+  selectedTumblrAccountId: string;
   templateCount: number;
   tumblrAccounts: TumblrAccount[];
   onCreateSampleAd: () => void;
@@ -31,6 +33,7 @@ export function OperationsDashboard({
   runnerSubmitApproved,
   savedDraftCount,
   savedDrafts,
+  selectedTumblrAccountId,
   templateCount,
   tumblrAccounts,
   onCreateSampleAd,
@@ -43,20 +46,24 @@ export function OperationsDashboard({
   const attentionItems = attentionQueueItems(activeQueueItems);
   const needsReviewCount = attentionItems.length;
   const postedCount = counts.posted + counts.submitted;
-  const connectedAccounts = tumblrAccounts.filter((account) => account.status === "connected").length;
+  const accountReadiness = runnerAccountReadiness(tumblrAccounts, selectedTumblrAccountId);
+  const connectedAccounts = accountReadiness.connectedAccounts.length;
   const needsLoginAccounts = tumblrAccounts.filter((account) => account.status !== "connected").length;
   const showFirstRunPanel = connectedAccounts === 0 && savedDraftCount === 0 && queueItems.length === 0;
   const campaignSnapshots = buildCampaignSnapshots(savedDrafts, queueItems);
-  const runnerStatusTone = operationsRunnerTone(scheduleRunnerReadiness);
   const readiness = queueReadiness({
     activeQueueName,
     activeQueue: activeQueueItems,
     connectedAccountCount: connectedAccounts,
     runnerActivity,
-    runnerReady: scheduleRunnerReadiness.ready,
+    scheduledRunnerReady: scheduleRunnerReadiness.ready,
+    scheduledRunnerDetail: scheduleRunnerReadiness.detail,
+    accountBlocker: accountReadiness.blocker,
+    selectedConnectedAccount: accountReadiness.ready,
     savedDraftCount,
     submitApproved: runnerSubmitApproved,
   });
+  const runnerStatusTone = operationsReadinessTone(readiness.status);
   const contentReadinessItems = [
     {
       label: "Saved drafts",
@@ -109,6 +116,8 @@ export function OperationsDashboard({
         queuedCount={queuedCount}
         reviewCount={needsReviewCount}
         runnerTone={runnerStatusTone}
+        runnerActionLabel={readiness.canRun ? "Runner Controls" : readiness.primaryAction.label}
+        runnerActionView={readiness.primaryAction.view}
         savedDraftCount={savedDraftCount}
         runnerStatus={runnerActivity.status}
         onNavigate={onNavigate}
@@ -200,8 +209,8 @@ export function OperationsDashboard({
             <Radio size={20} />
             <span>Runner Status</span>
           </div>
-          <strong>{scheduleRunnerReadiness.ready ? "Runner is ready" : runnerConnectionLabel}</strong>
-          <p>{scheduleRunnerReadiness.ready ? "Local automation can work through queued advertisements." : scheduleRunnerReadiness.detail || "Start the local runner when content is queued."}</p>
+          <strong>{readiness.canRun ? "Runner is ready" : friendlyReadinessTitle(readiness.title)}</strong>
+          <p>{readiness.canRun ? readiness.detail : readiness.detail || runnerConnectionLabel || scheduleRunnerReadiness.detail}</p>
           <button className={readiness.canRun ? "primary compact-button" : "text-link"} type="button" onClick={() => onNavigate(readiness.primaryAction.view)}>
             {readiness.primaryAction.label}
           </button>
@@ -387,11 +396,11 @@ export function OperationsDashboard({
   );
 }
 
-function operationsRunnerTone(readiness: ScheduleRunnerReadiness) {
-  if (readiness.ready) {
+function operationsReadinessTone(status: "ready" | "blocked" | "empty" | "review") {
+  if (status === "ready") {
     return "ready";
   }
-  if (readiness.status === "idle") {
+  if (status === "empty" || status === "review") {
     return "warning";
   }
   return "blocked";
@@ -446,6 +455,8 @@ type OperationsHeroProps = {
   queuedCount: number;
   reviewCount: number;
   runnerTone: string;
+  runnerActionLabel: string;
+  runnerActionView: WorkspaceView;
   savedDraftCount: number;
   runnerStatus: string;
   onNavigate: (view: WorkspaceView) => void;
@@ -459,6 +470,8 @@ function OperationsHero({
   queuedCount,
   reviewCount,
   runnerTone,
+  runnerActionLabel,
+  runnerActionView,
   savedDraftCount,
   runnerStatus,
   onNavigate,
@@ -468,20 +481,29 @@ function OperationsHero({
     : savedDraftCount || queuedCount
       ? `${savedDraftCount} draft${savedDraftCount === 1 ? "" : "s"} available and ${queuedCount} queued for ${activeQueueName || "the selected queue"}.`
       : "Start by writing an advertisement, then queue it to a connected Tumblr account.";
+  const commandSummary = `${workspaceGreeting()}. You have ${savedDraftCount} draft${savedDraftCount === 1 ? "" : "s"} ready to review, ${queuedCount || "nothing"} queued, ${connectedAccounts} connected account${connectedAccounts === 1 ? "" : "s"}, and the runner is ${runnerStatus.toLowerCase()}.`;
 
   return (
     <section className="operations-hero" aria-label="Operations command center">
       <div className="operations-hero-copy operations-hero-brand">
-        <span>Workspace overview</span>
-        <h2>Editor workspace overview</h2>
+        <span>Command center</span>
+        <h2>{commandSummary}</h2>
         <p>{summaryText}</p>
         <div className="operations-hero-actions">
-          <button className="primary compact-button" type="button" onClick={() => onNavigate("editor")}>
+          <button className="primary compact-button command-action" type="button" onClick={() => onNavigate("editor")}>
             Write Advertisement
           </button>
-          <button className="text-link" type="button" onClick={() => onNavigate("runner")}>
-            Runner controls
+          <button className="secondary compact-button command-action" type="button" onClick={() => onNavigate("saved")}>
+            Review Drafts
           </button>
+          <button className="secondary compact-button command-action" type="button" onClick={() => onNavigate("queue")}>
+            Open Queue
+          </button>
+          <button className={runnerTone === "ready" ? "secondary compact-button command-action" : "primary compact-button command-action"} type="button" onClick={() => onNavigate(runnerActionView)}>
+            {runnerActionLabel}
+          </button>
+        </div>
+        <div className="operations-hero-secondary" aria-label="Secondary operations links">
           <button className="text-link" type="button" onClick={() => onNavigate("accounts")}>
             Account health
           </button>
@@ -524,6 +546,13 @@ function OperationsHero({
       </section>
     </section>
   );
+}
+
+function workspaceGreeting(now = new Date()) {
+  const hour = now.getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  return "Good evening";
 }
 
 type WorkflowPathPanelProps = {

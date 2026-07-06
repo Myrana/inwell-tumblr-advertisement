@@ -214,6 +214,7 @@ verlyn workflow assistant-startup --json
 verlyn workflow assert-edit-route --json
 verlyn target show --json
 verlyn changes list
+verlyn changes list --owner-scope all --status-scope all
 verlyn runs --limit 3 --json
 ```
 
@@ -578,16 +579,14 @@ Use review and gate commands to keep evidence in Verlyn:
 
 ```bash
 verlyn workflow gate <change-id> --scope delivery
-verlyn reviews changed-files <change-id> --run-independent-review
 verlyn reviews changed-files <change-id> --independent-local-agent --reviewer <agent-name>
 ```
 
 - `workflow gate` inspects whether a change is ready for a named scope such as
   delivery.
-- `reviews record` writes audit records to the durable Verlyn workflow record;
-  use it for changed-file review only after an already-completed independent
-  review and only when the record includes independent provenance,
-  reviewed-file scope, review job status, and cleanup status.
+- `reviews record` writes audit records for an already-completed independent
+  review only when provenance, reviewed-file scope, review job status, and
+  cleanup status are all known.
 - Changed-file review evidence is required before real source-control delivery
   unless Verlyn records a no-diff exemption.
 - `prepare-pr`, `deliver`, and `deploy` all use the same blocking

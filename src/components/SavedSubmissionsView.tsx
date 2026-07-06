@@ -1,4 +1,4 @@
-import { AlertTriangle, Archive, FilePlus2, Send } from "lucide-react";
+import { AlertTriangle, Archive, FilePlus2, Layers3, Send } from "lucide-react";
 import { useState } from "react";
 import { SavedSubmissionsList } from "./SavedSubmissionsList";
 import {
@@ -10,6 +10,7 @@ import {
 } from "./savedSubmissionsViewModel";
 import { DuplicateContentMatch } from "../domain/duplicates";
 import { Advertisement, QueueDefinition } from "../domain/types";
+import "./savedSubmissionsView.css";
 
 type SavedSubmissionsViewProps = {
   activeAdId: string;
@@ -92,9 +93,43 @@ export function SavedSubmissionsView({
         </div>
         <Archive size={18} />
       </div>
+      <section className="library-command-center" aria-label="Library command center">
+        <div>
+          <span>Library command center</span>
+          <h3>
+            {readyAds.length} ready, {needsWorkCount} need edits, {archivedAds.length} archived.
+          </h3>
+          <p>{selectedCampaignLabel}: {selectedReadyAds.length} ready to queue from {selectedLibraryCount} visible item{selectedLibraryCount === 1 ? "" : "s"}.</p>
+        </div>
+        <div className="library-command-stats" aria-label="Library summary">
+          <article>
+            <strong>{activeLibraryAds.length}</strong>
+            <span>Active</span>
+          </article>
+          <article>
+            <strong>{readyAds.length}</strong>
+            <span>Ready</span>
+          </article>
+          <article>
+            <strong>{campaignNames.length || "0"}</strong>
+            <span>Campaigns</span>
+          </article>
+        </div>
+        <div className="library-command-actions">
+          <button className="primary compact-button" type="button" onClick={queueReadyDrafts} disabled={!batchQueueDrafts.length || !batchQueueName}>
+            <Send size={16} />
+            Queue All Ready
+          </button>
+          <button className="secondary compact-button" type="button" onClick={onCreateDraft}>
+            <FilePlus2 size={16} />
+            Create New Advertisement
+          </button>
+        </div>
+      </section>
       {libraryAds.length ? (
         <div className="batch-prep-panel" aria-label="Batch prep assistant">
           <div>
+            <Layers3 size={18} />
             <strong>Batch prep assistant</strong>
             <span>
               {selectedCampaignLabel}: {selectedReadyAds.length} ready to queue - {selectedNeedsWorkCount} need edits

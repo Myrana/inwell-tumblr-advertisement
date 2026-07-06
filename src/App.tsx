@@ -100,7 +100,7 @@ import {
 } from "./domain/submitTargets";
 import { normalizeTag, normalizeTagProfiles, uniqueTags } from "./domain/tags";
 import { applyTemplateToAdvertisement, normalizeTemplate, templateFromAdvertisement } from "./domain/templates";
-import { fromApiTumblrAccount, normalizeTumblrAccount, tumblrAccountId, upsertTumblrAccount } from "./domain/tumblrAccounts";
+import { fromApiTumblrAccount, normalizeTumblrAccount, runnerAccountReadiness, tumblrAccountId, upsertTumblrAccount } from "./domain/tumblrAccounts";
 import {
   Advertisement,
   AppSettings,
@@ -574,14 +574,20 @@ function App() {
         return;
       }
       try {
-        const [advertisementResponse, backendTemplates, backendQueue, backendLogs, backendSettings, backendTumblrAccounts] = await Promise.all([
+        const [advertisementResponse, backendTemplates, backendQueue, backendLogs, backendSettings] = await Promise.all([
           loadBackendAdvertisements(),
           loadBackendTemplates(),
           loadBackendQueue(),
           loadRunnerLogs(),
           loadBackendAppSettings(),
-          loadBackendTumblrAccounts(),
         ]);
+        let backendTumblrAccounts: TumblrAccount[] = [];
+        let accountsLoadFailed = false;
+        try {
+          backendTumblrAccounts = await loadBackendTumblrAccounts();
+        } catch {
+          accountsLoadFailed = true;
+        }
 
         if (cancelled) {
           return;
@@ -609,6 +615,9 @@ function App() {
         );
         setRunnerLogs(backendLogs);
         setTumblrAccounts(backendTumblrAccounts);
+        if (accountsLoadFailed) {
+          setAccountStatus("Could not load Tumblr accounts from the backend. Reopen Accounts or check the API before running automation.");
+        }
         setApiAvailable(true);
         setBackendStateLoaded(true);
       } catch {
@@ -1341,6 +1350,16 @@ function App() {
     return true;
   }
 
+  function requireSelectedConnectedRunnerAccount() {
+    const accountReadiness = runnerAccountReadiness(tumblrAccounts, runnerSettingsRef.current.tumblrAccountId);
+    if (accountReadiness.ready) {
+      return true;
+    }
+    setQueueStatus(accountReadiness.blocker || "Select a connected Tumblr account before starting the runner.");
+    setActiveView("accounts");
+    return false;
+  }
+
   async function prepareLocalRunnerCommand(options: { allowWithoutRunnable?: boolean; copy?: boolean; target?: "run" | "setup"; fallbackReason?: string; submit?: boolean; testRun?: boolean } = {}) {
     const items = runnableQueueItems();
     const attentionItems = attentionQueueItems(activeQueue);
@@ -1350,6 +1369,9 @@ function App() {
     }
     if (!items.length && !options.allowWithoutRunnable) {
       setQueueStatus("Queue at least one target before starting the runner.");
+      return;
+    }
+    if (!requireSelectedConnectedRunnerAccount()) {
       return;
     }
 
@@ -1401,6 +1423,9 @@ function App() {
     }
     if (!items.length && !options.allowWithoutRunnable) {
       setQueueStatus("Queue at least one target before starting the runner.");
+      return;
+    }
+    if (!requireSelectedConnectedRunnerAccount()) {
       return;
     }
 
@@ -1706,6 +1731,7 @@ function App() {
             runnerSubmitApproved={runnerSettings.submit}
             savedDraftCount={stored.ads.filter(hasLibraryContent).length}
             savedDrafts={stored.ads.filter(hasLibraryContent)}
+            selectedTumblrAccountId={runnerSettings.tumblrAccountId}
             templateCount={templates.length}
             tumblrAccounts={tumblrAccounts}
             onCreateSampleAd={createSampleAdvertisement}
@@ -1722,6 +1748,10 @@ function App() {
             queueScheduleSettings={activeQueueScheduleSettings}
             runnerActivity={runnerActivity}
             scheduleRunnerReadiness={scheduleRunnerReadiness}
+            runnerSubmitApproved={runnerSettings.submit}
+            savedDraftCount={stored.ads.filter(hasLibraryContent).length}
+            selectedTumblrAccountId={runnerSettings.tumblrAccountId}
+            tumblrAccounts={tumblrAccounts}
             runnerLogs={runnerLogs}
             onEditQueueItem={editQueuedSubmission}
             onRenameQueue={renameQueueDefinition}
@@ -1732,6 +1762,8 @@ function App() {
             onUpdateQueueItem={updateQueueItem}
             onCreateSubmission={() => setActiveView("editor")}
             onManageBlogs={() => setActiveView("queue-settings")}
+            onManageAccounts={() => setActiveView("accounts")}
+            onOpenSavedLibrary={() => setActiveView("saved")}
             onOpenRunner={() => setActiveView("runner")}
           />
         ) : null}

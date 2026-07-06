@@ -85,6 +85,8 @@ const retryRecoveryFixtureDeps = {
 
 test("queue bulk completion stops cleanly when the first completed item save fails", { timeout: 40000 }, async (t) => {
   const bulkQueue = await setupBackendQueueBulkCompletionPage(t, queueBulkFixtureDeps);
+  await bulkQueue.page.getByLabel("Queue operations summary").getByText("Queue operations").waitFor();
+  await bulkQueue.page.getByLabel("Queue runner status").getByRole("button", { name: /Runner|Launch|Manage|Open|Write|Review/ }).waitFor();
   bulkQueue.failureMode.firstCompletionSave = true;
   const firstFailureResponse = bulkQueue.page.waitForResponse((response) => response.url().includes("/api/queue/") && response.status() === 500);
   await submitBulkQueueCompletion(bulkQueue.page);
@@ -110,6 +112,16 @@ test("queue bulk completion reports a completed-item partial save", { timeout: 4
   assert.equal(bulkQueue.savedQueuePayloads.length, 2);
   assert.deepEqual(bulkQueue.getQueueItems().map((item) => item.status).sort(), ["queued", "submitted"]);
   await bulkQueue.page.getByLabel("Post history archive").getByText("Bulk updated from queue workspace.").waitFor();
+  await bulkQueue.page.evaluate(() => {
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        writeText: () => Promise.reject(new Error("Clipboard denied")),
+      },
+    });
+  });
+  await bulkQueue.page.getByLabel("Post history archive").getByRole("button", { name: "Copy all Discord updates" }).click();
+  await bulkQueue.page.getByRole("status").getByText("Could not copy Discord updates. Check browser clipboard permission.").waitFor();
   await bulkQueue.page.locator(".queue-item", { hasText: "Ready for local browser runner." }).waitFor();
   assert.equal(bulkQueue.pageErrors.length, 0, bulkQueue.pageErrors.map((error) => error.message).join("\n"));
 });
@@ -167,7 +179,6 @@ test("queue completion keeps overlapping single-item and bulk refill commits con
   });
   const failedItem = bulkQueue.page.locator(".queue-item", { hasText: "Refill Blog" }).filter({ hasText: "Why this failed" });
   const retryButton = failedItem.getByRole("button", { name: "Retry test run" });
-  const firstSaveStarted = bulkQueue.page.waitForResponse((response) => response.url().includes("/api/queue/") && response.status() === 200);
   const markPostedClick = failedItem.getByRole("button", { name: "Mark posted" }).click();
   await bulkQueue.waitForSaveRequestCount(1);
   await bulkQueue.page.getByText("Queue update in progress for this queue.").waitFor();
@@ -177,7 +188,6 @@ test("queue completion keeps overlapping single-item and bulk refill commits con
   await bulkQueue.page.waitForTimeout(100);
   assert.equal(bulkQueue.savedQueuePayloads.length, retryCountBeforeConflict);
   assert.deepEqual(bulkQueue.getRunnerRequests(), { companionRun: 0, localCommand: 0 });
-  await firstSaveStarted;
   await markPostedClick;
   await bulkQueue.waitForSaveRequestCount(2);
 

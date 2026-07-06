@@ -1,7 +1,9 @@
 import { FormEvent } from "react";
 import { FileText, LogIn, RefreshCw, ShieldCheck, Trash2, UserPlus } from "lucide-react";
 import { formatDate } from "../domain/format";
+import { isTumblrAccountHealthStale, runnerAccountReadiness } from "../domain/tumblrAccounts";
 import { TumblrAccount } from "../domain/types";
+import "./tumblrAccountsWorkspace.css";
 
 type TumblrAccountsWorkspaceProps = {
   accounts: TumblrAccount[];
@@ -26,17 +28,6 @@ function accountStatusLabel(account: TumblrAccount) {
   return "Needs login";
 }
 
-function isAccountHealthStale(account: TumblrAccount, now = new Date()) {
-  if (!account.lastCheckedAt) {
-    return true;
-  }
-  const lastCheckedAt = new Date(account.lastCheckedAt);
-  if (Number.isNaN(lastCheckedAt.getTime())) {
-    return true;
-  }
-  return now.getTime() - lastCheckedAt.getTime() > 7 * 24 * 60 * 60 * 1000;
-}
-
 export function TumblrAccountsWorkspace({
   accounts,
   draft,
@@ -52,13 +43,11 @@ export function TumblrAccountsWorkspace({
   onMarkConnected,
   onSelectAccount,
 }: TumblrAccountsWorkspaceProps) {
+  const accountReadiness = runnerAccountReadiness(accounts, selectedAccountId);
   const connectedAccounts = accounts.filter((account) => account.status === "connected");
-  const staleAccounts = accounts.filter((account) => isAccountHealthStale(account));
-  const attentionAccounts = accounts.filter((account) => account.status !== "connected" || isAccountHealthStale(account));
-  const selectedAccount = accounts.find((account) => account.id === selectedAccountId);
-  const connectedAccount = selectedAccount?.status === "connected"
-    ? selectedAccount
-    : accounts.find((account) => account.status === "connected");
+  const staleAccounts = accounts.filter((account) => isTumblrAccountHealthStale(account));
+  const attentionAccounts = accounts.filter((account) => account.status !== "connected" || isTumblrAccountHealthStale(account));
+  const connectedAccount = accountReadiness.selectedConnectedAccount ?? connectedAccounts[0];
   const visibleStatus = connectedAccount && status === `${connectedAccount.displayName} is ready for queue runs.` ? "" : status;
 
   return (
@@ -67,6 +56,48 @@ export function TumblrAccountsWorkspace({
         <h2>Tumblr accounts</h2>
         <ShieldCheck size={18} />
       </div>
+
+      <section className="account-overview-panel" aria-label="Account overview">
+        <div>
+          <span>Account overview</span>
+          <h3>
+            {connectedAccounts.length ? `${connectedAccounts.length} connected account${connectedAccounts.length === 1 ? "" : "s"}` : "No connected Tumblr accounts yet"}
+          </h3>
+          <p>
+            {accountReadiness.readyAccount
+              ? `${accountReadiness.readyAccount.displayName} is selected for runner work. ${attentionAccounts.length} account${attentionAccounts.length === 1 ? "" : "s"} need a login or health check.`
+              : accountReadiness.selectedConnectedAccount
+                ? `${accountReadiness.selectedConnectedAccount.displayName} is selected but needs a fresh login health check before runner work.`
+              : connectedAccount
+                ? `${connectedAccount.displayName} is connected and available. Choose it as the runner account before automation.`
+              : "Add a Tumblr account, connect it through the local runner, then choose it for queue automation."}
+          </p>
+        </div>
+        <div className="account-overview-stats" aria-label="Account health summary">
+          <article className={connectedAccounts.length ? "ready" : ""}>
+            <strong>{connectedAccounts.length}</strong>
+            <span>Connected</span>
+          </article>
+          <article className={attentionAccounts.length ? "warning" : "ready"}>
+            <strong>{attentionAccounts.length}</strong>
+            <span>Need attention</span>
+          </article>
+          <article className={staleAccounts.length ? "warning" : "ready"}>
+            <strong>{staleAccounts.length}</strong>
+            <span>Stale checks</span>
+          </article>
+        </div>
+        <div className="account-overview-actions">
+          <button className="primary compact-button" type="button" onClick={onCheckAllLogins} disabled={!accounts.length}>
+            <ShieldCheck size={16} />
+            Check Logins
+          </button>
+          <button className="secondary compact-button" type="button" onClick={onCreateSubmission} disabled={!connectedAccounts.length}>
+            <FileText size={16} />
+            Write Advertisement
+          </button>
+        </div>
+      </section>
 
       <div className="account-settings-grid">
         <form className="queue-management-form account-create-form" onSubmit={onCreateAccount}>
@@ -105,7 +136,7 @@ export function TumblrAccountsWorkspace({
             <label>
               Runner account
               <select
-                value={selectedAccount?.status === "connected" ? selectedAccount.id : ""}
+                value={accountReadiness.selectedConnectedAccount ? accountReadiness.selectedConnectedAccount.id : ""}
                 onChange={(event) => onSelectAccount(event.target.value)}
                 disabled={!connectedAccounts.length}
               >
@@ -205,9 +236,11 @@ export function TumblrAccountsWorkspace({
               <div className="account-session-note">
                 <strong>{account.notes || accountStatusLabel(account)}</strong>
                 <span>
-                  {isAccountHealthStale(account)
+                  {isTumblrAccountHealthStale(account)
                     ? "Health check is stale. Check saved login before running."
-                    : `Last checked ${formatDate(account.lastCheckedAt)}`}
+                    : account.lastCheckedAt
+                      ? `Last checked ${formatDate(account.lastCheckedAt)}`
+                      : "Health check not run yet."}
                 </span>
               </div>
             </article>

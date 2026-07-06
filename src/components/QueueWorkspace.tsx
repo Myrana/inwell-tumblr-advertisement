@@ -2,10 +2,11 @@ import { Archive, ChevronDown, Clipboard, FilePlus2, ListChecks, Pencil, PlayCir
 import { useState } from "react";
 import { formatDate, formatSubmissionStatus } from "../domain/format";
 import { isCompletedQueueItem, postHistoryArchiveItems } from "../domain/queue";
-import { attentionQueueItems, automationRunnableQueueItems } from "../domain/queueAutomation";
+import { attentionQueueItems, automationRunnableQueueItems, queueReadiness } from "../domain/queueAutomation";
 import { queueLogGroups, runnerLogExplanation, runnerLogPostedUrl, visibleRunnerLogs } from "../domain/runnerLogs";
 import { formatEasternRun, nextDailyRunAt, scheduleSummary } from "../domain/schedule";
 import { ScheduleRunnerReadiness } from "../domain/localRunnerReadiness";
+import { runnerAccountReadiness } from "../domain/tumblrAccounts";
 import { QueueItemMetaRow } from "./queue/QueueItemMetaRow";
 import { QueueScheduleReadinessGrid } from "./queue/QueueScheduleReadinessGrid";
 import "./queue/queueWorkspace.css";
@@ -16,6 +17,8 @@ import {
   RunnerLog,
   SubmissionQueueItem,
   SubmissionStatus,
+  TumblrAccount,
+  WorkspaceView,
 } from "../domain/types";
 
 type QueueWorkspaceProps = {
@@ -27,6 +30,10 @@ type QueueWorkspaceProps = {
   queueScheduleSettings: QueueSchedulePreference;
   runnerActivity: RunnerActivity;
   scheduleRunnerReadiness: ScheduleRunnerReadiness;
+  runnerSubmitApproved: boolean;
+  savedDraftCount: number;
+  selectedTumblrAccountId: string;
+  tumblrAccounts: TumblrAccount[];
   runnerLogs: RunnerLog[];
   onEditQueueItem: (id: string) => void;
   onRenameQueue: (currentName: string, nextName: string) => void;
@@ -37,6 +44,8 @@ type QueueWorkspaceProps = {
   onUpdateQueueItem: (id: string, status: SubmissionStatus, notes: string) => void;
   onCreateSubmission: () => void;
   onManageBlogs: () => void;
+  onManageAccounts: () => void;
+  onOpenSavedLibrary: () => void;
   onOpenRunner: () => void;
 };
 
@@ -57,6 +66,10 @@ export function QueueWorkspace({
   queueScheduleSettings,
   runnerActivity,
   scheduleRunnerReadiness,
+  runnerSubmitApproved,
+  savedDraftCount,
+  selectedTumblrAccountId,
+  tumblrAccounts,
   runnerLogs,
   onEditQueueItem,
   onRenameQueue,
@@ -67,6 +80,8 @@ export function QueueWorkspace({
   onUpdateQueueItem,
   onCreateSubmission,
   onManageBlogs,
+  onManageAccounts,
+  onOpenSavedLibrary,
   onOpenRunner,
 }: QueueWorkspaceProps) {
   const [openSections, setOpenSections] = useState<Record<QueueSectionKey, boolean>>({
@@ -78,6 +93,7 @@ export function QueueWorkspace({
   const [selectedQueueItemIds, setSelectedQueueItemIds] = useState<string[]>([]);
   const [copiedDiscordItemId, setCopiedDiscordItemId] = useState("");
   const [copiedAllDiscordUpdates, setCopiedAllDiscordUpdates] = useState(false);
+  const [postHistoryCopyStatus, setPostHistoryCopyStatus] = useState("");
   const [bulkQueueStatus, setBulkQueueStatus] = useState<SubmissionStatus>("queued");
   const [bulkQueueNotes, setBulkQueueNotes] = useState("Bulk updated from queue workspace.");
   const [localQueueActionBusy, setLocalQueueActionBusy] = useState(false);
@@ -94,9 +110,34 @@ export function QueueWorkspace({
   const automationRunnableItems = automationRunnableQueueItems(activeQueue);
   const attentionItems = attentionQueueItems(activeQueue);
   const postHistoryItems = postHistoryArchiveItems(activeQueue);
+  const accountReadiness = runnerAccountReadiness(tumblrAccounts, selectedTumblrAccountId);
+  const connectedAccountCount = accountReadiness.connectedAccounts.length;
   const selectedActiveQueueCount = selectedQueueItemIds.filter((id) => activeSubmissionItems.some((item) => item.id === id)).length;
   const scheduleWillRun = queueScheduleSettings.enabled && !scheduleRunnerBlocked && automationRunnableItems.length > 0 && attentionItems.length === 0;
   const queueActionsBusy = queueTransitionBusy || localQueueActionBusy;
+  const queueRunnerReadiness = queueReadiness({
+    activeQueueName,
+    activeQueue,
+    connectedAccountCount,
+    runnerActivity,
+    scheduledRunnerReady: scheduleRunnerReadiness.ready,
+    scheduledRunnerDetail: scheduleRunnerReadiness.detail,
+    accountBlocker: accountReadiness.blocker,
+    selectedConnectedAccount: accountReadiness.ready,
+    savedDraftCount,
+    submitApproved: runnerSubmitApproved,
+  });
+  const queueRunnerReady = queueRunnerReadiness.canRun;
+  const queueRunnerBannerTitle = queueRunnerReady ? "Runner is available for this queue" : queueRunnerReadiness.title;
+  const queueRunnerBannerDetail = queueRunnerReady ? `${runnerActivity.status}: ${queueRunnerReadiness.detail}` : queueRunnerReadiness.detail;
+  const queueRunnerAction = queueRunnerReady ? { label: "Runner Controls", action: onOpenRunner } : queueRunnerActionFor(queueRunnerReadiness.primaryAction.view, {
+    onCreateSubmission,
+    onManageAccounts,
+    onManageBlogs,
+    onOpenSavedLibrary,
+    onOpenRunner,
+    onReviewQueue: () => setSectionOpen("submissions", true),
+  });
 
   function queueItemExplanation(item: SubmissionQueueItem) {
     const logs = logGroups.find((group) => group.item.id === item.id)?.logs ?? [];
@@ -117,20 +158,32 @@ export function QueueWorkspace({
 
   async function copyDiscordCompletionMessage(item: SubmissionQueueItem) {
     if (!navigator.clipboard?.writeText) {
+      setPostHistoryCopyStatus("Clipboard is unavailable in this browser.");
       return;
     }
-    await navigator.clipboard.writeText(discordCompletionMessage(item));
-    setCopiedDiscordItemId(item.id);
-    setCopiedAllDiscordUpdates(false);
+    try {
+      await navigator.clipboard.writeText(discordCompletionMessage(item));
+      setCopiedDiscordItemId(item.id);
+      setCopiedAllDiscordUpdates(false);
+      setPostHistoryCopyStatus("Discord update copied.");
+    } catch {
+      setPostHistoryCopyStatus("Could not copy Discord update. Check browser clipboard permission.");
+    }
   }
 
   async function copyAllDiscordCompletionMessages() {
     if (!navigator.clipboard?.writeText || !postHistoryItems.length) {
+      setPostHistoryCopyStatus("Clipboard is unavailable in this browser.");
       return;
     }
-    await navigator.clipboard.writeText(postHistoryItems.map(discordCompletionMessage).join("\n\n---\n\n"));
-    setCopiedAllDiscordUpdates(true);
-    setCopiedDiscordItemId("");
+    try {
+      await navigator.clipboard.writeText(postHistoryItems.map(discordCompletionMessage).join("\n\n---\n\n"));
+      setCopiedAllDiscordUpdates(true);
+      setCopiedDiscordItemId("");
+      setPostHistoryCopyStatus("Discord updates copied.");
+    } catch {
+      setPostHistoryCopyStatus("Could not copy Discord updates. Check browser clipboard permission.");
+    }
   }
 
   function recoveryGuidance(item: SubmissionQueueItem) {
@@ -184,6 +237,52 @@ export function QueueWorkspace({
         <h2>Submission queue</h2>
         <Send size={18} />
       </div>
+
+      <section className="queue-command-center" aria-label="Queue operations summary">
+        <div>
+          <span>Queue operations</span>
+          <h3>{activeQueueName || "No queue selected"}</h3>
+          <p>
+            {automationRunnableItems.length} runnable, {attentionItems.length} need review, {postHistoryItems.length} completed.
+            {nextRunAt ? ` Next local run is ${formatEasternRun(nextRunAt)} ET.` : " Daily automation is off."}
+          </p>
+        </div>
+        <div className="queue-command-stats" aria-label="Queue health summary">
+          <article>
+            <strong>{activeSubmissionItems.length}</strong>
+            <span>Active</span>
+          </article>
+          <article>
+            <strong>{automationRunnableItems.length}</strong>
+            <span>Runnable</span>
+          </article>
+          <article>
+            <strong>{postHistoryItems.length}</strong>
+            <span>History</span>
+          </article>
+        </div>
+        <div className="queue-command-actions">
+          <button className="primary compact-button" type="button" onClick={onCreateSubmission}>
+            <FilePlus2 size={16} />
+            Write Advertisement
+          </button>
+          <button className="secondary compact-button" type="button" onClick={onOpenRunner}>
+            <PlayCircle size={16} />
+            Runner Controls
+          </button>
+        </div>
+      </section>
+
+      <section className={queueRunnerReady ? "queue-runner-banner ready" : "queue-runner-banner"} aria-label="Queue runner status">
+        <div>
+          <strong>{queueRunnerBannerTitle}</strong>
+          <span>{queueRunnerBannerDetail}</span>
+        </div>
+        <button className={queueRunnerReady ? "secondary compact-button" : "primary compact-button"} type="button" onClick={queueRunnerAction.action}>
+          <PlayCircle size={16} />
+          {queueRunnerAction.label}
+        </button>
+      </section>
 
       <section className="workflow-section queue-workflow-section">
         <div className="workflow-section-header">
@@ -474,6 +573,7 @@ export function QueueWorkspace({
                     {copiedAllDiscordUpdates ? "All Discord updates copied" : "Copy all Discord updates"}
                   </button>
                 </div>
+                {postHistoryCopyStatus ? <p className="queue-status" role="status">{postHistoryCopyStatus}</p> : null}
                 <div className="post-history-list">
                   {postHistoryItems.map((item) => {
                     const postedUrl = queueItemPostedUrl(item);
@@ -535,6 +635,34 @@ export function QueueWorkspace({
       </section>
     </section>
   );
+}
+
+function queueRunnerActionFor(view: WorkspaceView, actions: {
+  onCreateSubmission: () => void;
+  onManageAccounts: () => void;
+  onManageBlogs: () => void;
+  onOpenSavedLibrary: () => void;
+  onOpenRunner: () => void;
+  onReviewQueue: () => void;
+}) {
+  if (view === "queue") {
+    return { label: "Review queue", action: actions.onReviewQueue };
+  }
+  if (view === "accounts") {
+    return { label: "Manage accounts", action: actions.onManageAccounts };
+  }
+  if (view === "editor" || view === "saved") {
+    return view === "saved"
+      ? { label: "Open content", action: actions.onOpenSavedLibrary }
+      : { label: "Write Advertisement", action: actions.onCreateSubmission };
+  }
+  if (view === "queue-settings") {
+    return { label: "Blog tracker", action: actions.onManageBlogs };
+  }
+  if (view === "runner") {
+    return { label: "Launch Runner", action: actions.onOpenRunner };
+  }
+  return { label: "Review queue", action: actions.onReviewQueue };
 }
 
 function formatDiscordPostedAt(value: string) {

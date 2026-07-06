@@ -69,6 +69,45 @@ export function toApiTumblrAccount(account: TumblrAccount): ApiTumblrAccount {
   };
 }
 
+export function isTumblrAccountHealthStale(account: TumblrAccount, now = new Date()) {
+  if (account.status !== "connected") {
+    return false;
+  }
+  if (!account.lastCheckedAt) {
+    return true;
+  }
+  const lastCheckedAt = new Date(account.lastCheckedAt);
+  if (Number.isNaN(lastCheckedAt.getTime())) {
+    return true;
+  }
+  return now.getTime() - lastCheckedAt.getTime() > 7 * 24 * 60 * 60 * 1000;
+}
+
+export function runnerAccountReadiness(accounts: TumblrAccount[], selectedAccountId: string, now = new Date()) {
+  const selectedAccount = accounts.find((account) => account.id === selectedAccountId) ?? null;
+  const connectedAccounts = accounts.filter((account) => account.status === "connected");
+  const selectedConnectedAccount = selectedAccount?.status === "connected" ? selectedAccount : null;
+  const selectedAccountStale = selectedConnectedAccount ? isTumblrAccountHealthStale(selectedConnectedAccount, now) : false;
+  const readyAccount = selectedConnectedAccount && !selectedAccountStale ? selectedConnectedAccount : null;
+  const blocker = !connectedAccounts.length
+    ? "Connect a Tumblr account."
+    : !selectedConnectedAccount
+      ? "Select a connected Tumblr account."
+      : selectedAccountStale
+        ? "Check saved Tumblr login before starting the runner."
+        : "";
+
+  return {
+    selectedAccount,
+    connectedAccounts,
+    selectedConnectedAccount,
+    readyAccount,
+    selectedAccountStale,
+    ready: Boolean(readyAccount),
+    blocker,
+  };
+}
+
 export function upsertTumblrAccount(accounts: TumblrAccount[], account: TumblrAccount) {
   const withoutExisting = accounts.filter((item) => item.id !== account.id);
   return [account, ...withoutExisting].sort((left, right) => left.displayName.localeCompare(right.displayName));

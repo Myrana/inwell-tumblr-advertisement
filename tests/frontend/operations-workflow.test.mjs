@@ -135,7 +135,7 @@ test("operations dashboard centers content readiness without backup controls", {
           blog_name: "opsblog",
           user_data_dir: "C:/tumblr/ops",
           status: "connected",
-          last_checked_at: "2026-06-20T12:00:00.000Z",
+          last_checked_at: new Date().toISOString(),
           last_login_at: "2026-06-20T11:00:00.000Z",
           notes: "",
           updated_at: "2026-06-20T12:00:00.000Z",
@@ -282,7 +282,7 @@ test("operations status summary reports queue, runner, review, and live posting 
       reviewCount: "2",
       runnerStatus: "Offline",
       livePosting: "Prep mode",
-      runnerTone: "blocked",
+      runnerTone: "warning",
     },
     {
       runnerOnline: true,
@@ -295,6 +295,7 @@ test("operations status summary reports queue, runner, review, and live posting 
       runnerStatusSummary: "Online",
       livePosting: "Prep mode",
       runnerTone: "warning",
+      readyCopy: false,
     },
     {
       localCompanion: localCompanionStatus({ status: "error", watching: false, lastError: "Runner failed." }),
@@ -305,7 +306,76 @@ test("operations status summary reports queue, runner, review, and live posting 
       reviewCount: "1",
       runnerStatusSummary: "Needs attention",
       livePosting: "Prep mode",
+      runnerTone: "warning",
+      readyCopy: false,
+    },
+    {
+      name: "local runner ready without connected account",
+      runnerOnline: true,
+      runnerWatching: true,
+      submitApproved: true,
+      accounts: [],
+      runnerSettings: { mediaDir: "", slowMo: 500, headless: true, submit: true, tumblrAccountId: "" },
+      queueItems: [apiQueueItem()],
+      queueReady: "1",
+      reviewCount: "0",
+      runnerStatusSummary: "Watching",
+      livePosting: "Approved",
       runnerTone: "blocked",
+      readyCopy: false,
+      commandAction: "Manage accounts",
+      focusTitle: "Automation needs a selected Tumblr account",
+      blockerText: "Connect a Tumblr account.",
+    },
+    {
+      name: "local runner ready with connected but unselected account",
+      runnerOnline: true,
+      runnerWatching: true,
+      submitApproved: true,
+      runnerSettings: { mediaDir: "", slowMo: 500, headless: true, submit: true, tumblrAccountId: "" },
+      queueItems: [apiQueueItem()],
+      queueReady: "1",
+      reviewCount: "0",
+      runnerStatusSummary: "Watching",
+      livePosting: "Approved",
+      runnerTone: "blocked",
+      readyCopy: false,
+      commandAction: "Manage accounts",
+      focusTitle: "Automation needs a selected Tumblr account",
+      blockerText: "Select a connected Tumblr account.",
+    },
+    {
+      name: "local runner ready with stale selected account",
+      runnerOnline: true,
+      runnerWatching: true,
+      submitApproved: true,
+      runnerSettings: { mediaDir: "", slowMo: 500, headless: true, submit: true, tumblrAccountId: "missing-account" },
+      queueItems: [apiQueueItem()],
+      queueReady: "1",
+      reviewCount: "0",
+      runnerStatusSummary: "Watching",
+      livePosting: "Approved",
+      runnerTone: "blocked",
+      readyCopy: false,
+      commandAction: "Manage accounts",
+      focusTitle: "Automation needs a selected Tumblr account",
+      blockerText: "Select a connected Tumblr account.",
+    },
+    {
+      name: "local runner ready with empty queue",
+      runnerOnline: true,
+      runnerWatching: true,
+      submitApproved: true,
+      queueItems: [],
+      queueReady: "0",
+      reviewCount: "0",
+      runnerStatusSummary: "Watching",
+      livePosting: "Approved",
+      runnerTone: "warning",
+      readyCopy: false,
+      commandAction: "New submission",
+      focusTitle: "Queue needs content",
+      blockerText: "Add queued or scheduled submissions.",
     },
     {
       runnerOnline: true,
@@ -316,8 +386,10 @@ test("operations status summary reports queue, runner, review, and live posting 
       reviewCount: "1",
       runnerStatusSummary: "Watching",
       livePosting: "Approved",
-      runnerTone: "ready",
+      runnerTone: "warning",
       reviewBlocksReadiness: true,
+      readyCopy: false,
+      commandAction: "Review queue",
     },
     {
       runnerOnline: true,
@@ -328,7 +400,24 @@ test("operations status summary reports queue, runner, review, and live posting 
       reviewCount: "2",
       runnerStatusSummary: "Watching",
       livePosting: "Approved",
+      runnerTone: "warning",
+      readyCopy: false,
+      commandAction: "Review queue",
+    },
+    {
+      name: "full operations readiness",
+      runnerOnline: true,
+      runnerWatching: true,
+      submitApproved: true,
+      queueItems: [apiQueueItem()],
+      queueReady: "1",
+      reviewCount: "0",
+      runnerStatusSummary: "Watching",
+      livePosting: "Approved",
       runnerTone: "ready",
+      readyCopy: true,
+      commandAction: "Runner Controls",
+      focusTitle: "Runner is ready",
     },
   ];
 
@@ -350,7 +439,7 @@ test("operations status summary reports queue, runner, review, and live posting 
       route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ templates: [] }) }),
     );
     await page.route("http://127.0.0.1:8021/api/tumblr/accounts", (route) =>
-      route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ accounts: [apiTumblrAccount()] }) }),
+      route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ accounts: scenario.accounts ?? [apiTumblrAccount()] }) }),
     );
     await page.route("http://127.0.0.1:8021/api/queue", (route) =>
       route.fulfill({
@@ -368,7 +457,7 @@ test("operations status summary reports queue, runner, review, and live posting 
         headers: apiHeaders,
         body: JSON.stringify({
           settings: {
-            runnerSettings: { mediaDir: "", slowMo: 500, headless: true, submit: scenario.submitApproved, tumblrAccountId: "tumblr-ops" },
+            runnerSettings: scenario.runnerSettings ?? { mediaDir: "", slowMo: 500, headless: true, submit: scenario.submitApproved, tumblrAccountId: "tumblr-ops" },
             queueScheduleSettings: { enabled: false, dailyTime: "09:00", timezone: "America/New_York", perQueue: {} },
           },
         }),
@@ -401,6 +490,30 @@ test("operations status summary reports queue, runner, review, and live posting 
 
     await page.goto(appUrl);
     await page.getByRole("heading", { name: "Operations dashboard", level: 1 }).waitFor();
+    const commandCenter = page.getByLabel("Operations command center");
+    await commandCenter.getByText(/Good (morning|afternoon|evening)\. You have/).waitFor();
+    await commandCenter.getByRole("button", { name: "Write Advertisement", exact: true }).waitFor();
+    await commandCenter.getByRole("button", { name: "Review Drafts", exact: true }).waitFor();
+    await commandCenter.getByRole("button", { name: "Open Queue", exact: true }).waitFor();
+    if (scenario.commandAction) {
+      await commandCenter.getByRole("button", { name: scenario.commandAction, exact: true }).waitFor();
+    }
+    const runnerFocus = page.getByLabel("Runner focus");
+    if (scenario.focusTitle) {
+      await runnerFocus.getByText(scenario.focusTitle, { exact: false }).waitFor();
+    }
+    if (scenario.blockerText) {
+      await page.getByLabel("Run blockers").getByText(scenario.blockerText, { exact: true }).waitFor();
+    }
+    if (scenario.readyCopy) {
+      await runnerFocus.getByText("Runner is ready", { exact: true }).waitFor();
+      await runnerFocus.getByText("can post", { exact: false }).waitFor();
+      await commandCenter.getByRole("button", { name: "Runner Controls", exact: true }).waitFor();
+    } else {
+      await runnerFocus.getByText("Runner is ready", { exact: true }).waitFor({ state: "detached" });
+      await runnerFocus.getByText("Local automation can work through queued advertisements.", { exact: true }).waitFor({ state: "detached" });
+      await commandCenter.getByRole("button", { name: "Runner Controls", exact: true }).waitFor({ state: "detached" });
+    }
     const summary = page.getByLabel("Operations status summary");
     await summary.getByLabel("Queue ready status").getByText("Queue ready", { exact: true }).waitFor();
     await summary.getByLabel("Queue ready status").getByText(scenario.queueReady, { exact: true }).waitFor();
@@ -462,7 +575,7 @@ test("operational settings show backend save failures", { timeout: 40000 }, asyn
           blog_name: "settingsblog",
           user_data_dir: "C:/tumblr/settings",
           status: "connected",
-          last_checked_at: "2026-06-20T12:00:00.000Z",
+          last_checked_at: new Date().toISOString(),
           last_login_at: "2026-06-20T11:00:00.000Z",
           notes: "",
           updated_at: "2026-06-20T12:00:00.000Z",
@@ -586,7 +699,7 @@ function apiTumblrAccount(overrides = {}) {
     blog_name: "opsblog",
     user_data_dir: "C:/tumblr/ops",
     status: "connected",
-    last_checked_at: "2026-06-20T12:00:00.000Z",
+    last_checked_at: new Date().toISOString(),
     last_login_at: "2026-06-20T11:00:00.000Z",
     notes: "",
     updated_at: "2026-06-20T12:00:00.000Z",
