@@ -287,6 +287,7 @@ async function routeRetryWorkspaceApis(page, apiHeaders) {
             submit: false,
             tumblrAccountId: "snowleopardx",
           },
+          queueDefinitions: [{ id: "default-queue", name: "Default queue" }],
         },
       }),
     }),

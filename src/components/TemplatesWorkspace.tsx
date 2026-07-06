@@ -3,6 +3,7 @@ import LinkExtension from "@tiptap/extension-link";
 import StarterKit from "@tiptap/starter-kit";
 import {
   Bold,
+  BookOpenCheck,
   ClipboardCheck,
   FilePlus2,
   Italic,
@@ -10,12 +11,15 @@ import {
   List,
   ListOrdered,
   Save,
+  Search,
+  Sparkles,
   Strikethrough,
   Unlink,
 } from "lucide-react";
-import { FormEvent, useEffect } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { SavedTemplate } from "../domain/types";
 import { TemplateLibrary } from "./TemplateLibrary";
+import "./templatesWorkspace.css";
 
 type TemplateDraft = {
   name: string;
@@ -49,6 +53,8 @@ export function TemplatesWorkspace({
   onSaveCurrentAsTemplate,
   canSaveCurrentAsTemplate,
 }: TemplatesWorkspaceProps) {
+  const [templateSearch, setTemplateSearch] = useState("");
+  const [templateSort, setTemplateSort] = useState<"newest" | "oldest" | "name">("newest");
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -84,28 +90,56 @@ export function TemplatesWorkspace({
     editor.commands.setContent(draft.content || "", { emitUpdate: false });
   }, [draft.content, editor]);
 
+  const visibleTemplates = useMemo(() => {
+    const query = templateSearch.trim().toLowerCase();
+    const filtered = query
+      ? templates.filter((template) =>
+          [template.name, template.content, template.queueName, template.forumUrl, ...(template.tags ?? [])]
+            .filter(Boolean)
+            .some((value) => value.toLowerCase().includes(query)),
+        )
+      : templates;
+
+    return [...filtered].sort((left, right) => {
+      if (templateSort === "name") {
+        return left.name.localeCompare(right.name);
+      }
+      const leftTime = new Date(left.updatedAt).getTime();
+      const rightTime = new Date(right.updatedAt).getTime();
+      return templateSort === "oldest" ? leftTime - rightTime : rightTime - leftTime;
+    });
+  }, [templateSearch, templateSort, templates]);
+
   return (
     <section className="templates-workspace" aria-label="Saved templates">
-      <div className="panel-heading">
-        <h2>Saved templates</h2>
-        <ClipboardCheck size={18} />
-      </div>
-
-      <div className="template-actions">
-        <button className="primary" type="button" onClick={onSaveCurrentAsTemplate} disabled={!canSaveCurrentAsTemplate}>
-          <Save size={18} />
-          Save current submission as template
-        </button>
-        {!canSaveCurrentAsTemplate ? (
-          <p className="template-status">Templates work best after the current ad has a title, copy, blog, or tags.</p>
-        ) : null}
-        {status ? <p className="template-status">{status}</p> : null}
-      </div>
+      <section className="template-save-callout" aria-label="Template quick save">
+        <div className="template-save-action">
+          <button className="primary" type="button" onClick={onSaveCurrentAsTemplate} disabled={!canSaveCurrentAsTemplate}>
+            <Save size={20} />
+            Save current submission as template
+          </button>
+          {!canSaveCurrentAsTemplate ? (
+            <p className="template-status">Templates work best after the current ad has a title, copy, blog, or tags.</p>
+          ) : null}
+          {status ? <p className="template-status" role="status">{status}</p> : null}
+        </div>
+        <div className="template-save-copy">
+          <BookOpenCheck size={24} />
+          <div>
+            <strong>Templates help you reuse your best content.</strong>
+            <span>Save your current copy, tags, and media layout as a template to use again anytime.</span>
+          </div>
+        </div>
+        <div className="template-callout-art" aria-hidden="true">
+          <div />
+          <Sparkles size={24} />
+        </div>
+      </section>
 
       <div className="template-workspace-grid">
         <form className="template-form" onSubmit={(event) => onSaveTemplate(event, editor?.getHTML() ?? draft.content)}>
           <div className="template-form-heading">
-            <strong>{editingTemplateId ? "Edit template" : "New template"}</strong>
+            <strong>{editingTemplateId ? "Edit template" : "Create new template"}</strong>
             {editingTemplateId ? (
               <button className="secondary compact-button" type="button" onClick={onClearTemplateDraft}>
                 New template
@@ -213,15 +247,48 @@ export function TemplatesWorkspace({
         </form>
 
         <div className="template-library-panel">
+          <div className="template-library-header">
+            <div>
+              <strong>Your saved templates</strong>
+              <span>{templates.length} template{templates.length === 1 ? "" : "s"}</span>
+            </div>
+            <label className="template-search-field">
+              <Search size={18} />
+              <input
+                aria-label="Search templates"
+                value={templateSearch}
+                onChange={(event) => setTemplateSearch(event.target.value)}
+                placeholder="Search templates..."
+              />
+            </label>
+            <label className="template-sort-field">
+              Sort by
+              <select
+                aria-label="Sort templates"
+                value={templateSort}
+                onChange={(event) => setTemplateSort(event.target.value as "newest" | "oldest" | "name")}
+              >
+                <option value="newest">Newest first</option>
+                <option value="oldest">Oldest first</option>
+                <option value="name">Name</option>
+              </select>
+            </label>
+          </div>
           <TemplateLibrary
             actionLabel="Click to edit"
             emptyText="Save a template, then edit it here or apply it from a new submission."
-            templates={templates}
+            templates={visibleTemplates}
             onApplyTemplate={onEditTemplate}
             onDeleteTemplate={onDeleteTemplate}
+            variant="detailed"
           />
         </div>
       </div>
+
+      <p className="template-info-footer">
+        <ClipboardCheck size={18} />
+        Templates save your body text, tags, and media layout to help you create consistent, high-quality advertisements.
+      </p>
     </section>
   );
 }

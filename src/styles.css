@@ -637,19 +637,6 @@ h2 {
   margin-bottom: 3px;
 }
 
-.editor-template-panel .template-library {
-  margin-top: 0;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-.editor-template-panel .template-card-main {
-  min-height: 122px;
-}
-
-.editor-template-panel .template-preview {
-  max-height: 3.2rem;
-}
-
 .type-picker {
   padding: 4px;
   border: 1px solid var(--line);
@@ -2931,14 +2918,6 @@ pre {
   line-height: 1.4;
 }
 
-.template-actions {
-  margin-bottom: 16px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
 .documentation-workspace {
   display: grid;
   gap: 18px;
@@ -2989,13 +2968,6 @@ pre {
   line-height: 1.45;
 }
 
-.template-status {
-  margin: 0;
-  color: var(--muted);
-  font-size: 0.84rem;
-  font-weight: 700;
-}
-
 .account-ready-panel {
   margin: 14px 0;
   padding: 14px;
@@ -3019,138 +2991,6 @@ pre {
   color: var(--muted);
   font-size: 0.86rem;
   font-weight: 700;
-}
-
-.template-form {
-  display: grid;
-  gap: 14px;
-  padding: 14px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #f8fafb;
-}
-
-.template-form-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.template-workspace-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  align-items: start;
-  gap: 14px;
-}
-
-.template-library-panel {
-  min-width: 0;
-}
-
-.template-form textarea {
-  min-height: 120px;
-}
-
-.template-editor-field {
-  display: grid;
-  gap: 7px;
-  color: #384151;
-  font-size: 0.9rem;
-  font-weight: 700;
-}
-
-.template-composer {
-  overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #fff;
-}
-
-.template-body-field {
-  padding: 12px;
-}
-
-.template-rich-editor {
-  min-height: 150px;
-}
-
-.template-library {
-  margin-top: 0;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.template-card {
-  display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #fff;
-  overflow: hidden;
-}
-
-.template-card-main {
-  width: 100%;
-  min-height: 168px;
-  padding: 12px;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.template-card-main:hover,
-.template-card-main:focus-visible {
-  background: #edf5f7;
-  color: var(--ink);
-  outline: none;
-}
-
-.template-card-main strong,
-.template-card-main span {
-  display: block;
-}
-
-.template-card-main span,
-.template-preview {
-  color: var(--muted);
-  font-size: 0.84rem;
-}
-
-.template-card-main span {
-  margin-top: 3px;
-}
-
-.template-preview {
-  max-height: 4.6rem;
-  margin: 8px 0 0;
-  overflow: hidden;
-  line-height: 1.45;
-}
-
-.template-preview p {
-  margin: 0 0 0.65rem;
-}
-
-.template-preview strong {
-  display: inline;
-}
-
-.template-preview a {
-  color: #2e8fa3;
-}
-
-.template-card-actions {
-  padding: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  border-top: 1px solid var(--line);
-  background: #fbfbfb;
 }
 
 .draft-row {
@@ -3495,8 +3335,6 @@ html[data-theme="dark"] .submission-queue-panel,
 html[data-theme="dark"] .draft-table,
 html[data-theme="dark"] .templates-workspace,
 html[data-theme="dark"] .workflow-section,
-html[data-theme="dark"] .template-card,
-html[data-theme="dark"] .template-composer,
 html[data-theme="dark"] .queue-management-row,
 html[data-theme="dark"] .account-session-row,
 html[data-theme="dark"] .runner-log-run,
@@ -3524,8 +3362,6 @@ html[data-theme="dark"] .queue-management-form,
 html[data-theme="dark"] .runner-browser-settings,
 html[data-theme="dark"] .queue-monitor-stat,
 html[data-theme="dark"] .runner-log-run-summary,
-html[data-theme="dark"] .template-form,
-html[data-theme="dark"] .template-card-actions,
 html[data-theme="dark"] .media-library-panel,
 html[data-theme="dark"] .media-library-asset,
 html[data-theme="dark"] .tumblr-tag-panel,
@@ -3880,24 +3716,10 @@ html[data-theme="dark"] .tumblr-editor-tools button:focus-visible,
 html[data-theme="dark"] .tumblr-editor-tools button.active,
 html[data-theme="dark"] .tumblr-thank-you h2,
 html[data-theme="dark"] .tumblr-photo-stage strong,
-html[data-theme="dark"] .template-card-main,
 html[data-theme="dark"] .draft-row strong,
 html[data-theme="dark"] .queue-item strong,
 html[data-theme="dark"] .runner-log-run-summary {
   color: var(--ink);
-}
-
-html[data-theme="dark"] .template-card-main:hover,
-html[data-theme="dark"] .template-card-main:focus-visible {
-  background: #172633;
-  color: #eef4f7;
-}
-
-html[data-theme="dark"] .template-card-main:hover span,
-html[data-theme="dark"] .template-card-main:hover .template-preview,
-html[data-theme="dark"] .template-card-main:focus-visible span,
-html[data-theme="dark"] .template-card-main:focus-visible .template-preview {
-  color: #b8c8d2;
 }
 
 html[data-theme="dark"] .docs-intro,
@@ -4103,10 +3925,7 @@ html[data-theme="dark"] .selected-tags button {
   .submit-target-manager,
   .tag-grid,
   .tumblr-composer-header,
-  .tumblr-tag-grid,
-  .editor-template-panel .template-library,
-  .template-workspace-grid,
-  .template-library {
+  .tumblr-tag-grid {
     grid-template-columns: 1fr;
   }
 
