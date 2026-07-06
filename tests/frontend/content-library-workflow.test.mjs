@@ -258,7 +258,7 @@ test("content library rows can queue a saved submission", { timeout: 40000 }, as
   await page.getByRole("button", { name: "Operations", exact: true }).click();
   await page.getByRole("heading", { name: "Operations dashboard", level: 1 }).waitFor();
   await page.getByLabel("Content readiness").getByText("3 drafts available").waitFor();
-  await page.getByLabel("Operations dashboard").getByText("Local runner offline").waitFor();
+  await page.getByLabel("Runner focus").getByText("Queue needs content").waitFor();
   await openWorkspaceView(page, "Content Library");
   const savedRow = page.locator(".draft-row").filter({ has: page.locator("strong", { hasText: "Saved queue post" }) });
   await savedRow.getByText("Type").waitFor();
@@ -290,6 +290,9 @@ test("content library rows can queue a saved submission", { timeout: 40000 }, as
   await page.getByRole("heading", { name: "Saved queue post", level: 1 }).waitFor();
   assert.equal(await page.getByRole("status").getByText("Thank you!").count(), 0);
   await openWorkspaceView(page, "Content Library");
+  await page.getByLabel("Library command center").getByText("2 ready, 1 need edits, 0 archived.").waitFor();
+  await page.getByLabel("Library command center").getByRole("button", { name: "Queue All Ready" }).waitFor();
+  await page.getByLabel("Library command center").getByRole("button", { name: "Create New Advertisement" }).waitFor();
   await page.getByLabel("Batch prep assistant").getByText("2 ready to queue - 1 need edits").waitFor();
   await page.getByLabel("Duplicate content check").getByText("2 possible duplicates in 1 group").waitFor();
   await page.getByLabel("Duplicate review workflow").getByRole("button", { name: "Edit first" }).waitFor();

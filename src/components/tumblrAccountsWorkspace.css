@@ -1,0 +1,99 @@
+.account-overview-panel {
+  margin-bottom: 14px;
+  padding: 16px;
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto auto;
+  align-items: center;
+  gap: 16px;
+  border: 1px solid rgba(46, 143, 163, 0.18);
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 12px 28px rgba(27, 30, 36, 0.06);
+}
+
+.account-overview-panel span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.account-overview-panel h3 {
+  margin: 2px 0 4px;
+  color: var(--text);
+  font-size: 1.22rem;
+}
+
+.account-overview-panel p {
+  margin: 0;
+  max-width: 720px;
+  color: var(--muted);
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.account-overview-stats,
+.account-overview-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.account-overview-stats article {
+  min-width: 86px;
+  padding: 10px;
+  display: grid;
+  gap: 2px;
+  border: 1px solid rgba(46, 143, 163, 0.13);
+  border-radius: 8px;
+  background: #f8fafb;
+}
+
+.account-overview-stats strong {
+  color: var(--text);
+  font-size: 1.28rem;
+  line-height: 1;
+}
+
+.account-overview-stats article.ready {
+  border-color: rgba(67, 155, 107, 0.28);
+  background: #eefbf4;
+}
+
+.account-overview-stats article.warning {
+  border-color: rgba(215, 168, 68, 0.34);
+  background: #fff8df;
+}
+
+html[data-theme="dark"] .account-overview-panel {
+  border-color: rgba(95, 179, 197, 0.16);
+  background: #151d28;
+}
+
+html[data-theme="dark"] .account-overview-stats article {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: #1f2730;
+}
+
+html[data-theme="dark"] .account-overview-stats article.ready {
+  background: #10231d;
+}
+
+html[data-theme="dark"] .account-overview-stats article.warning {
+  background: #241f13;
+}
+
+@media (max-width: 1120px) {
+  .account-overview-panel {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+}
+
+@media (max-width: 720px) {
+  .account-overview-panel {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+}

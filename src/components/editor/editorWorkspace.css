@@ -1,9 +1,71 @@
 .editor-surface {
   padding: 18px;
   display: grid;
-  gap: 12px;
+  gap: 16px;
   border: 0;
   background: transparent;
+}
+
+.editor-sticky-toolbar {
+  position: sticky;
+  top: 12px;
+  z-index: 8;
+  min-width: 0;
+  padding: 10px 12px;
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(180px, 280px) auto;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid rgba(46, 143, 163, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 14px 30px rgba(27, 30, 36, 0.1);
+  backdrop-filter: blur(12px);
+}
+
+.editor-sticky-title,
+.editor-sticky-progress {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.editor-sticky-title span,
+.editor-sticky-progress span {
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.editor-sticky-title strong {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 0.98rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.editor-progress-track {
+  height: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(46, 143, 163, 0.13);
+}
+
+.editor-progress-track i {
+  height: 100%;
+  display: block;
+  border-radius: inherit;
+  background: var(--green);
+}
+
+.editor-sticky-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .editor-notebook-intro {
@@ -166,6 +228,24 @@
   gap: 0.45rem;
 }
 
+.editor-surface .quality-check {
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgba(215, 168, 68, 0.34);
+  border-radius: 999px;
+  background: #fff9e8;
+  color: #755912;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.editor-surface .quality-check.ready {
+  border-color: rgba(67, 155, 107, 0.32);
+  background: #eefbf4;
+  color: #1f6d4a;
+}
+
 .editor-surface .tumblr-submit-shell {
   overflow: hidden;
   border: 0;
@@ -224,6 +304,11 @@ html[data-theme="dark"] .editor-surface {
   background: transparent;
 }
 
+html[data-theme="dark"] .editor-sticky-toolbar {
+  border-color: rgba(95, 179, 197, 0.2);
+  background: rgba(21, 29, 40, 0.94);
+}
+
 html[data-theme="dark"] .editor-notebook-intro,
 html[data-theme="dark"] .editor-surface .workflow-section,
 html[data-theme="dark"] .editor-surface .quality-checklist,
@@ -252,6 +337,33 @@ html[data-theme="dark"] .editor-surface .preview-mode-switcher span.active {
   border-color: #375c6b;
   background: #183242;
   color: var(--ink);
+}
+
+html[data-theme="dark"] .editor-surface .quality-check {
+  border-color: rgba(215, 168, 68, 0.3);
+  background: #2c2411;
+  color: #efcf84;
+}
+
+html[data-theme="dark"] .editor-surface .quality-check.ready {
+  border-color: rgba(67, 155, 107, 0.3);
+  background: #10231d;
+  color: #90c9ab;
+}
+
+@media (max-width: 980px) {
+  .editor-sticky-toolbar {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .editor-sticky-actions {
+    justify-content: stretch;
+  }
+
+  .editor-sticky-actions > button {
+    flex: 1;
+  }
 }
 
 @media (max-width: 720px) {

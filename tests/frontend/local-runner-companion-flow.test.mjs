@@ -32,7 +32,10 @@ test("local companion run errors do not fall back to copied runner commands", { 
   const page = await browser.newPage();
   let localCommandRequestCount = 0;
 
-  await routeRunnerWorkspace(page);
+  await routeRunnerWorkspace(page, {
+    accounts: [apiTumblrAccount()],
+    runnerSettings: { mediaDir: "", slowMo: 500, headless: true, submit: true, tumblrAccountId: "tumblr-runner" },
+  });
   await page.addInitScript(() => {
     localStorage.setItem(
       "inwell-ad-assistant-state",
@@ -129,6 +132,8 @@ test("normal runner actions stop when queued items need review", { timeout: 4000
   let localCommandRequestCount = 0;
 
   await routeRunnerWorkspace(page, {
+    accounts: [apiTumblrAccount()],
+    runnerSettings: { mediaDir: "", slowMo: 500, headless: true, submit: true, tumblrAccountId: "tumblr-runner" },
     queueItems: [
       defaultApiQueueItem({ id: "queue-ready", status: "queued" }),
       defaultApiQueueItem({ id: "queue-failed", status: "failed", notes: "Runner failed." }),
@@ -159,13 +164,15 @@ test("normal runner actions stop when queued items need review", { timeout: 4000
 
   await page.goto(appUrl);
   await openWorkspaceView(page, "Runner");
-  await page.getByLabel("Runner controls").getByRole("button", { name: "Test run", exact: true }).click();
-  await page.getByText("Review failed or needs-review submissions before starting the runner.").waitFor();
+  const runnerControls = page.getByLabel("Runner controls");
+  assert.equal(await runnerControls.getByRole("button", { name: "Run", exact: true }).isDisabled(), true);
+  assert.equal(await runnerControls.getByRole("button", { name: "Test run", exact: true }).isDisabled(), true);
+  await page.getByLabel("Runner status").getByRole("heading", { name: "Automation needs queue review" }).waitFor();
   assert.equal(companionRunRequestCount, 0);
   assert.equal(localCommandRequestCount, 0);
 });
 
-test("offline live runs copy a command and warn that Discord will not post yet", { timeout: 40000 }, async (t) => {
+test("unavailable companion live run copies a live local command fallback", { timeout: 40000 }, async (t) => {
   const server = spawn("npx vite --host 127.0.0.1 --port 8123 --strictPort", {
     cwd: process.cwd(),
     shell: true,
@@ -198,7 +205,9 @@ test("offline live runs copy a command and warn that Discord will not post yet",
     });
   });
   await routeRunnerWorkspace(page, {
-    runnerSettings: { mediaDir: "", slowMo: 500, headless: true, submit: true, tumblrAccountId: "", discordWebhookConfigured: true },
+    accounts: [apiTumblrAccount()],
+    runnerOnline: false,
+    runnerSettings: { mediaDir: "", slowMo: 500, headless: true, submit: true, tumblrAccountId: "tumblr-runner", discordWebhookConfigured: true },
   });
   await page.route("http://127.0.0.1:17842/status", (route) => route.abort());
   await page.route("http://127.0.0.1:17842/run", (route) => {
@@ -226,17 +235,19 @@ test("offline live runs copy a command and warn that Discord will not post yet",
   await page.goto(appUrl);
   await openWorkspaceView(page, "Runner");
   const localCommandResponse = page.waitForResponse((response) => response.url().includes("/api/runner/local-command"));
-  await page.getByLabel("Runner controls").getByRole("button", { name: "Run", exact: true }).click();
+  const runnerControls = page.getByLabel("Runner controls");
+  assert.equal(await runnerControls.getByRole("button", { name: "Run", exact: true }).isDisabled(), false);
+  assert.equal(await runnerControls.getByRole("button", { name: "Test run", exact: true }).isDisabled(), false);
+  await runnerControls.getByRole("button", { name: "Run", exact: true }).click();
   await localCommandResponse;
 
-  await page.getByText("Local runner command copied.").waitFor();
-  await page.getByText("Local companion was not detected on this computer, so the queue was not started and Discord will not post until a live local runner command runs.").waitFor();
+  await page.getByText("Local runner command copied. Local companion was not detected on this computer, so the queue was not started", { exact: false }).waitFor();
   assert.equal(localCommandSubmit, "true");
   assert.equal(companionRunRequestCount, 0);
   assert.match(await page.evaluate(() => window.__copiedText), /--submit/);
 });
 
-test("offline test runs copy a prep command without the live Discord warning", { timeout: 40000 }, async (t) => {
+test("unavailable companion test run copies a prep local command fallback", { timeout: 40000 }, async (t) => {
   const server = spawn("npx vite --host 127.0.0.1 --port 8123 --strictPort", {
     cwd: process.cwd(),
     shell: true,
@@ -269,7 +280,9 @@ test("offline test runs copy a prep command without the live Discord warning", {
     });
   });
   await routeRunnerWorkspace(page, {
-    runnerSettings: { mediaDir: "", slowMo: 500, headless: true, submit: true, tumblrAccountId: "", discordWebhookConfigured: true },
+    accounts: [apiTumblrAccount()],
+    runnerOnline: false,
+    runnerSettings: { mediaDir: "", slowMo: 500, headless: true, submit: false, tumblrAccountId: "tumblr-runner", discordWebhookConfigured: true },
   });
   await page.route("http://127.0.0.1:17842/status", (route) => route.abort());
   await page.route("http://127.0.0.1:17842/run", (route) => {
@@ -297,11 +310,13 @@ test("offline test runs copy a prep command without the live Discord warning", {
   await page.goto(appUrl);
   await openWorkspaceView(page, "Runner");
   const localCommandResponse = page.waitForResponse((response) => response.url().includes("/api/runner/local-command"));
-  await page.getByLabel("Runner controls").getByRole("button", { name: "Test run", exact: true }).click();
+  const runnerControls = page.getByLabel("Runner controls");
+  assert.equal(await runnerControls.getByRole("button", { name: "Run", exact: true }).isDisabled(), false);
+  assert.equal(await runnerControls.getByRole("button", { name: "Test run", exact: true }).isDisabled(), false);
+  await runnerControls.getByRole("button", { name: "Test run", exact: true }).click();
   await localCommandResponse;
 
-  await page.getByText("Local runner command copied.").waitFor();
-  await page.getByText("Local companion was not detected on this computer, so the test run was not started.").waitFor();
+  await page.getByText("Local runner command copied. Local companion was not detected on this computer, so the test run was not started.", { exact: false }).waitFor();
   await page.getByText("Discord will not post until a live local runner command runs.", { exact: false }).waitFor({ state: "detached" });
   assert.equal(localCommandSubmit, "false");
   assert.equal(companionRunRequestCount, 0);
@@ -608,7 +623,7 @@ function apiTumblrAccount(overrides = {}) {
     blog_name: "runnerblog",
     user_data_dir: "C:/tumblr/runner",
     status: "connected",
-    last_checked_at: "2026-06-20T00:00:00.000Z",
+    last_checked_at: new Date().toISOString(),
     last_login_at: "2026-06-20T00:00:00.000Z",
     notes: "",
     updated_at: "2026-06-20T00:00:00.000Z",

@@ -2526,6 +2526,11 @@ pre {
   display: block;
 }
 
+.batch-prep-panel svg {
+  margin-bottom: 6px;
+  color: var(--green);
+}
+
 .batch-prep-panel span {
   margin-top: 3px;
   color: var(--muted);
@@ -3970,6 +3975,7 @@ html[data-theme="dark"] .selected-tags button {
   .content-calendar-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
 }
 
 @media (max-width: 720px) {

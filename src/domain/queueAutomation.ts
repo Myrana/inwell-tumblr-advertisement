@@ -15,6 +15,7 @@ export type QueueStatusCounts = Record<SubmissionStatus, number>;
 
 export type QueueReadiness = {
   canRun: boolean;
+  scheduledCanRun: boolean;
   status: "ready" | "blocked" | "empty" | "review";
   title: string;
   detail: string;
@@ -23,6 +24,14 @@ export type QueueReadiness = {
     view: WorkspaceView;
   };
   blockers: string[];
+};
+
+export type RunnerExecutionReadiness = {
+  ready: boolean;
+  manualCanRun: boolean;
+  scheduledCanRun: boolean;
+  title: string;
+  detail: string;
 };
 
 export type QueueRefillResult = {
@@ -73,26 +82,40 @@ export function queueReadiness(options: {
   activeQueue: SubmissionQueueItem[];
   connectedAccountCount: number;
   runnerActivity: RunnerActivity;
-  runnerReady?: boolean;
+  scheduledRunnerReady?: boolean;
+  scheduledRunnerDetail?: string;
+  accountBlocker?: string;
+  selectedConnectedAccount?: boolean;
   savedDraftCount: number;
   submitApproved: boolean;
 }): QueueReadiness {
+  const executionReadiness = runnerExecutionReadiness({
+    activeQueueName: options.activeQueueName,
+    activeQueue: options.activeQueue,
+    connectedAccountCount: options.connectedAccountCount,
+    scheduledRunnerReady: options.scheduledRunnerReady ?? !["Offline", "Needs attention"].includes(options.runnerActivity.status),
+    scheduledRunnerDetail: options.scheduledRunnerDetail ?? options.runnerActivity.detail,
+    accountBlocker: options.accountBlocker,
+    selectedConnectedAccount: options.selectedConnectedAccount,
+  });
   const runnableCount = automationRunnableQueueItems(options.activeQueue).length;
   const attentionCount = attentionQueueItems(options.activeQueue).length;
   const blockers: string[] = [];
-  const runnerReady = options.runnerReady ?? !["Offline", "Needs attention"].includes(options.runnerActivity.status);
+  const accountReady = options.selectedConnectedAccount ?? options.connectedAccountCount > 0;
 
   if (!options.activeQueueName) {
     blockers.push("Create or select a queue.");
   }
   if (!options.connectedAccountCount) {
     blockers.push("Connect a Tumblr account.");
+  } else if (!accountReady) {
+    blockers.push(options.accountBlocker || "Select a connected Tumblr account.");
   }
   if (!runnableCount) {
     blockers.push("Add queued or scheduled submissions.");
   }
-  if (!runnerReady) {
-    blockers.push("Start or repair the local runner.");
+  if (!executionReadiness.scheduledCanRun) {
+    blockers.push("Start or repair the local runner for scheduled automation.");
   }
 
   if (attentionCount > 0) {
@@ -103,6 +126,7 @@ export function queueReadiness(options: {
       title: `${attentionCount} item${attentionCount === 1 ? "" : "s"} need review`,
       detail: "Clear failed or review-needed submissions before relying on automation.",
       primaryAction: { label: "Review queue", view: "queue" },
+      scheduledCanRun: false,
       blockers,
     };
   }
@@ -114,28 +138,96 @@ export function queueReadiness(options: {
       title: "Queue needs content",
       detail: options.savedDraftCount ? "Queue saved drafts before starting the runner." : "Create saved content before building a queue.",
       primaryAction: { label: options.savedDraftCount ? "Open content" : "New submission", view: options.savedDraftCount ? "saved" : "editor" },
+      scheduledCanRun: false,
       blockers,
     };
   }
 
-  if (blockers.length) {
+  if (!executionReadiness.manualCanRun) {
+    const blockerDetail = blockers[0] ?? executionReadiness.detail;
     return {
       canRun: false,
       status: "blocked",
-      title: "Run blocked",
-      detail: blockers[0],
-      primaryAction: { label: blockers[0].includes("Tumblr") ? "Manage accounts" : "Open queue", view: blockers[0].includes("Tumblr") ? "accounts" : "queue" },
+      title: executionReadiness.title,
+      detail: blockerDetail,
+      primaryAction: { label: blockerDetail.includes("Tumblr") ? "Manage accounts" : "Open queue", view: blockerDetail.includes("Tumblr") ? "accounts" : "queue" },
+      scheduledCanRun: false,
       blockers,
     };
   }
 
   return {
     canRun: true,
-    status: "ready",
+    status: executionReadiness.scheduledCanRun ? "ready" : "blocked",
     title: options.submitApproved ? "Ready for live run" : "Ready for test run",
-    detail: options.submitApproved ? `${runnableCount} runnable item${runnableCount === 1 ? "" : "s"} can post.` : "Live posting is off; the runner will prepare items for review.",
+    detail: executionReadiness.scheduledCanRun
+      ? options.submitApproved ? `${runnableCount} runnable item${runnableCount === 1 ? "" : "s"} can post.` : "Live posting is off; the runner will prepare items for review."
+      : `${options.scheduledRunnerDetail || "Local runner needs attention."} Manual run controls remain available.`,
     primaryAction: { label: "Open runner", view: "runner" },
+    scheduledCanRun: executionReadiness.scheduledCanRun,
     blockers: [],
+  };
+}
+
+export function runnerExecutionReadiness(options: {
+  activeQueueName: string;
+  activeQueue: SubmissionQueueItem[];
+  connectedAccountCount: number;
+  scheduledRunnerReady: boolean;
+  scheduledRunnerDetail: string;
+  accountBlocker?: string;
+  selectedAccountName?: string;
+  selectedConnectedAccount?: boolean;
+}): RunnerExecutionReadiness {
+  const runnableCount = automationRunnableQueueItems(options.activeQueue).length;
+  const attentionCount = attentionQueueItems(options.activeQueue).length;
+  const selectedAccountReady = options.selectedConnectedAccount ?? options.connectedAccountCount > 0;
+  const selectedAccountName = options.selectedAccountName || "Selected account";
+  const manualCanRun = Boolean(selectedAccountReady && runnableCount > 0 && attentionCount === 0);
+  const scheduledCanRun = manualCanRun && options.scheduledRunnerReady;
+
+  if (!selectedAccountReady) {
+    return {
+      ready: false,
+      manualCanRun: false,
+      scheduledCanRun: false,
+      title: "Automation needs a selected Tumblr account",
+      detail: options.accountBlocker || "Choose a connected account before starting queue automation.",
+    };
+  }
+  if (attentionCount > 0) {
+    return {
+      ready: false,
+      manualCanRun: false,
+      scheduledCanRun: false,
+      title: "Automation needs queue review",
+      detail: `Clear ${attentionCount} failed or review-needed item${attentionCount === 1 ? "" : "s"} before running ${options.activeQueueName || "the selected queue"}.`,
+    };
+  }
+  if (runnableCount === 0) {
+    return {
+      ready: false,
+      manualCanRun: false,
+      scheduledCanRun: false,
+      title: "Automation needs queued advertisements",
+      detail: `Add ready advertisements to ${options.activeQueueName || "the selected queue"} before starting the runner.`,
+    };
+  }
+  if (!options.scheduledRunnerReady) {
+    return {
+      ready: false,
+      manualCanRun: true,
+      scheduledCanRun: false,
+      title: "Automation needs local runner recovery",
+      detail: options.scheduledRunnerDetail,
+    };
+  }
+  return {
+    ready: true,
+    manualCanRun: true,
+    scheduledCanRun: true,
+    title: "Automation is ready to watch the queue",
+    detail: `${selectedAccountName} can run ${runnableCount} queued advertisement${runnableCount === 1 ? "" : "s"}.`,
   };
 }
 

@@ -116,6 +116,7 @@ export function EditorWorkspace({
   const selectedTargetSummary = activeSubmitTarget.id
     ? `${activeSubmitTarget.name} - ${activeSubmitTarget.submitUrl}`
     : "No blog selected";
+  const readinessPercent = Math.round(readiness.percent);
   const { clearPreview, openPreview, previewTargets } = useQueuePreview();
   const previewableTargets = targetOptions.filter((target) => target.id && target.submitUrl);
 
@@ -136,9 +137,39 @@ export function EditorWorkspace({
     clearPreview();
   }
 
+  function sectionForQualityCheck(label: string): WorkflowSectionKey {
+    if (label === "Submission name" || label === "Target blog" || label === "Forum link") {
+      return "details";
+    }
+    return "composer";
+  }
+
   return (
     <div className="workspace-grid editor-only">
       <section className="editor-surface" id="editor" aria-label="Advertisement editor">
+        <div className="editor-sticky-toolbar" aria-label="Editor command toolbar">
+          <div className="editor-sticky-title">
+            <span>{saveStatus || "Autosaves as you write"}</span>
+            <strong>{activeAd.title || "Untitled advertisement"}</strong>
+          </div>
+          <div className="editor-sticky-progress" aria-label="Editor completion">
+            <span>{readinessPercent}% complete</span>
+            <div className="editor-progress-track" aria-hidden="true">
+              <i style={{ width: `${readinessPercent}%` }} />
+            </div>
+          </div>
+          <div className="editor-sticky-actions">
+            <button className="secondary compact-button" type="button" onClick={() => openPreview([activeSubmitTarget])} disabled={!queueReady}>
+              <Eye size={16} />
+              Preview
+            </button>
+            <button className="primary compact-button" type="button" onClick={() => openPreview([activeSubmitTarget])} disabled={!queueReady}>
+              <Send size={16} />
+              Queue
+            </button>
+          </div>
+        </div>
+
         <div className="editor-notebook-intro">
           <div>
             <span>Advertisement notebook</span>
@@ -316,9 +347,14 @@ export function EditorWorkspace({
           </div>
           <div className="quality-checklist-grid">
             {qualityChecks.map((check) => (
-              <span key={check.label} className={check.ready ? "quality-check ready" : "quality-check"}>
+              <button
+                key={check.label}
+                className={check.ready ? "quality-check ready" : "quality-check"}
+                type="button"
+                onClick={() => setSectionOpen(sectionForQualityCheck(check.label), true)}
+              >
                 {check.label}
-              </span>
+              </button>
             ))}
           </div>
         </section>

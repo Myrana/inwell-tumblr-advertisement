@@ -4,6 +4,78 @@
   gap: 8px;
 }
 
+.runner-mission-summary {
+  margin-bottom: 14px;
+  padding: 16px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 16px;
+  border: 1px solid rgba(46, 143, 163, 0.18);
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 12px 28px rgba(27, 30, 36, 0.06);
+}
+
+.runner-mission-summary article {
+  min-width: 0;
+  padding: 10px;
+  display: grid;
+  gap: 2px;
+  border: 1px solid rgba(46, 143, 163, 0.13);
+  border-radius: 8px;
+  background: #f8fafb;
+}
+
+.runner-mission-summary strong {
+  color: var(--text);
+  font-size: 1.28rem;
+  line-height: 1;
+}
+
+.runner-mission-summary article.ready {
+  border-color: rgba(67, 155, 107, 0.28);
+  background: #eefbf4;
+}
+
+.runner-diagnostics-panel {
+  align-self: start;
+}
+
+.runner-diagnostics-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.runner-diagnostics-list article {
+  min-width: 0;
+  padding: 10px;
+  display: grid;
+  gap: 4px;
+  border: 1px solid rgba(215, 168, 68, 0.32);
+  border-left: 4px solid var(--amber);
+  border-radius: 8px;
+  background: #fffaf0;
+}
+
+.runner-diagnostics-list article.ready {
+  border-color: rgba(67, 155, 107, 0.28);
+  border-left-color: var(--green);
+  background: #f2fbf6;
+}
+
+.runner-diagnostics-list strong,
+.runner-diagnostics-list span {
+  overflow-wrap: anywhere;
+}
+
+.runner-diagnostics-list span {
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
 .runner-flow-step {
   min-width: 0;
   min-height: 92px;
@@ -67,6 +139,25 @@ html[data-theme="dark"] .runner-flow-step {
   background: rgba(44, 36, 21, 0.72);
 }
 
+html[data-theme="dark"] .runner-mission-summary {
+  border-color: rgba(95, 179, 197, 0.16);
+  background: #151d28;
+}
+
+html[data-theme="dark"] .runner-mission-summary article {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: #1f2730;
+}
+
+html[data-theme="dark"] .runner-mission-summary article.ready,
+html[data-theme="dark"] .runner-diagnostics-list article.ready {
+  background: #10231d;
+}
+
+html[data-theme="dark"] .runner-diagnostics-list article {
+  background: #241f13;
+}
+
 html[data-theme="dark"] .runner-flow-step.ready {
   background: rgba(18, 43, 34, 0.78);
 }
@@ -83,10 +174,21 @@ html[data-theme="dark"] .runner-flow-step.blocked {
   .runner-flow-strip {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .runner-mission-summary,
+  .runner-diagnostics-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 720px) {
   .runner-flow-strip {
     grid-template-columns: 1fr;
+  }
+
+  .runner-mission-summary,
+  .runner-diagnostics-list {
+    grid-template-columns: 1fr;
+    align-items: stretch;
   }
 }

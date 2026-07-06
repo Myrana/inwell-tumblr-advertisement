@@ -1,11 +1,11 @@
 .sidebar {
   min-height: 100vh;
-  padding: 18px 16px;
+  padding: 20px 16px;
   background: #17202a;
   color: #f8fbfc;
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 22px;
 }
 
 .sidebar .brand,
@@ -72,27 +72,27 @@
 
 .sidebar .nav-list {
   display: grid;
-  gap: 18px;
+  gap: 22px;
 }
 
 .sidebar .nav-group {
   display: grid;
-  gap: 6px;
+  gap: 7px;
 }
 
 .sidebar .nav-group-label {
-  padding: 0 9px;
-  color: #7f919d;
-  font-size: 0.64rem;
+  padding: 0 10px;
+  color: #728390;
+  font-size: 0.62rem;
   font-weight: 900;
   letter-spacing: 0;
   text-transform: uppercase;
 }
 
 .sidebar .nav-list button {
-  min-height: 38px;
-  gap: 9px;
-  padding: 0 10px;
+  min-height: 40px;
+  gap: 10px;
+  padding: 0 11px;
   border: 0;
   border-radius: 8px;
   background: transparent;
@@ -105,12 +105,17 @@
 
 .sidebar .nav-list button svg {
   flex: 0 0 auto;
+  color: #9fb2bf;
 }
 
 .sidebar .nav-list button.active {
-  background: #263846;
+  background: linear-gradient(90deg, rgba(46, 143, 163, 0.24), rgba(255, 255, 255, 0.06));
   color: #ffffff;
-  box-shadow: inset 3px 0 0 var(--cyan), 0 8px 18px rgba(0, 0, 0, 0.16);
+  box-shadow: inset 3px 0 0 var(--cyan), 0 8px 18px rgba(0, 0, 0, 0.14);
+}
+
+.sidebar .nav-list button.active svg {
+  color: #8bd4e2;
 }
 
 .sidebar .nav-list button:hover {
