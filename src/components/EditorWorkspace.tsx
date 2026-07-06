@@ -100,6 +100,7 @@ export function EditorWorkspace({
     templates: false,
     composer: true,
   });
+  const [tagSearch, setTagSearch] = useState("");
   const queueBlockers = validateAdvertisement(activeAd);
   const readiness = scoreDraftReadiness(activeAd);
   const detailsReady = Boolean(activeAd.title.trim() && activeAd.destinationBlog.trim() && activeAd.forumUrl.trim());
@@ -119,6 +120,9 @@ export function EditorWorkspace({
   const readinessPercent = Math.round(readiness.percent);
   const { clearPreview, openPreview, previewTargets } = useQueuePreview();
   const previewableTargets = targetOptions.filter((target) => target.id && target.submitUrl);
+  const visibleChecklistTags = checklistTags
+    .filter((tag) => tag.toLowerCase().includes(tagSearch.trim().toLowerCase()))
+    .sort((first, second) => Number(activeAd.tags.includes(second)) - Number(activeAd.tags.includes(first)) || first.localeCompare(second));
 
   function setSectionOpen(section: WorkflowSectionKey, open: boolean) {
     setOpenSections((current) => ({ ...current, [section]: open }));
@@ -540,14 +544,21 @@ export function EditorWorkspace({
                     </div>
 
                     {checklistTags.length ? (
-                      <div className="tumblr-tag-grid">
-                        {checklistTags.map((tag) => (
-                          <label className="tumblr-tag-check" key={tag}>
+                      <>
+                        <label className="tag-search-field">
+                          Search tags
+                          <input value={tagSearch} onChange={(event) => setTagSearch(event.target.value)} placeholder="Filter available tags" />
+                        </label>
+                        <div className="tumblr-tag-grid">
+                        {visibleChecklistTags.map((tag) => (
+                          <label className={activeAd.tags.includes(tag) ? "tumblr-tag-check selected" : "tumblr-tag-check"} key={tag}>
                             <input type="checkbox" checked={activeAd.tags.includes(tag)} onChange={() => onToggleTag(tag)} />
                             {tag}
                           </label>
                         ))}
-                      </div>
+                        </div>
+                        {!visibleChecklistTags.length ? <p className="manual-tag-empty">No saved tags match that search.</p> : null}
+                      </>
                     ) : (
                       <p className="manual-tag-empty">Add tags manually with the custom tag box.</p>
                     )}

@@ -27,6 +27,7 @@
 .operation-card span,
 .run-readiness-copy span,
 .campaign-snapshot-heading span,
+.operations-activity-heading span,
 .content-readiness-heading span,
 .content-readiness-item span {
   color: var(--muted);
@@ -344,6 +345,7 @@
 }
 
 .campaign-snapshot-heading,
+.operations-activity-heading,
 .content-readiness-heading {
   display: flex;
   align-items: center;
@@ -351,12 +353,14 @@
 }
 
 .campaign-snapshot-heading > div,
+.operations-activity-heading > div,
 .content-readiness-heading > div:nth-child(2) {
   min-width: 0;
   flex: 1;
 }
 
 .campaign-snapshot-heading h2,
+.operations-activity-heading h2,
 .content-readiness-heading h2 {
   margin: 2px 0 0;
   color: var(--text);
@@ -409,6 +413,76 @@
 .content-readiness-item small {
   color: var(--muted);
   font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.campaign-readiness-bar {
+  height: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(46, 143, 163, 0.12);
+}
+
+.campaign-readiness-bar i {
+  height: 100%;
+  display: block;
+  border-radius: inherit;
+  background: var(--green);
+}
+
+.operations-activity-panel {
+  padding: 20px;
+  display: grid;
+  gap: 16px;
+  border: 1px solid rgba(46, 143, 163, 0.1);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.operations-activity-list {
+  display: grid;
+  gap: 8px;
+}
+
+.operations-activity-item {
+  min-width: 0;
+  padding: 10px 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  border-top: 1px solid rgba(46, 143, 163, 0.1);
+}
+
+.operations-activity-item > span {
+  width: 10px;
+  height: 10px;
+  margin-top: 5px;
+  border-radius: 999px;
+  background: var(--cyan);
+}
+
+.operations-activity-item.ready > span {
+  background: var(--green);
+}
+
+.operations-activity-item.warning > span {
+  background: var(--amber);
+}
+
+.operations-activity-item.blocked > span {
+  background: var(--coral);
+}
+
+.operations-activity-item strong,
+.operations-activity-item small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.operations-activity-item small {
+  margin-top: 2px;
+  color: var(--muted);
   font-weight: 700;
   line-height: 1.4;
 }
@@ -606,8 +680,14 @@ html[data-theme="dark"] .content-readiness-item small {
 
 html[data-theme="dark"] .campaign-snapshot-list article,
 html[data-theme="dark"] .content-readiness-item,
-html[data-theme="dark"] .attention-queue-list article {
+html[data-theme="dark"] .attention-queue-list article,
+html[data-theme="dark"] .operations-activity-item {
   border-top-color: rgba(255, 255, 255, 0.1);
+}
+
+html[data-theme="dark"] .operations-activity-panel {
+  border-color: rgba(95, 179, 197, 0.16);
+  background: #151d28;
 }
 
 @media (max-width: 1120px) {

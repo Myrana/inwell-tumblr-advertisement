@@ -186,16 +186,35 @@ export function TumblrAccountsWorkspace({
         </button>
       </section>
 
-      {connectedAccount ? (
-        <div className="account-ready-panel" role="status">
+      {connectedAccounts.length ? (
+        <div className={accountReadiness.readyAccount ? "account-ready-panel" : "account-ready-panel warning"} role="status" aria-label="Automation account readiness">
           <div>
-            <strong>{connectedAccount.displayName} is ready</strong>
-            <span>Tumblr is connected. Create content when you are ready to add something to the queue.</span>
+            <strong>
+              {accountReadiness.readyAccount
+                ? `${accountReadiness.readyAccount.displayName} is ready for runner work`
+                : accountReadiness.selectedConnectedAccount
+                  ? `${accountReadiness.selectedConnectedAccount.displayName} needs a fresh login check`
+                  : "Choose a runner account before automation"}
+            </strong>
+            <span>
+              {accountReadiness.readyAccount
+                ? "Tumblr is connected, selected, and ready for queue runs."
+                : accountReadiness.selectedConnectedAccount
+                  ? "The selected account is connected, but its health check is stale. Check saved login before running."
+                  : "A connected account is available, but the runner will not use it until you choose it from Runner account."}
+            </span>
           </div>
-          <button className="primary" type="button" onClick={onCreateSubmission}>
-            <FileText size={18} />
-            Create submission
-          </button>
+          {accountReadiness.readyAccount ? (
+            <button className="primary" type="button" onClick={onCreateSubmission}>
+              <FileText size={18} />
+              Create submission
+            </button>
+          ) : (
+            <button className="secondary" type="button" onClick={onCheckAllLogins}>
+              <ShieldCheck size={18} />
+              Check logins
+            </button>
+          )}
         </div>
       ) : null}
 
@@ -210,6 +229,7 @@ export function TumblrAccountsWorkspace({
                 <span className={`account-status-pill account-status-${account.status}`}>{accountStatusLabel(account)}</span>
                 <strong>{account.displayName}</strong>
                 <span>{account.blogName || account.id}</span>
+                {account.id === selectedAccountId ? <span className="account-selected-pill">Runner account</span> : null}
               </div>
               <div className="queue-item-actions">
                 {account.status === "connected" ? null : (

@@ -273,6 +273,20 @@ export function QueueWorkspace({
         </div>
       </section>
 
+      <section className="queue-pipeline-panel" aria-label="Live queue pipeline">
+        {[
+          { label: "Ready", count: statusCounts.queued + statusCounts.scheduled, ready: statusCounts.queued + statusCounts.scheduled > 0 },
+          { label: "Running", count: statusCounts.running, ready: statusCounts.running > 0 },
+          { label: "Posted", count: statusCounts.posted + statusCounts.submitted, ready: statusCounts.posted + statusCounts.submitted > 0 },
+          { label: "Review", count: statusCounts["needs-review"] + statusCounts.failed, ready: statusCounts["needs-review"] + statusCounts.failed === 0 },
+        ].map((step) => (
+          <article className={step.ready ? "queue-pipeline-step ready" : "queue-pipeline-step"} key={step.label}>
+            <strong>{step.count}</strong>
+            <span>{step.label}</span>
+          </article>
+        ))}
+      </section>
+
       <section className={queueRunnerReady ? "queue-runner-banner ready" : "queue-runner-banner"} aria-label="Queue runner status">
         <div>
           <strong>{queueRunnerBannerTitle}</strong>
@@ -574,7 +588,7 @@ export function QueueWorkspace({
                   </button>
                 </div>
                 {postHistoryCopyStatus ? <p className="queue-status" role="status">{postHistoryCopyStatus}</p> : null}
-                <div className="post-history-list">
+                <div className="post-history-list compact-history">
                   {postHistoryItems.map((item) => {
                     const postedUrl = queueItemPostedUrl(item);
                     const completedAt = item.postedAt || item.updatedAt;

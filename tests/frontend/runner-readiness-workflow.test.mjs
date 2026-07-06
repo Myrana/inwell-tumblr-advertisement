@@ -219,6 +219,8 @@ test("runner flow strip summarizes readiness, live approval, and latest run outc
 
     await page.getByLabel("Runner health summary").getByText("Runner state").waitFor();
     await page.getByLabel("System diagnostics").getByText("Runner version").waitFor();
+    await page.getByLabel("Automation timeline").getByText("Validate queue").waitFor();
+    await page.getByLabel("Automation timeline").getByText("Authenticate Tumblr").waitFor();
     await page.getByLabel("System diagnostics").getByText("Queue integrity").waitFor();
     if (scenario.expected.includes("Runner, account, and queue are ready.")) {
       await page.getByLabel("System diagnostics").getByText("Healthy", { exact: true }).waitFor();

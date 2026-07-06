@@ -66,6 +66,27 @@
   background: #fff8df;
 }
 
+.account-ready-panel.warning {
+  border-color: rgba(215, 168, 68, 0.34);
+  border-left-color: var(--amber);
+  background: #fffaf0;
+}
+
+.account-selected-pill {
+  width: max-content;
+  max-width: 100%;
+  min-height: 24px;
+  padding: 3px 8px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid rgba(67, 155, 107, 0.28);
+  border-radius: 999px;
+  background: #eefbf4;
+  color: #1f6d4a;
+  font-size: 0.74rem;
+  font-weight: 900;
+}
+
 html[data-theme="dark"] .account-overview-panel {
   border-color: rgba(95, 179, 197, 0.16);
   background: #151d28;
@@ -82,6 +103,16 @@ html[data-theme="dark"] .account-overview-stats article.ready {
 
 html[data-theme="dark"] .account-overview-stats article.warning {
   background: #241f13;
+}
+
+html[data-theme="dark"] .account-ready-panel.warning {
+  background: #241f13;
+}
+
+html[data-theme="dark"] .account-selected-pill {
+  border-color: rgba(67, 155, 107, 0.3);
+  background: #10231d;
+  color: #90c9ab;
 }
 
 @media (max-width: 1120px) {

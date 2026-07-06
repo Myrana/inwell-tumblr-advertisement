@@ -258,6 +258,9 @@ export function OperationsDashboard({
               <article key={campaign.name}>
                 <strong>{campaign.name}</strong>
                 <span>{campaign.total} saved - {campaign.ready} ready - {campaign.needsWork} need edits</span>
+                <div className="campaign-readiness-bar" aria-label={`${campaign.name} readiness ${campaign.percent}%`}>
+                  <i style={{ width: `${campaign.percent}%` }} />
+                </div>
                 <small>{campaign.archived} archived - {campaign.queued} queued</small>
               </article>
             ))
@@ -268,6 +271,36 @@ export function OperationsDashboard({
               <small>Assign campaigns from the editor to track batches here.</small>
             </article>
           )}
+        </div>
+      </section>
+
+      <section className="operations-activity-panel" aria-label="Recent activity">
+        <div className="operations-activity-heading">
+          <div>
+            <span>Recent activity</span>
+            <h2>Workspace movement</h2>
+          </div>
+          <button className="text-link" type="button" onClick={() => onNavigate("logs")}>
+            Open logs
+          </button>
+        </div>
+        <div className="operations-activity-list">
+          {buildActivityItems({
+            activeQueueName,
+            attentionItems,
+            connectedAccounts,
+            queuedCount,
+            runnerActivity,
+            savedDraftCount,
+          }).map((item) => (
+            <article className={`operations-activity-item ${item.tone}`} key={item.title}>
+              <span aria-hidden="true" />
+              <div>
+                <strong>{item.title}</strong>
+                <small>{item.detail}</small>
+              </div>
+            </article>
+          ))}
         </div>
       </section>
 
@@ -430,11 +463,11 @@ function friendlyReadinessTitle(title: string) {
 }
 
 function buildCampaignSnapshots(savedDrafts: Advertisement[], queueItems: SubmissionQueueItem[]) {
-  const campaigns = new Map<string, { name: string; total: number; ready: number; needsWork: number; archived: number; queued: number }>();
+  const campaigns = new Map<string, { name: string; total: number; ready: number; needsWork: number; archived: number; queued: number; percent: number }>();
   const queuedAdIds = new Set(queueItems.filter((item) => item.status === "queued" || item.status === "scheduled" || item.status === "running").map((item) => item.adId));
   for (const ad of savedDrafts) {
     const name = ad.campaignName?.trim() || "Unassigned";
-    const current = campaigns.get(name) ?? { name, total: 0, ready: 0, needsWork: 0, archived: 0, queued: 0 };
+    const current = campaigns.get(name) ?? { name, total: 0, ready: 0, needsWork: 0, archived: 0, queued: 0, percent: 0 };
     const ready = isQueueableAdvertisement(ad);
     current.total += 1;
     current.ready += ready ? 1 : 0;
@@ -444,7 +477,55 @@ function buildCampaignSnapshots(savedDrafts: Advertisement[], queueItems: Submis
     campaigns.set(name, current);
   }
 
-  return Array.from(campaigns.values()).sort((first, second) => second.ready - first.ready || second.total - first.total || first.name.localeCompare(second.name));
+  return Array.from(campaigns.values())
+    .map((campaign) => ({ ...campaign, percent: campaign.total ? Math.round((campaign.ready / campaign.total) * 100) : 0 }))
+    .sort((first, second) => second.ready - first.ready || second.total - first.total || first.name.localeCompare(second.name));
+}
+
+function buildActivityItems({
+  activeQueueName,
+  attentionItems,
+  connectedAccounts,
+  queuedCount,
+  runnerActivity,
+  savedDraftCount,
+}: {
+  activeQueueName: string;
+  attentionItems: SubmissionQueueItem[];
+  connectedAccounts: number;
+  queuedCount: number;
+  runnerActivity: RunnerActivity;
+  savedDraftCount: number;
+}) {
+  const items = [
+    {
+      title: savedDraftCount ? `${savedDraftCount} draft${savedDraftCount === 1 ? "" : "s"} available` : "No drafts saved yet",
+      detail: savedDraftCount ? "Review or queue saved advertisements from the content library." : "Write an advertisement to start the workflow.",
+      tone: savedDraftCount ? "ready" : "warning",
+    },
+    {
+      title: queuedCount ? `${queuedCount} queued for ${activeQueueName || "the selected queue"}` : "Queue is empty",
+      detail: queuedCount ? "The runner has runnable submissions waiting." : "Open Queue or Library to move ready ads into a lane.",
+      tone: queuedCount ? "ready" : "warning",
+    },
+    {
+      title: attentionItems.length ? `${attentionItems.length} queue item${attentionItems.length === 1 ? "" : "s"} need review` : "Queue health clear",
+      detail: attentionItems[0]?.notes || (attentionItems.length ? "Review the failed or needs-review submissions." : "No failed or needs-review submissions are visible."),
+      tone: attentionItems.length ? "blocked" : "ready",
+    },
+    {
+      title: `Runner is ${runnerActivity.status.toLowerCase()}`,
+      detail: runnerActivity.detail || "Open Runner controls for live automation state.",
+      tone: runnerActivity.status === "Offline" || runnerActivity.status === "Needs attention" ? "warning" : "ready",
+    },
+    {
+      title: connectedAccounts ? `${connectedAccounts} account${connectedAccounts === 1 ? "" : "s"} connected` : "No Tumblr account connected",
+      detail: connectedAccounts ? "Account path is available for automation." : "Connect an account before live runner work.",
+      tone: connectedAccounts ? "ready" : "blocked",
+    },
+  ];
+
+  return items;
 }
 
 type OperationsHeroProps = {
@@ -618,7 +699,7 @@ function WorkflowPathPanel({
           type="button"
           onClick={() => onNavigate(step.view)}
         >
-          <span>{index + 1}</span>
+          <span>{step.ready ? <CheckCircle2 size={15} /> : index + 1}</span>
           <strong>{step.label}</strong>
           <small>{step.detail}</small>
         </button>

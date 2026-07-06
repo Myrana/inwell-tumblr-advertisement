@@ -36,7 +36,7 @@ export function AppSidebar({
       ],
     },
     {
-      label: "Operate",
+      label: "Operations",
       items: [
         { view: "dashboard", label: "Operations", icon: <Gauge size={18} /> },
         { view: "queue", label: "Queue", icon: <ListChecks size={18} /> },
@@ -47,7 +47,7 @@ export function AppSidebar({
       label: "Setup",
       items: [
         { view: "accounts", label: "Accounts", icon: <ShieldCheck size={18} /> },
-        { view: "queue-settings", label: "Queues", icon: <Settings size={18} /> },
+        { view: "queue-settings", label: "Queues", icon: <ListChecks size={18} /> },
         { view: "settings", label: "Settings", icon: <Settings size={18} /> },
       ],
     },

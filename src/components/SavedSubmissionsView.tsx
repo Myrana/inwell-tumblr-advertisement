@@ -1,10 +1,12 @@
-import { AlertTriangle, Archive, FilePlus2, Layers3, Send } from "lucide-react";
+import { AlertTriangle, Archive, FilePlus2, GalleryHorizontal, Layers3, List, Search, Send } from "lucide-react";
 import { useState } from "react";
 import { SavedSubmissionsList } from "./SavedSubmissionsList";
 import {
   ArchiveFilter,
   CampaignFilterKey,
   LibrarySortMode,
+  LibraryViewMode,
+  LibraryWorkFilter,
   buildSavedSubmissionsViewModel,
   campaignReadinessSummary,
 } from "./savedSubmissionsViewModel";
@@ -42,6 +44,9 @@ export function SavedSubmissionsView({
   const [batchQueueName, setBatchQueueName] = useState(activeQueueName || queueOptions[0]?.name || "");
   const [selectedDraftIds, setSelectedDraftIds] = useState<string[]>([]);
   const [sortMode, setSortMode] = useState<LibrarySortMode>("updated-desc");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [viewMode, setViewMode] = useState<LibraryViewMode>("comfortable");
+  const [workFilter, setWorkFilter] = useState<LibraryWorkFilter>("all");
   const {
     activeLibraryAds,
     archivedAds,
@@ -49,23 +54,36 @@ export function SavedSubmissionsView({
     duplicateItemCount,
     duplicateMatches,
     duplicateMatchesByAdId,
+    displayedLibraryAdIds,
+    displayedLibraryCount,
+    displayedNeedsWorkCount,
+    displayedReadyCount,
     libraryAds,
     needsWorkCount,
-    batchQueueDrafts,
     queueableAdIds,
     readyAds,
-    selectedCampaignAds,
     selectedCampaignLabel,
-    selectedLibraryCount,
-    selectedNeedsWorkCount,
-    selectedReadyAds,
+    selectedDisplayedCount,
+    selectedReadyDraftCount,
+    selectedReadyDrafts,
     sortedLibraryAds,
+    sortedReadyAds,
     unassignedAds,
     visibleLibraryAds,
-  } = buildSavedSubmissionsViewModel(ads, selectedCampaignKey, archiveFilter, sortMode, selectedDraftIds);
+    searchTerm: normalizedSearchTerm,
+  } = buildSavedSubmissionsViewModel(ads, selectedCampaignKey, archiveFilter, sortMode, selectedDraftIds, searchTerm, workFilter);
+  const selectedQueueableCount = selectedReadyDraftCount;
 
   function toggleDraftSelection(adId: string, selected: boolean) {
     setSelectedDraftIds((current) => (selected ? Array.from(new Set([...current, adId])) : current.filter((id) => id !== adId)));
+  }
+
+  function reviewIncompleteAds() {
+    setArchiveFilter("active");
+    setSelectedCampaignKey("all");
+    setSearchTerm("");
+    setWorkFilter("needs-work");
+    setSelectedDraftIds([]);
   }
 
   function startQueue(adId: string) {
@@ -78,9 +96,17 @@ export function SavedSubmissionsView({
     onQueueDraft(adId, activeQueueName || queueOptions[0]?.name || "");
   }
 
-  function queueReadyDrafts() {
+  function queueDrafts(drafts: Advertisement[]) {
     const queueName = batchQueueName || activeQueueName || queueOptions[0]?.name || "";
-    batchQueueDrafts.forEach((ad) => onQueueDraft(ad.id, queueName));
+    drafts.forEach((ad) => onQueueDraft(ad.id, queueName));
+  }
+
+  function queueDisplayedReadyDrafts() {
+    queueDrafts(sortedReadyAds);
+  }
+
+  function queueSelectedReadyDrafts() {
+    queueDrafts(selectedReadyDrafts);
   }
 
   return (
@@ -93,46 +119,27 @@ export function SavedSubmissionsView({
         </div>
         <Archive size={18} />
       </div>
-      <section className="library-command-center" aria-label="Library command center">
-        <div>
-          <span>Library command center</span>
-          <h3>
-            {readyAds.length} ready, {needsWorkCount} need edits, {archivedAds.length} archived.
-          </h3>
-          <p>{selectedCampaignLabel}: {selectedReadyAds.length} ready to queue from {selectedLibraryCount} visible item{selectedLibraryCount === 1 ? "" : "s"}.</p>
-        </div>
-        <div className="library-command-stats" aria-label="Library summary">
-          <article>
-            <strong>{activeLibraryAds.length}</strong>
-            <span>Active</span>
-          </article>
-          <article>
-            <strong>{readyAds.length}</strong>
-            <span>Ready</span>
-          </article>
-          <article>
-            <strong>{campaignNames.length || "0"}</strong>
-            <span>Campaigns</span>
-          </article>
-        </div>
-        <div className="library-command-actions">
-          <button className="primary compact-button" type="button" onClick={queueReadyDrafts} disabled={!batchQueueDrafts.length || !batchQueueName}>
-            <Send size={16} />
-            Queue All Ready
-          </button>
-          <button className="secondary compact-button" type="button" onClick={onCreateDraft}>
-            <FilePlus2 size={16} />
-            Create New Advertisement
-          </button>
-        </div>
-      </section>
+      <LibraryCommandCenter
+        activeCount={activeLibraryAds.length}
+        archivedCount={archivedAds.length}
+        campaignCount={campaignNames.length}
+        displayedCount={displayedLibraryCount}
+        displayedReadyCount={displayedReadyCount}
+        hasQueueDestination={Boolean(batchQueueName)}
+        needsWorkCount={needsWorkCount}
+        readyCount={readyAds.length}
+        selectedCampaignLabel={selectedCampaignLabel}
+        onCreateDraft={onCreateDraft}
+        onQueueDisplayedReadyDrafts={queueDisplayedReadyDrafts}
+        onReviewIncompleteAds={reviewIncompleteAds}
+      />
       {libraryAds.length ? (
         <div className="batch-prep-panel" aria-label="Batch prep assistant">
           <div>
             <Layers3 size={18} />
             <strong>Batch prep assistant</strong>
             <span>
-              {selectedCampaignLabel}: {selectedReadyAds.length} ready to queue - {selectedNeedsWorkCount} need edits
+              {selectedCampaignLabel}: {displayedReadyCount} ready to queue - {displayedNeedsWorkCount} need edits
             </span>
             {selectedCampaignKey !== "all" ? <span>All saved: {readyAds.length} ready - {needsWorkCount} need edits</span> : null}
             {duplicateMatches.length ? (
@@ -152,7 +159,7 @@ export function SavedSubmissionsView({
               ))}
             </select>
           </label>
-          <button className="primary compact-button" type="button" onClick={queueReadyDrafts} disabled={!batchQueueDrafts.length || !batchQueueName}>
+          <button className="primary compact-button" type="button" onClick={queueDisplayedReadyDrafts} disabled={!sortedReadyAds.length || !batchQueueName}>
             <Send size={16} />
             {selectedCampaignKey === "all" ? "Queue ready drafts" : "Queue ready campaign"}
           </button>
@@ -173,12 +180,53 @@ export function SavedSubmissionsView({
             onCampaignFilterChange={setSelectedCampaignKey}
           />
           <div className="campaign-library-results">
+            <div className="library-search-toolbar" aria-label="Library search and view options">
+              <label className="library-search-field">
+                <Search size={16} />
+                <span>Search saved advertisements</span>
+                <input
+                  value={searchTerm}
+                  onChange={(event) => setSearchTerm(event.target.value)}
+                  onInput={(event) => setSearchTerm(event.currentTarget.value)}
+                  placeholder="Search title, blog, campaign, tags, or copy"
+                />
+              </label>
+              <div className="library-view-toggle" role="group" aria-label="Library view mode">
+                <button className={viewMode === "comfortable" ? "active" : ""} type="button" onClick={() => setViewMode("comfortable")}>
+                  <Layers3 size={16} />
+                  Comfortable
+                </button>
+                <button className={viewMode === "compact" ? "active" : ""} type="button" onClick={() => setViewMode("compact")}>
+                  <List size={16} />
+                  Compact
+                </button>
+                <button className={viewMode === "gallery" ? "active" : ""} type="button" onClick={() => setViewMode("gallery")}>
+                  <GalleryHorizontal size={16} />
+                  Gallery
+                </button>
+              </div>
+            </div>
+            {workFilter === "needs-work" ? (
+              <div className="library-filter-notice" role="status">
+                <span>Showing advertisements that need edits.</span>
+                <button className="secondary compact-button" type="button" onClick={() => setWorkFilter("all")}>
+                  Show all
+                </button>
+              </div>
+            ) : null}
+            <LibrarySelectionToolbar
+              queueName={batchQueueName}
+              selectedCount={selectedDisplayedCount}
+              selectedReadyCount={selectedQueueableCount}
+              onClearSelection={() => setSelectedDraftIds([])}
+              onQueueSelectedReadyDrafts={queueSelectedReadyDrafts}
+            />
             <div className="bulk-edit-panel sort-panel" aria-label="Saved sorting controls">
               <label className="bulk-select">
                 <input
-                  checked={selectedCampaignAds.length > 0 && selectedLibraryCount === selectedCampaignAds.length}
+                  checked={displayedLibraryCount > 0 && selectedDisplayedCount === displayedLibraryCount}
                   type="checkbox"
-                  onChange={(event) => setSelectedDraftIds(event.target.checked ? sortedLibraryAds.map((ad) => ad.id) : [])}
+                  onChange={(event) => setSelectedDraftIds(event.target.checked ? displayedLibraryAdIds : [])}
                 />
                 Select all visible items
               </label>
@@ -199,11 +247,12 @@ export function SavedSubmissionsView({
             />
             {libraryAds.length && !sortedLibraryAds.length ? (
               <div className="library-empty campaign-empty">
-                <strong>No ads in {selectedCampaignLabel}.</strong>
-                <span>Choose another campaign, switch the archive filter, or assign a campaign from the editor.</span>
+                <strong>{normalizedSearchTerm ? "No advertisements match that search." : workFilter === "needs-work" ? "No incomplete advertisements are visible." : `No ads in ${selectedCampaignLabel}.`}</strong>
+                <span>{normalizedSearchTerm ? "Search title, Tumblr blog, campaign, tags, or copy, then clear the field to return to the full library." : workFilter === "needs-work" ? "Clear the review filter to return to the full library." : "Choose another campaign, switch the archive filter, or assign a campaign from the editor."}</span>
               </div>
             ) : null}
-            <SavedSubmissionsList
+            <div className={`saved-library-list saved-library-list-${viewMode}`}>
+              <SavedSubmissionsList
               activeAdId={activeAdId}
               ads={sortedLibraryAds}
               duplicateMatchesByAdId={duplicateMatchesByAdId}
@@ -219,7 +268,8 @@ export function SavedSubmissionsView({
               onSelectedQueueNameChange={setSelectedQueueName}
               onStartQueue={startQueue}
               onToggleDraftSelection={toggleDraftSelection}
-            />
+              />
+            </div>
           </div>
         </div>
       ) : (
@@ -233,6 +283,112 @@ export function SavedSubmissionsView({
         </div>
       )}
     </section>
+  );
+}
+
+type LibraryCommandCenterProps = {
+  activeCount: number;
+  archivedCount: number;
+  campaignCount: number;
+  displayedCount: number;
+  displayedReadyCount: number;
+  hasQueueDestination: boolean;
+  needsWorkCount: number;
+  readyCount: number;
+  selectedCampaignLabel: string;
+  onCreateDraft: () => void;
+  onQueueDisplayedReadyDrafts: () => void;
+  onReviewIncompleteAds: () => void;
+};
+
+function LibraryCommandCenter({
+  activeCount,
+  archivedCount,
+  campaignCount,
+  displayedCount,
+  displayedReadyCount,
+  hasQueueDestination,
+  needsWorkCount,
+  readyCount,
+  selectedCampaignLabel,
+  onCreateDraft,
+  onQueueDisplayedReadyDrafts,
+  onReviewIncompleteAds,
+}: LibraryCommandCenterProps) {
+  return (
+    <section className="library-command-center" aria-label="Library command center">
+      <div>
+        <span>Library command center</span>
+        <h3>
+          {readyCount} ready, {needsWorkCount} need edits, {archivedCount} archived.
+        </h3>
+        <p>
+          {selectedCampaignLabel}: {displayedReadyCount} ready to queue from {displayedCount} visible item{displayedCount === 1 ? "" : "s"}.
+        </p>
+      </div>
+      <div className="library-command-stats" aria-label="Library summary">
+        <article>
+          <strong>{activeCount}</strong>
+          <span>Active</span>
+        </article>
+        <article>
+          <strong>{readyCount}</strong>
+          <span>Ready</span>
+        </article>
+        <article>
+          <strong>{campaignCount || "0"}</strong>
+          <span>Campaigns</span>
+        </article>
+      </div>
+      <div className="library-command-actions">
+        <button className="secondary compact-button" type="button" onClick={onReviewIncompleteAds} disabled={!needsWorkCount}>
+          <AlertTriangle size={16} />
+          Review Incomplete
+        </button>
+        <button className="primary compact-button" type="button" onClick={onQueueDisplayedReadyDrafts} disabled={!displayedReadyCount || !hasQueueDestination}>
+          <Send size={16} />
+          Queue All Ready
+        </button>
+        <button className="secondary compact-button" type="button" onClick={onCreateDraft}>
+          <FilePlus2 size={16} />
+          Create New Advertisement
+        </button>
+      </div>
+    </section>
+  );
+}
+
+type LibrarySelectionToolbarProps = {
+  queueName: string;
+  selectedCount: number;
+  selectedReadyCount: number;
+  onClearSelection: () => void;
+  onQueueSelectedReadyDrafts: () => void;
+};
+
+function LibrarySelectionToolbar({
+  queueName,
+  selectedCount,
+  selectedReadyCount,
+  onClearSelection,
+  onQueueSelectedReadyDrafts,
+}: LibrarySelectionToolbarProps) {
+  if (!selectedCount) {
+    return null;
+  }
+
+  return (
+    <div className="library-selection-toolbar" aria-label="Selected library actions">
+      <strong>{selectedCount} selected</strong>
+      <span>{selectedReadyCount} ready for {queueName || "the selected queue"}</span>
+      <button className="primary compact-button" type="button" onClick={onQueueSelectedReadyDrafts} disabled={!selectedReadyCount || !queueName}>
+        <Send size={16} />
+        Queue selected ready
+      </button>
+      <button className="secondary compact-button" type="button" onClick={onClearSelection}>
+        Clear selection
+      </button>
+    </div>
   );
 }
 
@@ -265,15 +421,15 @@ function CampaignLibraryFilters({
     <aside className="campaign-filter-panel" aria-label="Campaign library">
       <strong>Library state</strong>
       <button className={archiveFilter === "active" ? "campaign-filter-button active" : "campaign-filter-button"} type="button" onClick={() => onArchiveFilterChange("active")}>
-        <span>Active</span>
+        <span><Archive size={14} /> Active <b>{activeLibraryCount}</b></span>
         <small>{activeLibraryCount} visible</small>
       </button>
       <button className={archiveFilter === "archived" ? "campaign-filter-button active" : "campaign-filter-button"} type="button" onClick={() => onArchiveFilterChange("archived")}>
-        <span>Archived</span>
+        <span><Archive size={14} /> Archived <b>{archivedCount}</b></span>
         <small>{archivedCount} hidden</small>
       </button>
       <button className={archiveFilter === "all" ? "campaign-filter-button active" : "campaign-filter-button"} type="button" onClick={() => onArchiveFilterChange("all")}>
-        <span>All saved</span>
+        <span><Layers3 size={14} /> All saved <b>{libraryAds.length}</b></span>
         <small>{libraryAds.length} total</small>
       </button>
       <strong>Campaigns</strong>
@@ -282,7 +438,7 @@ function CampaignLibraryFilters({
         type="button"
         onClick={() => onCampaignFilterChange("all")}
       >
-        <span>All campaigns</span>
+        <span><Layers3 size={14} /> All campaigns <b>{libraryAds.length}</b></span>
         <small>{campaignReadinessSummary(libraryAds)}</small>
       </button>
       <button
@@ -290,7 +446,7 @@ function CampaignLibraryFilters({
         type="button"
         onClick={() => onCampaignFilterChange("unassigned")}
       >
-        <span>Unassigned</span>
+        <span><FilePlus2 size={14} /> Unassigned <b>{unassignedAds.length}</b></span>
         <small>{campaignReadinessSummary(unassignedAds)}</small>
       </button>
       {campaignNames.map((campaignName) => {
@@ -303,7 +459,7 @@ function CampaignLibraryFilters({
             type="button"
             onClick={() => onCampaignFilterChange(campaignKey)}
           >
-            <span>{campaignName}</span>
+            <span><Layers3 size={14} /> {campaignName} <b>{campaignAds.length}</b></span>
             <small>{campaignReadinessSummary(campaignAds)}</small>
           </button>
         );

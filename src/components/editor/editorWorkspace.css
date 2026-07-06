@@ -300,6 +300,26 @@
   background: #f8fafb;
 }
 
+.editor-surface .tag-search-field {
+  display: grid;
+  gap: 5px;
+  margin: 10px 0;
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.editor-surface .tumblr-tag-check {
+  border-radius: 999px;
+}
+
+.editor-surface .tumblr-tag-check.selected {
+  border-color: rgba(67, 155, 107, 0.32);
+  background: #eefbf4;
+  color: #1f6d4a;
+}
+
 html[data-theme="dark"] .editor-surface {
   background: transparent;
 }
@@ -346,6 +366,12 @@ html[data-theme="dark"] .editor-surface .quality-check {
 }
 
 html[data-theme="dark"] .editor-surface .quality-check.ready {
+  border-color: rgba(67, 155, 107, 0.3);
+  background: #10231d;
+  color: #90c9ab;
+}
+
+html[data-theme="dark"] .editor-surface .tumblr-tag-check.selected {
   border-color: rgba(67, 155, 107, 0.3);
   background: #10231d;
   color: #90c9ab;
