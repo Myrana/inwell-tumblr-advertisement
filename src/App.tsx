@@ -26,6 +26,7 @@ import { TemplatesWorkspace } from "./components/TemplatesWorkspace";
 import { TumblrAccountsWorkspace } from "./components/TumblrAccountsWorkspace";
 import { WorkspaceTopbar } from "./components/WorkspaceTopbar";
 import { useEditorQueueActions } from "./hooks/useEditorQueueActions";
+import { useQueueTransitionController } from "./hooks/useQueueTransitionController";
 import { useWorkspaceChrome, workspacePageTitles } from "./hooks/useWorkspaceChrome";
 
 import {
@@ -65,11 +66,7 @@ import {
 import { composerContentFor, emptyAd, hasLibraryContent, normalizeStoredState } from "./domain/ads";
 import { defaultTagProfiles } from "./domain/constants";
 import { MediaLibraryAsset, mediaLibraryFromAdvertisements } from "./domain/mediaLibrary";
-import {
-  activeQueueItems,
-  refillQueueFromReadyDrafts,
-  runnableQueueItems as runnableItemsForQueue,
-} from "./domain/queueAutomation";
+import { attentionQueueItems, runnableQueueItems as runnableItemsForQueue } from "./domain/queueAutomation";
 import { queueIdFromName, uniqueQueueDefinitions } from "./domain/queue";
 import {
   loadQueueScheduleSettings,
@@ -207,6 +204,24 @@ function App() {
   const activeQueueName = queueOptions.some((queue) => queue.name === selectedQueueName) ? selectedQueueName : queueOptions[0]?.name ?? "";
   const activeQueue = submissionQueue.filter((item) => item.queueName === activeQueueName);
   const backendOwnsWorkspaceState = Boolean(authUser && backendStateLoaded);
+  const {
+    bulkUpdateQueueItems,
+    isQueueBusy,
+    retryQueueItemTestRun,
+    updateQueueItem,
+  } = useQueueTransitionController({
+    backendOwnsWorkspaceState,
+    loadBackendQueue,
+    setApiAvailable,
+    setQueueStatus,
+    setSubmissionQueue,
+    startRunner,
+    stored,
+    submissionQueue,
+    submitTargets,
+    syncQueueItem,
+    tumblrAccountId: runnerSettings.tumblrAccountId,
+  });
   const defaultQueueScheduleSettings: QueueSchedulePreference = useMemo(
     () => ({
       enabled: queueScheduleSettings.enabled,
@@ -698,12 +713,20 @@ function App() {
   }
 
   function syncQueueItem(item: SubmissionQueueItem) {
-    void saveQueueItem(item)
+    return saveQueueItem(item)
       .then((saved) => {
-        setSubmissionQueue((current) => current.map((queueItem) => (queueItem.id === saved.id ? saved : queueItem)));
+        setSubmissionQueue((current) =>
+          current.some((queueItem) => queueItem.id === saved.id)
+            ? current.map((queueItem) => (queueItem.id === saved.id ? saved : queueItem))
+            : [saved, ...current],
+        );
         setApiAvailable(true);
+        return saved;
       })
-      .catch(() => setApiAvailable(false));
+      .catch(() => {
+        setApiAvailable(false);
+        return null;
+      });
   }
 
   function updateActiveAd(patch: Partial<Advertisement>) {
@@ -1021,123 +1044,6 @@ function App() {
     setQueueStatus(`Deleted ${queueName}.`);
   }
 
-  function updateQueueItem(id: string, status: SubmissionStatus, notes: string) {
-    let nextItem: SubmissionQueueItem | null = null;
-    let refillItems: SubmissionQueueItem[] = [];
-    const timestamp = new Date().toISOString();
-    setSubmissionQueue((current) =>
-      refillQueueAfterCompletion(
-        current.map((item) => {
-          if (item.id !== id) {
-            return item;
-          }
-
-          nextItem = {
-            ...item,
-            status,
-            notes,
-            updatedAt: timestamp,
-            lastRunAt: status === "running" ? timestamp : status === "queued" ? "" : item.lastRunAt,
-            postedAt: status === "posted" ? timestamp : status === "queued" ? "" : item.postedAt,
-            failedAt: status === "failed" ? timestamp : status === "queued" ? "" : item.failedAt,
-          };
-          return nextItem;
-        }),
-        current,
-        status,
-        (items) => {
-          refillItems = items;
-        },
-      ),
-    );
-
-    if (nextItem) {
-      syncQueueItem(nextItem);
-    }
-    refillItems.forEach(syncQueueItem);
-    if (refillItems.length) {
-      setQueueStatus(`Marked submission ${status}. Auto-added ${refillItems.length} replacement${refillItems.length === 1 ? "" : "s"} to keep ${refillItems[0].queueName} stocked.`);
-    }
-  }
-
-  function bulkUpdateQueueItems(ids: string[], status: SubmissionStatus, notes: string) {
-    const selectedIds = new Set(ids);
-    const timestamp = new Date().toISOString();
-    const updatedItems: SubmissionQueueItem[] = [];
-    let refillItems: SubmissionQueueItem[] = [];
-
-    setSubmissionQueue((current) =>
-      refillQueueAfterCompletion(
-        current.map((item) => {
-          if (!selectedIds.has(item.id)) {
-            return item;
-          }
-          const nextItem = {
-            ...item,
-            status,
-            notes,
-            updatedAt: timestamp,
-            lastRunAt: status === "running" ? timestamp : status === "queued" ? "" : item.lastRunAt,
-            postedAt: status === "posted" ? timestamp : status === "queued" ? "" : item.postedAt,
-            failedAt: status === "failed" ? timestamp : status === "queued" ? "" : item.failedAt,
-          };
-          updatedItems.push(nextItem);
-          return nextItem;
-        }),
-        current,
-        status,
-        (items) => {
-          refillItems = items;
-        },
-      ),
-    );
-
-    updatedItems.forEach(syncQueueItem);
-    refillItems.forEach(syncQueueItem);
-    setQueueStatus(
-      `Updated ${updatedItems.length} queued submission${updatedItems.length === 1 ? "" : "s"}.${
-        refillItems.length ? ` Auto-added ${refillItems.length} replacement${refillItems.length === 1 ? "" : "s"}.` : ""
-      }`,
-    );
-  }
-
-  function refillQueueAfterCompletion(
-    nextQueue: SubmissionQueueItem[],
-    previousQueue: SubmissionQueueItem[],
-    status: SubmissionStatus,
-    onAddedItems: (items: SubmissionQueueItem[]) => void,
-  ) {
-    if (status !== "posted" && status !== "submitted") {
-      return nextQueue;
-    }
-
-    const completedQueueName = nextQueue.find((item, index) => {
-      const previous = previousQueue[index];
-      return previous && item.status !== previous.status && (item.status === "posted" || item.status === "submitted");
-    })?.queueName;
-    if (!completedQueueName) {
-      return nextQueue;
-    }
-
-    const targetDepth = Math.max(1, activeQueueItems(previousQueue.filter((item) => item.queueName === completedQueueName)).length);
-    const refill = refillQueueFromReadyDrafts({
-      queue: nextQueue,
-      sourceAds: normalizeStoredState(stored).ads,
-      submitTargets,
-      queueName: completedQueueName,
-      tumblrAccountId: runnerSettingsRef.current.tumblrAccountId,
-      targetDepth,
-    });
-    onAddedItems(refill.addedItems);
-    return refill.queue;
-  }
-
-  async function retryQueueItemTestRun(id: string) {
-    updateQueueItem(id, "queued", "Requeued for a dry-run recovery attempt.");
-    setQueueStatus("Starting a recovery test run. It will prepare Tumblr without submitting.");
-    await startRunner({ submit: false });
-  }
-
   function editQueuedSubmission(id: string) {
     const item = submissionQueue.find((queueItem) => queueItem.id === id);
     if (!item) {
@@ -1435,9 +1341,14 @@ function App() {
     return true;
   }
 
-  async function prepareLocalRunnerCommand(options: { copy?: boolean; target?: "run" | "setup"; fallbackReason?: string; submit?: boolean; testRun?: boolean } = {}) {
+  async function prepareLocalRunnerCommand(options: { allowWithoutRunnable?: boolean; copy?: boolean; target?: "run" | "setup"; fallbackReason?: string; submit?: boolean; testRun?: boolean } = {}) {
     const items = runnableQueueItems();
-    if (!items.length) {
+    const attentionItems = attentionQueueItems(activeQueue);
+    if (attentionItems.length && !options.allowWithoutRunnable) {
+      setQueueStatus("Review failed or needs-review submissions before starting the runner.");
+      return;
+    }
+    if (!items.length && !options.allowWithoutRunnable) {
       setQueueStatus("Queue at least one target before starting the runner.");
       return;
     }
@@ -1479,11 +1390,16 @@ function App() {
     }
   }
 
-  async function startRunner(options: { submit?: boolean } = {}) {
+  async function startRunner(options: { allowWithoutRunnable?: boolean; submit?: boolean } = {}) {
     const submit = options.submit ?? runnerSettingsRef.current.submit;
     const testRun = options.submit === false;
     const items = runnableQueueItems();
-    if (!items.length) {
+    const attentionItems = attentionQueueItems(activeQueue);
+    if (attentionItems.length && !options.allowWithoutRunnable) {
+      setQueueStatus("Review failed or needs-review submissions before starting the runner.");
+      return;
+    }
+    if (!items.length && !options.allowWithoutRunnable) {
       setQueueStatus("Queue at least one target before starting the runner.");
       return;
     }
@@ -1523,6 +1439,7 @@ function App() {
     await prepareLocalRunnerCommand({
       copy: true,
       target: "run",
+      allowWithoutRunnable: options.allowWithoutRunnable,
       submit,
       testRun,
       fallbackReason: offlineFallbackReason,
@@ -1785,6 +1702,7 @@ function App() {
             queueOptions={queueOptions}
             runnerActivity={runnerActivity}
             runnerConnectionLabel={runnerConnectionLabel}
+            scheduleRunnerReadiness={scheduleRunnerReadiness}
             runnerSubmitApproved={runnerSettings.submit}
             savedDraftCount={stored.ads.filter(hasLibraryContent).length}
             savedDrafts={stored.ads.filter(hasLibraryContent)}
@@ -1800,6 +1718,7 @@ function App() {
             activeQueueName={activeQueueName}
             queueOptions={queueOptions}
             queueStatus={queueStatus}
+            queueTransitionBusy={isQueueBusy(activeQueueName)}
             queueScheduleSettings={activeQueueScheduleSettings}
             runnerActivity={runnerActivity}
             scheduleRunnerReadiness={scheduleRunnerReadiness}
@@ -1826,6 +1745,7 @@ function App() {
             localCompanion={localCompanion}
             runnerActivity={runnerActivity}
             runnerConnectionLabel={runnerConnectionLabel}
+            scheduleRunnerReadiness={scheduleRunnerReadiness}
             runnerHeadless={runnerSettings.headless}
             runnerLogs={runnerLogs}
             runnerState={runnerState}

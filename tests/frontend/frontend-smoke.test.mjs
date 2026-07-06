@@ -234,6 +234,28 @@ test("queue auto-refills from ready drafts when an item is marked posted", { tim
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
 });
 
+async function openFrontendTestPage(t) {
+  const server = spawn("npx vite --host 127.0.0.1 --port 8123 --strictPort", {
+    cwd: process.cwd(),
+    shell: true,
+    stdio: "ignore",
+  });
+
+  t.after(() => {
+    stopProcessTree(server);
+  });
+
+  await waitForServer(appUrl);
+
+  const browser = await chromium.launch();
+  t.after(async () => {
+    await browser.close();
+  });
+
+  const page = await browser.newPage();
+  return page;
+}
+
 test("queue persistence quota failures do not blank the workspace", { timeout: 40000 }, async (t) => {
   const server = spawn("npx vite --host 127.0.0.1 --port 8123 --strictPort", {
     cwd: process.cwd(),
@@ -2032,6 +2054,7 @@ test("running the queue prepares the local runner and shows failure explanations
     notes: "Submitted by the local runner.",
     runner_payload: JSON.stringify({ fields: { body: "Submitted queue body" } }),
   };
+  let queueItems = [queueItem, postedQueueItem, submittedQueueItem];
 
   page.on("pageerror", (error) => pageErrors.push(error));
   const unavailableCompanionStatus = (route) => route.abort();
@@ -2162,9 +2185,18 @@ test("running the queue prepares the local runner and shows failure explanations
     route.fulfill({
       contentType: "application/json",
       headers: apiHeaders,
-      body: JSON.stringify({ queue: [queueItem, postedQueueItem, submittedQueueItem] }),
+      body: JSON.stringify({ queue: queueItems }),
     }),
   );
+  await page.route("http://127.0.0.1:8021/api/queue/*", (route) => {
+    const updatedItem = route.request().postDataJSON();
+    queueItems = queueItems.map((item) => (item.id === updatedItem.id ? updatedItem : item));
+    return route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({ queue_item: updatedItem }),
+    });
+  });
   await page.route("http://127.0.0.1:8021/api/advertisements", (route) =>
     route.fulfill({
       contentType: "application/json",
@@ -2249,6 +2281,8 @@ test("running the queue prepares the local runner and shows failure explanations
   assert.match(discordUpdateText, /^\u2705 Advert posted\n\nQueue: Default queue\nTarget: allthingsroleplay archive\nPosted at: Jun 18, 2026 /);
   await page.getByLabel("Queue bulk editor").getByText("Select all pending items").waitFor();
   await page.locator(".queue-item", { hasText: "allthingsroleplay" }).getByLabel("Select queue item").waitFor();
+  await page.locator(".queue-item", { hasText: "allthingsroleplay" }).getByRole("button", { name: "Requeue" }).click();
+  await page.locator(".queue-item", { hasText: "allthingsroleplay" }).getByText("Queued", { exact: true }).waitFor();
   await openWorkspaceView(page, "Runner");
   await page.getByLabel("Runner browser session").getByText("Local runner online: Default queue").waitFor();
   await page.getByLabel("Runner workspace").getByText("Watching", { exact: true }).waitFor();
@@ -2290,9 +2324,9 @@ test("running the queue prepares the local runner and shows failure explanations
   await page.getByRole("button", { name: "Operations", exact: true }).click();
   await page.getByRole("heading", { name: "Operations dashboard", level: 1 }).waitFor();
   await page.getByLabel("Run readiness").waitFor();
-  await page.getByLabel("Attention required").getByText("allthingsroleplay").waitFor();
-  await page.getByText("Live posting approved.").waitFor();
-  await page.getByLabel("Attention required").getByRole("button", { name: "Review queue", exact: true }).click();
+  await page.getByLabel("Queue ready status").getByText("1", { exact: true }).waitFor();
+  await page.getByLabel("Review queue status").getByText("0", { exact: true }).waitFor();
+  await page.getByLabel("Live posting status").getByText("Approved", { exact: true }).waitFor();
   await openWorkspaceView(page, "Runner");
   await page.getByLabel("Runner controls").getByRole("button", { name: "Test run" }).click();
   await page.getByText("Local runner command copied.").waitFor();
@@ -2334,7 +2368,8 @@ test("running the queue prepares the local runner and shows failure explanations
   );
   await page.route("http://127.0.0.1:17842/run", async (route) => {
     companionRunRequested = true;
-    companionRunPayloads.push(route.request().postDataJSON());
+    const payload = route.request().postDataJSON();
+    companionRunPayloads.push(payload);
     return route.fulfill({
       contentType: "application/json",
       body: JSON.stringify({
@@ -2370,7 +2405,18 @@ test("running the queue prepares the local runner and shows failure explanations
   assert.deepEqual(await page.evaluate(() => window.__openedUrls), []);
   await page.unroute("http://127.0.0.1:17842/status");
   await page.route("http://127.0.0.1:17842/status", (route) =>
-    route.fulfill({
+    {
+      queueItems = queueItems.map((item) =>
+        item.id === "queue-run-allthingsroleplay"
+          ? {
+              ...item,
+              status: "failed",
+              failed_at: "2026-06-20T01:00:10.000Z",
+              notes: "Runner failed: browserContext.newPage: Target page, context or browser has been closed",
+            }
+          : item,
+      );
+      return route.fulfill({
       contentType: "application/json",
       body: JSON.stringify({
         ok: true,
@@ -2386,7 +2432,8 @@ test("running the queue prepares the local runner and shows failure explanations
         lastExitCode: 1,
         lastError: "Local runner exited with code 1. Close any open Inkwell Tumblr browser windows, then try again. Check the runner log for details.",
       }),
-    }),
+    });
+    },
   );
   await page.getByLabel("Runner browser session").getByText("Local companion needs attention").waitFor();
   await page.getByText("Close any open Inkwell Tumblr browser windows, then try again.").waitFor();
@@ -2399,11 +2446,6 @@ test("running the queue prepares the local runner and shows failure explanations
   assert.equal(await page.getByRole("button", { name: "Needs review" }).count(), 0);
   await page.getByRole("button", { name: "Requeue" }).waitFor();
   await page.getByRole("button", { name: "Mark posted" }).waitFor();
-  await page.getByRole("button", { name: "Retry test run" }).click();
-  await page.getByText("Local companion started a test run.").waitFor();
-  assert.deepEqual(companionRunPayloads.at(-1), { queueName: "Default queue", headless: true, submit: false });
-  assert.equal(await page.getByText("Manual override").count(), 0);
-  assert.equal(await page.getByRole("button", { name: "Mark failed" }).count(), 0);
   await openWorkspaceView(page, "Runner Logs");
   await page.getByRole("button", { name: /Latest run run-visible/ }).waitFor();
   await page.getByText("Why this run failed").waitFor();

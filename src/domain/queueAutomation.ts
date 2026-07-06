@@ -48,8 +48,12 @@ export function queueStatusCounts(items: SubmissionQueueItem[]): QueueStatusCoun
   );
 }
 
+export function automationRunnableQueueItems(items: SubmissionQueueItem[]) {
+  return items.filter((item) => item.status === "queued" || item.status === "scheduled");
+}
+
 export function runnableQueueItems(items: SubmissionQueueItem[]) {
-  return items.filter((item) => !["submitted", "posted", "running"].includes(item.status));
+  return automationRunnableQueueItems(items);
 }
 
 export function activeQueueItems(items: SubmissionQueueItem[]) {
@@ -69,13 +73,14 @@ export function queueReadiness(options: {
   activeQueue: SubmissionQueueItem[];
   connectedAccountCount: number;
   runnerActivity: RunnerActivity;
+  runnerReady?: boolean;
   savedDraftCount: number;
   submitApproved: boolean;
 }): QueueReadiness {
-  const runnableCount = runnableQueueItems(options.activeQueue).length;
+  const runnableCount = automationRunnableQueueItems(options.activeQueue).length;
   const attentionCount = attentionQueueItems(options.activeQueue).length;
   const blockers: string[] = [];
-  const runnerReady = !["Offline", "Needs attention"].includes(options.runnerActivity.status);
+  const runnerReady = options.runnerReady ?? !["Offline", "Needs attention"].includes(options.runnerActivity.status);
 
   if (!options.activeQueueName) {
     blockers.push("Create or select a queue.");
@@ -91,6 +96,7 @@ export function queueReadiness(options: {
   }
 
   if (attentionCount > 0) {
+    blockers.push("Review failed or needs-review submissions.");
     return {
       canRun: false,
       status: "review",

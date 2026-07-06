@@ -82,12 +82,20 @@ test("visual domain source ownership stays segmented", () => {
   const sidebarStyles = readFileSync("src/components/AppSidebar.css", "utf8");
   const editorStyles = readFileSync("src/components/editor/editorWorkspace.css", "utf8");
   const operationsStyles = readFileSync("src/components/operations/operationsDashboard.css", "utf8");
+  const runnerStyles = readFileSync("src/components/runner/runnerWorkspace.css", "utf8");
+  const queueStyles = readFileSync("src/components/queue/queueWorkspace.css", "utf8");
+  const settingsStyles = readFileSync("src/components/settings/operationalSettingsWorkspace.css", "utf8");
 
   assert.doesNotMatch(globalStyles, /\.operations-hero\s*\{/);
   assert.doesNotMatch(globalStyles, /\.operation-card\s*\{/);
   assert.doesNotMatch(globalStyles, /\.content-readiness-panel\s*\{/);
   assert.doesNotMatch(globalStyles, /\.editor-notebook-intro\s*\{/);
   assert.doesNotMatch(globalStyles, /\.queue-readiness\s*\{/);
+  assert.doesNotMatch(globalStyles, /\.runner-flow-strip\s*\{/);
+  assert.doesNotMatch(globalStyles, /\.queue-schedule-readiness-grid\s*\{/);
+  assert.doesNotMatch(globalStyles, /\.settings-readiness-grid\s*\{/);
+  assert.doesNotMatch(globalStyles, /\.queue-item-meta-row\s*\{/);
+  assert.doesNotMatch(globalStyles, /\.runner-log-empty\s*\{/);
   assert.match(sidebarStyles, /\.sidebar\s+\.brand\s*\{/);
   assert.doesNotMatch(sidebarStyles, /^\.brand\s*\{/m);
   assert.match(editorStyles, /\.editor-surface\s+\.workflow-section\s*\{/);
@@ -102,6 +110,14 @@ test("visual domain source ownership stays segmented", () => {
   assert.match(operationsStyles, /html\[data-theme="dark"\]\s+\.run-readiness-empty\s*\{/);
   assert.match(operationsStyles, /html\[data-theme="dark"\]\s+\.run-readiness-review\s*\{/);
   assert.match(operationsStyles, /html\[data-theme="dark"\]\s+\.run-readiness-blocked\s*\{/);
+  assert.match(runnerStyles, /\.runner-flow-strip\s*\{/);
+  assert.match(runnerStyles, /\.runner-flow-step\.blocked\s*\{/);
+  assert.match(runnerStyles, /\.runner-log-empty\s*\{/);
+  assert.match(queueStyles, /\.queue-schedule-readiness-grid\s*\{/);
+  assert.match(queueStyles, /\.queue-item-meta-row\s*\{/);
+  assert.match(queueStyles, /\.queue-status-needs-review\s*\{/);
+  assert.match(settingsStyles, /\.settings-readiness-grid\s*\{/);
+  assert.match(settingsStyles, /\.settings-readiness-card\.warning\s*\{/);
   assert.match(globalStyles, /\.login-brand\s*\{/);
   assert.match(globalStyles, /\.login-brand\s+\.brand-mark\s*\{/);
 });

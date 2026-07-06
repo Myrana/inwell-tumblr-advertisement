@@ -255,6 +255,173 @@ test("operations dashboard centers content readiness without backup controls", {
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
 });
 
+test("operations status summary reports queue, runner, review, and live posting states", { timeout: 40000 }, async (t) => {
+  const server = spawn("npx vite --host 127.0.0.1 --port 8127 --strictPort", {
+    cwd: process.cwd(),
+    shell: true,
+    stdio: "ignore",
+  });
+
+  t.after(() => {
+    stopProcessTree(server);
+  });
+
+  await waitForServer(appUrl);
+
+  const browser = await chromium.launch();
+  t.after(async () => {
+    await browser.close();
+  });
+
+  const cases = [
+    {
+      runnerOnline: false,
+      submitApproved: false,
+      queueItems: [apiQueueItem(), apiQueueItem({ id: "queue-review", status: "needs-review" }), apiQueueItem({ id: "queue-failed", status: "failed" })],
+      queueReady: "1",
+      reviewCount: "2",
+      runnerStatus: "Offline",
+      livePosting: "Prep mode",
+      runnerTone: "blocked",
+    },
+    {
+      runnerOnline: true,
+      runnerWatching: false,
+      runnerStatus: "idle",
+      submitApproved: false,
+      queueItems: [apiQueueItem(), apiQueueItem({ id: "queue-review", status: "needs-review" })],
+      queueReady: "1",
+      reviewCount: "1",
+      runnerStatusSummary: "Online",
+      livePosting: "Prep mode",
+      runnerTone: "warning",
+    },
+    {
+      localCompanion: localCompanionStatus({ status: "error", watching: false, lastError: "Runner failed." }),
+      runnerOnline: true,
+      submitApproved: false,
+      queueItems: [apiQueueItem(), apiQueueItem({ id: "queue-review", status: "needs-review" })],
+      queueReady: "1",
+      reviewCount: "1",
+      runnerStatusSummary: "Needs attention",
+      livePosting: "Prep mode",
+      runnerTone: "blocked",
+    },
+    {
+      runnerOnline: true,
+      runnerWatching: true,
+      submitApproved: true,
+      queueItems: [apiQueueItem(), apiQueueItem({ id: "queue-review", status: "needs-review" })],
+      queueReady: "1",
+      reviewCount: "1",
+      runnerStatusSummary: "Watching",
+      livePosting: "Approved",
+      runnerTone: "ready",
+      reviewBlocksReadiness: true,
+    },
+    {
+      runnerOnline: true,
+      runnerWatching: true,
+      submitApproved: true,
+      queueItems: [apiQueueItem({ status: "failed" }), apiQueueItem({ id: "queue-review", status: "needs-review" })],
+      queueReady: "0",
+      reviewCount: "2",
+      runnerStatusSummary: "Watching",
+      livePosting: "Approved",
+      runnerTone: "ready",
+    },
+  ];
+
+  for (const scenario of cases) {
+    const page = await browser.newPage();
+    await page.route("http://127.0.0.1:8021/api/**", (route) => route.abort());
+    if (scenario.localCompanion) {
+      await page.route("http://127.0.0.1:17842/status", (route) =>
+        route.fulfill({ contentType: "application/json", body: JSON.stringify(scenario.localCompanion) }),
+      );
+    } else {
+      await page.route("http://127.0.0.1:17842/status", (route) => route.abort());
+    }
+    await routeAuthenticatedSession(page);
+    await page.route("http://127.0.0.1:8021/api/advertisements", (route) =>
+      route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ advertisements: [] }) }),
+    );
+    await page.route("http://127.0.0.1:8021/api/templates", (route) =>
+      route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ templates: [] }) }),
+    );
+    await page.route("http://127.0.0.1:8021/api/tumblr/accounts", (route) =>
+      route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ accounts: [apiTumblrAccount()] }) }),
+    );
+    await page.route("http://127.0.0.1:8021/api/queue", (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        headers: apiHeaders,
+        body: JSON.stringify({ queue: scenario.queueItems }),
+      }),
+    );
+    await page.route("http://127.0.0.1:8021/api/runner/logs", (route) =>
+      route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ logs: [] }) }),
+    );
+    await page.route("http://127.0.0.1:8021/api/settings", (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        headers: apiHeaders,
+        body: JSON.stringify({
+          settings: {
+            runnerSettings: { mediaDir: "", slowMo: 500, headless: true, submit: scenario.submitApproved, tumblrAccountId: "tumblr-ops" },
+            queueScheduleSettings: { enabled: false, dailyTime: "09:00", timezone: "America/New_York", perQueue: {} },
+          },
+        }),
+      }),
+    );
+    await page.route("http://127.0.0.1:8021/api/runner/status", (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        headers: apiHeaders,
+        body: JSON.stringify({
+          runner: {
+            running: false,
+            pid: null,
+            plan_path: "",
+            command: [],
+            run_id: "",
+            local_runner: {
+              online: scenario.runnerOnline,
+              last_seen_at: "2026-06-20T12:00:00.000Z",
+              workspace_id: "workspace-test",
+              queue_name: "Default queue",
+              watching: scenario.runnerWatching ?? scenario.runnerOnline,
+              status: scenario.runnerOnline ? scenario.runnerStatus ?? "watching" : "offline",
+              version: "local-runner-test",
+            },
+          },
+        }),
+      }),
+    );
+
+    await page.goto(appUrl);
+    await page.getByRole("heading", { name: "Operations dashboard", level: 1 }).waitFor();
+    const summary = page.getByLabel("Operations status summary");
+    await summary.getByLabel("Queue ready status").getByText("Queue ready", { exact: true }).waitFor();
+    await summary.getByLabel("Queue ready status").getByText(scenario.queueReady, { exact: true }).waitFor();
+    const runnerCard = summary.getByLabel("Runner status summary");
+    await runnerCard.getByText("Runner", { exact: true }).waitFor();
+    await runnerCard.getByText(scenario.runnerStatusSummary ?? scenario.runnerStatus, { exact: true }).waitFor();
+    await summary.getByLabel("Review queue status").getByText("Review queue", { exact: true }).waitFor();
+    await summary.getByLabel("Review queue status").getByText(scenario.reviewCount, { exact: true }).waitFor();
+    await summary.getByLabel("Live posting status").getByText("Live posting", { exact: true }).waitFor();
+    await summary.getByLabel("Live posting status").getByText(scenario.livePosting, { exact: true }).waitFor();
+    await runnerCard.waitFor();
+    assert.match(await runnerCard.getAttribute("class"), new RegExp(`\\b${scenario.runnerTone}\\b`));
+    if (scenario.reviewBlocksReadiness) {
+      const readiness = page.getByLabel("Run readiness");
+      await readiness.getByText("Review failed or needs-review submissions.").waitFor();
+      await readiness.getByText("No blockers detected", { exact: false }).waitFor({ state: "detached" });
+    }
+    await page.close();
+  }
+});
+
 
 test("operational settings show backend save failures", { timeout: 40000 }, async (t) => {
   const server = spawn("npx vite --host 127.0.0.1 --port 8127 --strictPort", {
@@ -393,3 +560,58 @@ test("operational settings show backend save failures", { timeout: 40000 }, asyn
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
 });
 
+function apiQueueItem(overrides = {}) {
+  return {
+    id: "queue-ops",
+    queue_name: "Default queue",
+    ad_id: "ad-ops",
+    target_id: "allthingsroleplay",
+    target_name: "allthingsroleplay",
+    submit_url: "https://allthingsroleplay.tumblr.com/submit",
+    post_type: "photo",
+    status: "queued",
+    notes: "Ready for operations dashboard.",
+    runner_payload: "{}",
+    created_at: "2026-06-20T12:00:00.000Z",
+    updated_at: "2026-06-20T12:00:00.000Z",
+    last_run_at: null,
+    ...overrides,
+  };
+}
+
+function apiTumblrAccount(overrides = {}) {
+  return {
+    id: "tumblr-ops",
+    display_name: "Ops Tumblr",
+    blog_name: "opsblog",
+    user_data_dir: "C:/tumblr/ops",
+    status: "connected",
+    last_checked_at: "2026-06-20T12:00:00.000Z",
+    last_login_at: "2026-06-20T11:00:00.000Z",
+    notes: "",
+    updated_at: "2026-06-20T12:00:00.000Z",
+    ...overrides,
+  };
+}
+
+function localCompanionStatus(overrides = {}) {
+  return {
+    ok: true,
+    version: "local-runner-test",
+    apiBaseUrl: "https://inkwell-production-f037.up.railway.app/api",
+    workspaceId: "workspace-test",
+    queueName: "Default queue",
+    watching: true,
+    running: false,
+    status: "watching",
+    lastStartedAt: "",
+    lastFinishedAt: "",
+    lastExitCode: null,
+    lastExitSignal: "",
+    lastBlockerCode: "",
+    lastDiscordSummary: null,
+    lastError: "",
+    lastRun: null,
+    ...overrides,
+  };
+}

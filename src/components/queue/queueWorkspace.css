@@ -1,0 +1,162 @@
+.queue-schedule-readiness-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.queue-schedule-card {
+  min-width: 0;
+  min-height: 104px;
+  padding: 10px;
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--cyan);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.queue-schedule-card.ready {
+  border-left-color: var(--green);
+  background: #f4fbf7;
+}
+
+.queue-schedule-card.warning {
+  border-left-color: var(--amber);
+  background: #fffaf0;
+}
+
+.queue-schedule-card.off {
+  border-left-color: var(--cyan);
+  background: #f8fafb;
+}
+
+.queue-schedule-card.blocked {
+  border-left-color: var(--coral);
+  background: #fff7f5;
+}
+
+.queue-schedule-card span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.queue-schedule-card strong {
+  color: var(--ink);
+  font-size: 0.94rem;
+  overflow-wrap: anywhere;
+}
+
+.queue-schedule-card small {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.queue-item-meta-row {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.queue-item-meta-row span,
+.queue-status-chip {
+  width: max-content;
+  max-width: 100%;
+  min-height: 24px;
+  padding: 3px 8px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #f8fafb;
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 900;
+}
+
+.queue-status-chip {
+  border-color: rgba(46, 143, 163, 0.22);
+  color: #1e6675;
+  background: #eef8fa;
+}
+
+.queue-status-posted,
+.queue-status-submitted {
+  border-color: rgba(67, 155, 107, 0.28);
+  color: #1f6d4a;
+  background: #eefbf4;
+}
+
+.queue-status-failed {
+  border-color: rgba(217, 101, 82, 0.3);
+  color: #9f351f;
+  background: #fff0ed;
+}
+
+.queue-status-needs-review {
+  border-color: rgba(215, 168, 68, 0.36);
+  color: #7b5b00;
+  background: #fff8df;
+}
+
+html[data-theme="dark"] .queue-schedule-card {
+  border-color: #2d4352;
+  background: #121e28;
+}
+
+html[data-theme="dark"] .queue-schedule-card.ready {
+  background: #10231d;
+}
+
+html[data-theme="dark"] .queue-schedule-card.warning {
+  background: #241f13;
+}
+
+html[data-theme="dark"] .queue-schedule-card.off {
+  background: #17232d;
+}
+
+html[data-theme="dark"] .queue-schedule-card.blocked {
+  background: #321b19;
+}
+
+html[data-theme="dark"] .queue-item-meta-row span,
+html[data-theme="dark"] .queue-status-chip {
+  border-color: rgba(159, 176, 187, 0.22);
+  background: #17232d;
+  color: #b9c9d2;
+}
+
+html[data-theme="dark"] .queue-status-posted,
+html[data-theme="dark"] .queue-status-submitted {
+  background: #10231d;
+  color: #90c9ab;
+}
+
+html[data-theme="dark"] .queue-status-failed {
+  background: #321b19;
+  color: #ffaaa0;
+}
+
+html[data-theme="dark"] .queue-status-needs-review {
+  background: #2c2411;
+  color: #efcf84;
+}
+
+@media (max-width: 980px) {
+  .queue-schedule-readiness-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .queue-schedule-readiness-grid {
+    grid-template-columns: 1fr;
+  }
+}

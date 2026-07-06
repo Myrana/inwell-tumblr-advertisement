@@ -1,5 +1,6 @@
-import { Activity, AlertTriangle, Archive, CheckCircle2, ClipboardCheck, FilePlus2, ListChecks, Play, ShieldCheck } from "lucide-react";
+import { Activity, AlertTriangle, Archive, CheckCircle2, ClipboardCheck, FilePlus2, Layers3, ListChecks, PenLine, Play, Radio, ShieldCheck, Users } from "lucide-react";
 import { isQueueableAdvertisement } from "../domain/adEligibility";
+import type { ScheduleRunnerReadiness } from "../domain/localRunnerReadiness";
 import { attentionQueueItems, queueReadiness, queueStatusCounts, runnableQueueItems } from "../domain/queueAutomation";
 import { Advertisement, QueueDefinition, RunnerActivity, SubmissionQueueItem, TumblrAccount, WorkspaceView } from "../domain/types";
 import "./operations/operationsDashboard.css";
@@ -10,6 +11,7 @@ type OperationsDashboardProps = {
   queueOptions: QueueDefinition[];
   runnerActivity: RunnerActivity;
   runnerConnectionLabel: string;
+  scheduleRunnerReadiness: ScheduleRunnerReadiness;
   runnerSubmitApproved: boolean;
   savedDraftCount: number;
   savedDrafts: Advertisement[];
@@ -25,6 +27,7 @@ export function OperationsDashboard({
   queueOptions,
   runnerActivity,
   runnerConnectionLabel,
+  scheduleRunnerReadiness,
   runnerSubmitApproved,
   savedDraftCount,
   savedDrafts,
@@ -44,11 +47,13 @@ export function OperationsDashboard({
   const needsLoginAccounts = tumblrAccounts.filter((account) => account.status !== "connected").length;
   const showFirstRunPanel = connectedAccounts === 0 && savedDraftCount === 0 && queueItems.length === 0;
   const campaignSnapshots = buildCampaignSnapshots(savedDrafts, queueItems);
+  const runnerStatusTone = operationsRunnerTone(scheduleRunnerReadiness);
   const readiness = queueReadiness({
     activeQueueName,
     activeQueue: activeQueueItems,
     connectedAccountCount: connectedAccounts,
     runnerActivity,
+    runnerReady: scheduleRunnerReadiness.ready,
     savedDraftCount,
     submitApproved: runnerSubmitApproved,
   });
@@ -99,7 +104,12 @@ export function OperationsDashboard({
       <OperationsHero
         activeQueueName={activeQueueName}
         attentionCount={needsReviewCount}
+        connectedAccounts={connectedAccounts}
+        livePostingApproved={runnerSubmitApproved}
         queuedCount={queuedCount}
+        reviewCount={needsReviewCount}
+        runnerTone={runnerStatusTone}
+        savedDraftCount={savedDraftCount}
         runnerStatus={runnerActivity.status}
         onNavigate={onNavigate}
       />
@@ -160,24 +170,59 @@ export function OperationsDashboard({
         </section>
       ) : null}
 
+      <section className="operations-focus-grid" aria-label="Operations focus">
+        <article className="focus-card focus-card-large" aria-label="Draft focus">
+          <div className="focus-card-title">
+            <PenLine size={20} />
+            <span>Drafts</span>
+          </div>
+          <strong>{savedDraftCount ? `${savedDraftCount} ready to shape` : "Start with a draft"}</strong>
+          <p>{savedDraftCount ? "Review saved copy, finish campaign details, and move the strongest ads into the queue." : "Write the first advertisement before setting up a runner flow."}</p>
+          <button className="primary compact-button" type="button" onClick={() => onNavigate(savedDraftCount ? "saved" : "editor")}>
+            {savedDraftCount ? "Prep content" : "Write Advertisement"}
+          </button>
+        </article>
+
+        <article className="focus-card" aria-label="Queue focus">
+          <div className="focus-card-title">
+            <ListChecks size={20} />
+            <span>Queue</span>
+          </div>
+          <strong>{queuedCount ? `${queuedCount} runnable` : "Nothing queued yet"}</strong>
+          <p>{activeQueueName ? `${activeQueueItems.length} total items in ${activeQueueName}.` : "Choose or create a queue lane."}</p>
+          <button className="text-link" type="button" onClick={() => onNavigate("queue")}>
+            Open queue
+          </button>
+        </article>
+
+        <article className={`focus-card focus-card-runner ${runnerStatusTone}`} aria-label="Runner focus">
+          <div className="focus-card-title">
+            <Radio size={20} />
+            <span>Runner Status</span>
+          </div>
+          <strong>{scheduleRunnerReadiness.ready ? "Runner is ready" : runnerConnectionLabel}</strong>
+          <p>{scheduleRunnerReadiness.ready ? "Local automation can work through queued advertisements." : scheduleRunnerReadiness.detail || "Start the local runner when content is queued."}</p>
+          <button className={readiness.canRun ? "primary compact-button" : "text-link"} type="button" onClick={() => onNavigate(readiness.primaryAction.view)}>
+            {readiness.primaryAction.label}
+          </button>
+        </article>
+      </section>
+
       <section className={`run-readiness-panel run-readiness-${readiness.status}`} aria-label="Run readiness">
         <div className="run-readiness-icon">
           {readiness.canRun ? <Play size={22} /> : readiness.status === "review" ? <AlertTriangle size={22} /> : <ListChecks size={22} />}
         </div>
         <div className="run-readiness-copy">
-          <span>Run readiness</span>
-          <strong>{readiness.title}</strong>
+          <span>Runner checklist</span>
+          <strong>{readiness.canRun ? "Ready when you are" : friendlyReadinessTitle(readiness.title)}</strong>
           <small>{readiness.detail}</small>
         </div>
-        <button className="primary compact-button" type="button" onClick={() => onNavigate(readiness.primaryAction.view)}>
-          {readiness.primaryAction.label}
-        </button>
         {readiness.blockers.length ? (
           <ul className="run-readiness-blockers" aria-label="Run blockers">
             {readiness.blockers.slice(0, 3).map((blocker) => (
               <li key={blocker}>
                 <span>{blocker}</span>
-                <button className="secondary compact-button" type="button" onClick={() => onNavigate(readinessActionFor(blocker).view)}>
+                <button className="text-link" type="button" onClick={() => onNavigate(readinessActionFor(blocker).view)}>
                   {readinessActionFor(blocker).label}
                 </button>
               </li>
@@ -194,7 +239,7 @@ export function OperationsDashboard({
             <span>Campaign dashboard</span>
             <h2>{campaignSnapshots.length ? "Campaign readiness at a glance" : "No campaigns assigned yet"}</h2>
           </div>
-          <button className="secondary compact-button" type="button" onClick={() => onNavigate("saved")}>
+          <button className="text-link" type="button" onClick={() => onNavigate("saved")}>
             Open library
           </button>
         </div>
@@ -243,7 +288,7 @@ export function OperationsDashboard({
                 <strong>{item.value}</strong>
                 <small>{item.detail}</small>
               </div>
-              <button className="secondary compact-button" type="button" onClick={() => onNavigate(item.view)}>
+              <button className="text-link" type="button" onClick={() => onNavigate(item.view)}>
                 {item.action}
               </button>
             </article>
@@ -256,7 +301,7 @@ export function OperationsDashboard({
           <div className="attention-queue-heading">
             <AlertTriangle size={18} />
             <strong>Attention required</strong>
-            <button className="secondary compact-button" type="button" onClick={() => onNavigate("queue")}>
+            <button className="text-link" type="button" onClick={() => onNavigate("queue")}>
               Review queue
             </button>
           </div>
@@ -271,7 +316,7 @@ export function OperationsDashboard({
         </section>
       ) : null}
 
-      <div className="operations-grid">
+      <div className="operations-grid" aria-label="Supporting dashboard details">
         <article className="operation-card operation-card-primary">
           <div className="operation-card-icon">
             <ListChecks size={20} />
@@ -280,10 +325,10 @@ export function OperationsDashboard({
           <strong>{activeQueueName || "No queue"}</strong>
           <small>{queuedCount} ready - {runningCount} running - {needsReviewCount} need review</small>
           <div className="operation-card-actions">
-            <button className="secondary compact-button" type="button" onClick={() => onNavigate("queue")}>
+            <button className="text-link" type="button" onClick={() => onNavigate("queue")}>
               Open queue
             </button>
-            <button className="secondary compact-button" type="button" onClick={() => onNavigate("queue-settings")}>
+            <button className="text-link" type="button" onClick={() => onNavigate("queue-settings")}>
               Blog tracker
             </button>
           </div>
@@ -295,8 +340,8 @@ export function OperationsDashboard({
           </div>
           <span>Runner</span>
           <strong>{runnerActivity.status}</strong>
-          <small>{runnerConnectionLabel}. {runnerSubmitApproved ? "Live posting approved." : "Test/prep mode until live posting is approved."}</small>
-          <button className="secondary compact-button" type="button" onClick={() => onNavigate("runner")}>
+          <small>{runnerSubmitApproved ? "Live posting approved." : "Test/prep mode until live posting is approved."}</small>
+          <button className="text-link" type="button" onClick={() => onNavigate("runner")}>
             Runner controls
           </button>
         </article>
@@ -308,7 +353,7 @@ export function OperationsDashboard({
           <span>Queue health</span>
           <strong>{needsReviewCount ? `${needsReviewCount} need review` : "No blockers"}</strong>
           <small>{postedCount} completed submissions</small>
-          <button className="secondary compact-button" type="button" onClick={() => onNavigate("logs")}>
+          <button className="text-link" type="button" onClick={() => onNavigate("logs")}>
             Review logs
           </button>
         </article>
@@ -320,7 +365,7 @@ export function OperationsDashboard({
           <span>Tumblr accounts</span>
           <strong>{connectedAccounts} connected</strong>
           <small>{needsLoginAccounts} need login or check</small>
-          <button className="secondary compact-button" type="button" onClick={() => onNavigate("accounts")}>
+          <button className="text-link" type="button" onClick={() => onNavigate("accounts")}>
             Manage accounts
           </button>
         </article>
@@ -332,7 +377,7 @@ export function OperationsDashboard({
           <span>Templates</span>
           <strong>{templateCount} saved</strong>
           <small>Reusable copy ready for submissions</small>
-          <button className="secondary compact-button" type="button" onClick={() => onNavigate("templates")}>
+          <button className="text-link" type="button" onClick={() => onNavigate("templates")}>
             Open templates
           </button>
         </article>
@@ -340,6 +385,16 @@ export function OperationsDashboard({
       </div>
     </section>
   );
+}
+
+function operationsRunnerTone(readiness: ScheduleRunnerReadiness) {
+  if (readiness.ready) {
+    return "ready";
+  }
+  if (readiness.status === "idle") {
+    return "warning";
+  }
+  return "blocked";
 }
 
 function readinessActionFor(blocker: string): { label: string; view: WorkspaceView } {
@@ -353,6 +408,16 @@ function readinessActionFor(blocker: string): { label: string; view: WorkspaceVi
     return { label: "Fix queue", view: "queue" };
   }
   return { label: "Prep content", view: "saved" };
+}
+
+function friendlyReadinessTitle(title: string) {
+  if (title.toLowerCase().includes("blocked")) {
+    return "Runner is waiting";
+  }
+  if (title.toLowerCase().includes("queue")) {
+    return "Queue needs content";
+  }
+  return title;
 }
 
 function buildCampaignSnapshots(savedDrafts: Advertisement[], queueItems: SubmissionQueueItem[]) {
@@ -376,7 +441,12 @@ function buildCampaignSnapshots(savedDrafts: Advertisement[], queueItems: Submis
 type OperationsHeroProps = {
   activeQueueName: string;
   attentionCount: number;
+  connectedAccounts: number;
+  livePostingApproved: boolean;
   queuedCount: number;
+  reviewCount: number;
+  runnerTone: string;
+  savedDraftCount: number;
   runnerStatus: string;
   onNavigate: (view: WorkspaceView) => void;
 };
@@ -384,38 +454,74 @@ type OperationsHeroProps = {
 function OperationsHero({
   activeQueueName,
   attentionCount,
+  connectedAccounts,
+  livePostingApproved,
   queuedCount,
+  reviewCount,
+  runnerTone,
+  savedDraftCount,
   runnerStatus,
   onNavigate,
 }: OperationsHeroProps) {
+  const summaryText = attentionCount
+    ? `${attentionCount} item${attentionCount === 1 ? "" : "s"} need review before the next run.`
+    : savedDraftCount || queuedCount
+      ? `${savedDraftCount} draft${savedDraftCount === 1 ? "" : "s"} available and ${queuedCount} queued for ${activeQueueName || "the selected queue"}.`
+      : "Start by writing an advertisement, then queue it to a connected Tumblr account.";
+
   return (
     <section className="operations-hero" aria-label="Operations command center">
-      <div className="operations-hero-brand">
-        <div className="operations-hero-mark" aria-hidden="true">
-          I
-        </div>
-        <div>
-          <span>Operations</span>
-          <h1>{attentionCount ? `${attentionCount} queue item${attentionCount === 1 ? "" : "s"} need attention` : "Submission flow is ready to manage"}</h1>
-          <p>
-            {activeQueueName || "No queue selected"}: {queuedCount} ready. Runner: {runnerStatus}.
-          </p>
+      <div className="operations-hero-copy operations-hero-brand">
+        <span>Workspace overview</span>
+        <h2>Editor workspace overview</h2>
+        <p>{summaryText}</p>
+        <div className="operations-hero-actions">
+          <button className="primary compact-button" type="button" onClick={() => onNavigate("editor")}>
+            Write Advertisement
+          </button>
+          <button className="text-link" type="button" onClick={() => onNavigate("runner")}>
+            Runner controls
+          </button>
+          <button className="text-link" type="button" onClick={() => onNavigate("accounts")}>
+            Account health
+          </button>
+          <button className="text-link" type="button" onClick={() => onNavigate("settings")}>
+            Settings
+          </button>
         </div>
       </div>
-      <div className="operations-hero-actions">
-        <button className="primary compact-button" type="button" onClick={() => onNavigate(attentionCount ? "queue" : "editor")}>
-          {attentionCount ? "Review queue" : "Write advertisement"}
-        </button>
-        <button className="secondary compact-button" type="button" onClick={() => onNavigate("runner")}>
-          Runner controls
-        </button>
-        <button className="secondary compact-button" type="button" onClick={() => onNavigate("accounts")}>
-          Account health
-        </button>
-        <button className="secondary compact-button" type="button" onClick={() => onNavigate("settings")}>
-          Settings
-        </button>
-      </div>
+      <section className="operations-status-strip" aria-label="Operations status summary">
+        <article className={savedDraftCount ? "ops-status-card ready" : "ops-status-card"} aria-label="Draft ready status">
+          <Layers3 size={18} />
+          <span>Drafts ready</span>
+          <strong>{savedDraftCount}</strong>
+        </article>
+        <article className={queuedCount ? "ops-status-card ready" : "ops-status-card warning"} aria-label="Queue ready status">
+          <ListChecks size={18} />
+          <span>Queue ready</span>
+          <strong>{queuedCount}</strong>
+        </article>
+        <article className={`ops-status-card ${runnerTone}`} aria-label="Runner status summary">
+          <Radio size={18} />
+          <span>Runner</span>
+          <strong>{runnerStatus}</strong>
+        </article>
+        <article className={connectedAccounts ? "ops-status-card ready" : "ops-status-card warning"} aria-label="Account status summary">
+          <Users size={18} />
+          <span>Accounts</span>
+          <strong>{connectedAccounts}</strong>
+        </article>
+        <article className={reviewCount ? "ops-status-card warning" : "ops-status-card ready"} aria-label="Review queue status">
+          <AlertTriangle size={18} />
+          <span>Review queue</span>
+          <strong>{reviewCount}</strong>
+        </article>
+        <article className={livePostingApproved ? "ops-status-card ready" : "ops-status-card warning"} aria-label="Live posting status">
+          <CheckCircle2 size={18} />
+          <span>Live posting</span>
+          <strong>{livePostingApproved ? "Approved" : "Prep mode"}</strong>
+        </article>
+      </section>
     </section>
   );
 }
