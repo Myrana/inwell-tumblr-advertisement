@@ -1,4 +1,4 @@
-import { Archive, ChevronDown, Clipboard, FilePlus2, ListChecks, Pencil, PlayCircle, Send, TestTube2 } from "lucide-react";
+import { AlertTriangle, Archive, ChevronDown, Clipboard, FilePlus2, ListChecks, Pencil, PlayCircle, Send, TestTube2 } from "lucide-react";
 import { useState } from "react";
 import { formatDate, formatSubmissionStatus } from "../domain/format";
 import { isCompletedQueueItem, postHistoryArchiveItems } from "../domain/queue";
@@ -272,6 +272,20 @@ export function QueueWorkspace({
           </button>
         </div>
       </section>
+
+      {attentionItems.length ? (
+        <section className="queue-attention-banner" aria-label="Queue review required">
+          <AlertTriangle size={24} />
+          <div>
+            <strong>{attentionItems.length} item{attentionItems.length === 1 ? "" : "s"} need review</strong>
+            <span>Clear failed or review-needed submissions before relying on automation.</span>
+          </div>
+          <button className="primary compact-button" type="button" onClick={() => setSectionOpen("submissions", true)}>
+            <PlayCircle size={16} />
+            Review queue
+          </button>
+        </section>
+      ) : null}
 
       <section className="queue-pipeline-panel" aria-label="Live queue pipeline">
         {[

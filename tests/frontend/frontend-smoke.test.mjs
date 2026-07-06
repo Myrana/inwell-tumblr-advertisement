@@ -7,6 +7,7 @@ import {
   stopProcessTree,
   waitForServer,
 } from "./helpers/appTestServer.mjs";
+import { openWorkspaceView } from "./helpers/workspaceNavigation.mjs";
 
 const {
   apiHeaders,
@@ -40,33 +41,6 @@ test("render crashes show a recovery panel instead of a blank page", { timeout: 
   await page.getByText("Forced local render crash.").waitFor();
   await page.getByRole("button", { name: "Reset local cache" }).waitFor();
 });
-
-async function openWorkspaceView(page, viewName) {
-  const directButton = page.getByLabel("Workspace views").getByRole("button", { name: viewName, exact: true });
-  if ((await directButton.count()) > 0 && await directButton.first().isVisible()) {
-    await directButton.first().click();
-    return;
-  }
-
-  const operationActions = {
-    "Content Library": "Prep content",
-    Templates: "Open templates",
-    Queues: "Blog tracker",
-    Runner: "Runner controls",
-    "Tumblr Accounts": "Manage accounts",
-    Settings: "Settings",
-    "Runner Logs": "Review logs",
-    Docs: "Open docs",
-  };
-  const actionName = operationActions[viewName];
-  if (!actionName) {
-    throw new Error(`No Operations route is configured for ${viewName}.`);
-  }
-
-  await page.getByRole("button", { name: "Operations", exact: true }).click();
-  await page.getByRole("heading", { name: "Operations dashboard", level: 1 }).waitFor();
-  await page.getByRole("button", { name: actionName, exact: true }).first().click();
-}
 
 test("first user can create an Inkwell login before opening the workspace", { timeout: 40000 }, async (t) => {
   const server = spawn("npx vite --host 127.0.0.1 --port 8123 --strictPort", {

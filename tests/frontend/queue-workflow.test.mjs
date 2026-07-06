@@ -7,6 +7,7 @@ import {
   stopProcessTree,
   waitForServer,
 } from "./helpers/appTestServer.mjs";
+import { openWorkspaceView } from "./helpers/workspaceNavigation.mjs";
 import {
   setupBackendQueueBulkCompletionPage,
   submitBulkQueueCompletion,
@@ -40,33 +41,6 @@ async function openFrontendTestPage(t) {
   return browser.newPage();
 }
 
-async function openWorkspaceView(page, viewName) {
-  const directButton = page.getByLabel("Workspace views").getByRole("button", { name: viewName, exact: true });
-  if ((await directButton.count()) > 0 && await directButton.first().isVisible()) {
-    await directButton.first().click();
-    return;
-  }
-
-  const operationActions = {
-    "Content Library": "Prep content",
-    Templates: "Open templates",
-    Queues: "Blog tracker",
-    Runner: "Runner controls",
-    "Tumblr Accounts": "Manage accounts",
-    Settings: "Settings",
-    "Runner Logs": "Review logs",
-    Docs: "Open docs",
-  };
-  const actionName = operationActions[viewName];
-  if (!actionName) {
-    throw new Error(`No Operations route is configured for ${viewName}.`);
-  }
-
-  await page.getByRole("button", { name: "Operations", exact: true }).click();
-  await page.getByRole("heading", { name: "Operations dashboard", level: 1 }).waitFor();
-  await page.getByRole("button", { name: actionName, exact: true }).first().click();
-}
-
 const queueBulkFixtureDeps = {
   apiHeaders,
   appUrl,
@@ -82,6 +56,23 @@ const retryRecoveryFixtureDeps = {
   openWorkspaceView,
   routeAuthenticatedSession,
 };
+
+test("queue review banner summarizes attention items and opens submissions", { timeout: 40000 }, async (t) => {
+  const bulkQueue = await setupBackendQueueBulkCompletionPage(t, queueBulkFixtureDeps, {
+    firstItemStatus: "failed",
+    firstItemNotes: "Browser closed before posting.",
+  });
+
+  const banner = bulkQueue.page.getByLabel("Queue review required");
+  await banner.getByText("1 item need review").waitFor();
+  await banner.getByText("Clear failed or review-needed submissions before relying on automation.").waitFor();
+  await bulkQueue.page.getByRole("button", { name: "Toggle queued submissions section" }).click();
+  await bulkQueue.page.getByLabel("Queue bulk editor").waitFor({ state: "detached" });
+  await banner.getByRole("button", { name: "Review queue" }).click();
+  await bulkQueue.page.getByLabel("Queue bulk editor").waitFor();
+  await bulkQueue.page.locator(".queue-item", { hasText: "Why this failed" }).waitFor();
+  assert.equal(bulkQueue.pageErrors.length, 0, bulkQueue.pageErrors.map((error) => error.message).join("\n"));
+});
 
 test("queue bulk completion stops cleanly when the first completed item save fails", { timeout: 40000 }, async (t) => {
   const bulkQueue = await setupBackendQueueBulkCompletionPage(t, queueBulkFixtureDeps);

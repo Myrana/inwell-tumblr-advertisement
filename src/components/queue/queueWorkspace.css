@@ -17,6 +17,39 @@
   box-shadow: 0 12px 28px rgba(27, 30, 36, 0.06);
 }
 
+.queue-attention-banner {
+  margin-bottom: 14px;
+  padding: 16px 18px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  border: 1px solid rgba(215, 168, 68, 0.4);
+  border-left: 4px solid var(--amber);
+  border-radius: 8px;
+  background: #fff8df;
+}
+
+.queue-attention-banner svg {
+  color: var(--amber);
+}
+
+.queue-attention-banner strong,
+.queue-attention-banner span {
+  display: block;
+}
+
+.queue-attention-banner strong {
+  color: var(--text);
+  font-size: 1.02rem;
+}
+
+.queue-attention-banner span {
+  margin-top: 4px;
+  color: var(--muted);
+  font-weight: 800;
+}
+
 .queue-command-center span {
   color: var(--muted);
   font-size: 0.78rem;
@@ -258,12 +291,26 @@ html[data-theme="dark"] .queue-schedule-card {
 
 html[data-theme="dark"] .queue-command-center {
   border-color: rgba(95, 179, 197, 0.16);
-  background: #151d28;
+  background:
+    linear-gradient(180deg, rgba(22, 34, 45, 0.96), rgba(18, 29, 39, 0.96)),
+    #151d28;
 }
 
 html[data-theme="dark"] .queue-command-stats article {
   border-color: rgba(255, 255, 255, 0.1);
   background: #1f2730;
+}
+
+html[data-theme="dark"] .queue-attention-banner {
+  border-color: rgba(242, 195, 109, 0.42);
+  border-left-color: #f2c36d;
+  background:
+    linear-gradient(90deg, rgba(75, 50, 15, 0.88), rgba(35, 28, 18, 0.92)),
+    #241f13;
+}
+
+html[data-theme="dark"] .queue-attention-banner svg {
+  color: #f2c36d;
 }
 
 html[data-theme="dark"] .queue-runner-banner.ready {
@@ -336,6 +383,15 @@ html[data-theme="dark"] .queue-status-needs-review {
     align-items: stretch;
   }
 
+  .queue-attention-banner {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .queue-attention-banner > button {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+
   .compact-history .post-history-item {
     grid-template-columns: 1fr;
   }
@@ -354,6 +410,10 @@ html[data-theme="dark"] .queue-status-needs-review {
   .queue-runner-banner {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .queue-attention-banner {
+    grid-template-columns: 1fr;
   }
 
   .queue-pipeline-panel {

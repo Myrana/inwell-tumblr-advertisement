@@ -242,7 +242,7 @@ async function routeQueueBulkWorkspaceApis(page, apiHeaders) {
       body: JSON.stringify({
         settings: {
           submitTargets: [{ id: "refillblog", name: "Refill Blog", submitUrl: "https://refillblog.tumblr.com/submit" }],
-          queueDefinitions: [],
+          queueDefinitions: [{ id: "default-queue", name: "Default queue" }],
           tagProfiles: {},
           runnerSettings: {},
           scheduleSettings: {},
