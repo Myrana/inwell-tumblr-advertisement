@@ -42,7 +42,7 @@ async function openWorkspaceView(page, viewName) {
   await page.getByRole("button", { name: actionName, exact: true }).first().click();
 }
 
-test("operations dashboard centers content readiness without backup controls", { timeout: 40000 }, async (t) => {
+test("operations dashboard presents the mockup command center without backup controls", { timeout: 40000 }, async (t) => {
   const server = spawn("npx vite --host 127.0.0.1 --port 8127 --strictPort", {
     cwd: process.cwd(),
     shell: true,
@@ -191,28 +191,33 @@ test("operations dashboard centers content readiness without backup controls", {
 
   await page.goto(appUrl);
   await page.getByRole("heading", { name: "Operations dashboard", level: 1 }).waitFor();
+  await page.getByLabel("Operations command center").getByText(/Good (morning|afternoon|evening), Myrana/).waitFor();
+  await page.getByLabel("Operations command center").getByRole("button", { name: "Write Advertisement", exact: true }).waitFor();
+  await page.getByLabel("Operations command center").getByRole("button", { name: "Review Drafts", exact: true }).waitFor();
+  await page.getByLabel("Operations command center").getByRole("button", { name: "Open Queue", exact: true }).waitFor();
+  await page.getByLabel("Operations status summary").getByLabel("Draft ready status").getByText("2", { exact: true }).waitFor();
+  await page.getByLabel("Operations status summary").getByLabel("Account status summary").getByText("1", { exact: true }).waitFor();
+  await page.getByLabel("Core submission flow").getByRole("button", { name: /Accounts/ }).waitFor();
+  await page.getByLabel("Operations focus").getByLabel("Draft focus").getByText("2 ready to shape").waitFor();
   await page.getByLabel("Run readiness").getByText("Queue needs content").waitFor();
   await page.getByLabel("Run blockers").getByText("Add queued or scheduled submissions.").waitFor();
   await page.getByLabel("Run blockers").getByRole("button", { name: "Fix queue" }).first().waitFor();
-  await page.getByLabel("Campaign dashboard").getByText("Ops campaign").waitFor();
-  await page.getByLabel("Campaign dashboard").getByText("2 saved - 1 ready - 0 need edits").waitFor();
-  await page.getByLabel("Ops campaign readiness 50%").waitFor();
-  await page.getByLabel("Campaign dashboard").getByText("1 archived - 0 queued").waitFor();
+  await page.getByLabel("Campaign readiness").getByText("Ops campaign").waitFor();
+  await page.getByLabel("Campaign readiness").getByText("2 saved - 1 ready - 0 need edits").waitFor();
+  await page.getByLabel("Campaign readiness 50%").waitFor();
+  await page.getByLabel("Campaign readiness").getByText("1 archived - 0 queued").waitFor();
   await page.getByLabel("Recent activity").getByText("2 drafts available").waitFor();
   await page.getByLabel("Recent activity").getByText("Queue is empty").waitFor();
-  await page.getByLabel("Content readiness").getByText("2 drafts available").waitFor();
-  await page.getByLabel("Content readiness").getByText("Saved drafts").waitFor();
-  await page.getByLabel("Content readiness").getByText("Reusable templates").waitFor();
-  await page.getByLabel("Content readiness").getByText("Queue coverage").waitFor();
-  await page.getByLabel("Content readiness").getByText("0/0").waitFor();
-  await page.getByLabel("Content readiness").getByText("Account path", { exact: true }).waitFor();
-  await page.getByLabel("Content readiness").getByText("Open library").waitFor();
+  await page.getByLabel("Quick links").getByText("Content library").waitFor();
+  await page.getByLabel("Quick links").getByText("Runner").waitFor();
+  await page.getByLabel("Quick links").getByText("Queue").waitFor();
+  await page.getByLabel("Quick links").getByText("Account settings").waitFor();
   assert.equal(await page.getByRole("button", { name: "Export workspace" }).count(), 0);
   assert.equal(await page.locator('input[aria-label="Import workspace file"]').count(), 0);
   assert.equal(await page.getByLabel("Workspace views").getByRole("button", { name: "Templates", exact: true }).count(), 1);
   assert.equal(await page.getByLabel("Workspace views").getByRole("button", { name: "Queues", exact: true }).count(), 1);
   assert.equal(await page.getByLabel("Workspace views").getByRole("button", { name: "Accounts", exact: true }).count(), 1);
-  await page.getByLabel("Content readiness").getByRole("button", { name: "Prep content", exact: true }).click();
+  await page.getByLabel("Operations focus").getByLabel("Draft focus").getByRole("button", { name: "Prep content", exact: true }).click();
   await page.getByRole("heading", { name: "Content library", level: 1 }).waitFor();
   await page.getByRole("button", { name: "Back to Operations", exact: true }).click();
   await page.getByRole("heading", { name: "Operations dashboard", level: 1 }).waitFor();
@@ -286,6 +291,20 @@ test("operations status summary reports queue, runner, review, and live posting 
       runnerStatus: "Offline",
       livePosting: "Prep mode",
       runnerTone: "warning",
+    },
+    {
+      name: "manual-ready queue still surfaces runner recovery while local runner is offline",
+      runnerOnline: false,
+      submitApproved: true,
+      queueItems: [apiQueueItem()],
+      queueReady: "1",
+      reviewCount: "0",
+      runnerStatus: "Offline",
+      livePosting: "Approved",
+      runnerTone: "blocked",
+      recoveryCopy: true,
+      commandAction: "Runner Controls",
+      focusTitle: "Runner needs recovery",
     },
     {
       runnerOnline: true,
@@ -365,6 +384,21 @@ test("operations status summary reports queue, runner, review, and live posting 
       blockerText: "Select a connected Tumblr account.",
     },
     {
+      name: "items in another queue do not mark the active queue ready",
+      runnerOnline: true,
+      runnerWatching: true,
+      submitApproved: true,
+      queueItems: [apiQueueItem({ id: "other-queue-item", queue_name: "Other queue", queueName: "Other queue" })],
+      queueReady: "0",
+      reviewCount: "0",
+      runnerStatusSummary: "Watching",
+      livePosting: "Approved",
+      runnerTone: "warning",
+      activeQueueEmptyCopy: true,
+      selectQueueName: "Default queue",
+      readyCopy: false,
+    },
+    {
       name: "local runner ready with empty queue",
       runnerOnline: true,
       runnerWatching: true,
@@ -408,6 +442,22 @@ test("operations status summary reports queue, runner, review, and live posting 
       commandAction: "Review queue",
     },
     {
+      name: "runner watching in prep mode keeps live posting disabled copy",
+      runnerOnline: true,
+      runnerWatching: true,
+      submitApproved: false,
+      queueItems: [apiQueueItem()],
+      queueReady: "1",
+      reviewCount: "0",
+      runnerStatusSummary: "Watching",
+      livePosting: "Prep mode",
+      runnerTone: "ready",
+      readyCopy: true,
+      prepModeCopy: true,
+      commandAction: "Runner Controls",
+      focusTitle: "Runner is watching",
+    },
+    {
       name: "full operations readiness",
       runnerOnline: true,
       runnerWatching: true,
@@ -420,7 +470,7 @@ test("operations status summary reports queue, runner, review, and live posting 
       runnerTone: "ready",
       readyCopy: true,
       commandAction: "Runner Controls",
-      focusTitle: "Runner is ready",
+      focusTitle: "Runner is watching",
     },
   ];
 
@@ -460,6 +510,10 @@ test("operations status summary reports queue, runner, review, and live posting 
         headers: apiHeaders,
         body: JSON.stringify({
           settings: {
+            queueDefinitions: [
+              { id: "default-queue", name: "Default queue" },
+              { id: "other-queue", name: "Other queue" },
+            ],
             runnerSettings: scenario.runnerSettings ?? { mediaDir: "", slowMo: 500, headless: true, submit: scenario.submitApproved, tumblrAccountId: "tumblr-ops" },
             queueScheduleSettings: { enabled: false, dailyTime: "09:00", timezone: "America/New_York", perQueue: {} },
           },
@@ -493,8 +547,16 @@ test("operations status summary reports queue, runner, review, and live posting 
 
     await page.goto(appUrl);
     await page.getByRole("heading", { name: "Operations dashboard", level: 1 }).waitFor();
+    if (scenario.selectQueueName) {
+      await page.getByLabel("Workspace views").getByRole("button", { name: "Queues", exact: true }).click();
+      await page.getByRole("heading", { name: "Queues", exact: true }).waitFor();
+      await page.locator(".queue-management-row", { hasText: scenario.selectQueueName }).getByRole("button", { name: "Open queue" }).click();
+      await page.getByRole("button", { name: "Operations", exact: true }).click();
+      await page.getByRole("heading", { name: "Operations dashboard", level: 1 }).waitFor();
+    }
     const commandCenter = page.getByLabel("Operations command center");
-    await commandCenter.getByText(/Good (morning|afternoon|evening)\. You have/).waitFor();
+    await commandCenter.getByText(/Good (morning|afternoon|evening), Myrana/).waitFor();
+    await commandCenter.getByText(/You have \d+ drafts? ready to review/).waitFor();
     await commandCenter.getByRole("button", { name: "Write Advertisement", exact: true }).waitFor();
     await commandCenter.getByRole("button", { name: "Review Drafts", exact: true }).waitFor();
     await commandCenter.getByRole("button", { name: "Open Queue", exact: true }).waitFor();
@@ -509,11 +571,25 @@ test("operations status summary reports queue, runner, review, and live posting 
       await page.getByLabel("Run blockers").getByText(scenario.blockerText, { exact: true }).waitFor();
     }
     if (scenario.readyCopy) {
-      await runnerFocus.getByText("Runner is ready", { exact: true }).waitFor();
-      await runnerFocus.getByText("can post", { exact: false }).waitFor();
+      await runnerFocus.getByText("Runner is watching", { exact: true }).waitFor();
+      if (scenario.prepModeCopy) {
+        await runnerFocus.getByText("Live posting is off", { exact: false }).waitFor();
+        await page.getByLabel("Run readiness").getByText("Live posting is off", { exact: false }).waitFor();
+        await page.getByLabel("Run readiness").getByText("ready to post", { exact: false }).waitFor({ state: "detached" });
+      } else {
+        await runnerFocus.getByText("can post", { exact: false }).waitFor();
+      }
       await commandCenter.getByRole("button", { name: "Runner Controls", exact: true }).waitFor();
+    } else if (scenario.recoveryCopy) {
+      await runnerFocus.getByText("Runner needs recovery", { exact: true }).waitFor();
+      await page.locator(".run-readiness-copy small").filter({ hasText: "Manual run controls remain available" }).waitFor();
+      await page.getByLabel("Run readiness").getByText("All systems go", { exact: true }).waitFor({ state: "detached" });
+      await runnerFocus.getByText("Runner is watching", { exact: true }).waitFor({ state: "detached" });
+      await commandCenter.getByRole("button", { name: "Runner Controls", exact: true }).waitFor();
+    } else if (scenario.activeQueueEmptyCopy) {
+      await runnerFocus.getByText("Runner is watching", { exact: true }).waitFor({ state: "detached" });
     } else {
-      await runnerFocus.getByText("Runner is ready", { exact: true }).waitFor({ state: "detached" });
+      await runnerFocus.getByText("Runner is watching", { exact: true }).waitFor({ state: "detached" });
       await runnerFocus.getByText("Local automation can work through queued advertisements.", { exact: true }).waitFor({ state: "detached" });
       await commandCenter.getByRole("button", { name: "Runner Controls", exact: true }).waitFor({ state: "detached" });
     }
@@ -523,6 +599,10 @@ test("operations status summary reports queue, runner, review, and live posting 
     const runnerCard = summary.getByLabel("Runner status summary");
     await runnerCard.getByText("Runner", { exact: true }).waitFor();
     await runnerCard.getByText(scenario.runnerStatusSummary ?? scenario.runnerStatus, { exact: true }).waitFor();
+    if (scenario.prepModeCopy) {
+      await runnerCard.getByText("Prep mode only", { exact: true }).waitFor();
+      await runnerCard.getByText("Live posting approved", { exact: true }).waitFor({ state: "detached" });
+    }
     await summary.getByLabel("Review queue status").getByText("Review queue", { exact: true }).waitFor();
     await summary.getByLabel("Review queue status").getByText(scenario.reviewCount, { exact: true }).waitFor();
     await summary.getByLabel("Live posting status").getByText("Live posting", { exact: true }).waitFor();
@@ -533,6 +613,17 @@ test("operations status summary reports queue, runner, review, and live posting 
       const readiness = page.getByLabel("Run readiness");
       await readiness.getByText("Review failed or needs-review submissions.").waitFor();
       await readiness.getByText("No blockers detected", { exact: false }).waitFor({ state: "detached" });
+      await page.getByLabel("Run blockers").getByRole("button", { name: "Review queue", exact: true }).click();
+      await page.getByRole("button", { name: "Operations", exact: true }).waitFor();
+      await page.getByLabel("Tumblr submission queue").waitFor();
+      await page.getByRole("button", { name: "Operations", exact: true }).click();
+      await page.getByRole("heading", { name: "Operations dashboard", level: 1 }).waitFor();
+    }
+    if (scenario.activeQueueEmptyCopy) {
+      const workflowQueueStep = page.getByLabel("Core submission flow").getByRole("button", { name: /Queue/ });
+      await workflowQueueStep.getByText("Queue targets", { exact: true }).waitFor();
+      await page.getByLabel("Run readiness").getByText("Queue needs content", { exact: true }).waitFor();
+      await page.getByLabel("Run readiness").getByText("All systems go", { exact: true }).waitFor({ state: "detached" });
     }
     await page.close();
   }

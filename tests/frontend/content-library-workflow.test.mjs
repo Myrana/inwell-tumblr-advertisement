@@ -259,7 +259,8 @@ test("content library rows can queue a saved submission", { timeout: 40000 }, as
   await page.goto(appUrl);
   await page.getByRole("button", { name: "Operations", exact: true }).click();
   await page.getByRole("heading", { name: "Operations dashboard", level: 1 }).waitFor();
-  await page.getByLabel("Content readiness").getByText("3 drafts available").waitFor();
+  await page.getByLabel("Operations focus").getByLabel("Draft focus").getByText("3 ready to shape").waitFor();
+  await page.getByLabel("Campaign readiness").getByText("Campaign readiness at a glance").waitFor();
   await page.getByLabel("Runner focus").getByText("Queue needs content").waitFor();
   await openWorkspaceView(page, "Content Library");
   const savedRow = page.locator(".draft-row").filter({ has: page.locator("strong", { hasText: "Saved queue post" }) });
