@@ -6,6 +6,8 @@ import { Advertisement } from "../domain/types";
 export type LibrarySortMode = "updated-desc" | "campaign-asc" | "campaign-desc";
 export type CampaignFilterKey = "all" | "unassigned" | `campaign:${string}`;
 export type ArchiveFilter = "active" | "archived" | "all";
+export type LibraryViewMode = "comfortable" | "compact" | "gallery";
+export type LibraryWorkFilter = "all" | "needs-work";
 
 export function campaignReadinessSummary(campaignAds: Advertisement[]) {
   const activeAds = campaignAds.filter((ad) => !ad.archived);
@@ -21,6 +23,8 @@ export function buildSavedSubmissionsViewModel(
   archiveFilter: ArchiveFilter,
   sortMode: LibrarySortMode,
   selectedDraftIds: string[] = [],
+  searchTerm = "",
+  workFilter: LibraryWorkFilter = "all",
 ) {
   const libraryAds = ads.filter(hasLibraryContent);
   const archivedAds = libraryAds.filter((ad) => ad.archived);
@@ -39,8 +43,28 @@ export function buildSavedSubmissionsViewModel(
     }
     return campaignName === selectedCampaignName;
   });
-  const selectedReadyAds = selectedCampaignAds.filter(isQueueableAdvertisement);
-  const selectedNeedsWorkCount = selectedCampaignAds.filter((ad) => !ad.archived).length - selectedReadyAds.length;
+  const normalizedSearch = searchTerm.trim().toLowerCase();
+  const searchedCampaignAds = normalizedSearch
+    ? selectedCampaignAds.filter((ad) => {
+        const haystack = [
+          ad.title,
+          ad.campaignName,
+          ad.destinationBlog,
+          ad.forumUrl,
+          ad.content,
+          ad.postType,
+          ad.status,
+          ...ad.tags,
+        ].join(" ").toLowerCase();
+        return haystack.includes(normalizedSearch);
+      })
+    : selectedCampaignAds;
+  const displayedCampaignAds =
+    workFilter === "needs-work"
+      ? searchedCampaignAds.filter((ad) => !ad.archived && !isQueueableAdvertisement(ad))
+      : searchedCampaignAds;
+  const campaignReadyAds = selectedCampaignAds.filter(isQueueableAdvertisement);
+  const campaignNeedsWorkCount = selectedCampaignAds.filter((ad) => !ad.archived).length - campaignReadyAds.length;
   const campaignNames = Array.from(new Set(visibleLibraryAds.map((ad) => ad.campaignName?.trim()).filter(Boolean) as string[])).sort((first, second) =>
     first.localeCompare(second, undefined, { sensitivity: "base" }),
   );
@@ -49,7 +73,7 @@ export function buildSavedSubmissionsViewModel(
   const duplicateMatches = findDuplicateContentMatches(selectedCampaignAds);
   const duplicateMatchesByAdId = mapDuplicateMatchesByAdId(duplicateMatches);
   const duplicateItemCount = duplicateMatches.reduce((total, match) => total + match.adIds.length, 0);
-  const sortedLibraryAds = [...selectedCampaignAds].sort((first, second) => {
+  const sortedLibraryAds = [...displayedCampaignAds].sort((first, second) => {
     if (sortMode === "updated-desc") {
       return new Date(second.updatedAt).getTime() - new Date(first.updatedAt).getTime();
     }
@@ -66,29 +90,38 @@ export function buildSavedSubmissionsViewModel(
     return sortMode === "campaign-asc" ? campaignComparison || titleComparison : -campaignComparison || titleComparison;
   });
   const sortedReadyAds = sortedLibraryAds.filter(isQueueableAdvertisement);
+  const displayedReadyCount = sortedReadyAds.length;
+  const displayedNeedsWorkCount = sortedLibraryAds.filter((ad) => !ad.archived).length - displayedReadyCount;
   const queueableAdIds = new Set(sortedReadyAds.map((ad) => ad.id));
-  const selectedLibraryAdIds = new Set(selectedCampaignAds.map((ad) => ad.id));
+  const displayedLibraryAdIds = sortedLibraryAds.map((ad) => ad.id);
+  const selectedLibraryAdIds = new Set(displayedLibraryAdIds);
   const selectedLibraryCount = selectedDraftIds.filter((id) => selectedLibraryAdIds.has(id)).length;
   const selectedReadyDrafts = sortedReadyAds.filter((ad) => selectedDraftIds.includes(ad.id));
-  const batchQueueDrafts = selectedDraftIds.length > 0 ? selectedReadyDrafts : sortedReadyAds;
+  const selectedReadyDraftCount = selectedReadyDrafts.length;
 
   return {
     activeLibraryAds,
     archivedAds,
+    campaignNeedsWorkCount,
     campaignNames,
+    campaignReadyCount: campaignReadyAds.length,
     duplicateItemCount,
     duplicateMatches,
     duplicateMatchesByAdId,
+    displayedLibraryAdIds,
+    displayedLibraryCount: sortedLibraryAds.length,
+    displayedNeedsWorkCount,
+    displayedReadyCount,
     libraryAds,
     needsWorkCount,
-    batchQueueDrafts,
     queueableAdIds,
     readyAds,
     selectedCampaignAds,
+    searchTerm: normalizedSearch,
     selectedCampaignLabel,
-    selectedLibraryCount,
-    selectedNeedsWorkCount,
-    selectedReadyAds,
+    selectedDisplayedCount: selectedLibraryCount,
+    selectedReadyDraftCount,
+    selectedReadyDrafts,
     sortedLibraryAds,
     sortedReadyAds,
     unassignedAds,

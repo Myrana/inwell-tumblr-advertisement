@@ -93,6 +93,63 @@
   line-height: 1.4;
 }
 
+.queue-pipeline-panel {
+  margin-bottom: 14px;
+  padding: 10px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  border: 1px solid rgba(46, 143, 163, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.68);
+}
+
+.queue-pipeline-step {
+  min-width: 0;
+  padding: 10px;
+  display: grid;
+  gap: 3px;
+  border: 1px solid rgba(46, 143, 163, 0.12);
+  border-left: 4px solid var(--amber);
+  border-radius: 8px;
+  background: #fffaf0;
+}
+
+.queue-pipeline-step.ready {
+  border-left-color: var(--green);
+  background: #f2fbf6;
+}
+
+.queue-pipeline-step strong {
+  color: var(--text);
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.queue-pipeline-step span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.compact-history .post-history-item {
+  padding: 12px 14px;
+  grid-template-columns: minmax(220px, 1fr) minmax(260px, 1fr) auto;
+  align-items: center;
+}
+
+.compact-history .post-history-heading,
+.compact-history .post-history-meta,
+.compact-history .post-history-actions {
+  margin: 0;
+}
+
+.compact-history .post-history-item p {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
 .queue-schedule-card {
   min-width: 0;
   min-height: 104px;
@@ -217,6 +274,19 @@ html[data-theme="dark"] .queue-runner-banner {
   background: #241f13;
 }
 
+html[data-theme="dark"] .queue-pipeline-panel {
+  border-color: rgba(95, 179, 197, 0.16);
+  background: #151d28;
+}
+
+html[data-theme="dark"] .queue-pipeline-step.ready {
+  background: #10231d;
+}
+
+html[data-theme="dark"] .queue-pipeline-step {
+  background: #241f13;
+}
+
 html[data-theme="dark"] .queue-schedule-card.ready {
   background: #10231d;
 }
@@ -265,6 +335,10 @@ html[data-theme="dark"] .queue-status-needs-review {
     grid-template-columns: 1fr;
     align-items: stretch;
   }
+
+  .compact-history .post-history-item {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 720px) {
@@ -280,5 +354,9 @@ html[data-theme="dark"] .queue-status-needs-review {
   .queue-runner-banner {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .queue-pipeline-panel {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

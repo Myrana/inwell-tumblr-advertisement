@@ -63,6 +63,7 @@ test("content library rows can queue a saved submission", { timeout: 40000 }, as
   const page = await browser.newPage();
   const pageErrors = [];
   const savedQueueItems = [];
+  const savedQueueState = new Map();
   const savedAdvertisements = [];
   page.on("pageerror", (error) => pageErrors.push(error));
   await page.route("http://127.0.0.1:8021/api/**", (route) => route.abort());
@@ -72,6 +73,7 @@ test("content library rows can queue a saved submission", { timeout: 40000 }, as
   await page.route("http://127.0.0.1:8021/api/queue/**", (route) => {
     const savedQueueItem = route.request().postDataJSON();
     savedQueueItems.push(savedQueueItem);
+    savedQueueState.set(`${savedQueueItem.ad_id}:${savedQueueItem.target_id}:${savedQueueItem.queue_name}`, savedQueueItem);
     return route.fulfill({
       contentType: "application/json",
       headers: apiHeaders,
@@ -267,6 +269,7 @@ test("content library rows can queue a saved submission", { timeout: 40000 }, as
   await savedRow.getByText("Updated").waitFor();
   await savedRow.getByText("100% ready").waitFor();
   const archiveResponse = page.waitForResponse((response) => response.url().includes("/api/advertisements/saved-ad") && response.request().method() === "PUT");
+  await savedRow.getByLabel("More advertisement actions").click();
   await savedRow.getByRole("button", { name: "Archive" }).click();
   await page.getByLabel("Campaign library").getByRole("button", { name: /Archived/ }).click();
   const archivedRow = page.locator(".draft-row.archived", { hasText: "Saved queue post" });
@@ -277,6 +280,7 @@ test("content library rows can queue a saved submission", { timeout: 40000 }, as
   const archivedAllRow = page.locator(".draft-row.archived", { hasText: "Saved queue post" });
   assert.equal(await archivedAllRow.getByRole("button", { name: "Restore to queue" }).isDisabled(), true);
   const unarchiveResponse = page.waitForResponse((response) => response.url().includes("/api/advertisements/saved-ad") && response.request().method() === "PUT");
+  await archivedAllRow.getByLabel("More advertisement actions").click();
   await archivedAllRow.getByRole("button", { name: "Unarchive" }).click();
   await archiveResponse;
   await unarchiveResponse;
@@ -293,29 +297,69 @@ test("content library rows can queue a saved submission", { timeout: 40000 }, as
   await page.getByLabel("Library command center").getByText("2 ready, 1 need edits, 0 archived.").waitFor();
   await page.getByLabel("Library command center").getByRole("button", { name: "Queue All Ready" }).waitFor();
   await page.getByLabel("Library command center").getByRole("button", { name: "Create New Advertisement" }).waitFor();
+  await page.getByLabel("Library command center").getByRole("button", { name: "Review Incomplete" }).click();
+  await page.getByText("Showing advertisements that need edits.").waitFor();
+  await page.locator(".advertisement-card", { hasText: "Needs forum link" }).waitFor();
+  assert.equal(await page.locator(".saved-library-list .advertisement-card").count(), 1);
+  assert.equal(await page.locator(".advertisement-card", { hasText: "Saved queue post" }).count(), 0);
+  await page.getByRole("button", { name: "Show all" }).click();
+  await savedRow.getByText("100% ready").waitFor();
+  await page.getByLabel("Search saved advertisements").fill("Second");
+  assert.equal(await page.getByLabel("Search saved advertisements").inputValue(), "Second");
+  await page.locator(".advertisement-card", { hasText: "Second saved post" }).waitFor();
+  assert.equal(await page.locator(".saved-library-list .advertisement-card").count(), 1);
+  await page.getByLabel("Saved sorting controls").getByLabel("Select all visible items").check();
+  await page.getByLabel("Selected library actions").getByText("1 selected").waitFor();
+  await page.getByLabel("Batch queue destination").selectOption("Want ads");
+  const searchedBatchQueue = page.waitForResponse((response) => response.url().includes("/api/queue/") && response.request().method() === "PUT");
+  await page.getByLabel("Selected library actions").getByRole("button", { name: "Queue selected ready" }).click();
+  await searchedBatchQueue;
+  assert.deepEqual(savedQueueItems.map((item) => item.ad_id), ["saved-ad-two"]);
+  await openWorkspaceView(page, "Content Library");
+  await page.getByLabel("Library view mode").getByRole("button", { name: "Compact" }).click();
+  assert.match(await page.locator(".saved-library-list").first().getAttribute("class"), /saved-library-list-compact/);
+  await page.getByLabel("Library view mode").getByRole("button", { name: "Gallery" }).click();
+  assert.match(await page.locator(".saved-library-list").first().getAttribute("class"), /saved-library-list-gallery/);
+  await page.getByLabel("Library view mode").getByRole("button", { name: "Comfortable" }).click();
   await page.getByLabel("Batch prep assistant").getByText("2 ready to queue - 1 need edits").waitFor();
   await page.getByLabel("Duplicate content check").getByText("2 possible duplicates in 1 group").waitFor();
   await page.getByLabel("Duplicate review workflow").getByRole("button", { name: "Edit first" }).waitFor();
   assert.equal(await page.locator(".duplicate-pill").count(), 2);
+  await savedRow.getByText("Preview", { exact: true }).click();
+  await savedRow.getByText("Preview excerpt").waitFor();
   await savedRow.getByLabel("Select saved item").check();
+  await page.getByLabel("Selected library actions").getByText("1 selected").waitFor();
+  await page.getByLabel("Selected library actions").getByRole("button", { name: "Queue selected ready" }).waitFor();
+  const commandCenterQueueStart = savedQueueItems.length;
+  await page.getByLabel("Library command center").getByRole("button", { name: "Queue All Ready" }).click();
+  await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
+  assert.deepEqual(savedQueueItems.slice(commandCenterQueueStart).map((item) => item.ad_id).sort(), ["saved-ad", "saved-ad-two"]);
+  await openWorkspaceView(page, "Content Library");
+  await savedRow.getByLabel("Select saved item").check();
+  await page.getByLabel("Selected library actions").getByText("1 selected").waitFor();
   await page.getByLabel("Campaign library").getByRole("button", { name: /Alpha campaign/ }).click();
   await page.getByLabel("Batch prep assistant").getByText("Alpha campaign: 1 ready to queue - 0 need edits").waitFor();
-  assert.equal(await page.getByRole("button", { name: "Queue ready campaign" }).isDisabled(), true);
-  assert.deepEqual(savedQueueItems.map((item) => item.ad_id), []);
+  assert.equal(await page.getByRole("button", { name: "Queue ready campaign" }).isDisabled(), false);
+  const hiddenSelectionCampaignQueue = page.waitForResponse((response) => response.url().includes("/api/queue/") && response.request().method() === "PUT");
+  await page.getByRole("button", { name: "Queue ready campaign" }).click();
+  await hiddenSelectionCampaignQueue;
+  assert.deepEqual(savedQueueItems.map((item) => item.ad_id), ["saved-ad-two", "saved-ad", "saved-ad-two", "saved-ad-two"]);
+  await openWorkspaceView(page, "Content Library");
   await page.getByLabel("Campaign library").getByRole("button", { name: /All campaigns/ }).click();
-  await savedRow.getByLabel("Select saved item").uncheck();
   const needsWorkRow = page.locator(".draft-row", { hasText: "Needs forum link" });
   await needsWorkRow.getByLabel("Select saved item").check();
   await page.getByLabel("Batch queue destination").selectOption("Want ads");
-  assert.equal(await page.getByRole("button", { name: "Queue ready drafts" }).isDisabled(), true);
-  assert.deepEqual(savedQueueItems.map((item) => item.ad_id), []);
+  await page.getByLabel("Selected library actions").getByText("1 selected").waitFor();
+  assert.equal(await page.getByLabel("Selected library actions").getByRole("button", { name: "Queue selected ready" }).isDisabled(), true);
+  assert.equal(await page.getByRole("button", { name: "Queue ready drafts" }).isDisabled(), false);
+  assert.deepEqual(savedQueueItems.map((item) => item.ad_id), ["saved-ad-two", "saved-ad", "saved-ad-two", "saved-ad-two"]);
   await needsWorkRow.getByLabel("Select saved item").uncheck();
   await savedRow.getByLabel("Select saved item").check();
   const selectedBatchQueue = page.waitForResponse((response) => response.url().includes("/api/queue/") && response.request().method() === "PUT");
   await page.getByLabel("Batch queue destination").selectOption("Want ads");
-  await page.getByRole("button", { name: "Queue ready drafts" }).click();
+  await page.getByLabel("Selected library actions").getByRole("button", { name: "Queue selected ready" }).click();
   await selectedBatchQueue;
-  assert.deepEqual(savedQueueItems.map((item) => item.ad_id), ["saved-ad"]);
+  assert.deepEqual(savedQueueItems.map((item) => item.ad_id), ["saved-ad-two", "saved-ad", "saved-ad-two", "saved-ad-two", "saved-ad"]);
   await openWorkspaceView(page, "Content Library");
   await page.getByLabel("Campaign library").getByRole("button", { name: /All campaigns/ }).waitFor();
   await page.getByLabel("Campaign library").getByRole("button", { name: /Alpha campaign/ }).click();
@@ -329,7 +373,7 @@ test("content library rows can queue a saved submission", { timeout: 40000 }, as
   await page.getByRole("button", { name: "Queue ready campaign" }).click();
   await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
   await page.getByText("Queued Second saved post in Want ads.").waitFor();
-  assert.deepEqual(savedQueueItems.map((item) => item.ad_id), ["saved-ad", "saved-ad-two"]);
+  assert.deepEqual(savedQueueItems.map((item) => item.ad_id), ["saved-ad-two", "saved-ad", "saved-ad-two", "saved-ad-two", "saved-ad", "saved-ad-two"]);
   assert.equal(JSON.parse(savedQueueItems.find((item) => item.ad_id === "saved-ad-two").runner_payload).advertisement.campaignName, "Alpha campaign");
   assert.equal(JSON.parse(savedQueueItems.find((item) => item.ad_id === "saved-ad-two").runner_payload).targetProfile.name, "All Things Roleplay ads");
   assert.equal(
@@ -338,6 +382,10 @@ test("content library rows can queue a saved submission", { timeout: 40000 }, as
   );
   assert.equal(savedQueueItems.every((item) => item.target_id === "allthingsroleplay"), true);
   assert.equal(savedQueueItems.every((item) => item.queue_name === "Want ads"), true);
+  assert.deepEqual(
+    Array.from(savedQueueState.values()).map((item) => item.ad_id).sort(),
+    ["saved-ad", "saved-ad-two"],
+  );
   assert.equal(await page.getByLabel("Active queue").inputValue(), "Want ads");
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
 });
@@ -435,6 +483,7 @@ test("content library archive actions surface backend save failures", { timeout:
   await openWorkspaceView(page, "Content Library");
   const activeRow = page.locator(".draft-row", { hasText: "Archive failure post" });
   const failedArchive = page.waitForResponse((response) => response.url().includes("/api/advertisements/archive-failure-ad") && response.status() === 500);
+  await activeRow.getByLabel("More advertisement actions").click();
   await activeRow.getByRole("button", { name: "Archive" }).click();
   await failedArchive;
   await page.getByRole("status").getByText("Could not archive saved ad. Try again.").waitFor();
@@ -447,6 +496,7 @@ test("content library archive actions surface backend save failures", { timeout:
   await page.getByRole("status").getByText("Archived saved ad").waitFor();
   await page.getByLabel("Campaign library").getByRole("button", { name: /Archived/ }).click();
   const archivedRow = page.locator(".draft-row.archived", { hasText: "Archive failure post" });
+  await archivedRow.getByLabel("More advertisement actions").click();
   await archivedRow.getByRole("button", { name: "Unarchive" }).waitFor();
 
   failNextAdvertisementSave = true;

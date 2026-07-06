@@ -42,10 +42,65 @@
   align-self: start;
 }
 
+.runner-timeline-panel {
+  align-self: start;
+}
+
 .runner-diagnostics-list {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
+}
+
+.runner-timeline-list {
+  display: grid;
+  gap: 8px;
+}
+
+.runner-timeline-list article {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid rgba(215, 168, 68, 0.32);
+  border-radius: 8px;
+  background: #fffaf0;
+}
+
+.runner-timeline-list article.ready {
+  border-color: rgba(67, 155, 107, 0.28);
+  background: #f2fbf6;
+}
+
+.runner-timeline-list article > span {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(215, 168, 68, 0.18);
+  color: #7b5b00;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.runner-timeline-list article.ready > span {
+  background: rgba(67, 155, 107, 0.16);
+  color: #1f6d4a;
+}
+
+.runner-timeline-list strong,
+.runner-timeline-list small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.runner-timeline-list small {
+  margin-top: 2px;
+  color: var(--muted);
+  font-weight: 700;
+  line-height: 1.35;
 }
 
 .runner-diagnostics-list article {
@@ -155,6 +210,14 @@ html[data-theme="dark"] .runner-diagnostics-list article.ready {
 }
 
 html[data-theme="dark"] .runner-diagnostics-list article {
+  background: #241f13;
+}
+
+html[data-theme="dark"] .runner-timeline-list article.ready {
+  background: #10231d;
+}
+
+html[data-theme="dark"] .runner-timeline-list article {
   background: #241f13;
 }
 

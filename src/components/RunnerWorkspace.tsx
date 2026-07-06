@@ -391,6 +391,33 @@ export function RunnerWorkspace({
             </div>
           </div>
         </section>
+
+        <section className="workflow-section runner-timeline-panel" aria-label="Automation timeline">
+          <div className="workflow-section-header">
+            <div>
+              <strong>Automation timeline</strong>
+              <small>What the runner checks before posting</small>
+            </div>
+          </div>
+          <div className="workflow-section-body">
+            <div className="runner-timeline-list">
+              {[
+                { label: "Validate queue", ready: runnableItems.length > 0 && attentionItems.length === 0, detail: attentionItems.length ? `${attentionItems.length} item${attentionItems.length === 1 ? "" : "s"} need review` : `${runnableItems.length} runnable item${runnableItems.length === 1 ? "" : "s"}` },
+                { label: "Authenticate Tumblr", ready: accountReadiness.ready, detail: selectedConnectedAccount ? selectedConnectedAccount.displayName : accountReadiness.blocker || "Select account" },
+                { label: "Prepare browser", ready: scheduleRunnerReadiness.ready, detail: runnerConnectionLabel },
+                { label: "Submit and summarize", ready: runnerSubmitApproved && !discordRunnerNeedsAttention, detail: runnerSubmitApproved ? discordSummaryDetail : "Live posting is not approved yet." },
+              ].map((item, index) => (
+                <article className={item.ready ? "ready" : ""} key={item.label}>
+                  <span>{index + 1}</span>
+                  <div>
+                    <strong>{item.label}</strong>
+                    <small>{item.detail}</small>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
       </div>
     </section>
   );

@@ -1,4 +1,4 @@
-import { AlertTriangle, Archive, Link, RotateCcw, Send, Trash2 } from "lucide-react";
+import { AlertTriangle, Archive, Eye, Link, MoreHorizontal, RotateCcw, Send, Trash2 } from "lucide-react";
 import { DuplicateContentMatch } from "../domain/duplicates";
 import { formatDate, formatStatus } from "../domain/format";
 import { scoreDraftReadiness } from "../domain/post";
@@ -34,6 +34,14 @@ type SavedSubmissionActionsProps = {
   onSelectedQueueNameChange: (queueName: string) => void;
   onStartQueue: (id: string) => void;
 };
+
+function plainTextExcerpt(html: string) {
+  return html
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 160);
+}
 
 export function SavedSubmissionsList({
   activeAdId,
@@ -116,15 +124,25 @@ export function SavedSubmissionsList({
               onSelectedQueueNameChange={onSelectedQueueNameChange}
               onStartQueue={onStartQueue}
             />
-            <button
-              className="icon-button"
-              type="button"
-              onClick={() => onDeleteDraft(ad.id)}
-              aria-label="Delete content library item"
-              title="Delete content library item"
-            >
-              <Trash2 size={18} />
-            </button>
+            <details className="draft-card-overflow">
+              <summary aria-label="More advertisement actions" title="More advertisement actions">
+                <MoreHorizontal size={18} />
+              </summary>
+              <div>
+                <button className="secondary compact-button" type="button" onClick={() => onArchiveDraft(ad.id, !ad.archived)}>
+                  {ad.archived ? <RotateCcw size={16} /> : <Archive size={16} />}
+                  {ad.archived ? "Unarchive" : "Archive"}
+                </button>
+                <button
+                  className="secondary compact-button"
+                  type="button"
+                  onClick={() => onDeleteDraft(ad.id)}
+                >
+                  <Trash2 size={16} />
+                  Delete
+                </button>
+              </div>
+            </details>
           </article>
         );
       })}
@@ -150,16 +168,23 @@ function SavedSubmissionActions({
         <a href={ad.forumUrl || "#"} aria-label="Forum URL">
           <Link size={18} />
         </a>
+        <details className="draft-card-preview">
+          <summary>
+            <Eye size={16} />
+            Preview
+          </summary>
+          <div>
+            {ad.imageDataUrl ? <img src={ad.imageDataUrl} alt="" /> : null}
+            <strong>Preview excerpt</strong>
+            <span>{plainTextExcerpt(ad.content) || "No advertisement copy saved yet."}</span>
+          </div>
+        </details>
         <button className="primary compact-button" type="button" onClick={() => onStartQueue(ad.id)} disabled={!canQueueAd}>
           <Send size={16} />
           {ad.archived ? "Restore to queue" : "Queue"}
         </button>
         <button className="secondary compact-button" type="button" onClick={() => onSelectDraft(ad.id)}>
           Edit
-        </button>
-        <button className="secondary compact-button" type="button" onClick={() => onArchiveDraft(ad.id, !ad.archived)}>
-          {ad.archived ? <RotateCcw size={16} /> : <Archive size={16} />}
-          {ad.archived ? "Unarchive" : "Archive"}
         </button>
       </div>
       {queuePickerAdId === ad.id ? (

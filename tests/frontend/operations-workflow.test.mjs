@@ -196,7 +196,10 @@ test("operations dashboard centers content readiness without backup controls", {
   await page.getByLabel("Run blockers").getByRole("button", { name: "Fix queue" }).first().waitFor();
   await page.getByLabel("Campaign dashboard").getByText("Ops campaign").waitFor();
   await page.getByLabel("Campaign dashboard").getByText("2 saved - 1 ready - 0 need edits").waitFor();
+  await page.getByLabel("Ops campaign readiness 50%").waitFor();
   await page.getByLabel("Campaign dashboard").getByText("1 archived - 0 queued").waitFor();
+  await page.getByLabel("Recent activity").getByText("2 drafts available").waitFor();
+  await page.getByLabel("Recent activity").getByText("Queue is empty").waitFor();
   await page.getByLabel("Content readiness").getByText("2 drafts available").waitFor();
   await page.getByLabel("Content readiness").getByText("Saved drafts").waitFor();
   await page.getByLabel("Content readiness").getByText("Reusable templates").waitFor();

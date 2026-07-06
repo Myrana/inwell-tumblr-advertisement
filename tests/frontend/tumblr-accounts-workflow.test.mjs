@@ -102,6 +102,8 @@ test("account overview distinguishes available connected accounts from selected 
   const { page, pageErrors } = await openAccountsPage(t, { accounts: [connectedAccount()] });
   await page.getByLabel("Account overview").getByText("Myrana Tumblr is connected and available. Choose it as the runner account before automation.").waitFor();
   await page.getByLabel("Account overview").getByText("Myrana Tumblr is selected for runner work.").waitFor({ state: "detached" });
+  await page.getByLabel("Automation account readiness").getByText("Choose a runner account before automation").waitFor();
+  await page.getByLabel("Automation account readiness").getByText("A connected account is available, but the runner will not use it until you choose it from Runner account.").waitFor();
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
 });
 
@@ -109,5 +111,7 @@ test("account overview names the selected connected runner account", { timeout: 
   const { page, pageErrors } = await openAccountsPage(t, { accounts: [connectedAccount()], tumblrAccountId: "snowleopardx" });
   await page.getByLabel("Account overview").getByText("1 connected account").waitFor();
   await page.getByLabel("Account overview").getByText("Myrana Tumblr is selected for runner work.").waitFor();
+  await page.getByLabel("Automation account readiness").getByText("Myrana Tumblr is ready for runner work").waitFor();
+  await page.getByLabel("Automation account readiness").getByText("Tumblr is connected, selected, and ready for queue runs.").waitFor();
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
 });
