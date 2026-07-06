@@ -9,6 +9,7 @@ import {
 } from "../domain/runnerLogs";
 import type { RunnerLogTargetSummary, RunnerTimelineStep } from "../domain/runnerLogs";
 import { RunnerLog, RunnerStatus, SubmissionQueueItem } from "../domain/types";
+import "./runner/runnerWorkspace.css";
 
 type RunnerLogsWorkspaceProps = {
   activeQueue: SubmissionQueueItem[];
@@ -261,7 +262,10 @@ export function RunnerLogsWorkspace({
           ) : null}
         </div>
       ) : (
-        <p className="queue-empty">No runner logs yet.</p>
+        <div className="queue-empty action-empty runner-log-empty">
+          <strong>No runner logs yet.</strong>
+          <span>Run or test a queue to create a target timeline, screenshots, and failure details here.</span>
+        </div>
       )}
     </section>
   );

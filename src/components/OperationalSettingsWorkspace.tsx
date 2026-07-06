@@ -1,6 +1,7 @@
 import { BellRing, Clock3, PlayCircle, Send, ShieldCheck, SlidersHorizontal, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { QueueDefinition, QueueScheduleSettings, RunnerSettings, TumblrAccount, WorkspaceView } from "../domain/types";
+import "./settings/operationalSettingsWorkspace.css";
 
 export type DiscordWebhookActionResult = {
   ok: boolean;
@@ -40,29 +41,44 @@ export function OperationalSettingsWorkspace({
 
   async function saveDiscordWebhook() {
     setDiscordWebhookBusy("save");
-    const result = await onSaveDiscordWebhook(discordWebhookDraft);
-    setDiscordWebhookBusy("");
-    setDiscordWebhookStatus(result.message);
-    if (result.ok) {
-      setDiscordWebhookDraft("");
+    try {
+      const result = await onSaveDiscordWebhook(discordWebhookDraft);
+      setDiscordWebhookStatus(result.message);
+      if (result.ok) {
+        setDiscordWebhookDraft("");
+      }
+    } catch {
+      setDiscordWebhookStatus("Could not save Discord webhook. Try again.");
+    } finally {
+      setDiscordWebhookBusy("");
     }
   }
 
   async function clearDiscordWebhook() {
     setDiscordWebhookBusy("clear");
-    const result = await onSaveDiscordWebhook("");
-    setDiscordWebhookBusy("");
-    setDiscordWebhookStatus(result.message);
-    if (result.ok) {
-      setDiscordWebhookDraft("");
+    try {
+      const result = await onSaveDiscordWebhook("");
+      setDiscordWebhookStatus(result.message);
+      if (result.ok) {
+        setDiscordWebhookDraft("");
+      }
+    } catch {
+      setDiscordWebhookStatus("Could not clear Discord webhook. Try again.");
+    } finally {
+      setDiscordWebhookBusy("");
     }
   }
 
   async function testDiscordWebhook() {
     setDiscordWebhookBusy("test");
-    const result = await onTestDiscordWebhook(discordWebhookDraft || undefined);
-    setDiscordWebhookBusy("");
-    setDiscordWebhookStatus(result.message);
+    try {
+      const result = await onTestDiscordWebhook(discordWebhookDraft || undefined);
+      setDiscordWebhookStatus(result.message);
+    } catch {
+      setDiscordWebhookStatus("Could not send Discord webhook test. Try again.");
+    } finally {
+      setDiscordWebhookBusy("");
+    }
   }
 
   return (
@@ -170,6 +186,23 @@ export function OperationalSettingsWorkspace({
           <p>
             Paste a Discord webhook once. Inkwell keeps it masked here and passes it to the local runner only through the runner's device-token plan request.
           </p>
+          <div className="settings-readiness-grid" aria-label="Discord webhook readiness">
+            <article className={runnerSettings.discordWebhookConfigured ? "settings-readiness-card ready" : "settings-readiness-card warning"}>
+              <span>Webhook</span>
+              <strong>{runnerSettings.discordWebhookConfigured ? "Saved" : "Missing"}</strong>
+              <small>{runnerSettings.discordWebhookConfigured ? "Use Send test to verify the channel." : "Paste a Discord webhook URL to enable summaries."}</small>
+            </article>
+            <article className={runnerSettings.submit ? "settings-readiness-card ready" : "settings-readiness-card warning"}>
+              <span>Live runs</span>
+              <strong>{runnerSettings.submit ? "Approved" : "Prep mode"}</strong>
+              <small>Discord summaries send after real live runs, not test/prep runs.</small>
+            </article>
+            <article className="settings-readiness-card">
+              <span>Runner handoff</span>
+              <strong>Local runner</strong>
+              <small>Restart or download the runner after saving a webhook.</small>
+            </article>
+          </div>
           <label>
             Discord webhook URL
             <input

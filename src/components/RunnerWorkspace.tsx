@@ -1,8 +1,11 @@
 import { Activity, Download, ListChecks, Play, PlugZap, Send, Terminal, TestTube2 } from "lucide-react";
 import { formatDate } from "../domain/format";
 import type { LocalCompanionStatus } from "../domain/api";
-import { runnableQueueItems } from "../domain/queueAutomation";
+import type { ScheduleRunnerReadiness } from "../domain/localRunnerReadiness";
+import { attentionQueueItems, runnableQueueItems } from "../domain/queueAutomation";
 import { latestRunnerRunId, runnerLogRunGroups } from "../domain/runnerLogs";
+import { RunnerFlowStrip } from "./runner/RunnerFlowStrip";
+import "./runner/runnerWorkspace.css";
 import {
   QueueDefinition,
   RunnerActivity,
@@ -23,6 +26,7 @@ type RunnerWorkspaceProps = {
   localCompanion: LocalCompanionStatus | null;
   runnerActivity: RunnerActivity;
   runnerConnectionLabel: string;
+  scheduleRunnerReadiness: ScheduleRunnerReadiness;
   runnerHeadless: boolean;
   runnerLogs: RunnerLog[];
   runnerState: RunnerStatus | null;
@@ -51,6 +55,7 @@ export function RunnerWorkspace({
   localCompanion,
   runnerActivity,
   runnerConnectionLabel,
+  scheduleRunnerReadiness,
   runnerHeadless,
   runnerLogs,
   runnerState,
@@ -70,6 +75,7 @@ export function RunnerWorkspace({
   onStartTestRun,
 }: RunnerWorkspaceProps) {
   const runnableItems = runnableQueueItems(activeQueue);
+  const attentionItems = attentionQueueItems(activeQueue);
   const connectedAccounts = tumblrAccounts.filter((account) => account.status === "connected");
   const selectedAccount = tumblrAccounts.find((account) => account.id === selectedTumblrAccountId);
   const latestRunId = latestRunnerRunId(runnerLogs);
@@ -91,8 +97,8 @@ export function RunnerWorkspace({
   const readinessItems = [
     {
       label: "Local companion",
-      ready: !["Offline", "Needs attention"].includes(runnerActivity.status),
-      detail: runnerConnectionLabel,
+      ready: scheduleRunnerReadiness.ready,
+      detail: scheduleRunnerReadiness.ready || scheduleRunnerReadiness.status === "needs-attention" ? runnerConnectionLabel : scheduleRunnerReadiness.detail,
     },
     {
       label: "Tumblr account",
@@ -135,6 +141,15 @@ export function RunnerWorkspace({
           </button>
         </div>
       </section>
+
+      <RunnerFlowStrip
+        attentionCount={attentionItems.length}
+        connectedAccountCount={connectedAccounts.length}
+        latestRunGroup={latestRunGroup}
+        runnableCount={runnableItems.length}
+        runnerReady={scheduleRunnerReadiness.ready}
+        submitApproved={runnerSubmitApproved}
+      />
 
       {showInstallGuide ? (
         <section className="runner-install-guide" aria-label="Install local runner">

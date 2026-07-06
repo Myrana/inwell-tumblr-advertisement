@@ -2,9 +2,13 @@ import { Archive, ChevronDown, Clipboard, FilePlus2, ListChecks, Pencil, PlayCir
 import { useState } from "react";
 import { formatDate, formatSubmissionStatus } from "../domain/format";
 import { isCompletedQueueItem, postHistoryArchiveItems } from "../domain/queue";
+import { attentionQueueItems, automationRunnableQueueItems } from "../domain/queueAutomation";
 import { queueLogGroups, runnerLogExplanation, runnerLogPostedUrl, visibleRunnerLogs } from "../domain/runnerLogs";
 import { formatEasternRun, nextDailyRunAt, scheduleSummary } from "../domain/schedule";
 import { ScheduleRunnerReadiness } from "../domain/localRunnerReadiness";
+import { QueueItemMetaRow } from "./queue/QueueItemMetaRow";
+import { QueueScheduleReadinessGrid } from "./queue/QueueScheduleReadinessGrid";
+import "./queue/queueWorkspace.css";
 import {
   QueueDefinition,
   QueueSchedulePreference,
@@ -19,6 +23,7 @@ type QueueWorkspaceProps = {
   activeQueueName: string;
   queueOptions: QueueDefinition[];
   queueStatus: string;
+  queueTransitionBusy: boolean;
   queueScheduleSettings: QueueSchedulePreference;
   runnerActivity: RunnerActivity;
   scheduleRunnerReadiness: ScheduleRunnerReadiness;
@@ -48,6 +53,7 @@ export function QueueWorkspace({
   activeQueueName,
   queueOptions,
   queueStatus,
+  queueTransitionBusy,
   queueScheduleSettings,
   runnerActivity,
   scheduleRunnerReadiness,
@@ -74,6 +80,7 @@ export function QueueWorkspace({
   const [copiedAllDiscordUpdates, setCopiedAllDiscordUpdates] = useState(false);
   const [bulkQueueStatus, setBulkQueueStatus] = useState<SubmissionStatus>("queued");
   const [bulkQueueNotes, setBulkQueueNotes] = useState("Bulk updated from queue workspace.");
+  const [localQueueActionBusy, setLocalQueueActionBusy] = useState(false);
   const statusCounts = activeQueue.reduce<Record<SubmissionStatus, number>>(
     (counts, item) => ({ ...counts, [item.status]: counts[item.status] + 1 }),
     { queued: 0, scheduled: 0, running: 0, submitted: 0, posted: 0, "needs-review": 0, failed: 0 },
@@ -84,8 +91,12 @@ export function QueueWorkspace({
   const nextRunAt = queueScheduleSettings.enabled ? nextDailyRunAt(queueScheduleSettings) : "";
   const scheduleRunnerBlocked = queueScheduleSettings.enabled && !scheduleRunnerReadiness.ready;
   const activeSubmissionItems = activeQueue.filter((item) => !isCompletedQueueItem(item));
+  const automationRunnableItems = automationRunnableQueueItems(activeQueue);
+  const attentionItems = attentionQueueItems(activeQueue);
   const postHistoryItems = postHistoryArchiveItems(activeQueue);
   const selectedActiveQueueCount = selectedQueueItemIds.filter((id) => activeSubmissionItems.some((item) => item.id === id)).length;
+  const scheduleWillRun = queueScheduleSettings.enabled && !scheduleRunnerBlocked && automationRunnableItems.length > 0 && attentionItems.length === 0;
+  const queueActionsBusy = queueTransitionBusy || localQueueActionBusy;
 
   function queueItemExplanation(item: SubmissionQueueItem) {
     const logs = logGroups.find((group) => group.item.id === item.id)?.logs ?? [];
@@ -143,7 +154,16 @@ export function QueueWorkspace({
       return;
     }
 
-    onBulkUpdateQueueItems(selectedIds, bulkQueueStatus, bulkQueueNotes);
+    void runQueueAction(() => onBulkUpdateQueueItems(selectedIds, bulkQueueStatus, bulkQueueNotes));
+  }
+
+  async function runQueueAction(action: () => unknown | Promise<unknown>) {
+    setLocalQueueActionBusy(true);
+    try {
+      await action();
+    } finally {
+      setLocalQueueActionBusy(false);
+    }
   }
 
   function sectionToggle(section: QueueSectionKey, title: string, summary: string) {
@@ -263,6 +283,14 @@ export function QueueWorkspace({
                 ))}
               </div>
               <p className="queue-schedule-summary">{scheduleSummary(queueScheduleSettings)}</p>
+              <QueueScheduleReadinessGrid
+                runnableItemCount={automationRunnableItems.length}
+                attentionItemCount={attentionItems.length}
+                enabled={queueScheduleSettings.enabled}
+                nextRunAt={nextRunAt}
+                runnerReady={scheduleRunnerReadiness.ready}
+                willRun={scheduleWillRun}
+              />
               {scheduleRunnerBlocked ? (
                 <div className="queue-item-explanation warning queue-schedule-recovery" role="status">
                   <div>
@@ -318,7 +346,7 @@ export function QueueWorkspace({
                   Notes
                   <input value={bulkQueueNotes} onChange={(event) => setBulkQueueNotes(event.target.value)} />
                 </label>
-                <button className="secondary compact-button" type="button" onClick={applyBulkQueueUpdate} disabled={!selectedActiveQueueCount}>
+                <button className="secondary compact-button" type="button" onClick={applyBulkQueueUpdate} disabled={!selectedActiveQueueCount || queueActionsBusy}>
                   Update {selectedActiveQueueCount || "selected"}
                 </button>
               </div>
@@ -347,6 +375,7 @@ export function QueueWorkspace({
                         </label>
                         <strong>{item.targetName}</strong>
                         <span>{item.postType} - {formatSubmissionStatus(item.status)} - {formatDate(item.updatedAt)}</span>
+                        <QueueItemMetaRow item={item} />
                         <a href={item.submitUrl} target="_blank" rel="noreferrer">
                           {item.submitUrl}
                         </a>
@@ -368,7 +397,8 @@ export function QueueWorkspace({
                           <button
                             className="secondary"
                             type="button"
-                            onClick={() => onRetryQueueItemTestRun(item.id)}
+                            disabled={queueActionsBusy}
+                            onClick={() => void runQueueAction(() => onRetryQueueItemTestRun(item.id))}
                           >
                             <TestTube2 size={16} />
                             Retry test run
@@ -376,14 +406,16 @@ export function QueueWorkspace({
                           <button
                             className="secondary"
                             type="button"
-                            onClick={() => onUpdateQueueItem(item.id, "queued", "Requeued for the next automation run.")}
+                            disabled={queueActionsBusy}
+                            onClick={() => void runQueueAction(() => onUpdateQueueItem(item.id, "queued", "Requeued for the next automation run."))}
                           >
                             Requeue
                           </button>
                           <button
                             className="secondary"
                             type="button"
-                            onClick={() => onUpdateQueueItem(item.id, "posted", "Marked posted after Tumblr accepted the form.")}
+                            disabled={queueActionsBusy}
+                            onClick={() => void runQueueAction(() => onUpdateQueueItem(item.id, "posted", "Marked posted after Tumblr accepted the form."))}
                           >
                             Mark posted
                           </button>
@@ -483,7 +515,20 @@ export function QueueWorkspace({
                 </div>
               </>
             ) : (
-              <p className="queue-empty">Completed Tumblr submissions will appear here after they are marked submitted or posted.</p>
+              <div className="queue-empty action-empty">
+                <strong>No completed submissions yet.</strong>
+                <span>Completed Tumblr submissions will appear here after they are marked submitted or posted.</span>
+                <div className="empty-action-row">
+                  <button className="secondary compact-button" type="button" onClick={onOpenRunner}>
+                    <PlayCircle size={16} />
+                    Runner controls
+                  </button>
+                  <button className="secondary compact-button" type="button" onClick={onCreateSubmission}>
+                    <FilePlus2 size={16} />
+                    Write advertisement
+                  </button>
+                </div>
+              </div>
             )}
           </div>
         ) : null}

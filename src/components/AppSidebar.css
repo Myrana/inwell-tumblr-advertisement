@@ -72,18 +72,18 @@
 
 .sidebar .nav-list {
   display: grid;
-  gap: 12px;
+  gap: 18px;
 }
 
 .sidebar .nav-group {
   display: grid;
-  gap: 4px;
+  gap: 6px;
 }
 
 .sidebar .nav-group-label {
   padding: 0 9px;
-  color: #91a2ad;
-  font-size: 0.68rem;
+  color: #7f919d;
+  font-size: 0.64rem;
   font-weight: 900;
   letter-spacing: 0;
   text-transform: uppercase;
@@ -108,9 +108,9 @@
 }
 
 .sidebar .nav-list button.active {
-  background: #253443;
+  background: #263846;
   color: #ffffff;
-  box-shadow: inset 3px 0 0 var(--cyan);
+  box-shadow: inset 3px 0 0 var(--cyan), 0 8px 18px rgba(0, 0, 0, 0.16);
 }
 
 .sidebar .nav-list button:hover {
