@@ -2,6 +2,7 @@ import { FileText, Pencil, Tags, Trash2 } from "lucide-react";
 import { formatDate } from "../domain/format";
 import { sanitizeHtml } from "../domain/htmlSanitizer";
 import { SavedTemplate } from "../domain/types";
+import { AD_PREVIEW_IMAGE_SRC } from "./sharedPreviewAssets";
 
 type TemplateLibraryProps = {
   actionLabel?: string;
@@ -28,7 +29,7 @@ export function TemplateLibrary({
             {variant === "detailed" ? (
               <button className="template-card-main" type="button" onClick={() => onApplyTemplate(template)}>
                 <span className="template-media-thumb" aria-hidden="true">
-                  <FileText size={26} />
+                  <img src={AD_PREVIEW_IMAGE_SRC} alt="" />
                 </span>
                 <span className="template-card-copy">
                   <span className="template-card-title-row">
