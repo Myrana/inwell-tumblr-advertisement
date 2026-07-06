@@ -87,8 +87,8 @@ test("visual domain source ownership stays segmented", () => {
   const settingsStyles = readFileSync("src/components/settings/operationalSettingsWorkspace.css", "utf8");
 
   assert.doesNotMatch(globalStyles, /\.operations-hero\s*\{/);
-  assert.doesNotMatch(globalStyles, /\.operation-card\s*\{/);
-  assert.doesNotMatch(globalStyles, /\.content-readiness-panel\s*\{/);
+  assert.doesNotMatch(globalStyles, /\.ops-status-card\s*\{/);
+  assert.doesNotMatch(globalStyles, /\.campaign-readiness-card\s*\{/);
   assert.doesNotMatch(globalStyles, /\.editor-notebook-intro\s*\{/);
   assert.doesNotMatch(globalStyles, /\.queue-readiness\s*\{/);
   assert.doesNotMatch(globalStyles, /\.runner-flow-strip\s*\{/);
@@ -101,9 +101,9 @@ test("visual domain source ownership stays segmented", () => {
   assert.match(editorStyles, /\.editor-surface\s+\.workflow-section\s*\{/);
   assert.doesNotMatch(editorStyles, /^\.workflow-section\s*\{/m);
   assert.match(operationsStyles, /\.operations-hero\s*\{/);
-  assert.match(operationsStyles, /\.operation-card\s*\{/);
-  assert.match(operationsStyles, /\.content-readiness-panel\s*\{/);
-  assert.match(operationsStyles, /\.content-readiness-item\.ready\s*\{/);
+  assert.match(operationsStyles, /\.ops-status-card\s*\{/);
+  assert.match(operationsStyles, /\.campaign-readiness-card\s*\{/);
+  assert.match(operationsStyles, /\.quick-links-card\s*\{/);
   assert.match(operationsStyles, /\.run-readiness-empty\s*\{/);
   assert.match(operationsStyles, /\.run-readiness-review\s*\{/);
   assert.match(operationsStyles, /\.run-readiness-blocked\s*\{/);
@@ -129,8 +129,8 @@ test("dashboard and sidebar scoped styles apply without leaking globally", { tim
 
   const dashboardStyles = await page.evaluate(() => {
     const hero = document.querySelector(".operations-hero");
-    const grid = document.querySelector(".operations-grid");
-    const card = document.querySelector(".operation-card");
+    const grid = document.querySelector(".operations-status-strip");
+    const card = document.querySelector(".ops-status-card");
     const brand = document.querySelector(".sidebar .brand");
     const looseBrand = document.createElement("div");
     looseBrand.className = "brand";
@@ -165,17 +165,19 @@ test("dashboard and sidebar scoped styles apply without leaking globally", { tim
     host.style.position = "absolute";
     host.style.left = "-10000px";
     host.innerHTML = `
-      <article class="operation-card"><div class="operation-card-icon"></div></article>
-      <article class="operation-card operation-card-warning"><div class="operation-card-icon"></div></article>
+      <article class="ops-status-card ready"><svg></svg><span>Ready</span><strong>1</strong></article>
+      <article class="ops-status-card warning"><svg></svg><span>Warning</span><strong>0</strong></article>
     `;
-    document.body.append(host);
-    const normal = host.querySelector(".operation-card:not(.operation-card-warning)");
-    const warning = host.querySelector(".operation-card-warning");
-    const normalIcon = normal.querySelector(".operation-card-icon");
-    const warningIcon = warning.querySelector(".operation-card-icon");
+    document.querySelector(".operations-dashboard").append(host);
+    const normal = host.querySelector(".ops-status-card.ready");
+    const warning = host.querySelector(".ops-status-card.warning");
+    const normalIcon = normal.querySelector("svg");
+    const warningIcon = warning.querySelector("svg");
     const values = {
       normalBackground: getComputedStyle(normal).backgroundColor,
+      normalBackgroundImage: getComputedStyle(normal).backgroundImage,
       warningBackground: getComputedStyle(warning).backgroundColor,
+      warningBackgroundImage: getComputedStyle(warning).backgroundImage,
       normalBorder: getComputedStyle(normal).borderTopColor,
       warningBorder: getComputedStyle(warning).borderTopColor,
       normalIconColor: getComputedStyle(normalIcon).color,
@@ -185,7 +187,10 @@ test("dashboard and sidebar scoped styles apply without leaking globally", { tim
     document.documentElement.dataset.theme = "light";
     return values;
   });
-  assert.notEqual(darkOperationCards.normalBackground, darkOperationCards.warningBackground);
+  assert.notEqual(
+    `${darkOperationCards.normalBackground}|${darkOperationCards.normalBackgroundImage}`,
+    `${darkOperationCards.warningBackground}|${darkOperationCards.warningBackgroundImage}`,
+  );
   assert.notEqual(darkOperationCards.normalBorder, darkOperationCards.warningBorder);
   assert.notEqual(darkOperationCards.normalIconColor, darkOperationCards.warningIconColor);
 });
@@ -199,7 +204,7 @@ test("run-readiness state treatments remain distinct in light and dark themes", 
     const host = document.createElement("div");
     host.style.position = "absolute";
     host.style.left = "-10000px";
-    document.body.append(host);
+    document.querySelector(".operations-dashboard").append(host);
     function collect(theme) {
       document.documentElement.dataset.theme = theme;
       return Object.fromEntries(
@@ -211,6 +216,7 @@ test("run-readiness state treatments remain distinct in light and dark themes", 
           const style = getComputedStyle(panel);
           const value = {
             backgroundColor: style.backgroundColor,
+            backgroundImage: style.backgroundImage,
             borderLeftColor: style.borderLeftColor,
           };
           panel.remove();
@@ -225,7 +231,7 @@ test("run-readiness state treatments remain distinct in light and dark themes", 
     return { light, dark };
   });
   for (const theme of ["light", "dark"]) {
-    const backgrounds = Object.values(readinessStateStyles[theme]).map((style) => style.backgroundColor);
+    const backgrounds = Object.values(readinessStateStyles[theme]).map((style) => `${style.backgroundColor}|${style.backgroundImage}`);
     const borderColors = Object.values(readinessStateStyles[theme]).map((style) => style.borderLeftColor);
     assert.equal(new Set(backgrounds).size, 4);
     assert.equal(new Set(borderColors).size, 4);

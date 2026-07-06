@@ -1723,8 +1723,8 @@ function App() {
         {activeView === "dashboard" ? (
           <OperationsDashboard
             activeQueueName={activeQueueName}
+            displayName={authUser.displayName || authUser.email}
             queueItems={submissionQueue}
-            queueOptions={queueOptions}
             runnerActivity={runnerActivity}
             runnerConnectionLabel={runnerConnectionLabel}
             scheduleRunnerReadiness={scheduleRunnerReadiness}
@@ -1732,7 +1732,6 @@ function App() {
             savedDraftCount={stored.ads.filter(hasLibraryContent).length}
             savedDrafts={stored.ads.filter(hasLibraryContent)}
             selectedTumblrAccountId={runnerSettings.tumblrAccountId}
-            templateCount={templates.length}
             tumblrAccounts={tumblrAccounts}
             onCreateSampleAd={createSampleAdvertisement}
             onNavigate={setActiveView}
