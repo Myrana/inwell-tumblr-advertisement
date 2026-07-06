@@ -8,6 +8,7 @@ import { formatEasternRun, nextDailyRunAt, scheduleSummary } from "../domain/sch
 import { ScheduleRunnerReadiness } from "../domain/localRunnerReadiness";
 import { runnerAccountReadiness } from "../domain/tumblrAccounts";
 import { QueueItemMetaRow } from "./queue/QueueItemMetaRow";
+import { QueueItemThumbnail } from "./queue/QueueItemThumbnail";
 import { QueueScheduleReadinessGrid } from "./queue/QueueScheduleReadinessGrid";
 import "./queue/queueWorkspace.css";
 import {
@@ -491,6 +492,7 @@ export function QueueWorkspace({
                       ) : null;
                     })()}
                     <div className="queue-item-header">
+                      <QueueItemThumbnail postType={item.postType} />
                       <div>
                         <label className="bulk-select row-select">
                           <input
