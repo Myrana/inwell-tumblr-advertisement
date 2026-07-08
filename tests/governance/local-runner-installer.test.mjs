@@ -11,6 +11,8 @@ test("local runner installer refreshes Discord webhook for immediate launcher st
   );
   assert.match(installer, /\[Environment\]::SetEnvironmentVariable\("INWELL_DISCORD_WEBHOOK_URL", \$DiscordWebhookUrl, "User"\)/);
   assert.match(installer, /Write-Host "Discord webhook: configured"/);
+  assert.match(installer, /\[switch\]\$Headless/);
+  assert.match(installer, /\$headlessArg = if \(\$Headless\) \{ " --headless" \}/);
   assert.doesNotMatch(installer, /Write-Host "\$DiscordWebhookUrl"/);
   assert.doesNotMatch(installer, /--discord-webhook-url/);
 });

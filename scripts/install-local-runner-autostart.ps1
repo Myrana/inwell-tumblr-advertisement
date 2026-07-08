@@ -12,6 +12,7 @@ param(
   [int]$CompanionPort = 17842,
   [string]$RunnerToken = "",
   [string]$DiscordWebhookUrl = "",
+  [switch]$Headless,
   [switch]$Submit
 )
 
@@ -88,6 +89,7 @@ function Install-RunnerPackage {
 
 Install-RunnerPackage
 $repoRoot = Resolve-Path $installRoot
+$headlessArg = if ($Headless) { " --headless" } else { "" }
 $submitArg = if ($Submit) { " --submit" } else { "" }
 
 function Install-RunnerLauncher {
@@ -100,7 +102,7 @@ function Install-RunnerLauncher {
     '  $env:INWELL_LOCAL_RUNNER_TOKEN = [Environment]::GetEnvironmentVariable("INWELL_LOCAL_RUNNER_TOKEN", "User")',
     '  $env:INWELL_DISCORD_WEBHOOK_URL = [Environment]::GetEnvironmentVariable("INWELL_DISCORD_WEBHOOK_URL", "User")',
     "  Set-Location -LiteralPath $(Quote-PowerShell $repoRoot.Path)",
-    "  & $(Quote-PowerShell $npmCommand) run tumblr:runner:local -- --api-base $(Quote-PowerShell $ApiBase) --workspace-id $(Quote-PowerShell $WorkspaceId) --queue $(Quote-PowerShell $Queue) --user-data-dir $(Quote-PowerShell $UserDataDir) --watch --serve --companion-port $CompanionPort$submitArg --interval-seconds $IntervalSeconds",
+    "  & $(Quote-PowerShell $npmCommand) run tumblr:runner:local -- --api-base $(Quote-PowerShell $ApiBase) --workspace-id $(Quote-PowerShell $WorkspaceId) --queue $(Quote-PowerShell $Queue) --user-data-dir $(Quote-PowerShell $UserDataDir) --watch --serve --companion-port $CompanionPort$headlessArg$submitArg --interval-seconds $IntervalSeconds",
     '  if ($LASTEXITCODE -ne 0) { throw "Local runner exited with code $LASTEXITCODE." }',
     '} finally {',
     '  try { Stop-Transcript | Out-Null } catch {}',

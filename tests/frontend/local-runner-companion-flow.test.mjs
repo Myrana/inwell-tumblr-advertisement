@@ -192,6 +192,7 @@ test("unavailable companion live run copies a live local command fallback", { ti
 
   const page = await browser.newPage();
   let companionRunRequestCount = 0;
+  let localCommandHeadless = "";
   let localCommandSubmit = "";
 
   await page.addInitScript(() => {
@@ -215,13 +216,15 @@ test("unavailable companion live run copies a live local command fallback", { ti
     return route.abort();
   });
   await page.route("http://127.0.0.1:8021/api/runner/local-command?**", (route) => {
-    localCommandSubmit = new URL(route.request().url()).searchParams.get("submit") || "";
+    const params = new URL(route.request().url()).searchParams;
+    localCommandHeadless = params.get("headless") || "";
+    localCommandSubmit = params.get("submit") || "";
     return route.fulfill({
       contentType: "application/json",
       headers: apiHeaders,
       body: JSON.stringify({
         localRunner: {
-          command: "npm.cmd run tumblr:runner:local -- --token private --submit",
+          command: "npm.cmd run tumblr:runner:local -- --token private --headless --submit",
           autoStartCommand: "",
           tokenConfigured: true,
           usesDeviceToken: true,
@@ -242,8 +245,10 @@ test("unavailable companion live run copies a live local command fallback", { ti
   await localCommandResponse;
 
   await page.getByText("Local runner command copied. Local companion was not detected on this computer, so the queue was not started", { exact: false }).waitFor();
+  assert.equal(localCommandHeadless, "true");
   assert.equal(localCommandSubmit, "true");
   assert.equal(companionRunRequestCount, 0);
+  assert.match(await page.evaluate(() => window.__copiedText), /--headless/);
   assert.match(await page.evaluate(() => window.__copiedText), /--submit/);
 });
 
@@ -267,6 +272,7 @@ test("unavailable companion test run copies a prep local command fallback", { ti
 
   const page = await browser.newPage();
   let companionRunRequestCount = 0;
+  let localCommandHeadless = "";
   let localCommandSubmit = "";
 
   await page.addInitScript(() => {
@@ -290,13 +296,15 @@ test("unavailable companion test run copies a prep local command fallback", { ti
     return route.abort();
   });
   await page.route("http://127.0.0.1:8021/api/runner/local-command?**", (route) => {
-    localCommandSubmit = new URL(route.request().url()).searchParams.get("submit") || "";
+    const params = new URL(route.request().url()).searchParams;
+    localCommandHeadless = params.get("headless") || "";
+    localCommandSubmit = params.get("submit") || "";
     return route.fulfill({
       contentType: "application/json",
       headers: apiHeaders,
       body: JSON.stringify({
         localRunner: {
-          command: "npm.cmd run tumblr:runner:local -- --token private",
+          command: "npm.cmd run tumblr:runner:local -- --token private --headless",
           autoStartCommand: "",
           tokenConfigured: true,
           usesDeviceToken: true,
@@ -318,9 +326,67 @@ test("unavailable companion test run copies a prep local command fallback", { ti
 
   await page.getByText("Local runner command copied. Local companion was not detected on this computer, so the test run was not started.", { exact: false }).waitFor();
   await page.getByText("Discord will not post until a live local runner command runs.", { exact: false }).waitFor({ state: "detached" });
+  assert.equal(localCommandHeadless, "true");
   assert.equal(localCommandSubmit, "false");
   assert.equal(companionRunRequestCount, 0);
+  assert.match(await page.evaluate(() => window.__copiedText), /--headless/);
   assert.doesNotMatch(await page.evaluate(() => window.__copiedText), /--submit/);
+});
+
+test("headless runner download requests a headless local package", { timeout: 40000 }, async (t) => {
+  const server = spawn("npx vite --host 127.0.0.1 --port 8123 --strictPort", {
+    cwd: process.cwd(),
+    shell: true,
+    stdio: "ignore",
+  });
+
+  t.after(() => {
+    stopProcessTree(server);
+  });
+
+  await waitForServer(appUrl);
+
+  const browser = await chromium.launch();
+  t.after(async () => {
+    await browser.close();
+  });
+
+  const page = await browser.newPage();
+  let localPackageHeadless = "";
+  let localPackageSubmit = "";
+
+  await page.addInitScript(() => {
+    URL.createObjectURL = () => "blob:http://127.0.0.1:8123/local-runner.zip";
+    URL.revokeObjectURL = () => undefined;
+  });
+  await routeRunnerWorkspace(page, {
+    accounts: [apiTumblrAccount()],
+    runnerOnline: false,
+    runnerSettings: { mediaDir: "", slowMo: 500, headless: true, submit: false, tumblrAccountId: "tumblr-runner", discordWebhookConfigured: true },
+  });
+  await page.route("http://127.0.0.1:8021/api/runner/local-package?**", (route) => {
+    const params = new URL(route.request().url()).searchParams;
+    localPackageHeadless = params.get("headless") || "";
+    localPackageSubmit = params.get("submit") || "";
+    return route.fulfill({
+      contentType: "application/zip",
+      headers: {
+        ...apiHeaders,
+        "Content-Disposition": 'attachment; filename="inkwell-local-runner.zip"',
+      },
+      body: "zip",
+    });
+  });
+
+  await page.goto(appUrl);
+  await openWorkspaceView(page, "Runner");
+  const packageResponse = page.waitForResponse((response) => response.url().includes("/api/runner/local-package"));
+  await page.getByLabel("Runner controls").getByRole("button", { name: "Download" }).click();
+  await packageResponse;
+
+  await page.getByText("Local runner installer downloaded.").waitFor();
+  assert.equal(localPackageHeadless, "true");
+  assert.equal(localPackageSubmit, "false");
 });
 
 test("scheduled queue shows runner recovery when daily automation is blocked offline", { timeout: 40000 }, async (t) => {
