@@ -2554,17 +2554,19 @@ def local_runner_plan_response(connection: ConnectionLike, workspace_id: str, qu
     }
 
 
-def local_runner_command(api_base_url: str, workspace_id: str, queue_name: str, token: str = "", submit: bool = True) -> dict[str, Any]:
+def local_runner_command(api_base_url: str, workspace_id: str, queue_name: str, token: str = "", submit: bool = True, headless: bool = False) -> dict[str, Any]:
     queue_arg = queue_name or "Default queue"
     token_arg = f"--token {powershell_quote(token)} " if token else ""
+    headless_arg = " --headless" if headless else ""
     submit_arg = " --submit" if submit else ""
     command = (
         f"npm.cmd run tumblr:runner:local -- --api-base {powershell_quote(api_base_url)} "
         f"{token_arg}"
         f"--workspace-id {powershell_quote(workspace_id)} "
         f"--queue {powershell_quote(queue_arg)} "
-        f"--user-data-dir .tumblr-runner-profile-local --watch --serve{submit_arg}"
+        f"--user-data-dir .tumblr-runner-profile-local --watch --serve{headless_arg}{submit_arg}"
     )
+    headless_install_arg = " -Headless" if headless else ""
     submit_install_arg = " -Submit" if submit else ""
     autostart_command = (
         "npm.cmd run tumblr:runner:install-autostart -- "
@@ -2572,6 +2574,7 @@ def local_runner_command(api_base_url: str, workspace_id: str, queue_name: str, 
         f"-WorkspaceId {powershell_quote(workspace_id)} "
         f"-Queue {powershell_quote(queue_arg)}"
         + (f" -RunnerToken {powershell_quote(token)}" if token else "")
+        + headless_install_arg
         + submit_install_arg
     )
     return {
@@ -2588,7 +2591,7 @@ def local_runner_command(api_base_url: str, workspace_id: str, queue_name: str, 
     }
 
 
-def local_runner_package(api_base_url: str, workspace_id: str, queue_name: str, token: str, submit: bool = False) -> tuple[bytes, str]:
+def local_runner_package(api_base_url: str, workspace_id: str, queue_name: str, token: str, submit: bool = False, headless: bool = False) -> tuple[bytes, str]:
     package_name = "inkwell-local-runner"
     queue_arg = queue_name or "Default queue"
     install_command = (
@@ -2597,6 +2600,7 @@ def local_runner_package(api_base_url: str, workspace_id: str, queue_name: str, 
         f"-WorkspaceId {powershell_quote(workspace_id)} "
         f"-Queue {powershell_quote(queue_arg)} "
         f"-RunnerToken {powershell_quote(token)}"
+        + (" -Headless" if headless else "")
         + (" -Submit" if submit else "")
     )
     package_json = {
@@ -2871,6 +2875,7 @@ class Handler(BaseHTTPRequestHandler):
         if collection == "runner/local-command" and item_id is None:
             query = parse_qs(urlparse(self.path).query)
             queue_name = str(query.get("queueName", ["Default queue"])[0] or "Default queue").strip() or "Default queue"
+            headless = str(query.get("headless", ["false"])[0] or "false").lower() in {"1", "true", "yes", "on"}
             submit = str(query.get("submit", ["true"])[0] or "true").lower() not in {"0", "false", "no", "off"}
             with connect() as connection:
                 device = create_local_runner_token(connection, workspace_id, f"Windows local runner - {queue_name}")
@@ -2882,6 +2887,7 @@ class Handler(BaseHTTPRequestHandler):
                         queue_name,
                         str(device["token"]),
                         submit=submit,
+                        headless=headless,
                     )
                 }
             )
@@ -2890,10 +2896,11 @@ class Handler(BaseHTTPRequestHandler):
         if collection == "runner/local-package" and item_id is None:
             query = parse_qs(urlparse(self.path).query)
             queue_name = str(query.get("queueName", ["Default queue"])[0] or "Default queue").strip() or "Default queue"
+            headless = str(query.get("headless", ["false"])[0] or "false").lower() in {"1", "true", "yes", "on"}
             submit = str(query.get("submit", ["false"])[0] or "false").lower() in {"1", "true", "yes", "on"}
             with connect() as connection:
                 device = create_local_runner_token(connection, workspace_id, f"Windows local runner installer - {queue_name}")
-            body, filename = local_runner_package(f"{self.request_base_url()}/api", workspace_id, queue_name, str(device["token"]), submit=submit)
+            body, filename = local_runner_package(f"{self.request_base_url()}/api", workspace_id, queue_name, str(device["token"]), submit=submit, headless=headless)
             self.respond_file(body, "application/zip", filename)
             return
 

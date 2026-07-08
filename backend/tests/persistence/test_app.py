@@ -2449,8 +2449,48 @@ class PersistenceTests(unittest.TestCase):
         self.assertNotIn("--submit", result["command"])
         self.assertNotIn("-Submit", result["autoStartCommand"])
 
+    def test_local_runner_command_can_enable_headless_mode(self) -> None:
+        result = local_runner_command("https://example.test/api", "workspace-local", "Local queue", "ilr_secret", headless=True)
+
+        self.assertIn("--headless", result["command"])
+        self.assertIn("-Headless", result["autoStartCommand"])
+        self.assertIn("--submit", result["command"])
+
+    def test_local_runner_command_route_passes_headless_query(self) -> None:
+        user, workspace_id = create_user_workspace(
+            self.connection,
+            {
+                "email": "runner-headless@example.test",
+                "password": "super-secret-password",
+                "displayName": "Runner User",
+                "workspaceName": "Runner workspace",
+            },
+        )
+        session_token = create_session(self.connection, user["id"], workspace_id)
+        server = app.ThreadingHTTPServer(("127.0.0.1", 0), app.Handler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        address = server.server_address
+        base_url = f"http://127.0.0.1:{address[1]}"
+
+        try:
+            with patch("app.connect", return_value=ConnectionContext(self.connection)):
+                status, payload = self.request_json(
+                    base_url,
+                    "/api/runner/local-command?queueName=Local%20queue&headless=true&submit=false",
+                    headers={"Cookie": f"inwell_session={session_token}"},
+                )
+        finally:
+            server.shutdown()
+            server.server_close()
+
+        self.assertEqual(status, 200)
+        command = payload["localRunner"]["command"]
+        self.assertIn("--headless", command)
+        self.assertNotIn("--submit", command)
+
     def test_local_runner_package_includes_installer_assets(self) -> None:
-        body, filename = local_runner_package("https://example.test/api", "workspace-local", "Local queue", "ilr_secret")
+        body, filename = local_runner_package("https://example.test/api", "workspace-local", "Local queue", "ilr_secret", headless=True)
 
         self.assertEqual(filename, "inkwell-local-runner.zip")
         with zipfile.ZipFile(io.BytesIO(body)) as archive:
@@ -2473,9 +2513,46 @@ class PersistenceTests(unittest.TestCase):
         self.assertIn("Invoke-CheckedCommand", install_ps1)
         self.assertIn("Windows startup task install", install_ps1)
         self.assertIn("-RunnerToken 'ilr_secret'", install_ps1)
+        self.assertIn("-Headless", install_ps1)
         self.assertNotIn("--no-pause", script)
-        self.assertIn("--watch --serve", script)
-        self.assertIn("-WorkspaceId 'workspace-local'", install_ps1)
+
+    def test_local_runner_package_route_passes_headless_query(self) -> None:
+        user, workspace_id = create_user_workspace(
+            self.connection,
+            {
+                "email": "runner-package-headless@example.test",
+                "password": "super-secret-password",
+                "displayName": "Runner Package User",
+                "workspaceName": "Runner package workspace",
+            },
+        )
+        session_token = create_session(self.connection, user["id"], workspace_id)
+        server = app.ThreadingHTTPServer(("127.0.0.1", 0), app.Handler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        address = server.server_address
+        base_url = f"http://127.0.0.1:{address[1]}"
+
+        try:
+            with patch("app.connect", return_value=ConnectionContext(self.connection)):
+                request = urllib_request.Request(
+                    f"{base_url}/api/runner/local-package?queueName=Local%20queue&headless=true&submit=false",
+                    headers={"Cookie": f"inwell_session={session_token}"},
+                    method="GET",
+                )
+                with urllib_request.urlopen(request, timeout=5) as response:
+                    body = response.read()
+                    status = response.status
+        finally:
+            server.shutdown()
+            server.server_close()
+
+        self.assertEqual(status, 200)
+        with zipfile.ZipFile(io.BytesIO(body)) as archive:
+            install_ps1 = archive.read("inkwell-local-runner/install.ps1").decode("utf-8")
+        self.assertIn("-Headless", install_ps1)
+        self.assertNotIn("-Submit", install_ps1)
+        self.assertIn(f"-WorkspaceId '{workspace_id}'", install_ps1)
         self.assertIn("-Queue 'Local queue'", install_ps1)
 
     def test_local_runner_autostart_script_uses_valid_windows_run_level(self) -> None:

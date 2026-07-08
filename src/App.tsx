@@ -1376,7 +1376,7 @@ function App() {
     }
 
     try {
-      const localRunner = await loadLocalRunnerCommand(activeQueueName, { submit: options.submit });
+      const localRunner = await loadLocalRunnerCommand(activeQueueName, { headless: runnerSettingsRef.current.headless, submit: options.submit });
       const [logs, backendQueue] = await Promise.all([loadRunnerLogs(), loadBackendQueue()]);
       setRunnerLogs(logs);
       setSubmissionQueue(backendQueue);
@@ -1487,7 +1487,7 @@ function App() {
 
   async function downloadLocalRunnerInstaller() {
     try {
-      const { blob, filename } = await downloadLocalRunnerPackage(activeQueueName, { submit: runnerSettings.submit });
+      const { blob, filename } = await downloadLocalRunnerPackage(activeQueueName, { headless: runnerSettings.headless, submit: runnerSettings.submit });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;

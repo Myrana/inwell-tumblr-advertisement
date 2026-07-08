@@ -379,8 +379,11 @@ export async function launchLocalCompanionLogin(options: { accountId: string; us
   );
 }
 
-export async function downloadLocalRunnerPackage(queueName: string, options: { submit?: boolean } = {}) {
+export async function downloadLocalRunnerPackage(queueName: string, options: { headless?: boolean; submit?: boolean } = {}) {
   const params = new URLSearchParams({ queueName });
+  if (typeof options.headless === "boolean") {
+    params.set("headless", String(options.headless));
+  }
   if (typeof options.submit === "boolean") {
     params.set("submit", String(options.submit));
   }
@@ -404,8 +407,11 @@ export async function downloadLocalRunnerPackage(queueName: string, options: { s
   };
 }
 
-export async function loadLocalRunnerCommand(queueName: string, options: { submit?: boolean } = {}) {
+export async function loadLocalRunnerCommand(queueName: string, options: { headless?: boolean; submit?: boolean } = {}) {
   const params = new URLSearchParams({ queueName });
+  if (typeof options.headless === "boolean") {
+    params.set("headless", String(options.headless));
+  }
   if (typeof options.submit === "boolean") {
     params.set("submit", String(options.submit));
   }
