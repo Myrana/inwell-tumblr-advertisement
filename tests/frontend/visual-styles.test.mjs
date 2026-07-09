@@ -215,12 +215,22 @@ test("workflow path connector lines do not overlap step labels", { timeout: 4000
     const steps = [...document.querySelectorAll(".workflow-path-step")];
     return steps.slice(0, -1).map((step) => {
       const stepBox = step.getBoundingClientRect();
+      const nextBox = step.nextElementSibling?.getBoundingClientRect();
       const titleBox = step.querySelector("strong")?.getBoundingClientRect();
       const detailBox = step.querySelector("small")?.getBoundingClientRect();
       const connector = getComputedStyle(step, "::after");
-      const connectorY = stepBox.bottom - Number.parseFloat(connector.bottom) - (Number.parseFloat(connector.height) / 2);
+      const connectorLeft = stepBox.left + Number.parseFloat(connector.left);
+      const connectorRight = connectorLeft + Number.parseFloat(connector.width);
+      const connectorHeight = Number.parseFloat(connector.height);
+      const connectorY = connector.top === "auto"
+        ? stepBox.bottom - Number.parseFloat(connector.bottom) - (connectorHeight / 2)
+        : stepBox.top + Number.parseFloat(connector.top) + (connectorHeight / 2);
       return {
-        connectorBottom: connector.bottom,
+        connectorLeft,
+        connectorRight,
+        currentRight: stepBox.right,
+        nextLeft: nextBox?.left ?? 0,
+        connectorWidth: connector.width,
         overlapsTitle: titleBox ? connectorY >= titleBox.top && connectorY <= titleBox.bottom : true,
         overlapsDetail: detailBox ? connectorY >= detailBox.top && connectorY <= detailBox.bottom : true,
       };
@@ -229,7 +239,9 @@ test("workflow path connector lines do not overlap step labels", { timeout: 4000
 
   assert.ok(workflowPath.length > 0);
   for (const step of workflowPath) {
-    assert.equal(step.connectorBottom, "8px");
+    assert.equal(step.connectorWidth, "12px");
+    assert.ok(step.connectorLeft >= step.currentRight - 0.5);
+    assert.ok(step.connectorRight <= step.nextLeft + 0.5);
     assert.equal(step.overlapsTitle, false);
     assert.equal(step.overlapsDetail, false);
   }

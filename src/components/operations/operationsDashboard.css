@@ -155,10 +155,11 @@
 }
 
 .workflow-path-panel {
+  --workflow-path-gap: 12px;
   padding: 14px 18px;
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 12px;
+  gap: var(--workflow-path-gap);
 }
 
 .workflow-path-step {
@@ -179,12 +180,13 @@
 
 .workflow-path-step:not(:last-child)::after {
   content: "";
+  width: var(--workflow-path-gap);
   height: 2px;
   position: absolute;
-  left: 42px;
-  right: 10px;
+  left: 100%;
   bottom: 8px;
   background: rgba(46, 143, 163, 0.18);
+  pointer-events: none;
 }
 
 .workflow-path-step.ready:not(:last-child)::after {
