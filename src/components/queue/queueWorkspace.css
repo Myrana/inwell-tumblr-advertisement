@@ -275,6 +275,7 @@
 }
 
 .queue-workspace .queue-item-thumb {
+  position: relative;
   width: 82px;
   aspect-ratio: 1;
   display: grid;
@@ -289,11 +290,31 @@
   color: var(--cyan);
 }
 
+.queue-workspace .queue-item-thumb::after {
+  content: "";
+  position: absolute;
+  inset: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.56);
+  border-radius: 6px;
+  pointer-events: none;
+}
+
 .queue-workspace .queue-item-thumb img {
   width: 100%;
   height: 100%;
   display: block;
   object-fit: cover;
+}
+
+.queue-workspace .queue-item-thumb svg {
+  position: relative;
+  z-index: 1;
+  width: 26px;
+  height: 26px;
+  padding: 4px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.72);
+  color: #315f6c;
 }
 
 .queue-status-chip {
