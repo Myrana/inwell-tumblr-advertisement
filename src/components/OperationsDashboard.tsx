@@ -142,9 +142,6 @@ export function OperationsDashboard({
           </div>
           <strong>{savedDraftCount ? `${savedDraftCount} ready to shape` : "Start with a draft"}</strong>
           <p>{savedDraftCount ? "Review saved copy, finish campaign details, and move the strongest ads into the queue." : "Write the first advertisement before setting up a runner flow."}</p>
-          <div className="focus-card-art draft-art" aria-hidden="true">
-            <i />
-          </div>
           <button className="primary compact-button" type="button" onClick={() => onNavigate(savedDraftCount ? "saved" : "editor")}>
             {savedDraftCount ? "Prep content" : "Write Advertisement"}
           </button>
@@ -157,9 +154,6 @@ export function OperationsDashboard({
           </div>
           <strong>{queuedCount ? `${queuedCount} runnable` : "Nothing queued yet"}</strong>
           <p>{activeQueueName ? `${activeQueueItems.length} total items in ${activeQueueName}.` : "Choose or create a queue lane."}</p>
-          <div className="focus-card-art queue-art" aria-hidden="true">
-            <i />
-          </div>
           <button className="text-link" type="button" onClick={() => onNavigate("queue")}>
             Open queue
           </button>
@@ -172,9 +166,6 @@ export function OperationsDashboard({
           </div>
           <strong>{readiness.scheduledCanRun ? "Runner is watching" : readiness.canRun ? "Runner needs recovery" : friendlyReadinessTitle(readiness.title)}</strong>
           <p>{readiness.canRun ? readiness.detail : readiness.detail || runnerConnectionLabel || scheduleRunnerReadiness.detail}</p>
-          <div className={readiness.scheduledCanRun ? "runner-pulse" : "runner-pulse runner-pulse-muted"} aria-hidden="true">
-            <i />
-          </div>
           <button className={readiness.canRun ? "primary compact-button" : "text-link"} type="button" onClick={() => onNavigate(readiness.primaryAction.view)}>
             {readiness.primaryAction.label}
           </button>

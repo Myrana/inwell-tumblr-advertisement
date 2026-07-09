@@ -111,6 +111,8 @@ test("visual domain source ownership stays segmented", () => {
   assert.match(operationsStyles, /\.run-readiness-empty\s*\{/);
   assert.match(operationsStyles, /\.run-readiness-review\s*\{/);
   assert.match(operationsStyles, /\.run-readiness-blocked\s*\{/);
+  assert.doesNotMatch(operationsStyles, /\.focus-card-art\s*\{/);
+  assert.doesNotMatch(operationsStyles, /\.runner-pulse\s*\{/);
   assert.match(operationsStyles, /html\[data-theme="dark"\]\s+\.run-readiness-empty\s*\{/);
   assert.match(operationsStyles, /html\[data-theme="dark"\]\s+\.run-readiness-review\s*\{/);
   assert.match(operationsStyles, /html\[data-theme="dark"\]\s+\.run-readiness-blocked\s*\{/);
@@ -154,6 +156,7 @@ test("dashboard and sidebar scoped styles apply without leaking globally", { tim
       sidebarBrandDisplay: brand ? getComputedStyle(brand).display : "",
       looseBrandDisplay: getComputedStyle(looseBrand).display,
       looseAccountDisplay: getComputedStyle(looseAccount).display,
+      focusArtCount: document.querySelectorAll(".focus-card-art, .draft-art, .queue-art, .runner-pulse").length,
     };
     looseBrand.remove();
     looseAccount.remove();
@@ -165,6 +168,7 @@ test("dashboard and sidebar scoped styles apply without leaking globally", { tim
   assert.equal(dashboardStyles.sidebarBrandDisplay, "flex");
   assert.equal(dashboardStyles.looseBrandDisplay, "block");
   assert.equal(dashboardStyles.looseAccountDisplay, "block");
+  assert.equal(dashboardStyles.focusArtCount, 0);
 
   const darkOperationCards = await page.evaluate(() => {
     document.documentElement.dataset.theme = "dark";

@@ -162,7 +162,7 @@ async function routePreviewFixture(page) {
   );
 }
 
-test("template preview graphics use framed shared assets in light and dark themes", { timeout: 40000 }, async (t) => {
+test("template surface keeps real thumbnails and no decorative callout artwork", { timeout: 40000 }, async (t) => {
   const page = await openAuthenticatedPage(t, { width: 1280, height: 900 });
   await routePreviewFixture(page);
   await page.goto(appUrl);
@@ -171,14 +171,10 @@ test("template preview graphics use framed shared assets in light and dark theme
 
   const templatePreview = await page.evaluate(() => {
     const callout = document.querySelector(".template-callout-art");
-    const calloutCard = callout?.querySelector("div");
-    const calloutImage = callout?.querySelector("img");
     const thumb = document.querySelector(".template-library-detailed .template-media-thumb");
     const thumbImage = thumb?.querySelector("img");
     const light = {
-      calloutBackground: callout ? getComputedStyle(callout).backgroundColor : "",
-      calloutImageFit: calloutImage ? getComputedStyle(calloutImage).objectFit : "",
-      calloutCardAspectRatio: calloutCard ? getComputedStyle(calloutCard).aspectRatio : "",
+      calloutExists: Boolean(callout),
       thumbAspectRatio: thumb ? getComputedStyle(thumb).aspectRatio : "",
       thumbObjectFit: thumbImage ? getComputedStyle(thumbImage).objectFit : "",
       thumbOverflowsCard: thumb && thumb.closest(".template-card")
@@ -187,14 +183,13 @@ test("template preview graphics use framed shared assets in light and dark theme
     };
     document.documentElement.dataset.theme = "dark";
     const dark = {
-      calloutBackground: callout ? getComputedStyle(callout).backgroundColor : "",
       thumbBackground: thumb ? getComputedStyle(thumb).backgroundColor : "",
     };
     document.documentElement.dataset.theme = "light";
     return {
-      imageSrc: calloutImage?.getAttribute("src") ?? "",
-      imageComplete: Boolean(calloutImage?.complete),
-      imageNaturalWidth: calloutImage?.naturalWidth ?? 0,
+      imageSrc: thumbImage?.getAttribute("src") ?? "",
+      imageComplete: Boolean(thumbImage?.complete),
+      imageNaturalWidth: thumbImage?.naturalWidth ?? 0,
       light,
       dark,
     };
@@ -202,12 +197,10 @@ test("template preview graphics use framed shared assets in light and dark theme
   assert.equal(templatePreview.imageSrc, "/template-ad-preview.jpg");
   assert.equal(templatePreview.imageComplete, true);
   assert.ok(templatePreview.imageNaturalWidth > 0);
-  assert.equal(templatePreview.light.calloutImageFit, "cover");
-  assert.equal(templatePreview.light.calloutCardAspectRatio, "16 / 10");
+  assert.equal(templatePreview.light.calloutExists, false);
   assert.equal(templatePreview.light.thumbAspectRatio, "1.78 / 1");
   assert.equal(templatePreview.light.thumbObjectFit, "cover");
   assert.equal(templatePreview.light.thumbOverflowsCard, false);
-  assert.notEqual(templatePreview.dark.calloutBackground, templatePreview.light.calloutBackground);
   assert.notEqual(templatePreview.dark.thumbBackground, "rgba(0, 0, 0, 0)");
 });
 

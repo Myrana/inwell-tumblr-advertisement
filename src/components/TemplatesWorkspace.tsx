@@ -12,14 +12,12 @@ import {
   ListOrdered,
   Save,
   Search,
-  Sparkles,
   Strikethrough,
   Unlink,
 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { SavedTemplate } from "../domain/types";
 import { TemplateLibrary } from "./TemplateLibrary";
-import { AD_PREVIEW_IMAGE_SRC } from "./sharedPreviewAssets";
 import "./templatesWorkspace.css";
 
 type TemplateDraft = {
@@ -130,13 +128,6 @@ export function TemplatesWorkspace({
             <strong>Templates help you reuse your best content.</strong>
             <span>Save your current copy, tags, and media layout as a template to use again anytime.</span>
           </div>
-        </div>
-        <div className="template-callout-art" aria-hidden="true">
-          <div>
-            <img src={AD_PREVIEW_IMAGE_SRC} alt="" />
-            <span />
-          </div>
-          <Sparkles size={24} />
         </div>
       </section>
 
