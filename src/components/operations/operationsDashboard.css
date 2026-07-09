@@ -155,17 +155,16 @@
 }
 
 .workflow-path-panel {
-  --workflow-path-gap: 12px;
   padding: 14px 18px;
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: var(--workflow-path-gap);
+  gap: 12px;
 }
 
 .workflow-path-step {
   min-width: 0;
   min-height: 72px;
-  padding: 8px 0 18px;
+  padding: 8px 0;
   position: relative;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -176,21 +175,6 @@
   color: var(--text);
   text-align: left;
   cursor: pointer;
-}
-
-.workflow-path-step:not(:last-child)::after {
-  content: "";
-  width: var(--workflow-path-gap);
-  height: 2px;
-  position: absolute;
-  left: 100%;
-  bottom: 8px;
-  background: rgba(46, 143, 163, 0.18);
-  pointer-events: none;
-}
-
-.workflow-path-step.ready:not(:last-child)::after {
-  background: var(--green);
 }
 
 .workflow-path-step span {
@@ -697,10 +681,6 @@ html[data-theme="dark"] .quick-links-grid button:focus-visible {
   .operations-hero-actions .command-action,
   .first-run-heading > button {
     width: 100%;
-  }
-
-  .workflow-path-step:not(:last-child)::after {
-    display: none;
   }
 
   .run-readiness-blockers,
