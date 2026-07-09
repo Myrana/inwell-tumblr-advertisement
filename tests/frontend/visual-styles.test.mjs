@@ -206,44 +206,24 @@ test("dashboard and sidebar scoped styles apply without leaking globally", { tim
   assert.notEqual(darkOperationCards.normalIconColor, darkOperationCards.warningIconColor);
 });
 
-test("workflow path connector lines do not overlap step labels", { timeout: 40000 }, async (t) => {
+test("workflow path steps do not render connector lines", { timeout: 40000 }, async (t) => {
   const page = await openAuthenticatedPage(t, { width: 1280, height: 900 });
   await page.goto(appUrl);
   await page.getByRole("heading", { name: "Operations dashboard", level: 1 }).waitFor();
 
   const workflowPath = await page.evaluate(() => {
     const steps = [...document.querySelectorAll(".workflow-path-step")];
-    return steps.slice(0, -1).map((step) => {
-      const stepBox = step.getBoundingClientRect();
-      const nextBox = step.nextElementSibling?.getBoundingClientRect();
-      const titleBox = step.querySelector("strong")?.getBoundingClientRect();
-      const detailBox = step.querySelector("small")?.getBoundingClientRect();
+    return steps.map((step) => {
       const connector = getComputedStyle(step, "::after");
-      const connectorLeft = stepBox.left + Number.parseFloat(connector.left);
-      const connectorRight = connectorLeft + Number.parseFloat(connector.width);
-      const connectorHeight = Number.parseFloat(connector.height);
-      const connectorY = connector.top === "auto"
-        ? stepBox.bottom - Number.parseFloat(connector.bottom) - (connectorHeight / 2)
-        : stepBox.top + Number.parseFloat(connector.top) + (connectorHeight / 2);
       return {
-        connectorLeft,
-        connectorRight,
-        currentRight: stepBox.right,
-        nextLeft: nextBox?.left ?? 0,
-        connectorWidth: connector.width,
-        overlapsTitle: titleBox ? connectorY >= titleBox.top && connectorY <= titleBox.bottom : true,
-        overlapsDetail: detailBox ? connectorY >= detailBox.top && connectorY <= detailBox.bottom : true,
+        connectorContent: connector.content,
       };
     });
   });
 
   assert.ok(workflowPath.length > 0);
   for (const step of workflowPath) {
-    assert.equal(step.connectorWidth, "12px");
-    assert.ok(step.connectorLeft >= step.currentRight - 0.5);
-    assert.ok(step.connectorRight <= step.nextLeft + 0.5);
-    assert.equal(step.overlapsTitle, false);
-    assert.equal(step.overlapsDetail, false);
+    assert.equal(step.connectorContent, "none");
   }
 });
 
