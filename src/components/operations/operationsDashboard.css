@@ -163,8 +163,8 @@
 
 .workflow-path-step {
   min-width: 0;
-  min-height: 62px;
-  padding: 8px 0;
+  min-height: 72px;
+  padding: 8px 0 18px;
   position: relative;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -183,7 +183,7 @@
   position: absolute;
   left: 42px;
   right: 10px;
-  top: 21px;
+  bottom: 8px;
   background: rgba(46, 143, 163, 0.18);
 }
 
