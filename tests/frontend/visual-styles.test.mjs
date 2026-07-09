@@ -206,6 +206,35 @@ test("dashboard and sidebar scoped styles apply without leaking globally", { tim
   assert.notEqual(darkOperationCards.normalIconColor, darkOperationCards.warningIconColor);
 });
 
+test("workflow path connector lines do not overlap step labels", { timeout: 40000 }, async (t) => {
+  const page = await openAuthenticatedPage(t, { width: 1280, height: 900 });
+  await page.goto(appUrl);
+  await page.getByRole("heading", { name: "Operations dashboard", level: 1 }).waitFor();
+
+  const workflowPath = await page.evaluate(() => {
+    const steps = [...document.querySelectorAll(".workflow-path-step")];
+    return steps.slice(0, -1).map((step) => {
+      const stepBox = step.getBoundingClientRect();
+      const titleBox = step.querySelector("strong")?.getBoundingClientRect();
+      const detailBox = step.querySelector("small")?.getBoundingClientRect();
+      const connector = getComputedStyle(step, "::after");
+      const connectorY = stepBox.bottom - Number.parseFloat(connector.bottom) - (Number.parseFloat(connector.height) / 2);
+      return {
+        connectorBottom: connector.bottom,
+        overlapsTitle: titleBox ? connectorY >= titleBox.top && connectorY <= titleBox.bottom : true,
+        overlapsDetail: detailBox ? connectorY >= detailBox.top && connectorY <= detailBox.bottom : true,
+      };
+    });
+  });
+
+  assert.ok(workflowPath.length > 0);
+  for (const step of workflowPath) {
+    assert.equal(step.connectorBottom, "8px");
+    assert.equal(step.overlapsTitle, false);
+    assert.equal(step.overlapsDetail, false);
+  }
+});
+
 test("run-readiness state treatments remain distinct in light and dark themes", { timeout: 40000 }, async (t) => {
   const page = await openAuthenticatedPage(t);
   await page.goto(appUrl);
