@@ -270,73 +270,6 @@
   z-index: 1;
 }
 
-.focus-card-art {
-  position: absolute;
-  right: 24px;
-  bottom: 20px;
-  width: 132px;
-  height: 92px;
-  pointer-events: none;
-  opacity: 0.9;
-}
-
-.draft-art {
-  border: 3px solid rgba(95, 179, 197, 0.35);
-  border-radius: 8px;
-  transform: skewX(-8deg);
-}
-
-.draft-art i {
-  width: 58px;
-  height: 76px;
-  position: absolute;
-  right: 16px;
-  top: -18px;
-  border-radius: 6px;
-  background: linear-gradient(180deg, #e986c8, #b86adb);
-  box-shadow: 0 12px 20px rgba(0, 0, 0, 0.18);
-}
-
-.draft-art i::before,
-.draft-art i::after {
-  content: "";
-  height: 4px;
-  position: absolute;
-  left: 12px;
-  right: 12px;
-  border-radius: 99px;
-  background: rgba(58, 24, 85, 0.38);
-}
-
-.draft-art i::before {
-  top: 20px;
-}
-
-.draft-art i::after {
-  top: 38px;
-}
-
-.queue-art {
-  width: 116px;
-  height: 72px;
-  right: 30px;
-  bottom: 26px;
-  border-radius: 8px 8px 10px 10px;
-  background: linear-gradient(180deg, #394554, #2b3440);
-  box-shadow: inset 0 12px 0 rgba(255, 255, 255, 0.08);
-}
-
-.queue-art i {
-  width: 70px;
-  height: 26px;
-  position: absolute;
-  left: 23px;
-  top: -4px;
-  border: 2px solid rgba(95, 179, 197, 0.34);
-  border-top: 0;
-  border-radius: 0 0 12px 12px;
-}
-
 .focus-card-runner.ready {
   border-color: rgba(67, 155, 107, 0.25);
   background: #f2faf6;
@@ -350,54 +283,6 @@
 .focus-card-runner.blocked {
   border-color: rgba(217, 101, 82, 0.26);
   background: #fff7f4;
-}
-
-.runner-pulse {
-  width: 96px;
-  height: 96px;
-  position: absolute;
-  right: 24px;
-  bottom: 24px;
-  display: grid;
-  place-items: center;
-  border: 1px solid rgba(67, 155, 107, 0.36);
-  border-radius: 999px;
-  background: radial-gradient(circle, rgba(67, 155, 107, 0.2), rgba(67, 155, 107, 0.04) 62%, transparent 64%);
-}
-
-.runner-pulse::before,
-.runner-pulse::after {
-  content: "";
-  position: absolute;
-  inset: 16px;
-  border: 1px solid rgba(67, 155, 107, 0.28);
-  border-radius: inherit;
-}
-
-.runner-pulse::after {
-  inset: 30px;
-}
-
-.runner-pulse i {
-  width: 42px;
-  height: 20px;
-  border-bottom: 2px solid var(--green);
-  border-left: 2px solid transparent;
-  transform: skewX(-20deg);
-}
-
-.runner-pulse-muted {
-  border-color: rgba(204, 139, 49, 0.28);
-  background: radial-gradient(circle, rgba(204, 139, 49, 0.16), rgba(204, 139, 49, 0.04) 62%, transparent 64%);
-}
-
-.runner-pulse-muted::before,
-.runner-pulse-muted::after {
-  border-color: rgba(204, 139, 49, 0.24);
-}
-
-.runner-pulse-muted i {
-  border-bottom-color: var(--amber);
 }
 
 .run-readiness-panel {
@@ -849,8 +734,4 @@ html[data-theme="dark"] .quick-links-grid button:focus-visible {
     grid-template-columns: 1fr;
   }
 
-  .focus-card-art,
-  .runner-pulse {
-    opacity: 0.28;
-  }
 }
