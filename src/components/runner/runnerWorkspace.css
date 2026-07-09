@@ -17,6 +17,17 @@
   box-shadow: 0 12px 28px rgba(27, 30, 36, 0.06);
 }
 
+.runner-workspace .runner-hero {
+  border-left: 4px solid var(--cyan);
+  background: #ffffff;
+  box-shadow: 0 12px 28px rgba(27, 30, 36, 0.06);
+}
+
+.runner-workspace .runner-hero h2 {
+  font-size: 1.45rem;
+  line-height: 1.18;
+}
+
 .runner-mission-summary article {
   min-width: 0;
   padding: 10px;
@@ -196,6 +207,12 @@ html[data-theme="dark"] .runner-flow-step {
 
 html[data-theme="dark"] .runner-mission-summary {
   border-color: rgba(95, 179, 197, 0.16);
+  background: #151d28;
+}
+
+html[data-theme="dark"] .runner-workspace .runner-hero {
+  border-color: rgba(95, 179, 197, 0.18);
+  border-left-color: var(--cyan);
   background: #151d28;
 }
 

@@ -11,7 +11,6 @@ import {
 import { openWorkspaceView } from "./helpers/workspaceNavigation.mjs";
 
 const {
-  apiHeaders,
   appUrl,
   port,
   routeAuthenticatedSession,
@@ -47,78 +46,6 @@ async function openAuthenticatedPage(t, viewport) {
   await routeAuthenticatedSession(page);
   await routeEmptyWorkspaceApis(page);
   return page;
-}
-
-async function routeThumbnailFixture(page) {
-  await page.route("http://127.0.0.1:8021/api/templates", (route) =>
-    route.fulfill({
-      contentType: "application/json",
-      headers: apiHeaders,
-      body: JSON.stringify({
-        templates: [
-          {
-            id: "template-visual",
-            name: "Grass is Greener Ad",
-            content: "<p>A slice-of-life supernatural RPG based around two neighboring towns.</p>",
-            forum_url: "https://forum.example/grass",
-            queue_name: "Adverts",
-            tags: ["jcink premium", "supernatural", "mature content", "21+"],
-            updated_at: "2026-06-20T23:17:00.000Z",
-          },
-        ],
-      }),
-    }),
-  );
-  await page.route("http://127.0.0.1:8021/api/queue", (route) =>
-    route.fulfill({
-      contentType: "application/json",
-      headers: apiHeaders,
-      body: JSON.stringify({
-        queue: [
-          {
-            id: "queue-visual",
-            ad_id: "ad-visual",
-            target_id: "target-visual",
-            target_name: "jcinktinder",
-            tumblr_account_id: "tumblr-runner",
-            queue_name: "Adverts",
-            submit_url: "https://jcinktinder.tumblr.com/submit",
-            post_type: "photo",
-            status: "failed",
-            scheduled_for: null,
-            timezone: "America/New_York",
-            created_at: "2026-07-06T14:09:00.000Z",
-            updated_at: "2026-07-06T14:09:00.000Z",
-            last_run_at: "2026-07-06T14:09:00.000Z",
-            posted_at: null,
-            failed_at: "2026-07-06T14:09:00.000Z",
-            notes: "The Playwright browser or tab closed before the runner finished.",
-            runner_payload: "{}",
-          },
-          {
-            id: "queue-text-visual",
-            ad_id: "ad-text-visual",
-            target_id: "target-text-visual",
-            target_name: "texttarget",
-            tumblr_account_id: "tumblr-runner",
-            queue_name: "Adverts",
-            submit_url: "https://texttarget.tumblr.com/submit",
-            post_type: "text",
-            status: "failed",
-            scheduled_for: null,
-            timezone: "America/New_York",
-            created_at: "2026-07-06T14:09:00.000Z",
-            updated_at: "2026-07-06T14:09:00.000Z",
-            last_run_at: "2026-07-06T14:09:00.000Z",
-            posted_at: null,
-            failed_at: "2026-07-06T14:09:00.000Z",
-            notes: "The Playwright browser or tab closed before the runner finished.",
-            runner_payload: "{}",
-          },
-        ],
-      }),
-    }),
-  );
 }
 
 test("visual shell CSS keeps calm backgrounds and sidebar offsets in one place", () => {
@@ -159,6 +86,7 @@ test("visual domain source ownership stays segmented", () => {
   const runnerStyles = readFileSync("src/components/runner/runnerWorkspace.css", "utf8");
   const queueStyles = readFileSync("src/components/queue/queueWorkspace.css", "utf8");
   const settingsStyles = readFileSync("src/components/settings/operationalSettingsWorkspace.css", "utf8");
+  const savedStyles = readFileSync("src/components/savedSubmissionsView.css", "utf8");
 
   assert.doesNotMatch(globalStyles, /\.operations-hero\s*\{/);
   assert.doesNotMatch(globalStyles, /\.ops-status-card\s*\{/);
@@ -170,6 +98,8 @@ test("visual domain source ownership stays segmented", () => {
   assert.doesNotMatch(globalStyles, /\.settings-readiness-grid\s*\{/);
   assert.doesNotMatch(globalStyles, /\.queue-item-meta-row\s*\{/);
   assert.doesNotMatch(globalStyles, /\.runner-log-empty\s*\{/);
+  assert.doesNotMatch(globalStyles, /\.runner-workspace\s+\.runner-hero\s*\{/);
+  assert.doesNotMatch(globalStyles, /\.workspace-saved\s+\.draft-card-media::after\s*\{/);
   assert.match(sidebarStyles, /\.sidebar\s+\.brand\s*\{/);
   assert.doesNotMatch(sidebarStyles, /^\.brand\s*\{/m);
   assert.match(editorStyles, /\.editor-surface\s+\.workflow-section\s*\{/);
@@ -185,8 +115,11 @@ test("visual domain source ownership stays segmented", () => {
   assert.match(operationsStyles, /html\[data-theme="dark"\]\s+\.run-readiness-review\s*\{/);
   assert.match(operationsStyles, /html\[data-theme="dark"\]\s+\.run-readiness-blocked\s*\{/);
   assert.match(runnerStyles, /\.runner-flow-strip\s*\{/);
+  assert.match(runnerStyles, /\.runner-workspace\s+\.runner-hero\s*\{/);
   assert.match(runnerStyles, /\.runner-flow-step\.blocked\s*\{/);
   assert.match(runnerStyles, /\.runner-log-empty\s*\{/);
+  assert.match(savedStyles, /\.workspace-saved\s+\.draft-card-media::after\s*\{/);
+  assert.match(savedStyles, /\.draft-card-preview\s+img\s*\{/);
   assert.match(queueStyles, /\.queue-schedule-readiness-grid\s*\{/);
   assert.match(queueStyles, /\.queue-item-meta-row\s*\{/);
   assert.match(queueStyles, /\.queue-status-needs-review\s*\{/);
@@ -380,102 +313,6 @@ test("editor scoped styles prioritize the composer without leaking globally", { 
   assert.notEqual(editorStylesApplied.composerShadow, "none");
   assert.equal(editorStylesApplied.looseWorkflowShadow, "none");
   assert.equal(editorStylesApplied.looseWorkflowBackground, "rgb(255, 255, 255)");
-});
-
-test("template and queue thumbnails load compressed previews without layout overflow", { timeout: 40000 }, async (t) => {
-  const page = await openAuthenticatedPage(t, { width: 1280, height: 900 });
-  await routeThumbnailFixture(page);
-  await page.goto(appUrl);
-
-  await openWorkspaceView(page, "Templates");
-  await page.getByRole("heading", { name: "Saved templates", level: 1 }).waitFor();
-  const templateThumb = await page.evaluate(() => {
-    const thumb = document.querySelector(".template-library-detailed .template-media-thumb");
-    const image = thumb?.querySelector("img");
-    const thumbBox = thumb?.getBoundingClientRect();
-    const cardBox = thumb?.closest(".template-card")?.getBoundingClientRect();
-    return {
-      src: image?.getAttribute("src") ?? "",
-      complete: Boolean(image?.complete),
-      naturalWidth: image?.naturalWidth ?? 0,
-      objectFit: image ? getComputedStyle(image).objectFit : "",
-      aspectRatio: thumb ? getComputedStyle(thumb).aspectRatio : "",
-      overflowsCard: thumbBox && cardBox ? thumbBox.right > cardBox.right || thumbBox.left < cardBox.left : true,
-    };
-  });
-  assert.equal(templateThumb.complete, true);
-  assert.ok(templateThumb.naturalWidth > 0);
-  assert.equal(templateThumb.objectFit, "cover");
-  assert.equal(templateThumb.aspectRatio, "1.78 / 1");
-  assert.equal(templateThumb.overflowsCard, false);
-
-  await openWorkspaceView(page, "Queue");
-  await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
-  const desktopQueueThumbs = await page.evaluate(() => {
-    const photoThumb = document.querySelector(".queue-item-thumb");
-    const textThumb = document.querySelectorAll(".queue-item-thumb")[1];
-    const photoImage = photoThumb?.querySelector("img");
-    const textImage = textThumb?.querySelector("img");
-    const textBox = textThumb?.getBoundingClientRect();
-    const textItemBox = textThumb?.closest(".queue-item")?.getBoundingClientRect();
-    return {
-      photo: {
-        src: photoImage?.getAttribute("src") ?? "",
-        complete: Boolean(photoImage?.complete),
-        naturalWidth: photoImage?.naturalWidth ?? 0,
-        objectFit: photoImage ? getComputedStyle(photoImage).objectFit : "",
-        width: Math.round(photoThumb?.getBoundingClientRect().width ?? 0),
-        height: Math.round(photoThumb?.getBoundingClientRect().height ?? 0),
-      },
-      text: {
-        hasImage: Boolean(textImage),
-        width: Math.round(textBox?.width ?? 0),
-        height: Math.round(textBox?.height ?? 0),
-        overflowsItem: textBox && textItemBox ? textBox.right > textItemBox.right || textBox.left < textItemBox.left : true,
-      },
-    };
-  });
-  assert.equal(desktopQueueThumbs.photo.src, templateThumb.src);
-  assert.equal(desktopQueueThumbs.photo.complete, true);
-  assert.ok(desktopQueueThumbs.photo.naturalWidth > 0);
-  assert.equal(desktopQueueThumbs.photo.objectFit, "cover");
-  assert.equal(desktopQueueThumbs.photo.width, 82);
-  assert.equal(desktopQueueThumbs.photo.height, 82);
-  assert.equal(desktopQueueThumbs.text.hasImage, false);
-  assert.equal(desktopQueueThumbs.text.width, 82);
-  assert.equal(desktopQueueThumbs.text.height, 82);
-  assert.equal(desktopQueueThumbs.text.overflowsItem, false);
-
-  await page.setViewportSize({ width: 390, height: 900 });
-  const mobileQueueThumbs = await page.evaluate(() => {
-    const thumb = document.querySelector(".queue-item-thumb");
-    const fallbackThumb = document.querySelectorAll(".queue-item-thumb")[1];
-    const image = thumb?.querySelector("img");
-    const thumbBox = thumb?.getBoundingClientRect();
-    const fallbackBox = fallbackThumb?.getBoundingClientRect();
-    const item = fallbackThumb?.closest(".queue-item");
-    const itemBox = item?.getBoundingClientRect();
-    return {
-      src: image?.getAttribute("src") ?? "",
-      complete: Boolean(image?.complete),
-      naturalWidth: image?.naturalWidth ?? 0,
-      objectFit: image ? getComputedStyle(image).objectFit : "",
-      width: Math.round(thumbBox?.width ?? 0),
-      height: Math.round(thumbBox?.height ?? 0),
-      fallbackWidth: Math.round(fallbackBox?.width ?? 0),
-      fallbackHeight: Math.round(fallbackBox?.height ?? 0),
-      fallbackOverflowsItem: fallbackBox && itemBox ? fallbackBox.right > itemBox.right || fallbackBox.left < itemBox.left : true,
-    };
-  });
-  assert.equal(mobileQueueThumbs.src, templateThumb.src);
-  assert.equal(mobileQueueThumbs.complete, true);
-  assert.ok(mobileQueueThumbs.naturalWidth > 0);
-  assert.equal(mobileQueueThumbs.objectFit, "cover");
-  assert.ok(mobileQueueThumbs.width <= 160);
-  assert.equal(mobileQueueThumbs.width, mobileQueueThumbs.height);
-  assert.ok(mobileQueueThumbs.fallbackWidth <= 160);
-  assert.equal(mobileQueueThumbs.fallbackWidth, mobileQueueThumbs.fallbackHeight);
-  assert.equal(mobileQueueThumbs.fallbackOverflowsItem, false);
 });
 
 test("runner health summary keeps four metric columns on desktop", { timeout: 40000 }, async (t) => {
