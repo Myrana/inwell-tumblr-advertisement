@@ -114,7 +114,12 @@ export function QueueWorkspace({
   const accountReadiness = runnerAccountReadiness(tumblrAccounts, selectedTumblrAccountId);
   const connectedAccountCount = accountReadiness.connectedAccounts.length;
   const selectedActiveQueueCount = selectedQueueItemIds.filter((id) => activeSubmissionItems.some((item) => item.id === id)).length;
-  const scheduleWillRun = queueScheduleSettings.enabled && !scheduleRunnerBlocked && automationRunnableItems.length > 0 && attentionItems.length === 0;
+  const scheduleWillRun = queueScheduleSettings.enabled && !scheduleRunnerBlocked && accountReadiness.ready && automationRunnableItems.length > 0;
+  const scheduleAutomationBlocker = scheduleRunnerBlocked
+    ? { label: scheduleRunnerReadiness.label, detail: scheduleRunnerReadiness.detail || runnerActivity.detail }
+    : !accountReadiness.ready
+      ? { label: "Needs account", detail: accountReadiness.blocker || "Select a connected Tumblr account." }
+      : null;
   const queueActionsBusy = queueTransitionBusy || localQueueActionBusy;
   const queueRunnerReadiness = queueReadiness({
     activeQueueName,
@@ -279,7 +284,11 @@ export function QueueWorkspace({
           <AlertTriangle size={24} />
           <div>
             <strong>{attentionItems.length} item{attentionItems.length === 1 ? "" : "s"} need review</strong>
-            <span>Clear failed or review-needed submissions before relying on automation.</span>
+            <span>
+              {automationRunnableItems.length
+                ? "Review items are parked; runnable submissions can continue."
+                : "Clear failed or review-needed submissions before relying on automation."}
+            </span>
           </div>
           <button className="primary compact-button" type="button" onClick={() => setSectionOpen("submissions", true)}>
             <PlayCircle size={16} />
@@ -414,6 +423,8 @@ export function QueueWorkspace({
               <QueueScheduleReadinessGrid
                 runnableItemCount={automationRunnableItems.length}
                 attentionItemCount={attentionItems.length}
+                automationBlockedDetail={scheduleAutomationBlocker?.detail}
+                automationBlockedLabel={scheduleAutomationBlocker?.label}
                 enabled={queueScheduleSettings.enabled}
                 nextRunAt={nextRunAt}
                 runnerReady={scheduleRunnerReadiness.ready}

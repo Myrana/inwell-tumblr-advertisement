@@ -7,6 +7,7 @@ type RunnerFlowStripProps = {
   attentionCount: number;
   connectedAccountCount: number;
   latestRunGroup: RunnerRunGroup | null;
+  readinessBlockerDetail?: string;
   runnableCount: number;
   runnerReady: boolean;
   submitApproved: boolean;
@@ -22,6 +23,7 @@ export function RunnerFlowStrip({
   attentionCount,
   connectedAccountCount,
   latestRunGroup,
+  readinessBlockerDetail,
   runnableCount,
   runnerReady,
   submitApproved,
@@ -30,6 +32,7 @@ export function RunnerFlowStrip({
     connectedAccountCount,
     attentionCount,
     latestRunGroup,
+    readinessBlockerDetail,
     runnableCount,
     runnerReady,
     submitApproved,
@@ -54,11 +57,12 @@ export function buildRunnerFlowSteps({
   attentionCount,
   connectedAccountCount,
   latestRunGroup,
+  readinessBlockerDetail,
   runnableCount,
   runnerReady,
   submitApproved,
 }: RunnerFlowStripProps): RunnerFlowStep[] {
-  const allReadinessReady = runnerReady && connectedAccountCount > 0 && runnableCount > 0 && attentionCount === 0;
+  const allReadinessReady = runnerReady && connectedAccountCount > 0 && runnableCount > 0;
   const latestResult = latestRunResult(latestRunGroup);
 
   return [
@@ -66,10 +70,12 @@ export function buildRunnerFlowSteps({
       label: "Readiness",
       state: allReadinessReady ? "ready" : "warning",
       detail: allReadinessReady
-        ? "Runner, account, and queue are ready."
-        : attentionCount
-          ? "Review failed or needs-review queue items first."
-          : "Check runner, account, or queue content.",
+        ? attentionCount
+          ? "Runner can continue with runnable items while review items stay parked."
+          : "Runner, account, and queue are ready."
+        : attentionCount && runnableCount === 0
+          ? "Only review-needed queue items are available."
+          : readinessBlockerDetail || "Check runner, account, or queue content.",
     },
     {
       label: "Run controls",

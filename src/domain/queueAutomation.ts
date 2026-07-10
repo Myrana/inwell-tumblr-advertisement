@@ -40,6 +40,38 @@ export type QueueRefillResult = {
   skippedReasons: string[];
 };
 
+export const defaultAutomationRefillTargetDepth = 3;
+
+export type PreparedAutomationQueue = {
+  addedCount: number;
+  attentionCount: number;
+  queue: SubmissionQueueItem[];
+  readyCount: number;
+};
+
+export type AutomationQueuePreparationResult =
+  | {
+      status: "ready";
+      preparedQueue: PreparedAutomationQueue;
+    }
+  | {
+      status: "blocked";
+      message: string;
+      reconciledQueue?: SubmissionQueueItem[];
+      savedItems?: SubmissionQueueItem[];
+    };
+
+export type PrepareAutomationQueueForRunOptions = {
+  allowWithoutRunnable?: boolean;
+  queue: SubmissionQueueItem[];
+  sourceAds: Advertisement[];
+  submitTargets: TumblrSubmitTarget[];
+  queueName: string;
+  tumblrAccountId: string;
+  targetDepth?: number;
+  saveQueueItem: (item: SubmissionQueueItem) => Promise<SubmissionQueueItem | null>;
+};
+
 const emptyCounts: QueueStatusCounts = {
   queued: 0,
   scheduled: 0,
@@ -118,7 +150,7 @@ export function queueReadiness(options: {
     blockers.push("Start or repair the local runner for scheduled automation.");
   }
 
-  if (attentionCount > 0) {
+  if (attentionCount > 0 && runnableCount === 0) {
     blockers.push("Review failed or needs-review submissions.");
     return {
       canRun: false,
@@ -161,7 +193,9 @@ export function queueReadiness(options: {
     status: executionReadiness.scheduledCanRun ? "ready" : "blocked",
     title: options.submitApproved ? "Ready for live run" : "Ready for test run",
     detail: executionReadiness.scheduledCanRun
-      ? options.submitApproved ? `${runnableCount} runnable item${runnableCount === 1 ? "" : "s"} can post.` : "Live posting is off; the runner will prepare items for review."
+      ? options.submitApproved
+        ? `${runnableCount} runnable item${runnableCount === 1 ? "" : "s"} can post${attentionCount ? ` while ${attentionCount} item${attentionCount === 1 ? " stays" : "s stay"} in review` : ""}.`
+        : `Live posting is off; the runner will prepare runnable items for review${attentionCount ? ` and skip ${attentionCount} review item${attentionCount === 1 ? "" : "s"}` : ""}.`
       : `${options.scheduledRunnerDetail || "Local runner needs attention."} Manual run controls remain available.`,
     primaryAction: { label: "Open runner", view: "runner" },
     scheduledCanRun: executionReadiness.scheduledCanRun,
@@ -183,7 +217,7 @@ export function runnerExecutionReadiness(options: {
   const attentionCount = attentionQueueItems(options.activeQueue).length;
   const selectedAccountReady = options.selectedConnectedAccount ?? options.connectedAccountCount > 0;
   const selectedAccountName = options.selectedAccountName || "Selected account";
-  const manualCanRun = Boolean(selectedAccountReady && runnableCount > 0 && attentionCount === 0);
+  const manualCanRun = Boolean(selectedAccountReady && runnableCount > 0);
   const scheduledCanRun = manualCanRun && options.scheduledRunnerReady;
 
   if (!selectedAccountReady) {
@@ -195,7 +229,7 @@ export function runnerExecutionReadiness(options: {
       detail: options.accountBlocker || "Choose a connected account before starting queue automation.",
     };
   }
-  if (attentionCount > 0) {
+  if (attentionCount > 0 && runnableCount === 0) {
     return {
       ready: false,
       manualCanRun: false,
@@ -227,7 +261,74 @@ export function runnerExecutionReadiness(options: {
     manualCanRun: true,
     scheduledCanRun: true,
     title: "Automation is ready to watch the queue",
-    detail: `${selectedAccountName} can run ${runnableCount} queued advertisement${runnableCount === 1 ? "" : "s"}.`,
+    detail: `${selectedAccountName} can run ${runnableCount} queued advertisement${runnableCount === 1 ? "" : "s"}${attentionCount ? ` while ${attentionCount} item${attentionCount === 1 ? " stays" : "s stay"} in review` : ""}.`,
+  };
+}
+
+export function automationQueueRunStatusMessage(addedCount: number, attentionCount: number) {
+  const refillMessage = addedCount
+    ? `Auto-filled ${addedCount} ready ad${addedCount === 1 ? "" : "s"} before running. `
+    : "";
+  const attentionMessage = attentionCount
+    ? `Skipping ${attentionCount} failed or review-needed item${attentionCount === 1 ? "" : "s"}; runnable items can continue. `
+    : "";
+  return `${refillMessage}${attentionMessage}`;
+}
+
+export async function prepareAutomationQueueForRun(options: PrepareAutomationQueueForRunOptions): Promise<AutomationQueuePreparationResult> {
+  const refill = refillQueueFromReadyDrafts({
+    queue: options.queue,
+    sourceAds: options.sourceAds,
+    submitTargets: options.submitTargets,
+    queueName: options.queueName,
+    tumblrAccountId: options.tumblrAccountId,
+    targetDepth: options.targetDepth ?? defaultAutomationRefillTargetDepth,
+  });
+  const savedItems: SubmissionQueueItem[] = [];
+
+  for (const item of refill.addedItems) {
+    const saved = await options.saveQueueItem(item);
+    if (!saved) {
+      const savedCount = savedItems.length;
+      const prefix = savedCount
+        ? `Auto-filled ${savedCount} item${savedCount === 1 ? "" : "s"}, but `
+        : "Auto-fill ";
+      return {
+        status: "blocked",
+        message: `${prefix}stopped before ${item.targetName} because the queue item could not be saved.`,
+        reconciledQueue: savedItems.length ? [...savedItems, ...options.queue] : options.queue,
+        savedItems,
+      };
+    }
+    savedItems.push(saved);
+  }
+
+  const persistedQueue = savedItems.length ? [...savedItems, ...options.queue] : options.queue;
+  const activeQueue = persistedQueue.filter((item) => item.queueName === options.queueName);
+  const readyItems = runnableQueueItems(activeQueue);
+  const reviewItems = attentionQueueItems(activeQueue);
+
+  if (!readyItems.length && reviewItems.length && !options.allowWithoutRunnable) {
+    return {
+      status: "blocked",
+      message: "Only failed or needs-review submissions are in this queue. Review or requeue one item, or add ready ads for auto-fill.",
+    };
+  }
+  if (!readyItems.length && !options.allowWithoutRunnable) {
+    return {
+      status: "blocked",
+      message: savedItems.length ? "Auto-fill ran, but no runnable queue items were saved." : "Add ready ads or queued targets before starting the runner.",
+    };
+  }
+
+  return {
+    status: "ready",
+    preparedQueue: {
+      addedCount: savedItems.length,
+      attentionCount: reviewItems.length,
+      queue: persistedQueue,
+      readyCount: readyItems.length,
+    },
   };
 }
 
@@ -244,7 +345,7 @@ export function refillQueueFromReadyDrafts(options: {
   const now = options.now ?? new Date();
   const cooldownMs = Math.max(0, options.cooldownDays ?? 14) * 24 * 60 * 60 * 1000;
   const scopedItems = options.queue.filter((item) => item.queueName === options.queueName);
-  const activeDepth = activeQueueItems(scopedItems).length;
+  const activeDepth = automationRunnableQueueItems(scopedItems).length;
   const needed = Math.max(0, options.targetDepth - activeDepth);
   const addedItems: SubmissionQueueItem[] = [];
   const skippedReasons: string[] = [];

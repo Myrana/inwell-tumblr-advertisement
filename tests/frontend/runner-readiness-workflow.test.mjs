@@ -28,6 +28,8 @@ test("daily automation readiness grid reflects blocked, empty, and runnable stat
     await browser.close();
   });
 
+  const connectedAccounts = [apiTumblrAccount({ id: "tumblr-runner", display_name: "Runner Tumblr" })];
+  const selectedRunnerSettings = { mediaDir: "", slowMo: 500, headless: true, submit: true, tumblrAccountId: "tumblr-runner" };
   const cases = [
     {
       options: { runnerOnline: false, scheduleEnabled: false },
@@ -36,50 +38,93 @@ test("daily automation readiness grid reflects blocked, empty, and runnable stat
     },
     {
       options: { runnerOnline: false, scheduleEnabled: true },
-      expected: ["Runner readiness", "Blocked", "Queue readiness", "1 runnable", "Automation state", "Will not run yet"],
+      expected: ["Runner readiness", "Blocked", "Queue readiness", "1 runnable", "Automation state", "Runner offline"],
     },
     {
-      options: { runnerOnline: true, runnerWatching: true, scheduleEnabled: true, queueItems: [] },
+      options: { accounts: connectedAccounts, runnerSettings: selectedRunnerSettings, runnerOnline: true, runnerWatching: true, scheduleEnabled: true, queueItems: [] },
       expected: ["Runner readiness", "Ready", "Queue readiness", "0 runnable", "Automation state", "Will not run yet"],
     },
     {
-      options: { runnerOnline: true, runnerWatching: true, scheduleEnabled: true, queueItems: [defaultApiQueueItem({ status: "failed" })] },
+      options: { accounts: connectedAccounts, runnerSettings: selectedRunnerSettings, runnerOnline: true, runnerWatching: true, scheduleEnabled: true, queueItems: [defaultApiQueueItem({ status: "failed" })] },
       expected: ["Runner readiness", "Ready", "Queue readiness", "0 runnable", "Automation state", "Needs review"],
       rejected: ["Will run"],
     },
     {
       options: {
+        accounts: connectedAccounts,
+        runnerSettings: selectedRunnerSettings,
         runnerOnline: true,
         runnerWatching: true,
         scheduleEnabled: true,
         queueItems: [defaultApiQueueItem(), defaultApiQueueItem({ id: "queue-failed", status: "failed" })],
       },
-      expected: ["Runner readiness", "Ready", "Queue readiness", "1 runnable", "Automation state", "Needs review", "Clear failed or review-needed submissions first."],
-      rejected: ["Will run"],
+      expected: ["Runner readiness", "Ready", "Queue readiness", "1 runnable", "Automation state", "Will run", "Daily automation will skip 1 review item."],
+      rejected: ["Clear failed or review-needed submissions first."],
     },
     {
-      options: { runnerOnline: true, runnerWatching: true, scheduleEnabled: true, queueItems: [defaultApiQueueItem({ status: "needs-review" })] },
+      options: { accounts: connectedAccounts, runnerSettings: selectedRunnerSettings, runnerOnline: true, runnerWatching: true, scheduleEnabled: true, queueItems: [defaultApiQueueItem({ status: "needs-review" })] },
       expected: ["Runner readiness", "Ready", "Queue readiness", "0 runnable", "Automation state", "Needs review"],
       rejected: ["Will run"],
     },
     {
       options: {
+        accounts: connectedAccounts,
+        runnerSettings: selectedRunnerSettings,
         runnerOnline: true,
         runnerWatching: true,
         scheduleEnabled: true,
         queueItems: [defaultApiQueueItem(), defaultApiQueueItem({ id: "queue-review", status: "needs-review" })],
       },
-      expected: ["Runner readiness", "Ready", "Queue readiness", "1 runnable", "Automation state", "Needs review", "Clear failed or review-needed submissions first."],
-      rejected: ["Will run"],
+      expected: ["Runner readiness", "Ready", "Queue readiness", "1 runnable", "Automation state", "Will run", "Daily automation will skip 1 review item."],
+      rejected: ["Clear failed or review-needed submissions first."],
     },
     {
-      options: { runnerOnline: true, runnerWatching: true, scheduleEnabled: true, queueItems: [defaultApiQueueItem({ status: "running" })] },
+      options: { accounts: connectedAccounts, runnerSettings: selectedRunnerSettings, runnerOnline: true, runnerWatching: true, scheduleEnabled: true, queueItems: [defaultApiQueueItem({ status: "running" })] },
       expected: ["Runner readiness", "Ready", "Queue readiness", "0 runnable", "Automation state", "Will not run yet"],
       rejected: ["Will run"],
     },
     {
-      options: { runnerOnline: true, runnerWatching: true, scheduleEnabled: true },
+      options: { accounts: connectedAccounts, runnerSettings: selectedRunnerSettings, runnerOnline: true, runnerWatching: true, scheduleEnabled: true },
       expected: ["Runner readiness", "Ready", "Queue readiness", "1 runnable", "Automation state", "Will run"],
+    },
+    {
+      options: { accounts: connectedAccounts, runnerOnline: true, runnerWatching: true, scheduleEnabled: true },
+      expected: ["Runner readiness", "Ready", "Queue readiness", "1 runnable", "Automation state", "Needs account", "Select a connected Tumblr account."],
+      rejected: ["Will run"],
+    },
+    {
+      options: {
+        accounts: [apiTumblrAccount({ id: "tumblr-runner", display_name: "Runner Tumblr", status: "needs-login" })],
+        runnerSettings: selectedRunnerSettings,
+        runnerOnline: true,
+        runnerWatching: true,
+        scheduleEnabled: true,
+      },
+      expected: ["Runner readiness", "Ready", "Queue readiness", "1 runnable", "Automation state", "Needs account", "Connect a Tumblr account."],
+      rejected: ["Will run"],
+    },
+    {
+      options: {
+        accounts: [apiTumblrAccount({ id: "tumblr-runner", display_name: "Runner Tumblr", status: "needs-login" })],
+        runnerSettings: selectedRunnerSettings,
+        runnerOnline: true,
+        runnerWatching: true,
+        scheduleEnabled: true,
+        queueItems: [defaultApiQueueItem(), defaultApiQueueItem({ id: "queue-failed", status: "failed" })],
+      },
+      expected: ["Runner readiness", "Ready", "Queue readiness", "1 runnable", "Automation state", "Needs account", "Connect a Tumblr account."],
+      rejected: ["Will run", "Needs review", "Clear failed or review-needed submissions first."],
+    },
+    {
+      options: {
+        accounts: connectedAccounts,
+        runnerSettings: { ...selectedRunnerSettings, tumblrAccountId: "" },
+        runnerOnline: true,
+        runnerWatching: true,
+        scheduleEnabled: true,
+      },
+      expected: ["Runner readiness", "Ready", "Queue readiness", "1 runnable", "Automation state", "Needs account", "Select a connected Tumblr account."],
+      rejected: ["Will run"],
     },
   ];
 
@@ -137,7 +182,7 @@ test("runner flow strip summarizes readiness, live approval, and latest run outc
         queueItems: [],
         runnerSettings: { ...liveRunnerSettings, submit: false, tumblrAccountId: "" },
       },
-      expected: ["Check runner, account, or queue content.", "Prep mode until live posting is approved.", "No run - run the queue to record logs."],
+      expected: ["Connect a Tumblr account.", "Prep mode until live posting is approved.", "No run - run the queue to record logs."],
     },
     {
       options: {
@@ -147,7 +192,7 @@ test("runner flow strip summarizes readiness, live approval, and latest run outc
         runnerStatus: "idle",
         runnerSettings: liveRunnerSettings,
       },
-      expected: ["Check runner, account, or queue content."],
+      expected: ["Local runner is online but is not watching this queue. Open Runner controls and start the watcher before the daily run."],
       rejected: ["Runner, account, and queue are ready."],
     },
     {
@@ -156,7 +201,7 @@ test("runner flow strip summarizes readiness, live approval, and latest run outc
         localCompanion: localCompanionStatus({ watching: false, status: "idle" }),
         runnerSettings: liveRunnerSettings,
       },
-      expected: ["Check runner, account, or queue content."],
+      expected: ["Local companion is connected but is not watching this queue. Open Runner controls and start the watcher before the daily run."],
       rejected: ["Runner, account, and queue are ready."],
     },
     {
@@ -172,8 +217,8 @@ test("runner flow strip summarizes readiness, live approval, and latest run outc
         runnerSettings: liveRunnerSettings,
         queueItems: [defaultApiQueueItem(), defaultApiQueueItem({ id: "queue-failed", status: "failed" })],
       },
-      expected: ["Review failed or needs-review queue items first."],
-      rejected: ["Runner, account, and queue are ready."],
+      expected: ["Runner can continue with runnable items while review items stay parked."],
+      rejected: ["Review failed or needs-review queue items first."],
     },
     {
       options: {
@@ -181,8 +226,17 @@ test("runner flow strip summarizes readiness, live approval, and latest run outc
         runnerSettings: liveRunnerSettings,
         queueItems: [defaultApiQueueItem(), defaultApiQueueItem({ id: "queue-review", status: "needs-review" })],
       },
-      expected: ["Review failed or needs-review queue items first."],
-      rejected: ["Runner, account, and queue are ready."],
+      expected: ["Runner can continue with runnable items while review items stay parked."],
+      rejected: ["Review failed or needs-review queue items first."],
+    },
+    {
+      options: {
+        accounts: connectedAccounts,
+        runnerSettings: { ...liveRunnerSettings, tumblrAccountId: "" },
+        queueItems: [defaultApiQueueItem(), defaultApiQueueItem({ id: "queue-review", status: "needs-review" })],
+      },
+      expected: ["Select a connected Tumblr account."],
+      rejected: ["Only review-needed queue items are available."],
     },
     {
       options: {
@@ -269,7 +323,7 @@ test("runner hero and health summary require full execution readiness", { timeou
       name: "empty queue",
       options: { accounts: connectedAccounts, runnerSettings: selectedRunnerSettings, queueItems: [] },
       title: "Automation needs queued advertisements",
-      detail: "Add ready advertisements to the selected queue before starting the runner.",
+      detail: "Add ready advertisements to Default queue before starting the runner.",
       ready: false,
     },
     {
@@ -282,6 +336,17 @@ test("runner hero and health summary require full execution readiness", { timeou
       title: "Automation needs queue review",
       detail: "Clear 1 failed or review-needed item before running Default queue.",
       ready: false,
+    },
+    {
+      name: "runnable queue with parked review item",
+      options: {
+        accounts: connectedAccounts,
+        runnerSettings: selectedRunnerSettings,
+        queueItems: [defaultApiQueueItem(), defaultApiQueueItem({ id: "queue-failed", status: "failed" })],
+      },
+      title: "Automation is ready to watch the queue",
+      detail: "Runner Tumblr can run 1 queued advertisement while 1 item stays in review.",
+      ready: true,
     },
     {
       name: "missing selected account",
@@ -301,6 +366,7 @@ test("runner hero and health summary require full execution readiness", { timeou
       title: "Automation needs a selected Tumblr account",
       detail: "Check saved Tumblr login before starting the runner.",
       ready: false,
+      setupReady: false,
       assertNoCommand: true,
       diagnostics: {
         status: "Check",
@@ -344,13 +410,19 @@ test("runner hero and health summary require full execution readiness", { timeou
       assert.equal(await hero.getByRole("button", { name: "Run queue" }).isDisabled(), false, scenario.name);
       assert.equal(await lowerControls.getByRole("button", { name: "Run", exact: true }).isDisabled(), false, scenario.name);
       assert.equal(await lowerControls.getByRole("button", { name: "Test run" }).isDisabled(), false, scenario.name);
+      if (scenario.name === "runnable queue with parked review item") {
+        await page.getByLabel("System diagnostics").getByText("1 runnable; 1 review item parked").waitFor();
+        await page.getByLabel("Automation timeline").getByText("1 runnable; 1 review item parked").waitFor();
+      }
     } else {
       assert.doesNotMatch(runnerStateClass ?? "", /\bready\b/, scenario.name);
       await hero.getByRole("heading", { name: "Automation is ready to watch the queue" }).waitFor({ state: "detached" });
       assert.equal(await hero.getByRole("button", { name: "Run queue" }).isDisabled(), !scenario.manualReady, scenario.name);
       assert.equal(await lowerControls.getByRole("button", { name: "Run", exact: true }).isDisabled(), !scenario.manualReady, scenario.name);
       assert.equal(await lowerControls.getByRole("button", { name: "Test run" }).isDisabled(), !scenario.manualReady, scenario.name);
-      assert.equal(await lowerControls.getByRole("button", { name: "Setup" }).isDisabled(), !scenario.manualReady, scenario.name);
+      const selectedAccountId = scenario.options?.runnerSettings?.tumblrAccountId ?? "";
+      const setupReady = scenario.setupReady ?? Boolean(selectedAccountId && scenario.options?.accounts?.some((account) => account.id === selectedAccountId && account.status === "connected"));
+      assert.equal(await lowerControls.getByRole("button", { name: "Setup" }).isDisabled(), !setupReady, scenario.name);
       if (scenario.diagnostics) {
         const diagnostics = page.getByLabel("System diagnostics");
         await diagnostics.getByText(scenario.diagnostics.status, { exact: true }).waitFor();
@@ -422,6 +494,67 @@ test("manual runner controls stay available for recoverable scheduled-run blocke
   }
 });
 
+test("runner auto-fills an empty queue from ready ads before preparing automation", { timeout: 40000 }, async (t) => {
+  const { page, runnerRequests, savedQueueItems } = await openRunnerWorkspaceScenario(t, {
+    accounts: [apiTumblrAccount({ id: "tumblr-runner", display_name: "Runner Tumblr" })],
+    advertisements: [apiAdvertisement({ id: "ad-auto-fill", title: "Auto fill ad", status: "ready" })],
+    queueItems: [],
+    runnerSettings: { mediaDir: "", slowMo: 500, headless: true, submit: false, tumblrAccountId: "tumblr-runner" },
+  });
+
+  const runnerControls = page.getByLabel("Runner controls");
+  await runnerControls.getByRole("button", { name: "Run", exact: true }).waitFor();
+  assert.equal(await runnerControls.getByRole("button", { name: "Run", exact: true }).isDisabled(), false);
+  await runnerControls.getByRole("button", { name: "Run", exact: true }).click();
+
+  await page.getByText("Auto-filled 1 ready ad before running.").waitFor();
+  await page.getByText("Run this command locally.").waitFor();
+  assert.equal(savedQueueItems.length, 1);
+  assert.equal(savedQueueItems[0].ad_id, "ad-auto-fill");
+  assert.equal(savedQueueItems[0].status, "queued");
+  assert.equal(savedQueueItems[0].tumblr_account_id, "tumblr-runner");
+  assert.equal(runnerRequests.localCommand, 1);
+});
+
+test("runner setup does not auto-fill an empty queue", { timeout: 40000 }, async (t) => {
+  const { page, runnerRequests, savedQueueItems } = await openRunnerWorkspaceScenario(t, {
+    accounts: [apiTumblrAccount({ id: "tumblr-runner", display_name: "Runner Tumblr" })],
+    advertisements: [apiAdvertisement({ id: "ad-auto-fill", title: "Auto fill ad", status: "ready" })],
+    queueItems: [],
+    runnerSettings: { mediaDir: "", slowMo: 500, headless: true, submit: false, tumblrAccountId: "tumblr-runner" },
+  });
+
+  const runnerControls = page.getByLabel("Runner controls");
+  await runnerControls.getByRole("button", { name: "Setup" }).waitFor();
+  assert.equal(await runnerControls.getByRole("button", { name: "Setup" }).isDisabled(), false);
+  await runnerControls.getByRole("button", { name: "Setup" }).click();
+
+  await page.getByText("Run this command locally.").waitFor();
+  assert.equal(savedQueueItems.length, 0);
+  assert.equal(runnerRequests.localCommand, 1);
+  assert.equal(await page.getByText("Auto-filled 1 ready ad before running.").count(), 0);
+});
+
+test("runner stops when auto-fill cannot save a ready ad", { timeout: 40000 }, async (t) => {
+  const { page, runnerRequests, savedQueueItems } = await openRunnerWorkspaceScenario(t, {
+    accounts: [apiTumblrAccount({ id: "tumblr-runner", display_name: "Runner Tumblr" })],
+    advertisements: [apiAdvertisement({ id: "ad-auto-fill", title: "Auto fill ad", status: "ready" })],
+    queueItems: [],
+    queueSaveFails: true,
+    runnerSettings: { mediaDir: "", slowMo: 500, headless: true, submit: false, tumblrAccountId: "tumblr-runner" },
+  });
+
+  const runnerControls = page.getByLabel("Runner controls");
+  await runnerControls.getByRole("button", { name: "Run", exact: true }).waitFor();
+  assert.equal(await runnerControls.getByRole("button", { name: "Run", exact: true }).isDisabled(), false);
+  await runnerControls.getByRole("button", { name: "Run", exact: true }).click();
+
+  await page.getByText("Auto-fill stopped before runnerblog because the queue item could not be saved.").waitFor();
+  assert.equal(savedQueueItems.length, 0);
+  assert.equal(runnerRequests.companionRun, 0);
+  assert.equal(runnerRequests.localCommand, 0);
+});
+
 test("queue runner banner follows queue execution readiness", { timeout: 40000 }, async (t) => {
   const server = spawn("npx vite --host 127.0.0.1 --port 8123 --strictPort", {
     cwd: process.cwd(),
@@ -476,6 +609,16 @@ test("queue runner banner follows queue execution readiness", { timeout: 40000 }
       ready: false,
     },
     {
+      options: {
+        accounts: connectedAccounts,
+        runnerSettings,
+        queueItems: [defaultApiQueueItem(), defaultApiQueueItem({ id: "queue-failed", status: "failed" })],
+      },
+      expected: "Runner is available for this queue",
+      detail: "1 runnable item can post while 1 item stays in review.",
+      ready: true,
+    },
+    {
       options: { accounts: staleConnectedAccounts, runnerSettings },
       expected: "Automation needs a selected Tumblr account",
       detail: "Check saved Tumblr login before starting the runner.",
@@ -514,6 +657,10 @@ test("queue runner banner follows queue execution readiness", { timeout: 40000 }
     }
     if (scenario.ready) {
       assert.match(await banner.getAttribute("class"), /\bready\b/);
+      if (scenario.detail?.includes("stays in review")) {
+        await page.getByLabel("Queue review required").getByText("Review items are parked; runnable submissions can continue.").waitFor();
+        await page.getByLabel("Queue review required").getByText("Clear failed or review-needed submissions before relying on automation.").waitFor({ state: "detached" });
+      }
     } else {
       assert.doesNotMatch(await banner.getAttribute("class"), /\bready\b/);
     }
@@ -608,6 +755,43 @@ async function withRunnerDiagnosticsPage(t, routeOptions, assertion) {
   await assertion(page);
 }
 
+async function openRunnerWorkspaceScenario(t, routeOptions) {
+  const server = spawn("npx vite --host 127.0.0.1 --port 8123 --strictPort", {
+    cwd: process.cwd(),
+    shell: true,
+    stdio: "ignore",
+  });
+
+  t.after(() => {
+    stopProcessTree(server);
+  });
+
+  await waitForServer(appUrl);
+
+  const browser = await chromium.launch();
+  t.after(async () => {
+    await browser.close();
+  });
+
+  const context = await browser.newContext();
+  t.after(async () => {
+    await context.close();
+  });
+
+  const page = await context.newPage();
+  const runnerRequests = routeOptions.runnerRequests ?? { companionRun: 0, localCommand: 0 };
+  const savedQueueItems = routeOptions.savedQueueItems ?? [];
+  await routeRunnerWorkspace(page, {
+    ...routeOptions,
+    runnerRequests,
+    savedQueueItems,
+  });
+  await page.goto(appUrl);
+  await openWorkspaceView(page, "Runner");
+
+  return { page, runnerRequests, savedQueueItems };
+}
+
 async function routeRunnerWorkspace(page, options = {}) {
   const runnerOnline = options.runnerOnline ?? true;
   const runnerWatching = options.runnerWatching ?? runnerOnline;
@@ -619,6 +803,8 @@ async function routeRunnerWorkspace(page, options = {}) {
   const accounts = options.accounts ?? [];
   const advertisements = options.advertisements ?? [];
   const queueItems = options.queueItems ?? [defaultApiQueueItem()];
+  let currentQueueItems = [...queueItems];
+  const savedQueueItems = options.savedQueueItems ?? [];
   const runnerLogs = options.runnerLogs ?? [];
   const runnerRequests = options.runnerRequests ?? { companionRun: 0, localCommand: 0 };
   await page.route("http://127.0.0.1:8021/api/auth/session", (route) =>
@@ -652,6 +838,7 @@ async function routeRunnerWorkspace(page, options = {}) {
       headers: apiHeaders,
       body: JSON.stringify({
         settings: {
+          queueDefinitions: [{ id: "default-queue", name: "Default queue" }],
           runnerSettings,
           queueScheduleSettings: {
             enabled: scheduleEnabled,
@@ -734,10 +921,28 @@ async function routeRunnerWorkspace(page, options = {}) {
       contentType: "application/json",
       headers: apiHeaders,
       body: JSON.stringify({
-        queue: queueItems,
+        queue: currentQueueItems,
       }),
     }),
   );
+  await page.route("http://127.0.0.1:8021/api/queue/*", (route) => {
+    if (options.queueSaveFails) {
+      return route.fulfill({
+        status: 500,
+        contentType: "application/json",
+        headers: apiHeaders,
+        body: JSON.stringify({ error: "queue save failed" }),
+      });
+    }
+    const payload = route.request().postDataJSON();
+    savedQueueItems.push(payload);
+    currentQueueItems = [payload, ...currentQueueItems.filter((item) => item.id !== payload.id)];
+    return route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({ queue_item: payload }),
+    });
+  });
 }
 
 function defaultApiQueueItem(overrides = {}) {
