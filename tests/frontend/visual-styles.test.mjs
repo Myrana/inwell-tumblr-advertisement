@@ -8,7 +8,6 @@ import {
   stopProcessTree,
   waitForServer,
 } from "./helpers/appTestServer.mjs";
-import { openWorkspaceView } from "./helpers/workspaceNavigation.mjs";
 
 const {
   appUrl,

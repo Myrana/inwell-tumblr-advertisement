@@ -228,10 +228,10 @@ export function RunnerWorkspace({
                 Start runner
               </button>
             ) : null}
-            <button className="secondary compact-button" type="button" onClick={onNavigateAccounts}>
+            <button className="tertiary-action compact-button" type="button" onClick={onNavigateAccounts}>
               Manage accounts
             </button>
-            <button className="secondary compact-button" type="button" onClick={onNavigateQueue}>
+            <button className="tertiary-action compact-button" type="button" onClick={onNavigateQueue}>
               Open queue
             </button>
           </div>
@@ -282,16 +282,16 @@ export function RunnerWorkspace({
                 Test run
               </button>
               {showLaunchLocalRunner ? (
-                <button className="secondary" type="button" onClick={onLaunchLocalRunner}>
+                <button className="tertiary-action" type="button" onClick={onLaunchLocalRunner}>
                   <PlugZap size={18} />
                   Start
                 </button>
               ) : null}
-              <button className="secondary" type="button" onClick={onDownloadLocalRunner}>
+              <button className="tertiary-action" type="button" onClick={onDownloadLocalRunner}>
                 <Download size={18} />
                 Download
               </button>
-              <button className="secondary" type="button" onClick={onCopyLocalRunnerSetup} disabled={!runnableItems.length || !accountReadiness.ready}>
+              <button className="tertiary-action" type="button" onClick={onCopyLocalRunnerSetup} disabled={!runnableItems.length || !accountReadiness.ready}>
                 <Terminal size={18} />
                 Setup
               </button>
@@ -381,11 +381,11 @@ export function RunnerWorkspace({
               <p className="queue-empty">Run or test the queue to create runner logs.</p>
             )}
             <div className="runner-link-row">
-              <button className="secondary compact-button" type="button" onClick={onNavigateQueue}>
+              <button className="tertiary-action compact-button" type="button" onClick={onNavigateQueue}>
                 <Send size={16} />
                 Open queue
               </button>
-              <button className="secondary compact-button" type="button" onClick={onNavigateAccounts}>
+              <button className="tertiary-action compact-button" type="button" onClick={onNavigateAccounts}>
                 Manage accounts
               </button>
             </div>

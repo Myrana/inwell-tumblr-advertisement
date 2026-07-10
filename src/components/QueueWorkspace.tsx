@@ -267,7 +267,7 @@ export function QueueWorkspace({
             <FilePlus2 size={16} />
             Write Advertisement
           </button>
-          <button className="secondary compact-button" type="button" onClick={onOpenRunner}>
+          <button className="tertiary-action compact-button" type="button" onClick={onOpenRunner}>
             <PlayCircle size={16} />
             Runner Controls
           </button>
@@ -307,7 +307,7 @@ export function QueueWorkspace({
           <strong>{queueRunnerBannerTitle}</strong>
           <span>{queueRunnerBannerDetail}</span>
         </div>
-        <button className={queueRunnerReady ? "secondary compact-button" : "primary compact-button"} type="button" onClick={queueRunnerAction.action}>
+        <button className={queueRunnerReady ? "tertiary-action compact-button" : "primary compact-button"} type="button" onClick={queueRunnerAction.action}>
           <PlayCircle size={16} />
           {queueRunnerAction.label}
         </button>
@@ -575,7 +575,7 @@ export function QueueWorkspace({
                       <FilePlus2 size={16} />
                       Write advertisement
                     </button>
-                    <button className="secondary compact-button" type="button" onClick={onManageBlogs}>
+                    <button className="tertiary-action compact-button" type="button" onClick={onManageBlogs}>
                       <ListChecks size={16} />
                       Blog tracker
                     </button>
@@ -649,11 +649,11 @@ export function QueueWorkspace({
                 <strong>No completed submissions yet.</strong>
                 <span>Completed Tumblr submissions will appear here after they are marked submitted or posted.</span>
                 <div className="empty-action-row">
-                  <button className="secondary compact-button" type="button" onClick={onOpenRunner}>
+                  <button className="tertiary-action compact-button" type="button" onClick={onOpenRunner}>
                     <PlayCircle size={16} />
                     Runner controls
                   </button>
-                  <button className="secondary compact-button" type="button" onClick={onCreateSubmission}>
+                  <button className="tertiary-action compact-button" type="button" onClick={onCreateSubmission}>
                     <FilePlus2 size={16} />
                     Write advertisement
                   </button>
