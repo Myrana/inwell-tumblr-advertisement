@@ -34,6 +34,7 @@ type RunnerWorkspaceProps = {
   runnerSubmitApproved: boolean;
   selectedTumblrAccountId: string;
   showLaunchLocalRunner: boolean;
+  canAutoFillQueue: boolean;
   tumblrAccounts: TumblrAccount[];
   onCopyLocalRunnerSetup: () => void;
   onDownloadLocalRunner: () => void;
@@ -63,6 +64,7 @@ export function RunnerWorkspace({
   runnerSubmitApproved,
   selectedTumblrAccountId,
   showLaunchLocalRunner,
+  canAutoFillQueue,
   tumblrAccounts,
   onCopyLocalRunnerSetup,
   onDownloadLocalRunner,
@@ -105,6 +107,11 @@ export function RunnerWorkspace({
     selectedAccountName: selectedConnectedAccount?.displayName || "",
     selectedConnectedAccount: accountReadiness.ready,
   });
+  const manualActionAvailable = runnerExecutionReadiness.manualCanRun || canAutoFillQueue;
+  const queueReadyForAutomation = runnableItems.length > 0;
+  const queueAutomationDetail = attentionItems.length
+    ? `${runnableItems.length} runnable; ${attentionItems.length} review item${attentionItems.length === 1 ? "" : "s"} parked`
+    : `${runnableItems.length} runnable`;
   const showInstallGuide = !localRunner?.online && !runnableItems.length;
   const readinessItems = [
     {
@@ -142,7 +149,7 @@ export function RunnerWorkspace({
         ? `${selectedConnectedAccount.displayName} selected for runs`
         : accountReadiness.blocker || "No connected account",
     },
-    { label: "Queue integrity", ready: runnableItems.length > 0 && attentionItems.length === 0, detail: attentionItems.length ? `${attentionItems.length} need review` : `${runnableItems.length} runnable` },
+    { label: "Queue integrity", ready: queueReadyForAutomation, detail: queueAutomationDetail },
     { label: "Discord summary", ready: !discordRunnerNeedsAttention, detail: discordWebhookConfigured ? "Configured" : "Optional" },
   ];
 
@@ -157,11 +164,11 @@ export function RunnerWorkspace({
           </p>
         </div>
         <div className="runner-hero-actions">
-          <button className="primary" type="button" onClick={onStartRunner} disabled={!runnerExecutionReadiness.manualCanRun}>
+          <button className="primary" type="button" onClick={onStartRunner} disabled={!manualActionAvailable}>
             <Play size={18} />
             Run queue
           </button>
-          <button className="secondary" type="button" onClick={onStartTestRun} disabled={!runnerExecutionReadiness.manualCanRun}>
+          <button className="secondary" type="button" onClick={onStartTestRun} disabled={!manualActionAvailable}>
             <TestTube2 size={18} />
             Test run
           </button>
@@ -191,6 +198,7 @@ export function RunnerWorkspace({
         attentionCount={attentionItems.length}
         connectedAccountCount={connectedAccounts.length}
         latestRunGroup={latestRunGroup}
+        readinessBlockerDetail={runnerExecutionReadiness.ready ? "" : runnerExecutionReadiness.detail}
         runnableCount={runnableItems.length}
         runnerReady={runnerExecutionReadiness.ready}
         submitApproved={runnerSubmitApproved}
@@ -273,11 +281,11 @@ export function RunnerWorkspace({
           </div>
           <div className="workflow-section-body">
             <div className="queue-action-row runner-action-grid">
-              <button className="primary" type="button" onClick={onStartRunner} disabled={!runnerExecutionReadiness.manualCanRun}>
+              <button className="primary" type="button" onClick={onStartRunner} disabled={!manualActionAvailable}>
                 <Play size={18} />
                 Run
               </button>
-              <button className="secondary" type="button" onClick={onStartTestRun} disabled={!runnerExecutionReadiness.manualCanRun}>
+              <button className="secondary" type="button" onClick={onStartTestRun} disabled={!manualActionAvailable}>
                 <TestTube2 size={18} />
                 Test run
               </button>
@@ -291,7 +299,7 @@ export function RunnerWorkspace({
                 <Download size={18} />
                 Download
               </button>
-              <button className="tertiary-action" type="button" onClick={onCopyLocalRunnerSetup} disabled={!runnableItems.length || !accountReadiness.ready}>
+              <button className="tertiary-action" type="button" onClick={onCopyLocalRunnerSetup} disabled={!accountReadiness.ready}>
                 <Terminal size={18} />
                 Setup
               </button>
@@ -402,7 +410,7 @@ export function RunnerWorkspace({
           <div className="workflow-section-body">
             <div className="runner-timeline-list">
               {[
-                { label: "Validate queue", ready: runnableItems.length > 0 && attentionItems.length === 0, detail: attentionItems.length ? `${attentionItems.length} item${attentionItems.length === 1 ? "" : "s"} need review` : `${runnableItems.length} runnable item${runnableItems.length === 1 ? "" : "s"}` },
+                { label: "Validate queue", ready: queueReadyForAutomation, detail: attentionItems.length ? `${runnableItems.length} runnable; ${attentionItems.length} review item${attentionItems.length === 1 ? "" : "s"} parked` : `${runnableItems.length} runnable item${runnableItems.length === 1 ? "" : "s"}` },
                 { label: "Authenticate Tumblr", ready: accountReadiness.ready, detail: selectedConnectedAccount ? selectedConnectedAccount.displayName : accountReadiness.blocker || "Select account" },
                 { label: "Prepare browser", ready: scheduleRunnerReadiness.ready, detail: runnerConnectionLabel },
                 { label: "Submit and summarize", ready: runnerSubmitApproved && !discordRunnerNeedsAttention, detail: runnerSubmitApproved ? discordSummaryDetail : "Live posting is not approved yet." },

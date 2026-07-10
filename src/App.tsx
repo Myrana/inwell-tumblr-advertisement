@@ -66,7 +66,15 @@ import {
 import { composerContentFor, emptyAd, hasLibraryContent, normalizeStoredState } from "./domain/ads";
 import { defaultTagProfiles } from "./domain/constants";
 import { MediaLibraryAsset, mediaLibraryFromAdvertisements } from "./domain/mediaLibrary";
-import { attentionQueueItems, runnableQueueItems as runnableItemsForQueue } from "./domain/queueAutomation";
+import {
+  automationQueueRunStatusMessage,
+  attentionQueueItems,
+  defaultAutomationRefillTargetDepth,
+  prepareAutomationQueueForRun,
+  PreparedAutomationQueue,
+  refillQueueFromReadyDrafts,
+  runnableQueueItems as runnableItemsForQueue,
+} from "./domain/queueAutomation";
 import { queueIdFromName, uniqueQueueDefinitions } from "./domain/queue";
 import {
   loadQueueScheduleSettings,
@@ -233,6 +241,20 @@ function App() {
   const activeQueueScheduleSettings = activeQueueName
     ? queueScheduleSettings.perQueue[activeQueueName] ?? defaultQueueScheduleSettings
     : defaultQueueScheduleSettings;
+  const canAutoFillActiveQueue = useMemo(() => {
+    const accountReadiness = runnerAccountReadiness(tumblrAccounts, runnerSettings.tumblrAccountId);
+    if (!accountReadiness.ready) {
+      return false;
+    }
+    return refillQueueFromReadyDrafts({
+      queue: submissionQueue,
+      sourceAds: normalizeStoredState(stored).ads,
+      submitTargets,
+      queueName: activeQueueName,
+      tumblrAccountId: accountReadiness.readyAccount?.id || runnerSettings.tumblrAccountId,
+      targetDepth: defaultAutomationRefillTargetDepth,
+    }).addedItems.length > 0;
+  }, [activeQueueName, runnerSettings.tumblrAccountId, stored, submissionQueue, submitTargets, tumblrAccounts]);
   const runnerConnectionLabel = useMemo(() => {
     if (localCompanion?.ok) {
       if (localCompanion.running) {
@@ -1274,6 +1296,29 @@ function App() {
     return runnableItemsForQueue(activeQueue);
   }
 
+  async function prepareAutomationQueue(options: { allowWithoutRunnable?: boolean } = {}) {
+    const accountReadiness = runnerAccountReadiness(tumblrAccounts, runnerSettingsRef.current.tumblrAccountId);
+    const preparation = await prepareAutomationQueueForRun({
+      allowWithoutRunnable: options.allowWithoutRunnable,
+      queue: submissionQueue,
+      sourceAds: normalizeStoredState(storedRef.current).ads,
+      submitTargets,
+      queueName: activeQueueName,
+      tumblrAccountId: accountReadiness.readyAccount?.id || runnerSettingsRef.current.tumblrAccountId,
+      targetDepth: defaultAutomationRefillTargetDepth,
+      saveQueueItem: syncQueueItem,
+    });
+    if (preparation.status === "blocked") {
+      if (preparation.reconciledQueue) {
+        setSubmissionQueue(preparation.reconciledQueue);
+      }
+      setQueueStatus(preparation.message);
+      return null;
+    }
+    setSubmissionQueue(preparation.preparedQueue.queue);
+    return preparation.preparedQueue;
+  }
+
   function updateActiveQueueScheduleSettings(patch: Partial<QueueSchedulePreference>) {
     setQueueScheduleSettings((current) => {
       if (!activeQueueName) {
@@ -1360,18 +1405,15 @@ function App() {
     return false;
   }
 
-  async function prepareLocalRunnerCommand(options: { allowWithoutRunnable?: boolean; copy?: boolean; target?: "run" | "setup"; fallbackReason?: string; submit?: boolean; testRun?: boolean } = {}) {
-    const items = runnableQueueItems();
-    const attentionItems = attentionQueueItems(activeQueue);
-    if (attentionItems.length && !options.allowWithoutRunnable) {
-      setQueueStatus("Review failed or needs-review submissions before starting the runner.");
-      return;
-    }
-    if (!items.length && !options.allowWithoutRunnable) {
-      setQueueStatus("Queue at least one target before starting the runner.");
-      return;
-    }
+  async function prepareLocalRunnerCommand(options: { allowWithoutRunnable?: boolean; copy?: boolean; target?: "run" | "setup"; fallbackReason?: string; submit?: boolean; testRun?: boolean; preparedQueue?: PreparedAutomationQueue } = {}) {
     if (!requireSelectedConnectedRunnerAccount()) {
+      return;
+    }
+    const target = options.target ?? "run";
+    const preparedQueue = target === "setup"
+      ? null
+      : options.preparedQueue ?? await prepareAutomationQueue({ allowWithoutRunnable: options.allowWithoutRunnable });
+    if (target !== "setup" && !preparedQueue) {
       return;
     }
 
@@ -1381,12 +1423,12 @@ function App() {
       setRunnerLogs(logs);
       setSubmissionQueue(backendQueue);
       setApiAvailable(true);
-      const target = options.target ?? "run";
       const commandToCopy = target === "setup" ? localRunner.autoStartCommand || localRunner.command : localRunner.command;
       const copied = options.copy ? await copyTextToClipboard(commandToCopy).catch(() => false) : false;
       const tokenWarning = localRunner.tokenConfigured ? "" : "Railway is missing INWELL_LOCAL_RUNNER_TOKEN. ";
       const copyMessage = copied ? `${target === "setup" ? "Local runner setup command" : "Local runner command"} copied. ` : "";
       const fallbackMessage = options.fallbackReason ? `${options.fallbackReason} ` : "";
+      const automationMessage = preparedQueue ? automationQueueRunStatusMessage(preparedQueue.addedCount, preparedQueue.attentionCount) : "";
       if (localRunner.usesDeviceToken) {
         const actionMessage = copied && target === "setup"
           ? "Open PowerShell in the repo folder, paste it, and press Enter to install the Windows login task. Keep the copied command private."
@@ -1397,11 +1439,11 @@ function App() {
                 ? "Open PowerShell in the repo folder, paste it, and press Enter to prepare Tumblr without submitting. Turn on Approve live posting when you want the runner to submit. Keep the copied command private."
               : "Open PowerShell in the repo folder, paste it, and press Enter to start the local runner. Keep the copied command private."
             : "Use Run or Setup to copy a fresh private device-token command.";
-        setQueueStatus(`${copyMessage}${fallbackMessage}${localRunner.message} ${actionMessage}`);
+        setQueueStatus(`${automationMessage}${copyMessage}${fallbackMessage}${localRunner.message} ${actionMessage}`);
         return;
       }
       const autoStartMessage = localRunner.autoStartCommand ? ` Auto-start: ${localRunner.autoStartCommand}` : "";
-      setQueueStatus(`${copyMessage}${fallbackMessage}${localRunner.message} ${tokenWarning}Command: ${localRunner.command}${autoStartMessage}`);
+      setQueueStatus(`${automationMessage}${copyMessage}${fallbackMessage}${localRunner.message} ${tokenWarning}Command: ${localRunner.command}${autoStartMessage}`);
     } catch (error) {
       setApiAvailable(false);
       const message =
@@ -1415,17 +1457,11 @@ function App() {
   async function startRunner(options: { allowWithoutRunnable?: boolean; submit?: boolean } = {}) {
     const submit = options.submit ?? runnerSettingsRef.current.submit;
     const testRun = options.submit === false;
-    const items = runnableQueueItems();
-    const attentionItems = attentionQueueItems(activeQueue);
-    if (attentionItems.length && !options.allowWithoutRunnable) {
-      setQueueStatus("Review failed or needs-review submissions before starting the runner.");
-      return;
-    }
-    if (!items.length && !options.allowWithoutRunnable) {
-      setQueueStatus("Queue at least one target before starting the runner.");
-      return;
-    }
     if (!requireSelectedConnectedRunnerAccount()) {
+      return;
+    }
+    const preparedQueue = await prepareAutomationQueue({ allowWithoutRunnable: options.allowWithoutRunnable });
+    if (!preparedQueue) {
       return;
     }
 
@@ -1440,7 +1476,7 @@ function App() {
     });
     if (companionRun.kind === "started") {
       setLocalCompanion(companionRun.companion);
-      setQueueStatus(companionRun.queueStatus);
+      setQueueStatus(`${automationQueueRunStatusMessage(preparedQueue.addedCount, preparedQueue.attentionCount)}${companionRun.queueStatus}`);
       [2500, 6000].forEach((delay) => {
         window.setTimeout(() => {
           void refreshLocalCompanionStatus({ quiet: true });
@@ -1451,7 +1487,7 @@ function App() {
     }
     if (companionRun.kind === "companion-error") {
       setLocalCompanion(companionRun.companion);
-      setQueueStatus(companionRun.queueStatus);
+      setQueueStatus(`${automationQueueRunStatusMessage(preparedQueue.addedCount, preparedQueue.attentionCount)}${companionRun.queueStatus}`);
       return;
     }
 
@@ -1465,6 +1501,7 @@ function App() {
       copy: true,
       target: "run",
       allowWithoutRunnable: options.allowWithoutRunnable,
+      preparedQueue,
       submit,
       testRun,
       fallbackReason: offlineFallbackReason,
@@ -1783,6 +1820,7 @@ function App() {
             runnerSubmitApproved={runnerSettings.submit}
             selectedTumblrAccountId={runnerSettings.tumblrAccountId}
             showLaunchLocalRunner={canLaunchLocalRunner}
+            canAutoFillQueue={canAutoFillActiveQueue}
             tumblrAccounts={tumblrAccounts}
             onCopyLocalRunnerSetup={copyLocalRunnerSetup}
             onDownloadLocalRunner={downloadLocalRunnerInstaller}

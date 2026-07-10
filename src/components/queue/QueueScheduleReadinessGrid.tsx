@@ -2,6 +2,8 @@ import { formatEasternRun } from "../../domain/schedule";
 
 type QueueScheduleReadinessGridProps = {
   attentionItemCount: number;
+  automationBlockedDetail?: string;
+  automationBlockedLabel?: string;
   enabled: boolean;
   nextRunAt: string;
   runnableItemCount: number;
@@ -11,6 +13,8 @@ type QueueScheduleReadinessGridProps = {
 
 export function QueueScheduleReadinessGrid({
   attentionItemCount,
+  automationBlockedDetail,
+  automationBlockedLabel,
   enabled,
   nextRunAt,
   runnableItemCount,
@@ -20,12 +24,14 @@ export function QueueScheduleReadinessGrid({
   const automationState = enabled
     ? {
         className: willRun ? "queue-schedule-card ready" : "queue-schedule-card blocked",
-        label: willRun ? "Will run" : attentionItemCount ? "Needs review" : "Will not run yet",
+        label: willRun ? "Will run" : automationBlockedLabel || (attentionItemCount ? "Needs review" : "Will not run yet"),
         detail: willRun
-          ? "Daily automation has the required pieces."
-          : attentionItemCount
+          ? attentionItemCount
+            ? `Daily automation will skip ${attentionItemCount} review item${attentionItemCount === 1 ? "" : "s"}.`
+            : "Daily automation has the required pieces."
+          : automationBlockedDetail || (attentionItemCount
             ? "Clear failed or review-needed submissions first."
-            : "Fix the blocked readiness item first.",
+            : "Fix the blocked readiness item first."),
       }
     : {
         className: "queue-schedule-card off",

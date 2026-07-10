@@ -65,7 +65,7 @@ test("queue review banner summarizes attention items and opens submissions", { t
 
   const banner = bulkQueue.page.getByLabel("Queue review required");
   await banner.getByText("1 item need review").waitFor();
-  await banner.getByText("Clear failed or review-needed submissions before relying on automation.").waitFor();
+  await banner.getByText("Review items are parked; runnable submissions can continue.").waitFor();
   await bulkQueue.page.getByRole("button", { name: "Toggle queued submissions section" }).click();
   await bulkQueue.page.getByLabel("Queue bulk editor").waitFor({ state: "detached" });
   await banner.getByRole("button", { name: "Review queue" }).click();
