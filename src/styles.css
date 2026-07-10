@@ -1547,6 +1547,37 @@ pre {
   overflow-wrap: anywhere;
 }
 
+.tertiary-action {
+  min-height: 36px;
+  padding: 0 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--cyan);
+  font-weight: 900;
+  text-align: left;
+}
+
+.tertiary-action svg {
+  flex: 0 0 auto;
+}
+
+.tertiary-action:hover:not(:disabled),
+.tertiary-action:focus-visible:not(:disabled) {
+  color: var(--text);
+  text-decoration: underline;
+}
+
+.tertiary-action:disabled {
+  color: var(--muted);
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .runner-install-actions {
   display: flex;
   flex-wrap: wrap;
@@ -1600,6 +1631,11 @@ pre {
 }
 
 .runner-action-grid > button {
+  min-width: 112px;
+}
+
+.runner-action-grid > .primary,
+.runner-action-grid > .secondary {
   min-width: 128px;
 }
 
