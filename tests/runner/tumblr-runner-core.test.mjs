@@ -5,6 +5,7 @@ import {
   appearsRateLimitedByTumblr,
   dataUrlToBuffer,
   fieldsForItem,
+  fillPhotoClickThroughUrl,
   fillRichTextEditorInDocument,
   frameCandidateScore,
   headlessBlockerCodeForReason,
@@ -34,6 +35,66 @@ test("parseArgs accepts a plan and safety defaults", () => {
   assert.equal(options.loginFirst, false);
   assert.equal(options.noPause, true);
   assert.equal(options.noReviewPause, true);
+});
+
+function photoLinkHarness({ inputs = [], controls = [] } = {}) {
+  const state = { clicks: [], fills: [], waits: 0 };
+  const wrap = (entries, type) => ({
+    count: async () => entries.length,
+    nth: (index) => ({
+      context: entries[index],
+      isVisible: async () => entries[index].visible !== false,
+      click: async () => {
+        state.clicks.push(entries[index].label);
+        entries[index].onClick?.();
+      },
+      type,
+    }),
+  });
+  const target = {
+    locator: (selector) => selector.startsWith("button") ? wrap(controls, "control") : wrap(inputs, "input"),
+  };
+  const page = { waitForTimeout: async () => { state.waits += 1; } };
+  const dependencies = {
+    pageTargets: async () => [target],
+    accessibleContext: async (locator) => locator.context.label,
+    fillEditable: async (locator, value) => {
+      state.fills.push([locator.context.label, value]);
+      return locator.context.fillSucceeds !== false;
+    },
+    log: () => undefined,
+  };
+  return { page, dependencies, state };
+}
+
+test("photo click-through fills an explicitly labeled input without opening controls", async () => {
+  const harness = photoLinkHarness({ inputs: [{ label: "Photo link URL" }], controls: [{ label: "Add a link" }] });
+  assert.equal(await fillPhotoClickThroughUrl(harness.page, "https://forum.example/thread", harness.dependencies), true);
+  assert.deepEqual(harness.state.fills, [["Photo link URL", "https://forum.example/thread"]]);
+  assert.deepEqual(harness.state.clicks, []);
+});
+
+test("photo click-through opens only the first matching control before filling a generic URL input", async () => {
+  const inputs = [{ label: "URL", visible: false }];
+  const harness = photoLinkHarness({
+    inputs,
+    controls: [
+      { label: "Add a link", onClick: () => { inputs[0].visible = true; } },
+      { label: "Set a link" },
+    ],
+  });
+  assert.equal(await fillPhotoClickThroughUrl(harness.page, "https://forum.example/thread", harness.dependencies), true);
+  assert.deepEqual(harness.state.clicks, ["Add a link"]);
+  assert.deepEqual(harness.state.fills, [["URL", "https://forum.example/thread"]]);
+  assert.equal(harness.state.waits, 1);
+});
+
+test("photo click-through rejects invalid URLs and avoids unrelated generic fields", async () => {
+  const harness = photoLinkHarness({ inputs: [{ label: "Video URL" }], controls: [] });
+  assert.equal(await fillPhotoClickThroughUrl(harness.page, "javascript:alert(1)", harness.dependencies), false);
+  assert.equal(await fillPhotoClickThroughUrl(harness.page, "https://forum.example/thread", harness.dependencies), false);
+  assert.deepEqual(harness.state.fills, []);
+  assert.deepEqual(harness.state.clicks, []);
 });
 
 test("parseArgs supports same-session login before queue execution", () => {

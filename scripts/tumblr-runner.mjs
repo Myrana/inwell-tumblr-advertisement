@@ -9,12 +9,12 @@ import {
   appearsRateLimitedByTumblr,
   frameCandidateScore,
   fieldsForItem,
+  fillPhotoClickThroughUrl,
   fillRichTextEditorInDocument,
   headlessBlockerCodes,
   headlessBlockerCodeForReason,
   headlessBlockerMessage,
   headlessLoginRequiredMessage,
-  isPhotoClickThroughContext,
   isReusableRemotePage,
   loginWaitMessage,
   loadRunnerPlan,
@@ -244,7 +244,11 @@ async function runQueueItem(context, item, options) {
   const textFilled = await fillTextFields(page, fields);
   const tagsFilled = await fillTags(page, fields.tags);
   const mediaUploaded = await uploadMedia(page, item, fields, options);
-  const imageLinkFilled = item.postType === "photo" ? await fillPhotoClickThroughUrl(page, fields.imageLinkUrl) : false;
+  const imageLinkFilled = item.postType === "photo" ? await fillPhotoClickThroughUrl(page, fields.imageLinkUrl, {
+    pageTargets,
+    accessibleContext,
+    fillEditable,
+  }) : false;
   const termsAccepted = await acceptTerms(page);
   console.log(
     `[runner] Fill summary: text=${textFilled ? "filled" : "not found"}, tags=${tagsFilled ? "filled" : "not found"}, media=${mediaUploaded ? "uploaded" : "not uploaded"}, imageLink=${imageLinkFilled ? "filled" : "not found"}, terms=${termsAccepted ? "accepted" : "not found"}.`,
@@ -1310,69 +1314,6 @@ async function uploadMedia(page, item, fields, options) {
   }
 
   console.log(`[manual-action] ${item.targetName}: no file input accepted ${uploadPath}; upload it manually.`);
-  return false;
-}
-
-async function fillPhotoClickThroughUrl(page, value) {
-  const url = String(value || "").trim();
-  if (!/^https?:\/\//i.test(url)) {
-    return false;
-  }
-
-  if (await fillPhotoLinkInput(page, url, false)) {
-    return true;
-  }
-
-  await openPhotoLinkControls(page);
-  return fillPhotoLinkInput(page, url, true);
-}
-
-async function openPhotoLinkControls(page) {
-  for (const target of await pageTargets(page)) {
-    const controls = target.locator("button, a, [role='button']");
-    const count = await controls.count();
-    for (let index = 0; index < count; index += 1) {
-      const control = controls.nth(index);
-      if (!(await control.isVisible().catch(() => false))) {
-        continue;
-      }
-
-      const context = await accessibleContext(control);
-      if (!isPhotoClickThroughContext(context)) {
-        continue;
-      }
-
-      const clicked = await control.click({ timeout: 1500 }).then(() => true).catch(() => false);
-      if (clicked) {
-        await page.waitForTimeout(250).catch(() => undefined);
-      }
-    }
-  }
-}
-
-async function fillPhotoLinkInput(page, value, allowGenericUrl) {
-  for (const target of await pageTargets(page)) {
-    const inputs = target.locator("input[type='url'], input[type='text'], input:not([type]), textarea");
-    const count = await inputs.count();
-    for (let index = 0; index < count; index += 1) {
-      const input = inputs.nth(index);
-      if (!(await input.isVisible().catch(() => false))) {
-        continue;
-      }
-
-      const context = await accessibleContext(input);
-      if (!isPhotoClickThroughContext(context, allowGenericUrl)) {
-        continue;
-      }
-
-      const filled = await fillEditable(input, value);
-      if (filled) {
-        console.log("[runner] Filled photo click-through URL.");
-        return true;
-      }
-    }
-  }
-
   return false;
 }
 
