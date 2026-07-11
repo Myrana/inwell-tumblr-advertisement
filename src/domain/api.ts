@@ -347,9 +347,10 @@ export async function loadLocalCompanionStatus() {
 }
 
 export async function runLocalCompanion(queueName: string, options: { headless?: boolean; submit?: boolean } = {}) {
-  const body: { queueName: string; headless: boolean; submit?: boolean } = {
+  const body: { queueName: string; headless: boolean; mode: "manual"; submit?: boolean } = {
     queueName,
     headless: Boolean(options.headless),
+    mode: "manual",
   };
   if (typeof options.submit === "boolean") {
     body.submit = options.submit;

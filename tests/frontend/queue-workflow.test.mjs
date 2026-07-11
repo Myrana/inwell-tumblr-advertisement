@@ -247,7 +247,7 @@ test("retry test run saves the requeue before starting the local companion", { t
   await retry.page.getByRole("button", { name: "Retry test run" }).click();
   await retryRunResponse;
   await retry.page.getByText(/Starting a recovery test run|Local companion started a test run/).waitFor();
-  assert.deepEqual(retry.companionRunPayloads.at(-1), { queueName: "Default queue", headless: false, submit: false });
+  assert.deepEqual(retry.companionRunPayloads.at(-1), { queueName: "Default queue", headless: false, mode: "manual", submit: false });
   assert.equal(await retry.page.getByText("Manual override").count(), 0);
   assert.equal(await retry.page.getByRole("button", { name: "Mark failed" }).count(), 0);
   assert.equal(retry.pageErrors.length, 0, retry.pageErrors.map((error) => error.message).join("\n"));

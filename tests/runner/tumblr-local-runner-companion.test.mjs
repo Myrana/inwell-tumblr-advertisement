@@ -45,6 +45,7 @@ async function waitForCompanionStatus(port, predicate, label) {
 
 function startRunnerApiMock(plans) {
   let planIndex = 0;
+  const planUrls = [];
   const server = http.createServer((request, response) => {
     if (request.method === "POST" && request.url?.startsWith("/api/runner/local-heartbeat")) {
       response.writeHead(200, { "Content-Type": "application/json" });
@@ -53,6 +54,7 @@ function startRunnerApiMock(plans) {
     }
 
     if (request.method === "GET" && request.url?.startsWith("/api/runner/local-plan")) {
+      planUrls.push(request.url);
       const plan = plans[Math.min(planIndex, plans.length - 1)];
       planIndex += 1;
       response.writeHead(200, { "Content-Type": "application/json" });
@@ -69,6 +71,7 @@ function startRunnerApiMock(plans) {
       const address = server.address();
       resolve({
         baseUrl: `http://127.0.0.1:${address.port}/api`,
+        planUrls: () => [...planUrls],
         close: () => new Promise((closeResolve) => server.close(closeResolve)),
       });
     });
@@ -77,6 +80,7 @@ function startRunnerApiMock(plans) {
 
 function startTransientFailureRunnerApiMock(successPlan) {
   let planRequests = 0;
+  const planUrls = [];
   const server = http.createServer((request, response) => {
     if (request.method === "POST" && request.url?.startsWith("/api/runner/local-heartbeat")) {
       response.writeHead(200, { "Content-Type": "application/json" });
@@ -86,6 +90,7 @@ function startTransientFailureRunnerApiMock(successPlan) {
 
     if (request.method === "GET" && request.url?.startsWith("/api/runner/local-plan")) {
       planRequests += 1;
+      planUrls.push(request.url);
       if (planRequests === 1) {
         response.writeHead(503, { "Content-Type": "application/json" });
         response.end(JSON.stringify({ error: "temporary plan outage" }));
@@ -106,6 +111,7 @@ function startTransientFailureRunnerApiMock(successPlan) {
       resolve({
         baseUrl: `http://127.0.0.1:${address.port}/api`,
         planRequests: () => planRequests,
+        planUrls: () => [...planUrls],
         close: () => new Promise((closeResolve) => server.close(closeResolve)),
       });
     });
@@ -176,6 +182,7 @@ test("watched local companion stays online after a transient plan failure", asyn
     assert.equal(recoveredStatus.lastRun.exitCode, 0);
     assert.equal(child.exitCode, null);
     assert.ok(api.planRequests() >= 2);
+    assert.match(api.planUrls()[0], /[?&]mode=watcher(?:&|$)/);
   } finally {
     child.kill();
     await api.close();
@@ -275,6 +282,108 @@ test("local companion accepts headless dry-run requests", async () => {
     assert.equal(payload.submit, false);
   } finally {
     child.kill();
+  }
+});
+
+test("local companion run cannot be downgraded to watcher-gated mode", async () => {
+  const port = 21000 + Math.floor(Math.random() * 1000);
+  const api = await startRunnerApiMock([
+    {
+      runId: "local-run-manual-mode",
+      userDataDir: ".tumblr-test-profile",
+      items: [],
+    },
+  ]);
+  const child = spawn(
+    process.execPath,
+    [
+      "scripts/tumblr-local-runner.mjs",
+      "--serve",
+      "--companion-port",
+      String(port),
+      "--api-base",
+      api.baseUrl,
+      "--workspace-id",
+      "workspace-test",
+      "--queue",
+      "Adverts",
+      "--token",
+      "test-token",
+    ],
+    { cwd: process.cwd(), stdio: ["ignore", "pipe", "pipe"] },
+  );
+
+  try {
+    await waitForOutput(child, /Companion server listening/);
+    const response = await fetch(`http://127.0.0.1:${port}/run`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: "http://127.0.0.1:8123",
+      },
+      body: JSON.stringify({ queueName: "Adverts", headless: true, submit: false, mode: "watcher" }),
+    });
+
+    assert.equal(response.status, 202);
+    await waitForCompanionStatus(
+      port,
+      (candidate) => !candidate.running && candidate.lastRun?.runId === "local-run-manual-mode",
+      "manual run complete",
+    );
+    assert.match(api.planUrls()[0], /[?&]mode=manual(?:&|$)/);
+  } finally {
+    child.kill();
+    await api.close();
+  }
+});
+
+test("run-now watcher fetches manual plan before background watcher plans", async () => {
+  const port = 21500 + Math.floor(Math.random() * 1000);
+  const api = await startRunnerApiMock([
+    {
+      runId: "local-run-now-manual",
+      userDataDir: ".tumblr-test-profile",
+      items: [],
+    },
+    {
+      runId: "local-run-now-watcher",
+      userDataDir: ".tumblr-test-profile",
+      items: [],
+    },
+  ]);
+  const child = spawn(
+    process.execPath,
+    [
+      "scripts/tumblr-local-runner.mjs",
+      "--serve",
+      "--watch",
+      "--run-now",
+      "--interval-seconds",
+      "1",
+      "--companion-port",
+      String(port),
+      "--api-base",
+      api.baseUrl,
+      "--workspace-id",
+      "workspace-test",
+      "--queue",
+      "Adverts",
+      "--token",
+      "test-token",
+    ],
+    { cwd: process.cwd(), stdio: ["ignore", "pipe", "pipe"] },
+  );
+
+  try {
+    await waitForOutput(child, /Companion server listening/);
+    for (let attempt = 0; attempt < 30 && api.planUrls().length < 2; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    assert.match(api.planUrls()[0], /[?&]mode=manual(?:&|$)/);
+    assert.match(api.planUrls()[1], /[?&]mode=watcher(?:&|$)/);
+  } finally {
+    child.kill();
+    await api.close();
   }
 });
 

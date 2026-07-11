@@ -20,6 +20,7 @@ from typing import Any, Protocol
 from urllib.parse import parse_qs, urlparse
 from urllib import request as urllib_request
 from urllib.error import HTTPError, URLError
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import psycopg
 from psycopg.rows import dict_row
@@ -29,6 +30,7 @@ POST_TYPES = {"text", "photo", "video"}
 QUEUE_STATUSES = {"queued", "scheduled", "running", "submitted", "posted", "needs-review", "failed"}
 LOG_LEVELS = {"info", "warning", "error"}
 DEFAULT_TIMEZONE = "America/New_York"
+EASTERN_TZ = ZoneInfo(DEFAULT_TIMEZONE)
 DEFAULT_PGHOST = "192.168.1.3"
 DEFAULT_PGDATABASE = "inwell_tumblr_advertisement"
 DEFAULT_PGUSER = "postgres"
@@ -190,6 +192,17 @@ def initialize(connection: ConnectionLike) -> None:
             status TEXT NOT NULL DEFAULT '',
             version TEXT NOT NULL DEFAULT '',
             revoked_at TIMESTAMPTZ
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS local_runner_schedule_dispatches (
+            workspace_id TEXT NOT NULL,
+            queue_name TEXT NOT NULL,
+            occurrence_date TEXT NOT NULL,
+            dispatched_at TIMESTAMPTZ NOT NULL,
+            PRIMARY KEY (workspace_id, queue_name, occurrence_date)
         )
         """
     )
@@ -1408,15 +1421,32 @@ def normalize_queue_schedule_settings(value: Any) -> dict[str, Any]:
 
 def normalize_queue_schedule_preference(value: Any) -> dict[str, Any]:
     data = value if isinstance(value, dict) else {}
-    daily_time = str(data.get("dailyTime") or "09:00")
-    if not re.match(r"^\d{2}:\d{2}$", daily_time):
-        daily_time = "09:00"
+    daily_time = normalize_daily_time(data.get("dailyTime"))
 
     return {
         "enabled": bool(data.get("enabled")),
         "dailyTime": daily_time,
-        "timezone": DEFAULT_TIMEZONE,
+        "timezone": normalize_timezone_name(data.get("timezone")),
     }
+
+
+def normalize_daily_time(value: Any) -> str:
+    daily_time = str(value or "09:00")
+    if not re.match(r"^\d{2}:\d{2}$", daily_time):
+        return "09:00"
+    hour, minute = (int(part) for part in daily_time.split(":", 1))
+    if hour > 23 or minute > 59:
+        return "09:00"
+    return daily_time
+
+
+def normalize_timezone_name(value: Any) -> str:
+    timezone_name = str(value or DEFAULT_TIMEZONE).strip() or DEFAULT_TIMEZONE
+    try:
+        ZoneInfo(timezone_name)
+    except ZoneInfoNotFoundError:
+        return DEFAULT_TIMEZONE
+    return timezone_name
 
 
 def app_settings_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
@@ -2511,7 +2541,78 @@ def local_runner_user_data_dir(user_data_dir: str) -> str:
     return value
 
 
-def local_runner_plan(connection: ConnectionLike, workspace_id: str, queue_name: str = "", limit: int = 0) -> dict[str, Any]:
+def normalize_local_runner_plan_mode(value: Any) -> str:
+    return "manual" if str(value or "").strip().lower() in {"manual", "run", "test"} else "watcher"
+
+
+def queue_schedule_for_runner(connection: ConnectionLike, workspace_id: str, queue_name: str) -> dict[str, Any]:
+    settings = get_app_settings(connection, workspace_id)["queueScheduleSettings"]
+    queue_settings = settings.get("perQueue", {}).get(queue_name)
+    return queue_settings if isinstance(queue_settings, dict) else settings
+
+
+def local_runner_watch_due(connection: ConnectionLike, workspace_id: str, queue_name: str, now: datetime | None = None) -> bool:
+    schedule = queue_schedule_for_runner(connection, workspace_id, queue_name)
+    if not schedule.get("enabled"):
+        return False
+
+    daily_time = normalize_daily_time(schedule.get("dailyTime"))
+    hour, minute = (int(part) for part in daily_time.split(":", 1))
+    current = (now or utc_now()).astimezone(schedule_timezone(schedule))
+    scheduled_today = current.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    return current >= scheduled_today
+
+
+def schedule_timezone(schedule: dict[str, Any]) -> ZoneInfo:
+    try:
+        return ZoneInfo(str(schedule.get("timezone") or DEFAULT_TIMEZONE))
+    except ZoneInfoNotFoundError:
+        return EASTERN_TZ
+
+
+def claim_local_runner_watch_occurrence(connection: ConnectionLike, workspace_id: str, queue_name: str, now: datetime | None = None) -> bool:
+    schedule = queue_schedule_for_runner(connection, workspace_id, queue_name)
+    current = (now or utc_now()).astimezone(schedule_timezone(schedule))
+    if not local_runner_watch_due(connection, workspace_id, queue_name, current):
+        return False
+    occurrence_date = current.date().isoformat()
+    inserted = connection.execute(
+        """
+        INSERT INTO local_runner_schedule_dispatches (workspace_id, queue_name, occurrence_date, dispatched_at)
+        VALUES (%s, %s, %s, %s)
+        ON CONFLICT (workspace_id, queue_name, occurrence_date) DO NOTHING
+        RETURNING occurrence_date
+        """,
+        (workspace_id, queue_name, occurrence_date, utc_now()),
+    ).fetchone()
+    return bool(inserted)
+
+
+def empty_local_runner_plan(workspace_id: str, queue_name: str) -> dict[str, Any]:
+    return {
+        "version": 1,
+        "workflow": "tumblr-submission-queue",
+        "runId": f"local-run-{uuid.uuid4().hex}",
+        "workspaceId": workspace_id,
+        "queueName": queue_name,
+        "userDataDir": "",
+        "generatedAt": utc_now().isoformat(),
+        "items": [],
+    }
+
+
+def local_runner_plan(
+    connection: ConnectionLike,
+    workspace_id: str,
+    queue_name: str = "",
+    limit: int = 0,
+    mode: str = "watcher",
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    plan_mode = normalize_local_runner_plan_mode(mode)
+    if plan_mode == "watcher" and not claim_local_runner_watch_occurrence(connection, workspace_id, queue_name, now):
+        return empty_local_runner_plan(workspace_id, queue_name)
+
     rows = connection.execute(
         "SELECT * FROM submission_queue WHERE workspace_id = %s ORDER BY updated_at DESC",
         (workspace_id,),
@@ -2547,9 +2648,15 @@ def local_runner_plan(connection: ConnectionLike, workspace_id: str, queue_name:
     }
 
 
-def local_runner_plan_response(connection: ConnectionLike, workspace_id: str, queue_name: str = "", limit: int = 0) -> dict[str, Any]:
+def local_runner_plan_response(
+    connection: ConnectionLike,
+    workspace_id: str,
+    queue_name: str = "",
+    limit: int = 0,
+    mode: str = "watcher",
+) -> dict[str, Any]:
     return {
-        "plan": local_runner_plan(connection, workspace_id, queue_name, limit),
+        "plan": local_runner_plan(connection, workspace_id, queue_name, limit, mode),
         "discordWebhookUrl": stored_discord_webhook_url(connection, workspace_id),
     }
 
@@ -2564,7 +2671,7 @@ def local_runner_command(api_base_url: str, workspace_id: str, queue_name: str, 
         f"{token_arg}"
         f"--workspace-id {powershell_quote(workspace_id)} "
         f"--queue {powershell_quote(queue_arg)} "
-        f"--user-data-dir .tumblr-runner-profile-local --watch --serve{headless_arg}{submit_arg}"
+        f"--user-data-dir .tumblr-runner-profile-local --run-now --watch --serve{headless_arg}{submit_arg}"
     )
     headless_install_arg = " -Headless" if headless else ""
     submit_install_arg = " -Submit" if submit else ""
@@ -2851,6 +2958,7 @@ class Handler(BaseHTTPRequestHandler):
             workspace_id = str(query.get("workspaceId", [""])[0] or "").strip()
             queue_name = str(query.get("queueName", [""])[0] or "").strip()
             limit = int(str(query.get("limit", ["0"])[0] or "0") or 0)
+            mode = normalize_local_runner_plan_mode(query.get("mode", ["watcher"])[0])
             if not workspace_id:
                 self.respond({"error": "workspaceId is required"}, HTTPStatus.BAD_REQUEST)
                 return
@@ -2858,7 +2966,7 @@ class Handler(BaseHTTPRequestHandler):
                 if not validate_local_runner_token(connection, token, workspace_id, require_workspace=True):
                     self.respond({"error": "Local runner token is required"}, HTTPStatus.UNAUTHORIZED)
                     return
-                self.respond(local_runner_plan_response(connection, workspace_id, queue_name, limit))
+                self.respond(local_runner_plan_response(connection, workspace_id, queue_name, limit, mode))
             return
 
         auth = self.require_auth()

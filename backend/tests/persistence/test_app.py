@@ -8,6 +8,7 @@ import threading
 import unittest
 import uuid
 import zipfile
+from datetime import datetime, timezone
 from pathlib import Path
 import sys
 from typing import Any
@@ -123,6 +124,7 @@ class FakePostgresConnection:
         self.advertisement_tags: dict[tuple[str, str], dict[str, Any]] = {}
         self.auth_attempts: dict[str, dict[str, Any]] = {}
         self.local_runner_tokens: dict[str, dict[str, Any]] = {}
+        self.local_runner_schedule_dispatches: dict[tuple[str, str, str], dict[str, Any]] = {}
         self.queue_definitions: ScopedRows = ScopedRows()
         self.queue_schedule_settings: ScopedRows = ScopedRows()
         self.runner_logs: dict[str, dict[str, Any]] = {}
@@ -622,6 +624,24 @@ class FakePostgresConnection:
             else:
                 self.queue_schedule_settings.clear()
             return FakeCursor()
+
+        if normalized.startswith("select * from local_runner_schedule_dispatches"):
+            key = (str(params[0]), str(params[1]), str(params[2]))
+            row = self.local_runner_schedule_dispatches.get(key)
+            return FakeCursor([row] if row else [])
+
+        if normalized.startswith("insert into local_runner_schedule_dispatches"):
+            row = {
+                "workspace_id": params[0],
+                "queue_name": params[1],
+                "occurrence_date": params[2],
+                "dispatched_at": params[3],
+            }
+            key = (row["workspace_id"], row["queue_name"], row["occurrence_date"])
+            if key in self.local_runner_schedule_dispatches:
+                return FakeCursor()
+            self.local_runner_schedule_dispatches[key] = row
+            return FakeCursor([{"occurrence_date": row["occurrence_date"]}])
 
         if normalized.startswith("insert into settings_audit_events"):
             row = {
@@ -1693,7 +1713,11 @@ class PersistenceTests(unittest.TestCase):
         base_url = f"http://127.0.0.1:{address[1]}"
 
         try:
-            with patch("app.connect", return_value=ConnectionContext(self.connection)), patch("app.post_discord_webhook_test") as post_test:
+            with (
+                patch("app.connect", return_value=ConnectionContext(self.connection)),
+                patch("app.post_discord_webhook_test") as post_test,
+                patch("app.utc_now", return_value=datetime(2026, 7, 11, 16, 0, tzinfo=timezone.utc)),
+            ):
                 for method, path in (
                     ("GET", "/api/settings"),
                     ("GET", "/api/settings/discord-webhook"),
@@ -1745,6 +1769,20 @@ class PersistenceTests(unittest.TestCase):
                 post_test.assert_called_once_with(webhook_url)
 
                 device = create_local_runner_token(self.connection, workspace_id, "Mandy laptop")
+                upsert_queue_item(
+                    self.connection,
+                    {
+                        "id": "route-plan-queue-1",
+                        "workspace_id": workspace_id,
+                        "ad_id": "route-ad-1",
+                        "target_id": "route-target-1",
+                        "target_name": "route-target",
+                        "queue_name": "Default queue",
+                        "submit_url": "https://route-target.tumblr.com/submit",
+                        "status": "queued",
+                        "runner_payload": "{}",
+                    },
+                )
                 status, payload = self.request_json(
                     base_url,
                     f"/api/runner/local-plan?workspaceId={workspace_id}&queueName=Default%20queue",
@@ -1753,6 +1791,75 @@ class PersistenceTests(unittest.TestCase):
                 self.assertEqual(status, 200)
                 self.assertEqual(payload["discordWebhookUrl"], webhook_url)
                 self.assertNotIn(webhook_url, json.dumps(payload["plan"]))
+                self.assertEqual(payload["plan"]["items"], [])
+
+                upsert_app_settings(
+                    self.connection,
+                    {
+                        "queueScheduleSettings": {
+                            "enabled": False,
+                            "dailyTime": "09:00",
+                            "perQueue": {
+                                "Default queue": {
+                                    "enabled": True,
+                                    "dailyTime": "23:59",
+                                    "timezone": "America/New_York",
+                                }
+                            },
+                        }
+                    },
+                    workspace_id=workspace_id,
+                    audit=False,
+                )
+                status, payload = self.request_json(
+                    base_url,
+                    f"/api/runner/local-plan?workspaceId={workspace_id}&queueName=Default%20queue&mode=watcher",
+                    headers={"Authorization": f"Bearer {device['token']}"},
+                )
+                self.assertEqual(status, 200)
+                self.assertEqual(payload["plan"]["items"], [])
+
+                status, payload = self.request_json(
+                    base_url,
+                    f"/api/runner/local-plan?workspaceId={workspace_id}&queueName=Default%20queue&mode=manual",
+                    headers={"Authorization": f"Bearer {device['token']}"},
+                )
+                self.assertEqual(status, 200)
+                self.assertEqual([item["id"] for item in payload["plan"]["items"]], ["route-plan-queue-1"])
+
+                upsert_app_settings(
+                    self.connection,
+                    {
+                        "queueScheduleSettings": {
+                            "enabled": False,
+                            "dailyTime": "09:00",
+                            "perQueue": {
+                                "Default queue": {
+                                    "enabled": True,
+                                    "dailyTime": "24:00",
+                                    "timezone": "America/New_York",
+                                }
+                            },
+                        }
+                    },
+                    workspace_id=workspace_id,
+                    audit=False,
+                )
+                status, payload = self.request_json(
+                    base_url,
+                    f"/api/runner/local-plan?workspaceId={workspace_id}&queueName=Default%20queue&mode=watcher",
+                    headers={"Authorization": f"Bearer {device['token']}"},
+                )
+                self.assertEqual(status, 200)
+                self.assertEqual([item["id"] for item in payload["plan"]["items"]], ["route-plan-queue-1"])
+
+                status, payload = self.request_json(
+                    base_url,
+                    f"/api/runner/local-plan?workspaceId={workspace_id}&queueName=Default%20queue&mode=watcher",
+                    headers={"Authorization": f"Bearer {device['token']}"},
+                )
+                self.assertEqual(status, 200)
+                self.assertEqual(payload["plan"]["items"], [])
 
                 status, payload = self.request_json(
                     base_url,
@@ -2371,7 +2478,7 @@ class PersistenceTests(unittest.TestCase):
             },
         )
 
-        plan = local_runner_plan(self.connection, "workspace-local", "Local queue")
+        plan = local_runner_plan(self.connection, "workspace-local", "Local queue", mode="manual")
 
         self.assertEqual(plan["workflow"], "tumblr-submission-queue")
         self.assertEqual(plan["workspaceId"], "workspace-local")
@@ -2410,10 +2517,200 @@ class PersistenceTests(unittest.TestCase):
             },
         )
 
-        plan = local_runner_plan(self.connection, "workspace-local", "Local queue")
+        plan = local_runner_plan(self.connection, "workspace-local", "Local queue", mode="manual")
 
         self.assertEqual(plan["userDataDir"], "")
         self.assertEqual(len(plan["items"]), 1)
+
+    def test_local_runner_watcher_plan_obeys_queue_schedule(self) -> None:
+        upsert_queue_item(
+            self.connection,
+            {
+                "id": "watcher-queue-1",
+                "workspace_id": "workspace-watch",
+                "ad_id": "ad-watch",
+                "target_id": "target-watch",
+                "target_name": "watch-target",
+                "queue_name": "Watched queue",
+                "submit_url": "https://watch-target.tumblr.com/submit",
+                "status": "queued",
+                "runner_payload": "{}",
+            },
+        )
+
+        disabled_plan = local_runner_plan(self.connection, "workspace-watch", "Watched queue", mode="watcher")
+
+        self.assertEqual(disabled_plan["items"], [])
+
+        upsert_app_settings(
+            self.connection,
+            {
+                "queueScheduleSettings": {
+                    "enabled": False,
+                    "dailyTime": "09:00",
+                    "perQueue": {
+                        "Watched queue": {
+                            "enabled": True,
+                            "dailyTime": "23:59",
+                            "timezone": "America/New_York",
+                        }
+                    },
+                }
+            },
+            workspace_id="workspace-watch",
+            audit=False,
+        )
+        not_due_plan = local_runner_plan(
+            self.connection,
+            "workspace-watch",
+            "Watched queue",
+            mode="watcher",
+            now=datetime(2026, 7, 11, 12, 0, tzinfo=app.EASTERN_TZ),
+        )
+
+        self.assertEqual(not_due_plan["items"], [])
+
+        upsert_app_settings(
+            self.connection,
+            {
+                "queueScheduleSettings": {
+                    "enabled": False,
+                    "dailyTime": "09:00",
+                    "perQueue": {
+                        "Watched queue": {
+                            "enabled": True,
+                            "dailyTime": "00:00",
+                            "timezone": "America/New_York",
+                        }
+                    },
+                }
+            },
+            workspace_id="workspace-watch",
+            audit=False,
+        )
+        due_plan = local_runner_plan(
+            self.connection,
+            "workspace-watch",
+            "Watched queue",
+            mode="watcher",
+            now=datetime(2026, 7, 11, 12, 0, tzinfo=app.EASTERN_TZ),
+        )
+
+        self.assertEqual([item["id"] for item in due_plan["items"]], ["watcher-queue-1"])
+
+        repeat_plan = local_runner_plan(
+            self.connection,
+            "workspace-watch",
+            "Watched queue",
+            mode="watcher",
+            now=datetime(2026, 7, 11, 12, 5, tzinfo=app.EASTERN_TZ),
+        )
+        self.assertEqual(repeat_plan["items"], [])
+        self.assertEqual(len(self.connection.local_runner_schedule_dispatches), 1)
+
+        next_day_plan = local_runner_plan(
+            self.connection,
+            "workspace-watch",
+            "Watched queue",
+            mode="watcher",
+            now=datetime(2026, 7, 12, 12, 0, tzinfo=app.EASTERN_TZ),
+        )
+        self.assertEqual([item["id"] for item in next_day_plan["items"]], ["watcher-queue-1"])
+
+    def test_local_runner_manual_plan_bypasses_queue_schedule_gate(self) -> None:
+        upsert_queue_item(
+            self.connection,
+            {
+                "id": "manual-queue-1",
+                "workspace_id": "workspace-manual",
+                "ad_id": "ad-manual",
+                "target_id": "target-manual",
+                "target_name": "manual-target",
+                "queue_name": "Manual queue",
+                "submit_url": "https://manual-target.tumblr.com/submit",
+                "status": "queued",
+                "runner_payload": "{}",
+            },
+        )
+
+        plan = local_runner_plan(self.connection, "workspace-manual", "Manual queue", mode="manual")
+
+        self.assertEqual([item["id"] for item in plan["items"]], ["manual-queue-1"])
+
+    def test_local_runner_watcher_uses_configured_schedule_timezone(self) -> None:
+        upsert_queue_item(
+            self.connection,
+            {
+                "id": "tokyo-queue-1",
+                "workspace_id": "workspace-tokyo",
+                "ad_id": "ad-tokyo",
+                "target_id": "target-tokyo",
+                "target_name": "tokyo-target",
+                "queue_name": "Tokyo queue",
+                "submit_url": "https://tokyo-target.tumblr.com/submit",
+                "status": "queued",
+                "runner_payload": "{}",
+            },
+        )
+        self.connection.queue_schedule_settings[("workspace-tokyo", "queue:Tokyo queue")] = {
+            "id": "queue:Tokyo queue",
+            "workspace_id": "workspace-tokyo",
+            "enabled": True,
+            "daily_time": "23:00",
+            "timezone": "Asia/Tokyo",
+            "updated_at": datetime(2026, 7, 11, 0, 0, tzinfo=timezone.utc),
+        }
+
+        plan = local_runner_plan(
+            self.connection,
+            "workspace-tokyo",
+            "Tokyo queue",
+            mode="watcher",
+            now=datetime(2026, 7, 11, 14, 30, tzinfo=timezone.utc),
+        )
+
+        self.assertEqual([item["id"] for item in plan["items"]], ["tokyo-queue-1"])
+        self.assertIn(("workspace-tokyo", "Tokyo queue", "2026-07-11"), self.connection.local_runner_schedule_dispatches)
+
+    def test_local_runner_watcher_duplicate_claim_returns_empty_without_raising(self) -> None:
+        upsert_queue_item(
+            self.connection,
+            {
+                "id": "duplicate-queue-1",
+                "workspace_id": "workspace-duplicate",
+                "ad_id": "ad-duplicate",
+                "target_id": "target-duplicate",
+                "target_name": "duplicate-target",
+                "queue_name": "Duplicate queue",
+                "submit_url": "https://duplicate-target.tumblr.com/submit",
+                "status": "queued",
+                "runner_payload": "{}",
+            },
+        )
+        upsert_app_settings(
+            self.connection,
+            {
+                "queueScheduleSettings": {
+                    "perQueue": {
+                        "Duplicate queue": {
+                            "enabled": True,
+                            "dailyTime": "00:00",
+                            "timezone": "America/New_York",
+                        }
+                    }
+                }
+            },
+            workspace_id="workspace-duplicate",
+            audit=False,
+        )
+        now = datetime(2026, 7, 11, 12, 0, tzinfo=app.EASTERN_TZ)
+
+        first_plan = local_runner_plan(self.connection, "workspace-duplicate", "Duplicate queue", mode="watcher", now=now)
+        duplicate_plan = local_runner_plan(self.connection, "workspace-duplicate", "Duplicate queue", mode="watcher", now=now)
+
+        self.assertEqual([item["id"] for item in first_plan["items"]], ["duplicate-queue-1"])
+        self.assertEqual(duplicate_plan["items"], [])
+        self.assertEqual(len(self.connection.local_runner_schedule_dispatches), 1)
 
     def test_local_runner_command_uses_watch_mode_without_token_placeholder(self) -> None:
         result = local_runner_command("https://example.test/api", "workspace-local", "Local queue")
@@ -2422,6 +2719,7 @@ class PersistenceTests(unittest.TestCase):
         self.assertIn("--api-base 'https://example.test/api'", result["command"])
         self.assertIn("--workspace-id 'workspace-local'", result["command"])
         self.assertIn("--queue 'Local queue'", result["command"])
+        self.assertIn("--run-now", result["command"])
         self.assertIn("--watch", result["command"])
         self.assertIn("--serve", result["command"])
         self.assertNotIn("--no-pause", result["command"])
