@@ -142,6 +142,7 @@ class FakePostgresConnection:
         self.users: dict[str, dict[str, Any]] = {}
         self.user_sessions: dict[str, dict[str, Any]] = {}
         self.workspaces: dict[str, dict[str, Any]] = {}
+        self._submission_queue_lock = threading.Lock()
 
     def execute(self, query: str, params: tuple[Any, ...] | None = None) -> FakeCursor:
         normalized = " ".join(query.split()).lower()
@@ -350,7 +351,10 @@ class FakePostgresConnection:
             return FakeCursor(list(self.advertisements.values()))
 
         if normalized.startswith("select * from advertisements where workspace_id"):
-            return FakeCursor([row for row in self.advertisements.values() if row.get("workspace_id") == params[0]])
+            rows = [row for row in self.advertisements.values() if row.get("workspace_id") == params[0]]
+            if "order by updated_at desc" in normalized:
+                rows = sorted(rows, key=lambda row: row["updated_at"], reverse=True)
+            return FakeCursor(rows)
 
         if normalized.startswith("insert into advertisements"):
             row = {
@@ -778,6 +782,19 @@ class FakePostgresConnection:
         if normalized.startswith("select * from submission_queue where workspace_id"):
             rows = [row for row in self.submission_queue.values() if row.get("workspace_id") == params[0]]
             return FakeCursor(sorted(rows, key=lambda row: row["updated_at"], reverse=True))
+
+        if normalized.startswith("update submission_queue set status") and "status not in" in normalized:
+            status, notes, updated_at, posted_at, queue_item_id, workspace_id, first_completed, second_completed = params
+            key = ScopedRows.key(workspace_id, queue_item_id)
+            with self._submission_queue_lock:
+                row = self.submission_queue.get(key)
+                if not row or row.get("status") in {first_completed, second_completed}:
+                    return FakeCursor()
+                row["status"] = status
+                row["notes"] = notes
+                row["updated_at"] = updated_at
+                row["posted_at"] = posted_at
+                return FakeCursor([dict(row)])
 
         if normalized.startswith("insert into submission_queue ("):
             row = {
@@ -2276,7 +2293,7 @@ class PersistenceTests(unittest.TestCase):
         self.assertEqual(log["details"], {"submit": True})
         self.assertEqual(self.connection.runner_log_details[(f"{log['workspace_id']}:{log['id']}", "submit")]["detail_value"], "True")
         self.assertEqual(self.connection.submission_queue["queue-log-1"]["status"], "submitted")
-        self.assertIsNone(self.connection.submission_queue["queue-log-1"]["posted_at"])
+        self.assertIsNotNone(self.connection.submission_queue["queue-log-1"]["posted_at"])
 
     def test_runner_log_infers_submitted_status_from_submit_click_message(self) -> None:
         upsert_queue_item(

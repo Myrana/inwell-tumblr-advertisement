@@ -25,9 +25,12 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import psycopg
 from psycopg.rows import dict_row
 
+import queue_refill
+
 
 POST_TYPES = {"text", "photo", "video"}
 QUEUE_STATUSES = {"queued", "scheduled", "running", "submitted", "posted", "needs-review", "failed"}
+COMPLETED_QUEUE_STATUSES = queue_refill.COMPLETED_QUEUE_STATUSES
 LOG_LEVELS = {"info", "warning", "error"}
 DEFAULT_TIMEZONE = "America/New_York"
 EASTERN_TZ = ZoneInfo(DEFAULT_TIMEZONE)
@@ -2258,7 +2261,82 @@ def infer_runner_log_queue_status(log: dict[str, Any]) -> str:
     return ""
 
 
+def queue_refill_services() -> queue_refill.QueueRefillServices:
+    return queue_refill.QueueRefillServices(
+        load_ordered_values=load_ordered_values,
+        load_runner_payload=load_runner_payload,
+        parse_optional_datetime=parse_optional_datetime,
+        parse_tags=parse_tags,
+        row_to_advertisement=row_to_advertisement,
+        row_to_dict=row_to_dict,
+        row_to_queue_item=row_to_queue_item,
+        upsert_queue_item=upsert_queue_item,
+    )
+
+
 def touch_queue_item_status(
+    connection: ConnectionLike,
+    queue_item_id: str,
+    workspace_id: str,
+    status: str,
+    notes: str,
+    timestamp: datetime,
+) -> None:
+    if status in COMPLETED_QUEUE_STATUSES:
+        touch_queue_item_completed_status(connection, queue_item_id, workspace_id, status, notes, timestamp)
+        return
+    touch_queue_item_non_completed_status(connection, queue_item_id, workspace_id, status, notes, timestamp)
+
+
+def touch_queue_item_completed_status(
+    connection: ConnectionLike,
+    queue_item_id: str,
+    workspace_id: str,
+    status: str,
+    notes: str,
+    timestamp: datetime,
+) -> None:
+    transitioned = connection.execute(
+        """
+        UPDATE submission_queue
+        SET status = %s,
+            notes = %s,
+            updated_at = %s,
+            posted_at = %s
+        WHERE id = %s
+          AND workspace_id = %s
+          AND status NOT IN (%s, %s)
+        RETURNING *
+        """,
+        (status, notes, timestamp, timestamp, queue_item_id, workspace_id, "submitted", "posted"),
+    ).fetchone()
+    if not transitioned:
+        return
+
+    transitioned_data = row_to_dict(transitioned)
+    data = row_to_queue_item(transitioned, load_runner_payload(connection, queue_item_id, str(transitioned_data.get("workspace_id") or "default")))
+    queue_name = str(data.get("queue_name") or "Default queue")
+    services = queue_refill_services()
+    target_depth = max(
+        1,
+        queue_refill.queue_refill_target_depth_before_completion(
+            queue_refill.queue_items_for_workspace(connection, workspace_id, services),
+            queue_name,
+            queue_item_id,
+        ),
+    )
+    queue_refill.refill_queue_after_completion(
+        connection,
+        workspace_id=workspace_id,
+        queue_name=queue_name,
+        tumblr_account_id=str(data.get("tumblr_account_id") or ""),
+        target_depth=target_depth,
+        timestamp=timestamp,
+        services=services,
+    )
+
+
+def touch_queue_item_non_completed_status(
     connection: ConnectionLike,
     queue_item_id: str,
     workspace_id: str,
@@ -2277,8 +2355,6 @@ def touch_queue_item_status(
     data["updated_at"] = timestamp
     if status == "running":
         data["last_run_at"] = timestamp
-    elif status == "posted":
-        data["posted_at"] = timestamp
     elif status == "failed":
         data["failed_at"] = timestamp
     upsert_queue_item(connection, data)
