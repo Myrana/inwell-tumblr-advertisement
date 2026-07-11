@@ -5,6 +5,7 @@ import {
   appearsRateLimitedByTumblr,
   dataUrlToBuffer,
   fieldsForItem,
+  fillPhotoClickThroughUrl,
   fillRichTextEditorInDocument,
   frameCandidateScore,
   headlessBlockerCodeForReason,
@@ -12,6 +13,7 @@ import {
   headlessBlockerMessage,
   headlessLoginRequiredMessage,
   htmlToPlainText,
+  isPhotoClickThroughContext,
   isReusableRemotePage,
   loginWaitMessage,
   manualActionReason,
@@ -33,6 +35,66 @@ test("parseArgs accepts a plan and safety defaults", () => {
   assert.equal(options.loginFirst, false);
   assert.equal(options.noPause, true);
   assert.equal(options.noReviewPause, true);
+});
+
+function photoLinkHarness({ inputs = [], controls = [] } = {}) {
+  const state = { clicks: [], fills: [], waits: 0 };
+  const wrap = (entries, type) => ({
+    count: async () => entries.length,
+    nth: (index) => ({
+      context: entries[index],
+      isVisible: async () => entries[index].visible !== false,
+      click: async () => {
+        state.clicks.push(entries[index].label);
+        entries[index].onClick?.();
+      },
+      type,
+    }),
+  });
+  const target = {
+    locator: (selector) => selector.startsWith("button") ? wrap(controls, "control") : wrap(inputs, "input"),
+  };
+  const page = { waitForTimeout: async () => { state.waits += 1; } };
+  const dependencies = {
+    pageTargets: async () => [target],
+    accessibleContext: async (locator) => locator.context.label,
+    fillEditable: async (locator, value) => {
+      state.fills.push([locator.context.label, value]);
+      return locator.context.fillSucceeds !== false;
+    },
+    log: () => undefined,
+  };
+  return { page, dependencies, state };
+}
+
+test("photo click-through fills an explicitly labeled input without opening controls", async () => {
+  const harness = photoLinkHarness({ inputs: [{ label: "Photo link URL" }], controls: [{ label: "Add a link" }] });
+  assert.equal(await fillPhotoClickThroughUrl(harness.page, "https://forum.example/thread", harness.dependencies), true);
+  assert.deepEqual(harness.state.fills, [["Photo link URL", "https://forum.example/thread"]]);
+  assert.deepEqual(harness.state.clicks, []);
+});
+
+test("photo click-through opens only the first matching control before filling a generic URL input", async () => {
+  const inputs = [{ label: "URL", visible: false }];
+  const harness = photoLinkHarness({
+    inputs,
+    controls: [
+      { label: "Add a link", onClick: () => { inputs[0].visible = true; } },
+      { label: "Set a link" },
+    ],
+  });
+  assert.equal(await fillPhotoClickThroughUrl(harness.page, "https://forum.example/thread", harness.dependencies), true);
+  assert.deepEqual(harness.state.clicks, ["Add a link"]);
+  assert.deepEqual(harness.state.fills, [["URL", "https://forum.example/thread"]]);
+  assert.equal(harness.state.waits, 1);
+});
+
+test("photo click-through rejects invalid URLs and avoids unrelated generic fields", async () => {
+  const harness = photoLinkHarness({ inputs: [{ label: "Video URL" }], controls: [] });
+  assert.equal(await fillPhotoClickThroughUrl(harness.page, "javascript:alert(1)", harness.dependencies), false);
+  assert.equal(await fillPhotoClickThroughUrl(harness.page, "https://forum.example/thread", harness.dependencies), false);
+  assert.deepEqual(harness.state.fills, []);
+  assert.deepEqual(harness.state.clicks, []);
 });
 
 test("parseArgs supports same-session login before queue execution", () => {
@@ -84,7 +146,7 @@ test("normalizeRunnerPlan decodes queue item runner payload", () => {
         postType: "photo",
         runnerPayload: JSON.stringify({
           target: { name: "target" },
-          advertisement: { postType: "photo", tags: ["one", "two"], imageName: "ad.png" },
+          advertisement: { postType: "photo", forumUrl: "https://forum.example/thread", tags: ["one", "two"], imageName: "ad.png" },
           fields: { caption: "<p>Hello</p>", imageDataUrl: "data:image/png;base64,aGVsbG8=" },
         }),
       },
@@ -95,7 +157,27 @@ test("normalizeRunnerPlan decodes queue item runner payload", () => {
   assert.equal(plan.items[0].postType, "photo");
   assert.equal(fieldsForItem(plan.items[0]).title, "");
   assert.match(fieldsForItem(plan.items[0]).bodyHtml, /<p>Hello<\/p>/);
+  assert.equal(fieldsForItem(plan.items[0]).imageLinkUrl, "https://forum.example/thread");
   assert.deepEqual(fieldsForItem(plan.items[0]).tags, ["one", "two"]);
+});
+
+test("fieldsForItem prefers explicit image click-through URL", () => {
+  const fields = fieldsForItem({
+    payload: {
+      fields: { body: "Body", imageLinkUrl: "https://forum.example/photo-link" },
+      advertisement: { forumUrl: "https://forum.example/fallback", tags: [] },
+    },
+  });
+
+  assert.equal(fields.imageLinkUrl, "https://forum.example/photo-link");
+});
+
+test("photo click-through context matching avoids unrelated URL fields", () => {
+  assert.equal(isPhotoClickThroughContext("Photo link URL"), true);
+  assert.equal(isPhotoClickThroughContext("Click-through URL"), true);
+  assert.equal(isPhotoClickThroughContext("URL", true), true);
+  assert.equal(isPhotoClickThroughContext("Video URL", true), false);
+  assert.equal(isPhotoClickThroughContext("Tag URL", true), false);
 });
 
 test("fieldsForItem includes the saved option name as a title hint", () => {

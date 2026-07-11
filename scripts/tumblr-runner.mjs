@@ -9,6 +9,7 @@ import {
   appearsRateLimitedByTumblr,
   frameCandidateScore,
   fieldsForItem,
+  fillPhotoClickThroughUrl,
   fillRichTextEditorInDocument,
   headlessBlockerCodes,
   headlessBlockerCodeForReason,
@@ -243,14 +244,20 @@ async function runQueueItem(context, item, options) {
   const textFilled = await fillTextFields(page, fields);
   const tagsFilled = await fillTags(page, fields.tags);
   const mediaUploaded = await uploadMedia(page, item, fields, options);
+  const imageLinkFilled = item.postType === "photo" ? await fillPhotoClickThroughUrl(page, fields.imageLinkUrl, {
+    pageTargets,
+    accessibleContext,
+    fillEditable,
+  }) : false;
   const termsAccepted = await acceptTerms(page);
   console.log(
-    `[runner] Fill summary: text=${textFilled ? "filled" : "not found"}, tags=${tagsFilled ? "filled" : "not found"}, media=${mediaUploaded ? "uploaded" : "not uploaded"}, terms=${termsAccepted ? "accepted" : "not found"}.`,
+    `[runner] Fill summary: text=${textFilled ? "filled" : "not found"}, tags=${tagsFilled ? "filled" : "not found"}, media=${mediaUploaded ? "uploaded" : "not uploaded"}, imageLink=${imageLinkFilled ? "filled" : "not found"}, terms=${termsAccepted ? "accepted" : "not found"}.`,
   );
   await reportRunnerEvent(options, item, "running", "Fields filled where possible.", "info", {
     textFilled,
     tagsFilled,
     mediaUploaded,
+    imageLinkFilled,
     termsAccepted,
   });
 

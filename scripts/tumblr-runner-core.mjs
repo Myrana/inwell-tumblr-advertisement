@@ -353,9 +353,80 @@ export function fieldsForItem(item) {
     title: String(advertisement.savedOptionName || ""),
     videoUrl: String(fields.videoUrl || advertisement.videoUrl || ""),
     imageDataUrl: String(fields.imageDataUrl || advertisement.imageDataUrl || ""),
+    imageLinkUrl: String(fields.imageLinkUrl || advertisement.forumUrl || ""),
     imageName: String(advertisement.imageName || "tumblr-upload.png"),
     tags: Array.isArray(advertisement.tags) ? advertisement.tags.map(String) : [],
   };
+}
+
+export function isPhotoClickThroughContext(value, allowGenericUrl = false) {
+  const context = String(value || "").replace(/\s+/g, " ").trim().toLowerCase();
+  if (!context) {
+    return false;
+  }
+  if (/video|tag|caption|body|title|search|email|password|login/.test(context)) {
+    return false;
+  }
+
+  return /click.?through|photo link|image link|link url|source url|content source|set a link|add a link/.test(context)
+    || (allowGenericUrl && /^url$|^https?:\/\/|url to link|link$/.test(context));
+}
+
+export async function fillPhotoClickThroughUrl(page, value, dependencies) {
+  const url = String(value || "").trim();
+  if (!/^https?:\/\//i.test(url)) {
+    return false;
+  }
+
+  if (await fillPhotoLinkInput(page, url, false, dependencies)) {
+    return true;
+  }
+
+  const opened = await openPhotoLinkControl(page, dependencies);
+  return opened ? fillPhotoLinkInput(page, url, true, dependencies) : false;
+}
+
+export async function openPhotoLinkControl(page, { pageTargets, accessibleContext }) {
+  for (const target of await pageTargets(page)) {
+    const controls = target.locator("button, a, [role='button']");
+    const count = await controls.count();
+    for (let index = 0; index < count; index += 1) {
+      const control = controls.nth(index);
+      if (!(await control.isVisible().catch(() => false))) {
+        continue;
+      }
+      if (!isPhotoClickThroughContext(await accessibleContext(control))) {
+        continue;
+      }
+      const clicked = await control.click({ timeout: 1500 }).then(() => true).catch(() => false);
+      if (clicked) {
+        await page.waitForTimeout(250).catch(() => undefined);
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+async function fillPhotoLinkInput(page, value, allowGenericUrl, { pageTargets, accessibleContext, fillEditable, log = console.log }) {
+  for (const target of await pageTargets(page)) {
+    const inputs = target.locator("input[type='url'], input[type='text'], input:not([type]), textarea");
+    const count = await inputs.count();
+    for (let index = 0; index < count; index += 1) {
+      const input = inputs.nth(index);
+      if (!(await input.isVisible().catch(() => false))) {
+        continue;
+      }
+      if (!isPhotoClickThroughContext(await accessibleContext(input), allowGenericUrl)) {
+        continue;
+      }
+      if (await fillEditable(input, value)) {
+        log("[runner] Filled photo click-through URL.");
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 export function fillRichTextEditorInDocument({ value, isHtml = false }) {

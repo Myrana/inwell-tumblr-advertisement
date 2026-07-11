@@ -129,6 +129,7 @@ export function buildRunnerPayload(advertisement: Advertisement, target: TumblrS
         caption: composerContent,
         videoUrl: advertisement.videoUrl,
         imageDataUrl: advertisement.imageDataUrl,
+        imageLinkUrl: advertisement.forumUrl,
         package: postPackage,
       },
       runnerNotes: [
