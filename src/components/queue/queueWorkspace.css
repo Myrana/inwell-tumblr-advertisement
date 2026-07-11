@@ -89,6 +89,21 @@
   background: #f8fafb;
 }
 
+.queue-command-stats article.ready,
+.queue-health-stat.ready {
+  border-left: 4px solid var(--green);
+}
+
+.queue-command-stats article.warning,
+.queue-health-stat.warning {
+  border-left: 4px solid var(--amber);
+}
+
+.queue-command-stats article.blocked,
+.queue-health-stat.blocked {
+  border-left: 4px solid var(--coral);
+}
+
 .queue-command-stats strong {
   color: var(--text);
   font-size: 1.28rem;
@@ -153,6 +168,16 @@
   background: #f2fbf6;
 }
 
+.queue-pipeline-step.warning {
+  border-left-color: var(--amber);
+  background: #fffaf0;
+}
+
+.queue-pipeline-step.blocked {
+  border-left-color: var(--coral);
+  background: #fff7f5;
+}
+
 .queue-pipeline-step strong {
   color: var(--text);
   font-size: 1.25rem;
@@ -164,6 +189,128 @@
   font-size: 0.78rem;
   font-weight: 900;
   text-transform: uppercase;
+}
+
+.queue-flow-automation {
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, auto);
+  gap: 12px;
+  align-items: center;
+  border: 1px solid rgba(46, 143, 163, 0.15);
+  border-left: 4px solid var(--cyan);
+  border-radius: 8px;
+  background: #f8fafb;
+}
+
+.queue-flow-automation.ready {
+  border-left-color: var(--green);
+  background: #f2fbf6;
+}
+
+.queue-flow-automation.warning {
+  border-left-color: var(--amber);
+  background: #fffaf0;
+}
+
+.queue-flow-automation.blocked {
+  border-left-color: var(--coral);
+  background: #fff7f5;
+}
+
+.queue-flow-automation strong,
+.queue-flow-automation span,
+.queue-flow-automation small {
+  display: block;
+}
+
+.queue-flow-automation span,
+.queue-flow-automation small {
+  color: var(--muted);
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.queue-lane-grid,
+.queue-flow-timeline {
+  margin-top: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.queue-lane-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.queue-lane-card,
+.queue-flow-timeline-step {
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(46, 143, 163, 0.12);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.queue-lane-card {
+  display: grid;
+  gap: 4px;
+  border-left: 4px solid var(--cyan);
+}
+
+.queue-lane-card.attention {
+  border-left-color: var(--amber);
+}
+
+.queue-lane-card span,
+.queue-flow-timeline-step strong {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.queue-lane-card strong {
+  color: var(--text);
+  font-size: 1.32rem;
+  line-height: 1;
+}
+
+.queue-lane-card small,
+.queue-flow-timeline-step span {
+  color: var(--muted);
+  font-weight: 750;
+  line-height: 1.35;
+}
+
+.queue-flow-timeline {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.queue-flow-timeline-step {
+  display: grid;
+  gap: 5px;
+  border-top: 4px solid var(--cyan);
+}
+
+.queue-flow-timeline-step.ready {
+  border-top-color: var(--green);
+}
+
+.queue-flow-timeline-step.warning {
+  border-top-color: var(--amber);
+}
+
+.queue-flow-timeline-step.blocked {
+  border-top-color: var(--coral);
+}
+
+.queue-empty-reasons {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: var(--muted);
+  font-weight: 750;
+  line-height: 1.45;
 }
 
 .compact-history .post-history-item {
@@ -392,6 +539,27 @@ html[data-theme="dark"] .queue-pipeline-step {
   background: #241f13;
 }
 
+html[data-theme="dark"] .queue-flow-automation,
+html[data-theme="dark"] .queue-lane-card,
+html[data-theme="dark"] .queue-flow-timeline-step {
+  border-color: rgba(95, 179, 197, 0.16);
+  background: #17232d;
+}
+
+html[data-theme="dark"] .queue-flow-automation.ready {
+  background: #10231d;
+}
+
+html[data-theme="dark"] .queue-flow-automation.warning,
+html[data-theme="dark"] .queue-flow-timeline-step.warning {
+  background: #241f13;
+}
+
+html[data-theme="dark"] .queue-flow-automation.blocked,
+html[data-theme="dark"] .queue-flow-timeline-step.blocked {
+  background: #321b19;
+}
+
 html[data-theme="dark"] .queue-schedule-card.ready {
   background: #10231d;
 }
@@ -458,6 +626,12 @@ html[data-theme="dark"] .queue-workspace .queue-item-thumb {
   }
 
   .compact-history .post-history-item {
+    grid-template-columns: 1fr;
+  }
+
+  .queue-lane-grid,
+  .queue-flow-timeline,
+  .queue-flow-automation {
     grid-template-columns: 1fr;
   }
 

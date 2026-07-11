@@ -2,22 +2,25 @@ import { AlertTriangle, Archive, ChevronDown, Clipboard, FilePlus2, ListChecks, 
 import { useState } from "react";
 import { formatDate, formatSubmissionStatus } from "../domain/format";
 import { isCompletedQueueItem, postHistoryArchiveItems } from "../domain/queue";
-import { attentionQueueItems, automationRunnableQueueItems, queueReadiness } from "../domain/queueAutomation";
+import { attentionQueueItems, automationRunnableQueueItems, queueFlowSummary, queueReadiness } from "../domain/queueAutomation";
 import { queueLogGroups, runnerLogExplanation, runnerLogPostedUrl, visibleRunnerLogs } from "../domain/runnerLogs";
 import { formatEasternRun, nextDailyRunAt, scheduleSummary } from "../domain/schedule";
 import { ScheduleRunnerReadiness } from "../domain/localRunnerReadiness";
 import { runnerAccountReadiness } from "../domain/tumblrAccounts";
 import { QueueItemMetaRow } from "./queue/QueueItemMetaRow";
 import { QueueItemThumbnail } from "./queue/QueueItemThumbnail";
+import { QueueFlowOverview, QueueFlowSummaryPanel } from "./queue/QueueFlowSummaryPanel";
 import { QueueScheduleReadinessGrid } from "./queue/QueueScheduleReadinessGrid";
 import "./queue/queueWorkspace.css";
 import {
   QueueDefinition,
   QueueSchedulePreference,
+  Advertisement,
   RunnerActivity,
   RunnerLog,
   SubmissionQueueItem,
   SubmissionStatus,
+  TumblrSubmitTarget,
   TumblrAccount,
   WorkspaceView,
 } from "../domain/types";
@@ -33,6 +36,8 @@ type QueueWorkspaceProps = {
   scheduleRunnerReadiness: ScheduleRunnerReadiness;
   runnerSubmitApproved: boolean;
   savedDraftCount: number;
+  sourceAds: Advertisement[];
+  submitTargets: TumblrSubmitTarget[];
   selectedTumblrAccountId: string;
   tumblrAccounts: TumblrAccount[];
   runnerLogs: RunnerLog[];
@@ -69,6 +74,8 @@ export function QueueWorkspace({
   scheduleRunnerReadiness,
   runnerSubmitApproved,
   savedDraftCount,
+  sourceAds,
+  submitTargets,
   selectedTumblrAccountId,
   tumblrAccounts,
   runnerLogs,
@@ -136,6 +143,17 @@ export function QueueWorkspace({
   const queueRunnerReady = queueRunnerReadiness.canRun;
   const queueRunnerBannerTitle = queueRunnerReady ? "Runner is available for this queue" : queueRunnerReadiness.title;
   const queueRunnerBannerDetail = queueRunnerReady ? `${runnerActivity.status}: ${queueRunnerReadiness.detail}` : queueRunnerReadiness.detail;
+  const flowSummary = queueFlowSummary({
+    activeQueue,
+    activeQueueName,
+    queueScheduleEnabled: queueScheduleSettings.enabled,
+    runnerDetail: scheduleRunnerReadiness.detail || runnerActivity.detail,
+    runnerReady: scheduleRunnerReadiness.ready,
+    savedDraftCount,
+    selectedConnectedAccount: accountReadiness.ready,
+    sourceAds,
+    submitTargets,
+  });
   const queueRunnerAction = queueRunnerReady ? { label: "Runner Controls", action: onOpenRunner } : queueRunnerActionFor(queueRunnerReadiness.primaryAction.view, {
     onCreateSubmission,
     onManageAccounts,
@@ -244,40 +262,16 @@ export function QueueWorkspace({
         <Send size={18} />
       </div>
 
-      <section className="queue-command-center" aria-label="Queue operations summary">
-        <div>
-          <span>Queue operations</span>
-          <h3>{activeQueueName || "No queue selected"}</h3>
-          <p>
-            {automationRunnableItems.length} runnable, {attentionItems.length} need review, {postHistoryItems.length} completed.
-            {nextRunAt ? ` Next local run is ${formatEasternRun(nextRunAt)} ET.` : " Daily automation is off."}
-          </p>
-        </div>
-        <div className="queue-command-stats" aria-label="Queue health summary">
-          <article>
-            <strong>{activeSubmissionItems.length}</strong>
-            <span>Active</span>
-          </article>
-          <article>
-            <strong>{automationRunnableItems.length}</strong>
-            <span>Runnable</span>
-          </article>
-          <article>
-            <strong>{postHistoryItems.length}</strong>
-            <span>History</span>
-          </article>
-        </div>
-        <div className="queue-command-actions">
-          <button className="primary compact-button" type="button" onClick={onCreateSubmission}>
-            <FilePlus2 size={16} />
-            Write Advertisement
-          </button>
-          <button className="tertiary-action compact-button" type="button" onClick={onOpenRunner}>
-            <PlayCircle size={16} />
-            Runner Controls
-          </button>
-        </div>
-      </section>
+      <QueueFlowSummaryPanel
+        activeQueueName={activeQueueName}
+        attentionCount={attentionItems.length}
+        completedCount={postHistoryItems.length}
+        flowSummary={flowSummary}
+        nextRunLabel={nextRunAt ? ` Next local run is ${formatEasternRun(nextRunAt)} ET.` : " Daily automation is off."}
+        runnableCount={automationRunnableItems.length}
+        onCreateSubmission={onCreateSubmission}
+        onOpenRunner={onOpenRunner}
+      />
 
       {attentionItems.length ? (
         <section className="queue-attention-banner" aria-label="Queue review required">
@@ -296,20 +290,6 @@ export function QueueWorkspace({
           </button>
         </section>
       ) : null}
-
-      <section className="queue-pipeline-panel" aria-label="Live queue pipeline">
-        {[
-          { label: "Ready", count: statusCounts.queued + statusCounts.scheduled, ready: statusCounts.queued + statusCounts.scheduled > 0 },
-          { label: "Running", count: statusCounts.running, ready: statusCounts.running > 0 },
-          { label: "Posted", count: statusCounts.posted + statusCounts.submitted, ready: statusCounts.posted + statusCounts.submitted > 0 },
-          { label: "Review", count: statusCounts["needs-review"] + statusCounts.failed, ready: statusCounts["needs-review"] + statusCounts.failed === 0 },
-        ].map((step) => (
-          <article className={step.ready ? "queue-pipeline-step ready" : "queue-pipeline-step"} key={step.label}>
-            <strong>{step.count}</strong>
-            <span>{step.label}</span>
-          </article>
-        ))}
-      </section>
 
       <section className={queueRunnerReady ? "queue-runner-banner ready" : "queue-runner-banner"} aria-label="Queue runner status">
         <div>
@@ -360,14 +340,12 @@ export function QueueWorkspace({
                 </form>
               ) : null}
             </div>
-            <div className="queue-monitor-grid" aria-label="Queue monitoring summary">
-              {Object.entries(statusCounts).map(([status, count]) => (
-                <div className="queue-monitor-stat" key={status}>
-                  <span>{formatSubmissionStatus(status as SubmissionStatus)}</span>
-                  <strong>{count}</strong>
-                </div>
-              ))}
-            </div>
+            <QueueFlowOverview
+              activeQueue={activeQueue}
+              activeQueueName={activeQueueName}
+              flowSummary={flowSummary}
+              statusCounts={statusCounts}
+            />
           </div>
         ) : null}
       </section>
@@ -492,7 +470,7 @@ export function QueueWorkspace({
             ) : null}
             <div className="queue-list">
               {activeSubmissionItems.length ? (
-                activeSubmissionItems.map((item) => (
+                [...flowSummary.lanes.runnable, ...flowSummary.lanes.running, ...flowSummary.lanes.attention].map((item) => (
                   <article className="queue-item" key={item.id}>
                     {(() => {
                       const postedUrl = queueItemPostedUrl(item);
@@ -514,7 +492,7 @@ export function QueueWorkspace({
                           Select queue item
                         </label>
                         <strong>{item.targetName}</strong>
-                        <span>{item.postType} - {formatSubmissionStatus(item.status)} - {formatDate(item.updatedAt)}</span>
+                        <span>{item.postType} - {flowSummary.statusLabels[item.status]} - {formatDate(item.updatedAt)}</span>
                         <QueueItemMetaRow item={item} />
                         <a href={item.submitUrl} target="_blank" rel="noreferrer">
                           {item.submitUrl}
@@ -580,7 +558,14 @@ export function QueueWorkspace({
               ) : (
                 <div className="queue-empty action-empty">
                   <strong>No submissions queued for {activeQueueName || "this lane"}.</strong>
-                  <span>Write an advertisement, then add it to a blog lane when it is ready.</span>
+                  <span>{flowSummary.emptyReasons[0] || "Write an advertisement, then add it to a blog lane when it is ready."}</span>
+                  {flowSummary.emptyReasons.length > 1 ? (
+                    <ul className="queue-empty-reasons">
+                      {flowSummary.emptyReasons.slice(1).map((reason) => (
+                        <li key={reason}>{reason}</li>
+                      ))}
+                    </ul>
+                  ) : null}
                   <div className="empty-action-row">
                     <button className="primary compact-button" type="button" onClick={onCreateSubmission}>
                       <FilePlus2 size={16} />

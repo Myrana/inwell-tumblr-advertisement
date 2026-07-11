@@ -74,6 +74,85 @@ test("queue review banner summarizes attention items and opens submissions", { t
   assert.equal(bulkQueue.pageErrors.length, 0, bulkQueue.pageErrors.map((error) => error.message).join("\n"));
 });
 
+test("queue flow summary renders health, lanes, automation, and empty reasons", { timeout: 40000 }, async (t) => {
+  const page = await openFrontendTestPage(t);
+  const pageErrors = [];
+  page.on("pageerror", (error) => pageErrors.push(error));
+  await page.route("http://127.0.0.1:8021/api/**", (route) => route.abort());
+  await routeAuthenticatedSession(page);
+  await page.route("http://127.0.0.1:8021/api/queue", (route) =>
+    route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ queue: [] }) }),
+  );
+  await page.route("http://127.0.0.1:8021/api/advertisements", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({
+        advertisements: [{
+          id: "ad-ready-refill",
+          post_type: "text",
+          title: "Ready refill source",
+          campaign_name: "",
+          content: "<p>Ready refill body</p>",
+          destination_blog: "refillblog",
+          forum_url: "https://forum.example/refill",
+          tags: ["refill"],
+          image_caption: "",
+          image_name: "",
+          image_data_url: "",
+          video_url: "",
+          video_name: "",
+          status: "ready",
+          archived: false,
+          updated_at: "2026-06-20T12:00:00.000Z",
+        }],
+      }),
+    }),
+  );
+  await page.route("http://127.0.0.1:8021/api/settings", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({
+        settings: {
+          submitTargets: [{ id: "refillblog", name: "Refill Blog", submitUrl: "https://refillblog.tumblr.com/submit" }],
+          queueDefinitions: [{ id: "default-queue", name: "Default queue" }],
+          runnerSettings: {},
+          scheduleSettings: {},
+          tagProfiles: {},
+        },
+      }),
+    }),
+  );
+  await page.route("http://127.0.0.1:8021/api/templates", (route) =>
+    route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ templates: [] }) }),
+  );
+  await page.route("http://127.0.0.1:8021/api/runner/logs", (route) =>
+    route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ logs: [] }) }),
+  );
+  await page.route("http://127.0.0.1:8021/api/runner/status", (route) =>
+    route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ runner: { running: false } }) }),
+  );
+  await page.route("http://127.0.0.1:8021/api/tumblr/accounts", (route) =>
+    route.fulfill({ contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ accounts: [] }) }),
+  );
+
+  await page.goto(appUrl);
+  await openWorkspaceView(page, "Queues");
+  await page.locator(".queue-management-row", { hasText: "Default queue" }).getByRole("button", { name: "Open queue" }).click();
+
+  await page.getByLabel("Queue operations summary").getByText("Queue operations").waitFor();
+  await page.getByLabel("Queue health summary").getByText("Ready ads").waitFor();
+  await page.getByLabel("Queue health summary").getByText("1").waitFor();
+  await page.getByLabel("Queue automation state").getByText("Automation off").waitFor();
+  await page.getByLabel("Queue automation state").getByText("1 ready ad can refill this queue.").waitFor();
+  await page.getByLabel("Queue work lanes").getByText("Runnable").waitFor();
+  await page.getByLabel("Queue work lanes").getByText("Attention").waitFor();
+  await page.getByLabel("Queue flow timeline").getByText("Replacement").waitFor();
+  await page.getByText("1 ready ad can refill this queue after automation runs.").waitFor();
+  assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
+});
+
 test("queue bulk completion stops cleanly when the first completed item save fails", { timeout: 40000 }, async (t) => {
   const bulkQueue = await setupBackendQueueBulkCompletionPage(t, queueBulkFixtureDeps);
   await bulkQueue.page.getByLabel("Queue operations summary").getByText("Queue operations").waitFor();
