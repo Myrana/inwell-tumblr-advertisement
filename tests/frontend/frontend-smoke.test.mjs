@@ -2444,11 +2444,11 @@ test("running the queue prepares the local runner and shows failure explanations
   await page.getByLabel("Runner browser session").getByLabel("Run headless").check();
   await page.getByLabel("Runner controls").getByRole("button", { name: "Test run" }).click();
   await page.getByText("Local companion started a test run.").waitFor();
-  assert.deepEqual(companionRunPayloads.at(-1), { queueName: "Default queue", headless: true, submit: false });
+  assert.deepEqual(companionRunPayloads.at(-1), { queueName: "Default queue", headless: true, mode: "manual", submit: false });
   await page.getByLabel("Runner controls").getByRole("button", { name: "Run", exact: true }).click();
   await page.getByText("Local companion started the runner headless.").waitFor();
   assert.equal(companionRunRequested, true);
-  assert.deepEqual(companionRunPayloads.at(-1), { queueName: "Default queue", headless: true, submit: true });
+  assert.deepEqual(companionRunPayloads.at(-1), { queueName: "Default queue", headless: true, mode: "manual", submit: true });
   await page.getByLabel("Runner workspace").getByText("Running", { exact: true }).waitFor();
   await page.getByLabel("Runner workspace").getByText("Working through Default queue.").waitFor();
   assert.deepEqual(await page.evaluate(() => window.__openedUrls), []);
@@ -2485,7 +2485,7 @@ test("running the queue prepares the local runner and shows failure explanations
     },
   );
   await page.getByLabel("Runner browser session").getByText("Local companion needs attention").waitFor();
-  await page.getByText("Close any open Inkwell Tumblr browser windows, then try again.").waitFor();
+  await page.getByLabel("Runner status").getByText("Close any open Inkwell Tumblr browser windows, then try again.").waitFor();
   await openWorkspaceView(page, "Queues");
   await page.locator(".queue-management-row", { hasText: "Default queue" }).getByRole("button", { name: "Open queue" }).click();
   await page.getByText("Why this failed").waitFor();

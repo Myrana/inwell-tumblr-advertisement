@@ -53,8 +53,10 @@ function parseLocalArgs(argv) {
     headless: false,
     submit: false,
     watch: false,
+    runNow: false,
     noPause: false,
     serve: false,
+    planMode: "",
     companionPort: 17842,
     intervalSeconds: 15,
     limit: "",
@@ -83,6 +85,8 @@ function parseLocalArgs(argv) {
       options.headless = true;
     } else if (arg === "--submit") {
       options.submit = true;
+    } else if (arg === "--run-now") {
+      options.runNow = true;
     } else if (arg === "--watch") {
       options.watch = true;
     } else if (arg === "--no-pause") {
@@ -123,6 +127,7 @@ async function fetchRunnerPlan(options) {
   const url = new URL(`${options.apiBaseUrl}/runner/local-plan`);
   url.searchParams.set("workspaceId", options.workspaceId);
   url.searchParams.set("queueName", options.queueName);
+  url.searchParams.set("mode", options.planMode || (options.watch ? "watcher" : "manual"));
   if (options.limit) {
     url.searchParams.set("limit", options.limit);
   }
@@ -527,6 +532,7 @@ async function handleCompanionRun(request, response, options, state, origin) {
 
 function companionRunOptions(payload, options) {
   const runOptions = { ...options };
+  runOptions.planMode = "manual";
   if ("queueName" in payload) {
     runOptions.queueName = String(payload.queueName || options.queueName) || options.queueName;
   }
@@ -632,6 +638,21 @@ async function main() {
       await new Promise(() => undefined);
       return;
     }
+  }
+
+  if (options.runNow) {
+    try {
+      await executeLocalRun({ ...options, planMode: "manual" }, state);
+    } catch (error) {
+      if (!options.watch) {
+        throw error;
+      }
+      console.error(`[local-runner:error] ${error instanceof Error ? error.message : String(error)}`);
+    }
+    if (!options.watch) {
+      return;
+    }
+    await wait(options.intervalSeconds * 1000);
   }
 
   do {
