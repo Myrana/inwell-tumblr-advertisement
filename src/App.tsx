@@ -72,7 +72,7 @@ import {
   defaultAutomationRefillTargetDepth,
   prepareAutomationQueueForRun,
   PreparedAutomationQueue,
-  refillQueueFromReadyDrafts,
+  queueRefillAvailabilityPreview,
   runnableQueueItems as runnableItemsForQueue,
 } from "./domain/queueAutomation";
 import { queueIdFromName, uniqueQueueDefinitions } from "./domain/queue";
@@ -246,14 +246,13 @@ function App() {
     if (!accountReadiness.ready) {
       return false;
     }
-    return refillQueueFromReadyDrafts({
+    return queueRefillAvailabilityPreview({
       queue: submissionQueue,
       sourceAds: normalizeStoredState(stored).ads,
       submitTargets,
       queueName: activeQueueName,
-      tumblrAccountId: accountReadiness.readyAccount?.id || runnerSettings.tumblrAccountId,
       targetDepth: defaultAutomationRefillTargetDepth,
-    }).addedItems.length > 0;
+    }).availableCount > 0;
   }, [activeQueueName, runnerSettings.tumblrAccountId, stored, submissionQueue, submitTargets, tumblrAccounts]);
   const runnerConnectionLabel = useMemo(() => {
     if (localCompanion?.ok) {
@@ -1786,6 +1785,8 @@ function App() {
             scheduleRunnerReadiness={scheduleRunnerReadiness}
             runnerSubmitApproved={runnerSettings.submit}
             savedDraftCount={stored.ads.filter(hasLibraryContent).length}
+            sourceAds={stored.ads}
+            submitTargets={submitTargets}
             selectedTumblrAccountId={runnerSettings.tumblrAccountId}
             tumblrAccounts={tumblrAccounts}
             runnerLogs={runnerLogs}
