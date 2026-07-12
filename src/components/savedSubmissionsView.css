@@ -408,3 +408,39 @@ html[data-theme="dark"] .library-view-toggle button.active {
     left: 0;
   }
 }
+.batch-queue-preview {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(10, 18, 24, 0.68);
+}
+
+.batch-queue-preview-card {
+  width: min(680px, 100%);
+  max-height: min(760px, calc(100vh - 40px));
+  overflow: auto;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.28);
+}
+
+.batch-queue-preview-heading,
+.batch-queue-preview-actions,
+.batch-queue-preview li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.batch-queue-preview section { margin-top: 16px; }
+.batch-queue-preview ul { display: grid; gap: 7px; margin: 8px 0 0; padding: 0; list-style: none; }
+.batch-queue-preview li { padding: 9px 10px; border: 1px solid var(--line); border-radius: 7px; }
+.batch-queue-preview li small { color: var(--muted); }
+.batch-queue-preview li em { display: inline-flex; align-items: center; gap: 4px; color: var(--coral); font-style: normal; }
+.batch-queue-preview-actions { justify-content: flex-end; margin-top: 18px; }

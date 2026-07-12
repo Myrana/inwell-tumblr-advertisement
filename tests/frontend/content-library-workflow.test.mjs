@@ -65,6 +65,7 @@ test("content library rows can queue a saved submission", { timeout: 40000 }, as
   const savedQueueItems = [];
   const savedQueueState = new Map();
   const savedAdvertisements = [];
+  let failingQueueAdId = "";
   page.on("pageerror", (error) => pageErrors.push(error));
   await page.route("http://127.0.0.1:8021/api/**", (route) => route.abort());
   await page.route("http://127.0.0.1:17842/status", (route) => route.abort());
@@ -72,6 +73,9 @@ test("content library rows can queue a saved submission", { timeout: 40000 }, as
   await routeEmptyWorkspaceApis(page);
   await page.route("http://127.0.0.1:8021/api/queue/**", (route) => {
     const savedQueueItem = route.request().postDataJSON();
+    if (savedQueueItem.ad_id === failingQueueAdId) {
+      return route.fulfill({ status: 500, contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ error: "Queue save failed" }) });
+    }
     savedQueueItems.push(savedQueueItem);
     savedQueueState.set(`${savedQueueItem.ad_id}:${savedQueueItem.target_id}:${savedQueueItem.queue_name}`, savedQueueItem);
     return route.fulfill({
@@ -312,8 +316,23 @@ test("content library rows can queue a saved submission", { timeout: 40000 }, as
   await page.getByLabel("Saved sorting controls").getByLabel("Select all visible items").check();
   await page.getByLabel("Selected library actions").getByText("1 selected").waitFor();
   await page.getByLabel("Batch queue destination").selectOption("Want ads");
+  const selectedQueueButton = page.getByLabel("Selected library actions").getByRole("button", { name: "Queue selected ready" });
+  await selectedQueueButton.click();
+  const keyboardPreview = page.getByRole("dialog", { name: "Batch queue preview" });
+  assert.equal(await page.getByLabel("Content library").getAttribute("inert"), "");
+  await keyboardPreview.getByRole("button", { name: "Add 1 to queue" }).waitFor();
+  assert.equal(await keyboardPreview.getByRole("button", { name: "Add 1 to queue" }).evaluate((element) => element === document.activeElement), true);
+  await page.keyboard.press("Shift+Tab");
+  assert.equal(await keyboardPreview.getByRole("button", { name: "Cancel" }).evaluate((element) => element === document.activeElement), true);
+  await page.keyboard.press("Tab");
+  await page.keyboard.press("Escape");
+  assert.equal(await keyboardPreview.count(), 0);
+  await page.waitForFunction(() => document.activeElement?.getAttribute("aria-label") === null && document.activeElement?.textContent?.includes("Queue selected ready"));
+  assert.equal(await selectedQueueButton.evaluate((element) => element === document.activeElement), true);
+  assert.equal(savedQueueItems.length, 0);
+  await selectedQueueButton.click();
   const searchedBatchQueue = page.waitForResponse((response) => response.url().includes("/api/queue/") && response.request().method() === "PUT");
-  await page.getByLabel("Selected library actions").getByRole("button", { name: "Queue selected ready" }).click();
+  await page.getByRole("dialog", { name: "Batch queue preview" }).getByRole("button", { name: "Add 1 to queue" }).click();
   await searchedBatchQueue;
   assert.deepEqual(savedQueueItems.map((item) => item.ad_id), ["saved-ad-two"]);
   await openWorkspaceView(page, "Content Library");
@@ -333,6 +352,8 @@ test("content library rows can queue a saved submission", { timeout: 40000 }, as
   await page.getByLabel("Selected library actions").getByRole("button", { name: "Queue selected ready" }).waitFor();
   const commandCenterQueueStart = savedQueueItems.length;
   await page.getByLabel("Library command center").getByRole("button", { name: "Queue All Ready" }).click();
+  await page.getByRole("dialog", { name: "Batch queue preview" }).getByText("Possible duplicate").first().waitFor();
+  await page.getByRole("dialog", { name: "Batch queue preview" }).getByRole("button", { name: "Add 2 to queue" }).click();
   await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
   assert.deepEqual(savedQueueItems.slice(commandCenterQueueStart).map((item) => item.ad_id).sort(), ["saved-ad", "saved-ad-two"]);
   await openWorkspaceView(page, "Content Library");
@@ -343,6 +364,7 @@ test("content library rows can queue a saved submission", { timeout: 40000 }, as
   assert.equal(await page.getByRole("button", { name: "Queue ready campaign" }).isDisabled(), false);
   const hiddenSelectionCampaignQueue = page.waitForResponse((response) => response.url().includes("/api/queue/") && response.request().method() === "PUT");
   await page.getByRole("button", { name: "Queue ready campaign" }).click();
+  await page.getByRole("dialog", { name: "Batch queue preview" }).getByRole("button", { name: "Add 1 to queue" }).click();
   await hiddenSelectionCampaignQueue;
   assert.deepEqual(savedQueueItems.map((item) => item.ad_id), ["saved-ad-two", "saved-ad", "saved-ad-two", "saved-ad-two"]);
   await openWorkspaceView(page, "Content Library");
@@ -354,11 +376,16 @@ test("content library rows can queue a saved submission", { timeout: 40000 }, as
   assert.equal(await page.getByLabel("Selected library actions").getByRole("button", { name: "Queue selected ready" }).isDisabled(), true);
   assert.equal(await page.getByRole("button", { name: "Queue ready drafts" }).isDisabled(), false);
   assert.deepEqual(savedQueueItems.map((item) => item.ad_id), ["saved-ad-two", "saved-ad", "saved-ad-two", "saved-ad-two"]);
-  await needsWorkRow.getByLabel("Select saved item").uncheck();
   await savedRow.getByLabel("Select saved item").check();
+  await page.getByLabel("Selected library actions").getByRole("button", { name: "Queue selected ready" }).click();
+  await page.getByRole("dialog", { name: "Batch queue preview" }).getByLabel("Skipped queue additions").getByText("Needs forum link").waitFor();
+  await page.getByRole("dialog", { name: "Batch queue preview" }).getByRole("button", { name: "Cancel" }).click();
+  assert.deepEqual(savedQueueItems.map((item) => item.ad_id), ["saved-ad-two", "saved-ad", "saved-ad-two", "saved-ad-two"]);
+  await needsWorkRow.getByLabel("Select saved item").uncheck();
   const selectedBatchQueue = page.waitForResponse((response) => response.url().includes("/api/queue/") && response.request().method() === "PUT");
   await page.getByLabel("Batch queue destination").selectOption("Want ads");
   await page.getByLabel("Selected library actions").getByRole("button", { name: "Queue selected ready" }).click();
+  await page.getByRole("dialog", { name: "Batch queue preview" }).getByRole("button", { name: "Add 1 to queue" }).click();
   await selectedBatchQueue;
   assert.deepEqual(savedQueueItems.map((item) => item.ad_id), ["saved-ad-two", "saved-ad", "saved-ad-two", "saved-ad-two", "saved-ad"]);
   await openWorkspaceView(page, "Content Library");
@@ -372,6 +399,7 @@ test("content library rows can queue a saved submission", { timeout: 40000 }, as
   await page.getByLabel("Saved sorting controls").getByLabel("Sort library").selectOption("campaign-asc");
   await page.getByLabel("Batch queue destination").selectOption("Want ads");
   await page.getByRole("button", { name: "Queue ready campaign" }).click();
+  await page.getByRole("dialog", { name: "Batch queue preview" }).getByRole("button", { name: "Add 1 to queue" }).click();
   await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
   await page.getByText("Queued Second saved post in Want ads.").waitFor();
   assert.deepEqual(savedQueueItems.map((item) => item.ad_id), ["saved-ad-two", "saved-ad", "saved-ad-two", "saved-ad-two", "saved-ad", "saved-ad-two"]);
@@ -389,6 +417,37 @@ test("content library rows can queue a saved submission", { timeout: 40000 }, as
     ["saved-ad", "saved-ad-two"],
   );
   assert.equal(await page.getByLabel("Active queue").inputValue(), "Want ads");
+  savedQueueItems.length = 0;
+  savedQueueState.clear();
+  await page.reload();
+  await page.getByRole("heading", { name: "Operations dashboard", level: 1 }).waitFor();
+  await openWorkspaceView(page, "Content Library");
+  await page.getByLabel("Campaign library").getByRole("button", { name: /All campaigns/ }).click();
+  failingQueueAdId = "saved-ad-two";
+  const failedBatchResponse = page.waitForResponse((response) => response.url().includes("/api/queue/") && response.status() === 500);
+  await page.getByRole("button", { name: "Queue ready drafts" }).click();
+  await page.getByRole("dialog", { name: "Batch queue preview" }).getByRole("button", { name: "Add 2 to queue" }).click();
+  await failedBatchResponse;
+  const failedPreview = page.getByRole("dialog", { name: "Batch queue preview" });
+  await failedPreview.getByText("Could not save").waitFor();
+  assert.equal(await failedPreview.getByRole("button", { name: "Add 1 to queue" }).count(), 1);
+  assert.deepEqual(savedQueueItems.map((item) => item.ad_id), ["saved-ad"]);
+  assert.deepEqual(Array.from(savedQueueState.values()).map((item) => item.ad_id), ["saved-ad"]);
+  await failedPreview.getByRole("button", { name: "Cancel" }).click();
+  await openWorkspaceView(page, "Queue");
+  await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
+  assert.equal(await page.locator(".queue-item").count(), 1);
+  await openWorkspaceView(page, "Content Library");
+  const failedDraftRow = page.locator(".draft-row").filter({ has: page.locator(".draft-card-title", { hasText: "Second saved post" }) });
+  await failedDraftRow.getByLabel("Select saved item").check();
+  await page.getByLabel("Batch queue destination").selectOption("Want ads");
+  failingQueueAdId = "";
+  const successfulCountBeforeRetry = savedQueueItems.filter((item) => item.ad_id === "saved-ad").length;
+  await page.getByLabel("Selected library actions").getByRole("button", { name: "Queue selected ready" }).click();
+  await page.getByRole("dialog", { name: "Batch queue preview" }).getByRole("button", { name: "Add 1 to queue" }).click();
+  await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
+  assert.equal(savedQueueItems.filter((item) => item.ad_id === "saved-ad").length, successfulCountBeforeRetry);
+  assert.deepEqual(savedQueueItems.map((item) => item.ad_id).sort(), ["saved-ad", "saved-ad-two"]);
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
 });
 

@@ -15,7 +15,7 @@ type UseEditorQueueActionsParams = {
   runnerSettings: RunnerSettings;
   stored: StoredState;
   submitTargets: TumblrSubmitTarget[];
-  syncQueueItem: (item: SubmissionQueueItem) => void;
+  syncQueueItem: (item: SubmissionQueueItem) => Promise<SubmissionQueueItem | null>;
   setActiveView: (view: "editor" | "queue" | "queue-settings") => void;
   setEditorQueueConfirmation: (confirmation: { count: number; queueName: string } | null) => void;
   setQueueStatus: (status: string) => void;
@@ -74,10 +74,10 @@ export function useEditorQueueActions({
     }
   }
 
-  function queueSavedDraft(id: string, queueName = activeQueueName) {
+  async function queueSavedDraft(id: string, queueName = activeQueueName, navigate = true) {
     const ad = stored.ads.find((item) => item.id === id);
     if (!ad) {
-      return;
+      return false;
     }
     const target = submitTargets.find((item) => item.id === ad.destinationBlog) ?? fallbackTarget(ad.destinationBlog);
     const plan = planQueueTargetAdditions({
@@ -90,27 +90,30 @@ export function useEditorQueueActions({
     if (plan.status === "missing-queue") {
       setQueueStatus(plan.message);
       setActiveView("queue-settings");
-      return;
+      return false;
     }
     if (plan.status === "validation-error") {
       setStored((current) => ({ ...current, activeAdId: id }));
       setValidation(plan.validation);
       setActiveView("editor");
-      return;
+      return false;
     }
 
-    setSubmissionQueue((current) => {
-      return applyQueueTargetReplacements({
-        adId: ad.id,
-        currentQueue: current,
-        nextItems: plan.items,
-        queueName,
-      });
-    });
-    plan.items.forEach(syncQueueItem);
+    const savedItems = await Promise.all(plan.items.map(syncQueueItem));
+    if (savedItems.some((item) => !item)) {
+      setQueueStatus(`Could not queue ${ad.title || target.name}. Try again.`);
+      return false;
+    }
+    setSubmissionQueue((current) => applyQueueTargetReplacements({
+      adId: ad.id,
+      currentQueue: current,
+      nextItems: savedItems.filter((item): item is SubmissionQueueItem => Boolean(item)),
+      queueName,
+    }));
     setSelectedQueueName(queueName);
     setQueueStatus(`Queued ${ad.title || target.name} in ${queueName}.`);
-    setActiveView("queue");
+    if (navigate) setActiveView("queue");
+    return true;
   }
 
   return {

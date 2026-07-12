@@ -15,7 +15,7 @@ type SavedSubmissionsListProps = {
   selectedQueueName: string;
   onArchiveDraft: (id: string, archived: boolean) => void;
   onDeleteDraft: (id: string) => void;
-  onQueueDraft: (id: string, queueName: string) => void;
+  onQueueDraft: (id: string, queueName: string, navigate?: boolean) => Promise<boolean>;
   onSelectDraft: (id: string) => void;
   onSelectedQueueNameChange: (queueName: string) => void;
   onStartQueue: (id: string) => void;

@@ -1920,6 +1920,7 @@ function App() {
             queueOptions={queueOptions}
             onDeleteDraft={deleteDraft}
             onArchiveDraft={archiveDraft}
+            onBatchQueued={() => setActiveView("queue")}
             onQueueDraft={queueSavedDraft}
             onCreateDraft={() => setActiveView("editor")}
             onSelectDraft={(id) => {
