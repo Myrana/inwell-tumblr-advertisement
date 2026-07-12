@@ -151,6 +151,9 @@ class FakePostgresConnection:
         if normalized.startswith("create table") or normalized.startswith("alter table") or normalized.startswith("create index"):
             return FakeCursor()
 
+        if normalized.startswith("select pg_advisory_xact_lock"):
+            return FakeCursor([{"pg_advisory_xact_lock": None}])
+
         if normalized.startswith("drop table"):
             return FakeCursor()
 

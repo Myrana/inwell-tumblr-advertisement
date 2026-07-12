@@ -131,3 +131,36 @@ jobs:
 
       - name: Run PostgreSQL tester-lane trust contract
         run: verlyn workflow trust-contract --profile tester-lane --require-optional
+
+  daily-refill-postgresql-integration:
+    name: Daily Refill PostgreSQL Integration
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: inwell_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      INWELL_TEST_POSTGRES_DSN: postgresql://postgres:postgres@localhost:5432/inwell_test
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install backend dependencies
+        run: python -m pip install --upgrade pip && python -m pip install -r requirements.txt
+
+      - name: Run non-skipping daily refill PostgreSQL tests
+        run: python -m unittest backend.tests.persistence.test_runner_refill_postgres

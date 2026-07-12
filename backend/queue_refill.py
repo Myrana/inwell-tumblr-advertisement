@@ -1,16 +1,16 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import re
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 from typing import Any, Callable
 
 
 COMPLETED_QUEUE_STATUSES = {"submitted", "posted"}
 RUNNABLE_QUEUE_STATUSES = {"queued", "scheduled"}
 DEFAULT_TIMEZONE = "America/New_York"
-QUEUE_REFILL_COOLDOWN_DAYS = 14
 
 
 @dataclass(frozen=True)
@@ -23,6 +23,7 @@ class QueueRefillServices:
     row_to_dict: Callable[[Any], dict[str, Any]]
     row_to_queue_item: Callable[[Any, str], dict[str, Any]]
     upsert_queue_item: Callable[[Any, dict[str, Any]], dict[str, Any]]
+    next_queue_recurrence: Callable[[Any, str, str, datetime], tuple[datetime, str] | None]
 
 
 def queue_id_from_name(name: str) -> str:
@@ -179,17 +180,10 @@ def queue_item_runnable(item: dict[str, Any]) -> bool:
     return str(item.get("status") or "") in RUNNABLE_QUEUE_STATUSES
 
 
-def recent_or_active_queue_match(item: dict[str, Any], ad_id: str, target_id: str, queue_name: str, now: datetime, services: QueueRefillServices) -> bool:
+def active_queue_match(item: dict[str, Any], ad_id: str, target_id: str, queue_name: str) -> bool:
     if item.get("queue_name") != queue_name or item.get("ad_id") != ad_id or item.get("target_id") != target_id:
         return False
-    if not queue_item_completed(item):
-        return True
-    completed_at = services.parse_optional_datetime(item.get("posted_at")) or services.parse_optional_datetime(item.get("updated_at")) or services.parse_optional_datetime(item.get("created_at"))
-    if not completed_at:
-        return False
-    if completed_at.tzinfo is None:
-        completed_at = completed_at.replace(tzinfo=timezone.utc)
-    return now - completed_at < timedelta(days=QUEUE_REFILL_COOLDOWN_DAYS)
+    return not queue_item_completed(item)
 
 
 def runner_tumblr_account_id(connection: Any, workspace_id: str, fallback: str, services: QueueRefillServices) -> str:
@@ -232,6 +226,35 @@ def refill_queue_after_completion(
     if target_depth <= 0:
         return []
 
+    recurrence = services.next_queue_recurrence(connection, workspace_id, queue_name, timestamp)
+    if not recurrence:
+        return []
+    next_occurrence, timezone_name = recurrence
+    return reconcile_queue_occurrence(
+        connection,
+        workspace_id=workspace_id,
+        queue_name=queue_name,
+        tumblr_account_id=tumblr_account_id,
+        timezone_name=timezone_name,
+        target_depth=target_depth,
+        timestamp=timestamp,
+        next_occurrence=next_occurrence,
+        services=services,
+    )
+
+
+def reconcile_queue_occurrence(
+    connection: Any,
+    *,
+    workspace_id: str,
+    queue_name: str,
+    tumblr_account_id: str,
+    timezone_name: str,
+    target_depth: int,
+    timestamp: datetime,
+    next_occurrence: datetime,
+    services: QueueRefillServices,
+) -> list[dict[str, Any]]:
     queue_items = queue_items_for_workspace(connection, workspace_id, services)
     needed = max(0, target_depth - runnable_queue_depth(queue_items, queue_name))
     if needed <= 0:
@@ -239,6 +262,8 @@ def refill_queue_after_completion(
 
     ad_rows = connection.execute("SELECT * FROM advertisements WHERE workspace_id = %s ORDER BY updated_at DESC", (workspace_id,)).fetchall()
     added: list[dict[str, Any]] = []
+    occurrence_key = next_occurrence.strftime("%Y%m%dT%H%M%SZ")
+    queue_identity = f"{queue_id_from_name(queue_name)}-{hashlib.sha256(queue_name.encode('utf-8')).hexdigest()[:12]}"
     for row in ad_rows:
         if len(added) >= needed:
             break
@@ -251,15 +276,14 @@ def refill_queue_after_completion(
         target = target_from_advertisement(connection, advertisement, workspace_id, services)
         if not target or not target.get("id") or not target.get("submitUrl"):
             continue
-        if any(recent_or_active_queue_match(item, str(advertisement["id"]), target["id"], queue_name, timestamp, services) for item in [*queue_items, *added]):
+        if any(active_queue_match(item, str(advertisement["id"]), target["id"], queue_name) for item in [*queue_items, *added]):
             continue
 
         post_package = prepared_post_for_advertisement(advertisement, services)
-        refill_index = len(added) + 1
         item = services.upsert_queue_item(
             connection,
             {
-                "id": f"{advertisement['id']}-{queue_id_from_name(queue_name)}-{target['id']}-refill-{int(timestamp.timestamp() * 1000)}-{refill_index}",
+                "id": f"{advertisement['id']}-{queue_identity}-{target['id']}-refill-{occurrence_key}",
                 "workspace_id": workspace_id,
                 "ad_id": advertisement["id"],
                 "target_id": target["id"],
@@ -268,9 +292,10 @@ def refill_queue_after_completion(
                 "queue_name": queue_name,
                 "submit_url": target["submitUrl"],
                 "post_type": advertisement.get("post_type") or "photo",
-                "status": "queued",
-                "timezone": DEFAULT_TIMEZONE,
-                "notes": "Auto-added to keep this queue stocked after a completed submission.",
+                "status": "scheduled",
+                "scheduled_for": next_occurrence,
+                "timezone": timezone_name or DEFAULT_TIMEZONE,
+                "notes": f"Auto-added for the next queue run at {next_occurrence.isoformat()}.",
                 "runner_payload": runner_payload_for_refill(advertisement, target, post_package, services),
                 "created_at": timestamp,
                 "updated_at": timestamp,

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+from contextlib import contextmanager
 import hashlib
 import hmac
 import io
@@ -10,6 +11,7 @@ import os
 import re
 import secrets
 import subprocess
+import threading
 import uuid
 import zipfile
 from datetime import date, datetime, timedelta, timezone
@@ -33,6 +35,8 @@ QUEUE_STATUSES = {"queued", "scheduled", "running", "submitted", "posted", "need
 COMPLETED_QUEUE_STATUSES = queue_refill.COMPLETED_QUEUE_STATUSES
 LOG_LEVELS = {"info", "warning", "error"}
 DEFAULT_TIMEZONE = "America/New_York"
+QUEUE_REFILL_LOCKS: dict[tuple[str, str], tuple[threading.RLock, int]] = {}
+QUEUE_REFILL_LOCKS_GUARD = threading.Lock()
 EASTERN_TZ = ZoneInfo(DEFAULT_TIMEZONE)
 DEFAULT_PGHOST = "192.168.1.3"
 DEFAULT_PGDATABASE = "inwell_tumblr_advertisement"
@@ -2273,6 +2277,39 @@ def infer_runner_log_queue_status(log: dict[str, Any]) -> str:
     return ""
 
 
+@contextmanager
+def queue_refill_process_lock(workspace_id: str, queue_name: str):
+    key = (workspace_id, queue_name)
+    with QUEUE_REFILL_LOCKS_GUARD:
+        local_lock, users = QUEUE_REFILL_LOCKS.get(key, (threading.RLock(), 0))
+        QUEUE_REFILL_LOCKS[key] = (local_lock, users + 1)
+    try:
+        with local_lock:
+            yield
+    finally:
+        with QUEUE_REFILL_LOCKS_GUARD:
+            current_lock, current_users = QUEUE_REFILL_LOCKS[key]
+            if current_users == 1:
+                del QUEUE_REFILL_LOCKS[key]
+            else:
+                QUEUE_REFILL_LOCKS[key] = (current_lock, current_users - 1)
+
+
+def queue_refill_lock_registry_size() -> int:
+    with QUEUE_REFILL_LOCKS_GUARD:
+        return len(QUEUE_REFILL_LOCKS)
+
+
+@contextmanager
+def queue_refill_lock(connection: ConnectionLike, workspace_id: str, queue_name: str):
+    with queue_refill_process_lock(workspace_id, queue_name):
+        connection.execute(
+            "SELECT pg_advisory_xact_lock(hashtext(%s), hashtext(%s))",
+            (workspace_id, queue_name),
+        )
+        yield
+
+
 def queue_refill_services() -> queue_refill.QueueRefillServices:
     return queue_refill.QueueRefillServices(
         load_ordered_values=load_ordered_values,
@@ -2283,6 +2320,7 @@ def queue_refill_services() -> queue_refill.QueueRefillServices:
         row_to_dict=row_to_dict,
         row_to_queue_item=row_to_queue_item,
         upsert_queue_item=upsert_queue_item,
+        next_queue_recurrence=next_queue_recurrence,
     )
 
 
@@ -2295,7 +2333,15 @@ def touch_queue_item_status(
     timestamp: datetime,
 ) -> None:
     if status in COMPLETED_QUEUE_STATUSES:
-        touch_queue_item_completed_status(connection, queue_item_id, workspace_id, status, notes, timestamp)
+        existing = connection.execute(
+            "SELECT * FROM submission_queue WHERE id = %s AND workspace_id = %s",
+            (queue_item_id, workspace_id),
+        ).fetchone()
+        if not existing:
+            return
+        queue_name = str(row_to_dict(existing).get("queue_name") or "Default queue")
+        with queue_refill_lock(connection, workspace_id, queue_name):
+            touch_queue_item_completed_status(connection, queue_item_id, workspace_id, status, notes, timestamp)
         return
     touch_queue_item_non_completed_status(connection, queue_item_id, workspace_id, status, notes, timestamp)
 
@@ -2343,7 +2389,7 @@ def touch_queue_item_completed_status(
         queue_name=queue_name,
         tumblr_account_id=str(data.get("tumblr_account_id") or ""),
         target_depth=target_depth,
-        timestamp=timestamp,
+        timestamp=utc_now(),
         services=services,
     )
 
@@ -2639,6 +2685,35 @@ def queue_schedule_for_runner(connection: ConnectionLike, workspace_id: str, que
     return queue_settings if isinstance(queue_settings, dict) else settings
 
 
+def next_queue_occurrence(
+    connection: ConnectionLike,
+    workspace_id: str,
+    queue_name: str,
+    after: datetime,
+) -> datetime | None:
+    recurrence = next_queue_recurrence(connection, workspace_id, queue_name, after)
+    return recurrence[0] if recurrence else None
+
+
+def next_queue_recurrence(
+    connection: ConnectionLike,
+    workspace_id: str,
+    queue_name: str,
+    after: datetime,
+) -> tuple[datetime, str] | None:
+    schedule = queue_schedule_for_runner(connection, workspace_id, queue_name)
+    if not schedule.get("enabled"):
+        return None
+    daily_time = normalize_daily_time(schedule.get("dailyTime"))
+    hour, minute = (int(part) for part in daily_time.split(":", 1))
+    timezone_name = normalize_timezone_name(schedule.get("timezone"))
+    local_after = after.astimezone(ZoneInfo(timezone_name))
+    occurrence = local_after.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    if occurrence <= local_after:
+        occurrence += timedelta(days=1)
+    return occurrence.astimezone(timezone.utc), timezone_name
+
+
 def local_runner_watch_due(connection: ConnectionLike, workspace_id: str, queue_name: str, now: datetime | None = None) -> bool:
     schedule = queue_schedule_for_runner(connection, workspace_id, queue_name)
     if not schedule.get("enabled"):
@@ -2701,6 +2776,7 @@ def local_runner_plan(
     if plan_mode == "watcher" and not claim_local_runner_watch_occurrence(connection, workspace_id, queue_name, now):
         return empty_local_runner_plan(workspace_id, queue_name)
 
+    current = now or utc_now()
     rows = connection.execute(
         "SELECT * FROM submission_queue WHERE workspace_id = %s ORDER BY updated_at DESC",
         (workspace_id,),
@@ -2712,6 +2788,9 @@ def local_runner_plan(
         if queue_name and item["queue_name"] != queue_name:
             continue
         if item["status"] not in {"queued", "scheduled"}:
+            continue
+        scheduled_for = parse_optional_datetime(item.get("scheduled_for"))
+        if scheduled_for and scheduled_for > current:
             continue
         if not user_data_dir and item.get("tumblr_account_id"):
             account = connection.execute(
