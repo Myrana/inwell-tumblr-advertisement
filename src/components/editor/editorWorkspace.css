@@ -296,6 +296,16 @@
   border-color: rgba(46, 143, 163, 0.12);
 }
 
+.editor-surface .tumblr-photo-stage > a {
+  display: block;
+  width: 100%;
+}
+
+.editor-surface .tumblr-photo-stage > a:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+
 .editor-surface .tumblr-editor-tools {
   background: #f8fafb;
 }
