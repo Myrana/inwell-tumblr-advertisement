@@ -222,7 +222,7 @@ export function TumblrAccountsWorkspace({
         {accounts.length ? (
           accounts.map((account) => (
             <article
-              className={account.id === selectedAccountId ? "account-session-row selected" : "account-session-row"}
+              className={account.id === selectedAccountId ? "account-session-row density-surface selected" : "account-session-row density-surface"}
               key={account.id}
             >
               <div className="account-session-summary">

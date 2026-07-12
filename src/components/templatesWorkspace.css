@@ -196,6 +196,8 @@
 }
 
 .template-card {
+  --density-compact-padding: 11px 14px;
+  --density-ultra-padding: 8px 10px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;

@@ -25,7 +25,7 @@ export function TemplateLibrary({
     <div className={`template-library template-library-${variant}`} aria-label="Template library">
       {templates.length ? (
         templates.map((template) => (
-          <article className="template-card" key={template.id}>
+          <article className="template-card density-surface" key={template.id}>
             {variant === "detailed" ? (
               <button className="template-card-main" type="button" onClick={() => onApplyTemplate(template)}>
                 <span className="template-media-thumb" aria-hidden="true">

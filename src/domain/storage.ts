@@ -3,6 +3,8 @@ import {
   queueScheduleSettingsStorageKey,
   runnerSettingsStorageKey,
   colorSkins,
+  densityStorageKey,
+  sidebarGroupsStorageKey,
   skinStorageKey,
   storageKey,
   submissionQueueStorageKey,
@@ -21,6 +23,7 @@ import { normalizeTumblrAccount } from "./tumblrAccounts";
 import {
   ColorTheme,
   ColorSkin,
+  WorkspaceDensity,
   QueueDefinition,
   QueueSchedulePreference,
   QueueScheduleSettings,
@@ -198,6 +201,24 @@ export function loadColorSkin(): ColorSkin {
   }
 }
 
+export function loadWorkspaceDensity(): WorkspaceDensity {
+  try {
+    const value = localStorage.getItem(densityStorageKey);
+    return value === "compact" || value === "ultra" ? value : "comfortable";
+  } catch {
+    return "comfortable";
+  }
+}
+
+export function loadCollapsedSidebarGroups(): string[] {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(sidebarGroupsStorageKey) || "[]");
+    return Array.isArray(parsed) ? parsed.filter((value): value is string => typeof value === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
 export function saveStoredState(stored: StoredState) {
   safeSetLocalStorage(storageKey, stored);
 }
@@ -240,6 +261,14 @@ export function saveColorTheme(value: ColorTheme) {
 
 export function saveColorSkin(value: ColorSkin) {
   safeSetLocalStorage(skinStorageKey, value);
+}
+
+export function saveWorkspaceDensity(value: WorkspaceDensity) {
+  safeSetLocalStorage(densityStorageKey, value);
+}
+
+export function saveCollapsedSidebarGroups(value: string[]) {
+  safeSetLocalStorage(sidebarGroupsStorageKey, value);
 }
 
 export function clearBackendOwnedLocalStorage() {

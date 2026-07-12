@@ -167,7 +167,7 @@ button {
 }
 
 .app-shell {
-  --sidebar-width: 248px;
+  --sidebar-width: 224px;
   position: relative;
   isolation: isolate;
   min-height: 100vh;
@@ -1735,6 +1735,8 @@ pre {
 }
 
 .account-session-row {
+  --density-compact-padding: 10px;
+  --density-ultra-padding: 8px;
   padding: 12px;
   display: grid;
   grid-template-columns: minmax(210px, 1fr) auto minmax(240px, 0.7fr);
@@ -1932,6 +1934,8 @@ pre {
 }
 
 .queue-item {
+  --density-compact-padding: 8px;
+  --density-ultra-padding: 6px;
   padding: 10px;
   display: grid;
   gap: 10px;
@@ -1947,6 +1951,8 @@ pre {
 }
 
 .post-history-item {
+  --density-compact-padding: 10px;
+  --density-ultra-padding: 8px;
   padding: 12px;
   display: grid;
   gap: 10px;
@@ -2720,6 +2726,8 @@ pre {
 }
 
 .settings-panel {
+  --density-compact-padding: 11px;
+  --density-ultra-padding: 8px;
   min-width: 0;
   padding: 14px;
   display: grid;
@@ -3038,6 +3046,8 @@ pre {
 }
 
 .advertisement-card {
+  --density-compact-padding: 12px;
+  --density-ultra-padding: 8px;
   display: grid;
   grid-template-columns: auto 148px minmax(0, 1fr) auto auto;
   align-items: center;
@@ -3693,6 +3703,20 @@ html[data-theme="dark"] .queue-workspace .post-history-item {
 
 html[data-theme="dark"] .queue-workspace .queue-item a {
   color: #8bcde0;
+}
+
+html[data-density="compact"] .density-surface,
+html[data-density="ultra"] .density-surface {
+  border-radius: 5px;
+  box-shadow: none;
+}
+
+html[data-density="compact"] .density-surface {
+  padding: var(--density-compact-padding);
+}
+
+html[data-density="ultra"] .density-surface {
+  padding: var(--density-ultra-padding);
 }
 
 html[data-theme="dark"] .queue-workspace .post-history-heading svg,

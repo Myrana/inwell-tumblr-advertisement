@@ -471,7 +471,7 @@ export function QueueWorkspace({
             <div className="queue-list">
               {activeSubmissionItems.length ? (
                 [...flowSummary.lanes.runnable, ...flowSummary.lanes.running, ...flowSummary.lanes.attention].map((item) => (
-                  <article className="queue-item" key={item.id}>
+                  <article className="queue-item density-surface" key={item.id}>
                     {(() => {
                       const postedUrl = queueItemPostedUrl(item);
                       return postedUrl ? (
@@ -606,7 +606,7 @@ export function QueueWorkspace({
                     const completedAt = item.postedAt || item.updatedAt;
 
                     return (
-                      <article className="post-history-item" key={item.id}>
+                      <article className="post-history-item density-surface" key={item.id}>
                         <div className="post-history-heading">
                           <Archive size={18} />
                           <div>

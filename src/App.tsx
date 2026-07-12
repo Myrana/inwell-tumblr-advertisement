@@ -189,7 +189,7 @@ function App() {
   const [runnerLogs, setRunnerLogs] = useState<RunnerLog[]>([]);
   const [activeView, setActiveView] = useState<WorkspaceView>("dashboard");
   const [accountSetupRouteApplied, setAccountSetupRouteApplied] = useState(false);
-  const { colorTheme, colorSkin, selectColorSkin, toggleColorTheme } = useWorkspaceChrome();
+  const { colorTheme, colorSkin, workspaceDensity, selectColorSkin, setWorkspaceDensity, toggleColorTheme } = useWorkspaceChrome();
 
   const activeAd = useMemo(() => {
     const normalized = normalizeStoredState(stored);
@@ -209,6 +209,7 @@ function App() {
   );
 
   const queueOptions = useMemo(() => uniqueQueueDefinitions(queueDefinitions, submissionQueue), [queueDefinitions, submissionQueue]);
+  const libraryAds = useMemo(() => stored.ads.filter(hasLibraryContent), [stored.ads]);
   const activeQueueName = queueOptions.some((queue) => queue.name === selectedQueueName) ? selectedQueueName : queueOptions[0]?.name ?? "";
   const activeQueue = submissionQueue.filter((item) => item.queueName === activeQueueName);
   const backendOwnsWorkspaceState = Boolean(authUser && backendStateLoaded);
@@ -1693,12 +1694,13 @@ function App() {
   }
 
   return (
-    <main className="app-shell" data-theme={colorTheme}>
+    <main className="app-shell" data-theme={colorTheme} data-density={workspaceDensity}>
       <AppSidebar
         activeView={activeView}
         user={authUser}
         onLogout={logoutInkwell}
         onViewChange={setActiveView}
+        counts={{ saved: libraryAds.length, queue: submissionQueue.length, accounts: tumblrAccounts.length, logs: runnerLogs.length }}
       />
 
       <section className={activeView === "saved" ? "workspace workspace-saved" : "workspace"}>
@@ -1709,11 +1711,13 @@ function App() {
           saveStatus={saveStatus}
           skin={colorSkin}
           theme={colorTheme}
+          density={workspaceDensity}
           onBackToOperations={!["dashboard", "editor", "docs"].includes(activeView) ? () => setActiveView("dashboard") : undefined}
           onCreateDraft={createDraft}
           onSaveDraft={saveDraft}
           onSkinChange={selectColorSkin}
           onToggleTheme={toggleColorTheme}
+          onDensityChange={setWorkspaceDensity}
         />
 
         {activeView === "editor" ? (
@@ -1765,8 +1769,8 @@ function App() {
             runnerConnectionLabel={runnerConnectionLabel}
             scheduleRunnerReadiness={scheduleRunnerReadiness}
             runnerSubmitApproved={runnerSettings.submit}
-            savedDraftCount={stored.ads.filter(hasLibraryContent).length}
-            savedDrafts={stored.ads.filter(hasLibraryContent)}
+            savedDraftCount={libraryAds.length}
+            savedDrafts={libraryAds}
             selectedTumblrAccountId={runnerSettings.tumblrAccountId}
             tumblrAccounts={tumblrAccounts}
             onCreateSampleAd={createSampleAdvertisement}
@@ -1784,7 +1788,7 @@ function App() {
             runnerActivity={runnerActivity}
             scheduleRunnerReadiness={scheduleRunnerReadiness}
             runnerSubmitApproved={runnerSettings.submit}
-            savedDraftCount={stored.ads.filter(hasLibraryContent).length}
+            savedDraftCount={libraryAds.length}
             sourceAds={stored.ads}
             submitTargets={submitTargets}
             selectedTumblrAccountId={runnerSettings.tumblrAccountId}
