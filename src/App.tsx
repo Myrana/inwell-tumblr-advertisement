@@ -68,12 +68,10 @@ import { defaultTagProfiles } from "./domain/constants";
 import { MediaLibraryAsset, mediaLibraryFromAdvertisements } from "./domain/mediaLibrary";
 import {
   automationQueueRunStatusMessage,
-  attentionQueueItems,
   defaultAutomationRefillTargetDepth,
   prepareAutomationQueueForRun,
   PreparedAutomationQueue,
   queueRefillAvailabilityPreview,
-  runnableQueueItems as runnableItemsForQueue,
 } from "./domain/queueAutomation";
 import { queueIdFromName, uniqueQueueDefinitions } from "./domain/queue";
 import {
@@ -121,7 +119,6 @@ import {
   RunnerStatus,
   SavedTemplate,
   SubmissionQueueItem,
-  SubmissionStatus,
   StoredState,
   TumblrSubmitTarget,
   TumblrAccount,
@@ -1290,10 +1287,6 @@ function App() {
     setRunnerSettings((current) => ({ ...current, tumblrAccountId: id }));
     syncTumblrAccount(connected);
     setAccountStatus(`${connected.displayName} is ready for queue runs.`);
-  }
-
-  function runnableQueueItems() {
-    return runnableItemsForQueue(activeQueue);
   }
 
   async function prepareAutomationQueue(options: { allowWithoutRunnable?: boolean } = {}) {
