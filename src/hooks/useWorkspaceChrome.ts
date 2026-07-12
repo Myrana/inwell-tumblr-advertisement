@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import { colorSkins } from "../domain/constants";
-import { loadColorSkin, loadColorTheme, saveColorSkin, saveColorTheme } from "../domain/storage";
-import { ColorSkin, ColorTheme, WorkspaceView } from "../domain/types";
+import { loadColorSkin, loadColorTheme, loadWorkspaceDensity, saveColorSkin, saveColorTheme, saveWorkspaceDensity } from "../domain/storage";
+import { ColorSkin, ColorTheme, WorkspaceDensity, WorkspaceView } from "../domain/types";
 
 export type WorkspacePageTitle = {
   eyebrow: string;
@@ -27,6 +27,7 @@ export function workspacePageTitles(activeDraftTitle: string): Record<WorkspaceV
 export function useWorkspaceChrome() {
   const [colorTheme, setColorTheme] = useState<ColorTheme>(() => loadColorTheme());
   const [colorSkin, setColorSkin] = useState<ColorSkin>(() => loadColorSkin());
+  const [workspaceDensity, setWorkspaceDensity] = useState<WorkspaceDensity>(() => loadWorkspaceDensity());
 
   useEffect(() => {
     document.documentElement.dataset.theme = colorTheme;
@@ -37,6 +38,11 @@ export function useWorkspaceChrome() {
     document.documentElement.dataset.skin = colorSkin;
     saveColorSkin(colorSkin);
   }, [colorSkin]);
+
+  useLayoutEffect(() => {
+    document.documentElement.dataset.density = workspaceDensity;
+    saveWorkspaceDensity(workspaceDensity);
+  }, [workspaceDensity]);
 
   function selectColorSkin(nextSkin: ColorSkin) {
     const skinConfig = colorSkins.find((option) => option.value === nextSkin);
@@ -53,7 +59,9 @@ export function useWorkspaceChrome() {
   return {
     colorSkin,
     colorTheme,
+    workspaceDensity,
     selectColorSkin,
+    setWorkspaceDensity,
     toggleColorTheme,
   };
 }

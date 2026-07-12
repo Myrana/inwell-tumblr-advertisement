@@ -1,0 +1,81 @@
+.density-picker {
+  min-height: 40px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.density-picker select {
+  min-width: 112px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-weight: 800;
+}
+
+html[data-density="compact"] .app-shell { --sidebar-width: 210px; }
+html[data-density="ultra"] .app-shell { --sidebar-width: 190px; }
+html[data-density="compact"] .workspace { padding: 15px; }
+html[data-density="ultra"] .workspace { padding: 10px; }
+
+html[data-density="compact"] .topbar,
+html[data-density="ultra"] .topbar {
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+html[data-density="compact"] .eyebrow,
+html[data-density="ultra"] .eyebrow {
+  margin-bottom: 1px;
+  font-size: 0.66rem;
+}
+
+html[data-density="compact"] h1 { font-size: clamp(1.35rem, 1.7vw, 1.8rem); }
+html[data-density="ultra"] h1 { font-size: clamp(1.2rem, 1.5vw, 1.55rem); }
+
+html[data-density="compact"] .draft-card-media { width: 82px; }
+html[data-density="ultra"] .draft-card-media { width: 64px; }
+
+html[data-density="compact"] :is(.draft-row-meta, .draft-row-actions),
+html[data-density="ultra"] :is(.draft-row-meta, .draft-row-actions) { gap: 5px; }
+
+html[data-density="compact"] .draft-row-meta span,
+html[data-density="ultra"] .draft-row-meta span {
+  min-height: 20px;
+  margin-top: 0;
+  padding: 2px 6px;
+  border-color: transparent;
+  background: transparent;
+}
+
+html[data-density="compact"] :is(.compact-button, .draft-row .compact-button),
+html[data-density="ultra"] :is(.compact-button, .draft-row .compact-button) {
+  min-height: 34px;
+  padding-inline: 10px;
+}
+
+html[data-density="ultra"] :is(.workflow-section-header, .panel-heading, .runner-log-run-summary) {
+  min-height: 36px;
+  padding-block: 6px;
+}
+
+html[data-density="ultra"] :is(.quality-check.ready, .runner-readiness-item.ready) {
+  padding-block: 5px;
+}
+
+@media (max-width: 1120px) {
+  html[data-density="compact"] .app-shell,
+  html[data-density="ultra"] .app-shell { --sidebar-width: 100%; }
+}
+
+@media (max-width: 720px) {
+  .density-picker,
+  .density-picker select { width: 100%; }
+}

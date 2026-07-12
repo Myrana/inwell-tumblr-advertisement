@@ -1,6 +1,6 @@
 import { ArrowLeft, Moon, Palette, Plus, Save, Sun } from "lucide-react";
 import { colorSkins } from "../domain/constants";
-import { ColorSkin, ColorTheme } from "../domain/types";
+import { ColorSkin, ColorTheme, WorkspaceDensity } from "../domain/types";
 
 type WorkspaceTopbarProps = {
   actionsVisible?: boolean;
@@ -8,12 +8,14 @@ type WorkspaceTopbarProps = {
   saveStatus?: string;
   skin: ColorSkin;
   theme: ColorTheme;
+  density: WorkspaceDensity;
   title: string;
   onBackToOperations?: () => void;
   onCreateDraft: () => void;
   onSaveDraft: () => void;
   onSkinChange: (skin: ColorSkin) => void;
   onToggleTheme: () => void;
+  onDensityChange: (density: WorkspaceDensity) => void;
 };
 
 export function WorkspaceTopbar({
@@ -22,12 +24,14 @@ export function WorkspaceTopbar({
   saveStatus = "",
   skin,
   theme,
+  density,
   title,
   onBackToOperations,
   onCreateDraft,
   onSaveDraft,
   onSkinChange,
   onToggleTheme,
+  onDensityChange,
 }: WorkspaceTopbarProps) {
   const darkMode = theme === "dark";
 
@@ -79,6 +83,14 @@ export function WorkspaceTopbar({
                   {option.label}
                 </option>
               ))}
+            </select>
+          </label>
+          <label className="density-picker">
+            <span>Density</span>
+            <select aria-label="Workspace density" value={density} onChange={(event) => onDensityChange(event.target.value as WorkspaceDensity)}>
+              <option value="comfortable">Comfortable</option>
+              <option value="compact">Compact</option>
+              <option value="ultra">Ultra compact</option>
             </select>
           </label>
         </div>

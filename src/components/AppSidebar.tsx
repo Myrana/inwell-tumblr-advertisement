@@ -10,7 +10,9 @@ import {
   Tags,
   TerminalSquare,
 } from "lucide-react";
+import { Fragment, useState } from "react";
 import { AuthUser, WorkspaceView } from "../domain/types";
+import { loadCollapsedSidebarGroups, saveCollapsedSidebarGroups } from "../domain/storage";
 import "./AppSidebar.css";
 
 type AppSidebarProps = {
@@ -18,6 +20,7 @@ type AppSidebarProps = {
   user: AuthUser;
   onViewChange: (view: WorkspaceView) => void;
   onLogout: () => void;
+  counts?: Partial<Record<WorkspaceView, number>>;
 };
 
 export function AppSidebar({
@@ -25,7 +28,9 @@ export function AppSidebar({
   user,
   onViewChange,
   onLogout,
+  counts = {},
 }: AppSidebarProps) {
+  const [collapsedGroups, setCollapsedGroups] = useState<string[]>(loadCollapsedSidebarGroups);
   const navGroups: Array<{ label: string; items: Array<{ view: WorkspaceView; label: string; icon: JSX.Element }> }> = [
     {
       label: "Create",
@@ -59,6 +64,13 @@ export function AppSidebar({
       ],
     },
   ];
+  const activeGroupLabel = navGroups.find((group) => group.items.some((item) => item.view === activeView))?.label;
+
+  function setGroupCollapsed(label: string, collapsed: boolean) {
+    const next = collapsed ? [...new Set([...collapsedGroups, label])] : collapsedGroups.filter((group) => group !== label);
+    setCollapsedGroups(next);
+    saveCollapsedSidebarGroups(next);
+  }
 
   return (
     <aside className="sidebar">
@@ -79,20 +91,42 @@ export function AppSidebar({
 
       <nav className="nav-list" aria-label="Workspace views">
         {navGroups.map((group) => (
-          <div className="nav-group" key={group.label}>
-            <span className="nav-group-label">{group.label}</span>
-            {group.items.map((item) => (
-              <button
-                className={activeView === item.view ? "active" : ""}
-                key={item.view}
-                type="button"
-                onClick={() => onViewChange(item.view)}
-              >
-                {item.icon}
-                {item.label}
-              </button>
-            ))}
-          </div>
+          <details
+            className="nav-group"
+            key={group.label}
+            open={group.label === activeGroupLabel || !collapsedGroups.includes(group.label)}
+          >
+            <summary
+              className="nav-group-label"
+              onClick={(event) => {
+                event.preventDefault();
+                setGroupCollapsed(group.label, !collapsedGroups.includes(group.label));
+              }}
+            >
+              {group.label}
+            </summary>
+            <div className="nav-group-items">
+              {group.items.map((item) => (
+                <Fragment key={item.view}>
+                  <button
+                    className={activeView === item.view ? "active" : ""}
+                    type="button"
+                    onClick={() => onViewChange(item.view)}
+                    aria-describedby={typeof counts[item.view] === "number" ? `nav-${item.view}-count` : undefined}
+                  >
+                    {item.icon}
+                    <span>{item.label}</span>
+                    {typeof counts[item.view] === "number" ? <b className="nav-count" aria-hidden="true">{counts[item.view]}</b> : null}
+                  </button>
+                  {typeof counts[item.view] === "number" ? (
+                    <span className="nav-count-description" id={`nav-${item.view}-count`}>
+                      {counts[item.view]} {counts[item.view] === 1 ? "item" : "items"}
+                    </span>
+                  ) : null}
+                </Fragment>
+              ))}
+            </div>
+          </details>
         ))}
       </nav>
 

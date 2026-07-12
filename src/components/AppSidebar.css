@@ -1,11 +1,11 @@
 .sidebar {
   min-height: 100vh;
-  padding: 20px 16px;
+  padding: 16px 12px;
   background: #17202a;
   color: #f8fbfc;
   display: flex;
   flex-direction: column;
-  gap: 22px;
+  gap: 16px;
 }
 
 .sidebar .brand,
@@ -72,13 +72,18 @@
 
 .sidebar .nav-list {
   display: grid;
-  gap: 24px;
+  gap: 12px;
 }
 
 .sidebar .nav-group {
   position: relative;
   display: grid;
   gap: 8px;
+}
+
+.sidebar .nav-group-items {
+  display: grid;
+  gap: 5px;
 }
 
 .sidebar .nav-group + .nav-group {
@@ -102,10 +107,25 @@
   font-weight: 900;
   letter-spacing: 0;
   text-transform: uppercase;
+  cursor: pointer;
+  list-style: none;
+}
+
+.sidebar .nav-group-label::-webkit-details-marker {
+  display: none;
+}
+
+.sidebar .nav-group-label::after {
+  content: "−";
+  float: right;
+}
+
+.sidebar .nav-group:not([open]) .nav-group-label::after {
+  content: "+";
 }
 
 .sidebar .nav-list button {
-  min-height: 40px;
+  min-height: 36px;
   gap: 10px;
   padding: 0 11px;
   border: 0;
@@ -116,6 +136,44 @@
   font-size: 0.92rem;
   font-weight: 700;
   text-align: left;
+}
+
+.sidebar .nav-list button > span {
+  min-width: 0;
+  flex: 1;
+}
+
+.sidebar .nav-count {
+  min-width: 24px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #b9cbd4;
+  font-size: 0.7rem;
+  text-align: center;
+}
+
+.sidebar .nav-count-description {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+html[data-density="compact"] .sidebar,
+html[data-density="ultra"] .sidebar {
+  gap: 12px;
+  padding: 12px 10px;
+}
+
+html[data-density="ultra"] .sidebar .nav-list button {
+  min-height: 32px;
+  font-size: 0.82rem;
 }
 
 .sidebar .nav-list button svg {

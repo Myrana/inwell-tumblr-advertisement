@@ -1,6 +1,10 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import "./styles.css";
+import "./workspaceDensity.css";
+import { loadWorkspaceDensity } from "./domain/storage";
+
+document.documentElement.dataset.density = loadWorkspaceDensity();
 import App from "./App";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
 

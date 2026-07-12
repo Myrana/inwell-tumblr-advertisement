@@ -70,7 +70,7 @@ export function SavedSubmissionsList({
         const canQueueAd = queueableAdIds.has(ad.id);
 
         return (
-          <article className={`${ad.id === activeAdId ? "draft-row advertisement-card selected" : "draft-row advertisement-card"}${ad.archived ? " archived" : ""}`} key={ad.id}>
+          <article className={`${ad.id === activeAdId ? "draft-row advertisement-card density-surface selected" : "draft-row advertisement-card density-surface"}${ad.archived ? " archived" : ""}`} key={ad.id}>
             <label className="bulk-select row-select draft-card-select" aria-label="Select saved item">
               <input
                 checked={selectedDraftIds.includes(ad.id)}

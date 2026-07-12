@@ -84,7 +84,7 @@ export function OperationalSettingsWorkspace({
   return (
     <section className="settings-workspace" aria-label="Operational settings">
       <div className="settings-grid">
-        <section className="settings-panel" aria-label="Runner defaults">
+        <section className="settings-panel density-surface" aria-label="Runner defaults">
           <div className="settings-panel-heading">
             <PlayCircle size={18} />
             <div>
@@ -115,7 +115,7 @@ export function OperationalSettingsWorkspace({
           </button>
         </section>
 
-        <section className="settings-panel" aria-label="Schedule defaults">
+        <section className="settings-panel density-surface" aria-label="Schedule defaults">
           <div className="settings-panel-heading">
             <Clock3 size={18} />
             <div>
@@ -141,7 +141,7 @@ export function OperationalSettingsWorkspace({
           </button>
         </section>
 
-        <section className="settings-panel" aria-label="Account defaults">
+        <section className="settings-panel density-surface" aria-label="Account defaults">
           <div className="settings-panel-heading">
             <ShieldCheck size={18} />
             <div>
@@ -170,7 +170,7 @@ export function OperationalSettingsWorkspace({
           </button>
         </section>
 
-        <section className="settings-panel settings-panel-wide" aria-label="Discord notifications">
+        <section className="settings-panel settings-panel-wide density-surface" aria-label="Discord notifications">
           <div className="settings-panel-heading settings-panel-heading-split">
             <div className="settings-panel-heading-main">
               <BellRing size={18} />
@@ -231,7 +231,7 @@ export function OperationalSettingsWorkspace({
           {discordWebhookStatus ? <small role="status">{discordWebhookStatus}</small> : null}
         </section>
 
-        <section className="settings-panel settings-panel-wide" aria-label="Workspace maintenance">
+        <section className="settings-panel settings-panel-wide density-surface" aria-label="Workspace maintenance">
           <div className="settings-panel-heading">
             <SlidersHorizontal size={18} />
             <div>
