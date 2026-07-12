@@ -29,6 +29,7 @@ type SavedSubmissionActionsProps = {
   queuePickerAdId: string;
   selectedQueueName: string;
   onArchiveDraft: (id: string, archived: boolean) => void;
+  onDeleteDraft: (id: string) => void;
   onQueueDraft: (id: string, queueName: string) => void;
   onSelectDraft: (id: string) => void;
   onSelectedQueueNameChange: (queueName: string) => void;
@@ -119,30 +120,12 @@ export function SavedSubmissionsList({
               queuePickerAdId={queuePickerAdId}
               selectedQueueName={selectedQueueName}
               onArchiveDraft={onArchiveDraft}
+              onDeleteDraft={onDeleteDraft}
               onQueueDraft={onQueueDraft}
               onSelectDraft={onSelectDraft}
               onSelectedQueueNameChange={onSelectedQueueNameChange}
               onStartQueue={onStartQueue}
             />
-            <details className="draft-card-overflow">
-              <summary aria-label="More advertisement actions" title="More advertisement actions">
-                <MoreHorizontal size={18} />
-              </summary>
-              <div>
-                <button className="secondary compact-button" type="button" onClick={() => onArchiveDraft(ad.id, !ad.archived)}>
-                  {ad.archived ? <RotateCcw size={16} /> : <Archive size={16} />}
-                  {ad.archived ? "Unarchive" : "Archive"}
-                </button>
-                <button
-                  className="secondary compact-button"
-                  type="button"
-                  onClick={() => onDeleteDraft(ad.id)}
-                >
-                  <Trash2 size={16} />
-                  Delete
-                </button>
-              </div>
-            </details>
           </article>
         );
       })}
@@ -157,6 +140,7 @@ function SavedSubmissionActions({
   queuePickerAdId,
   selectedQueueName,
   onArchiveDraft,
+  onDeleteDraft,
   onQueueDraft,
   onSelectDraft,
   onSelectedQueueNameChange,
@@ -186,6 +170,21 @@ function SavedSubmissionActions({
         <button className="secondary compact-button" type="button" onClick={() => onSelectDraft(ad.id)}>
           Edit
         </button>
+        <details className="draft-card-overflow">
+          <summary aria-label="More advertisement actions" title="More advertisement actions">
+            <MoreHorizontal size={18} />
+          </summary>
+          <div>
+            <button className="secondary compact-button" type="button" onClick={() => onArchiveDraft(ad.id, !ad.archived)}>
+              {ad.archived ? <RotateCcw size={16} /> : <Archive size={16} />}
+              {ad.archived ? "Unarchive" : "Archive"}
+            </button>
+            <button className="secondary compact-button" type="button" onClick={() => onDeleteDraft(ad.id)}>
+              <Trash2 size={16} />
+              Delete
+            </button>
+          </div>
+        </details>
       </div>
       {queuePickerAdId === ad.id ? (
         <form
