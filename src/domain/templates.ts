@@ -14,6 +14,7 @@ export function normalizeTemplate(value: Partial<SavedTemplate> | null | undefin
   const name = typeof value?.name === "string" ? value.name.trim() : "";
   const content = typeof value?.content === "string" ? sanitizeHtml(value.content) : "";
   const forumUrl = typeof value?.forumUrl === "string" ? value.forumUrl : "";
+  const imageClickThroughUrl = typeof value?.imageClickThroughUrl === "string" ? value.imageClickThroughUrl : "";
   const queueName = typeof value?.queueName === "string" ? value.queueName.trim() : "";
   const updatedAt = typeof value?.updatedAt === "string" ? value.updatedAt : "";
 
@@ -22,6 +23,7 @@ export function normalizeTemplate(value: Partial<SavedTemplate> | null | undefin
     name: name || "Untitled template",
     content,
     forumUrl,
+    imageClickThroughUrl,
     queueName,
     tags: Array.isArray(value?.tags) ? uniqueTags(value.tags) : [],
     updatedAt: updatedAt || new Date().toISOString(),
@@ -33,6 +35,7 @@ export function templateFromAdvertisement(advertisement: Advertisement, queueNam
     name: advertisement.title || "Untitled template",
     content: advertisement.content || advertisement.imageCaption,
     forumUrl: "",
+    imageClickThroughUrl: advertisement.imageClickThroughUrl,
     queueName,
     tags: [],
   });
@@ -42,6 +45,7 @@ export function applyTemplateToAdvertisement(template: SavedTemplate): Partial<A
   return {
     content: template.content,
     imageCaption: "",
+    imageClickThroughUrl: template.imageClickThroughUrl,
     status: "draft",
   };
 }
@@ -52,6 +56,7 @@ export function fromApiTemplate(value: ApiTemplate): SavedTemplate {
     name: value.name,
     content: value.content,
     forumUrl: value.forum_url,
+    imageClickThroughUrl: value.image_click_through_url ?? "",
     queueName: value.queue_name ?? "",
     tags: value.tags,
     updatedAt: value.updated_at,
@@ -64,6 +69,7 @@ export function toApiTemplate(template: SavedTemplate): ApiTemplate {
     name: template.name,
     content: template.content,
     forum_url: template.forumUrl,
+    image_click_through_url: template.imageClickThroughUrl,
     queue_name: template.queueName,
     tags: template.tags,
     updated_at: template.updatedAt,

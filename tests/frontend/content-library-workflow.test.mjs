@@ -376,7 +376,7 @@ test("content library rows can queue a saved submission", { timeout: 40000 }, as
   await page.getByText("Queued Second saved post in Want ads.").waitFor();
   assert.deepEqual(savedQueueItems.map((item) => item.ad_id), ["saved-ad-two", "saved-ad", "saved-ad-two", "saved-ad-two", "saved-ad", "saved-ad-two"]);
   assert.equal(JSON.parse(savedQueueItems.find((item) => item.ad_id === "saved-ad-two").runner_payload).advertisement.campaignName, "Alpha campaign");
-  assert.equal(JSON.parse(savedQueueItems.find((item) => item.ad_id === "saved-ad-two").runner_payload).fields.imageLinkUrl, "https://forum.example/thread");
+  assert.equal(JSON.parse(savedQueueItems.find((item) => item.ad_id === "saved-ad-two").runner_payload).fields.imageLinkUrl, "");
   assert.equal(JSON.parse(savedQueueItems.find((item) => item.ad_id === "saved-ad-two").runner_payload).targetProfile.name, "All Things Roleplay ads");
   assert.equal(
     JSON.parse(savedQueueItems.find((item) => item.ad_id === "saved-ad-two").runner_payload).targetProfile.postingRules,

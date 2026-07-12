@@ -118,6 +118,7 @@ export function buildRunnerPayload(advertisement: Advertisement, target: TumblrS
         campaignName: advertisement.campaignName,
         postType: advertisement.postType,
         forumUrl: advertisement.forumUrl,
+        imageClickThroughUrl: advertisement.imageClickThroughUrl || "",
         tags: advertisement.tags,
         imageName: advertisement.imageName,
         imageDataUrl: advertisement.imageDataUrl,
@@ -129,7 +130,7 @@ export function buildRunnerPayload(advertisement: Advertisement, target: TumblrS
         caption: composerContent,
         videoUrl: advertisement.videoUrl,
         imageDataUrl: advertisement.imageDataUrl,
-        imageLinkUrl: advertisement.forumUrl,
+        imageLinkUrl: advertisement.imageClickThroughUrl || "",
         package: postPackage,
       },
       runnerNotes: [

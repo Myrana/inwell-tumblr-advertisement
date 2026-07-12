@@ -22,6 +22,7 @@ export type Advertisement = {
   content: string;
   destinationBlog: string;
   forumUrl: string;
+  imageClickThroughUrl: string;
   tags: string[];
   imageCaption: string;
   imageName: string;
@@ -43,6 +44,7 @@ export type SavedTemplate = {
   name: string;
   content: string;
   forumUrl: string;
+  imageClickThroughUrl: string;
   queueName: string;
   tags: string[];
   updatedAt: string;
@@ -179,6 +181,7 @@ export type ApiAdvertisement = {
   content: string;
   destination_blog: string;
   forum_url: string;
+  image_click_through_url?: string;
   tags: string[];
   image_caption: string;
   image_name: string;
@@ -195,6 +198,7 @@ export type ApiTemplate = {
   name: string;
   content: string;
   forum_url: string;
+  image_click_through_url?: string;
   queue_name?: string;
   tags: string[];
   updated_at: string;

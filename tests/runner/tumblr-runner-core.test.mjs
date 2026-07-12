@@ -21,6 +21,7 @@ import {
   parseArgs,
   postTypeCandidateIndex,
   reviewPagesOpenMessage,
+  requiredPhotoClickThroughFailure,
   shouldDeferReadyReview,
   shouldPauseForManualAction,
   summarizeFrames,
@@ -68,7 +69,7 @@ function photoLinkHarness({ inputs = [], controls = [] } = {}) {
 }
 
 test("photo click-through fills an explicitly labeled input without opening controls", async () => {
-  const harness = photoLinkHarness({ inputs: [{ label: "Photo link URL" }], controls: [{ label: "Add a link" }] });
+  const harness = photoLinkHarness({ inputs: [{ label: "Photo link URL" }], controls: [{ label: "Add photo link" }] });
   assert.equal(await fillPhotoClickThroughUrl(harness.page, "https://forum.example/thread", harness.dependencies), true);
   assert.deepEqual(harness.state.fills, [["Photo link URL", "https://forum.example/thread"]]);
   assert.deepEqual(harness.state.clicks, []);
@@ -79,18 +80,18 @@ test("photo click-through opens only the first matching control before filling a
   const harness = photoLinkHarness({
     inputs,
     controls: [
-      { label: "Add a link", onClick: () => { inputs[0].visible = true; } },
-      { label: "Set a link" },
+      { label: "Add photo link", onClick: () => { inputs[0].visible = true; } },
+      { label: "Image link" },
     ],
   });
   assert.equal(await fillPhotoClickThroughUrl(harness.page, "https://forum.example/thread", harness.dependencies), true);
-  assert.deepEqual(harness.state.clicks, ["Add a link"]);
+  assert.deepEqual(harness.state.clicks, ["Add photo link"]);
   assert.deepEqual(harness.state.fills, [["URL", "https://forum.example/thread"]]);
   assert.equal(harness.state.waits, 1);
 });
 
 test("photo click-through rejects invalid URLs and avoids unrelated generic fields", async () => {
-  const harness = photoLinkHarness({ inputs: [{ label: "Video URL" }], controls: [] });
+  const harness = photoLinkHarness({ inputs: [{ label: "Video URL" }], controls: [{ label: "Add a link" }] });
   assert.equal(await fillPhotoClickThroughUrl(harness.page, "javascript:alert(1)", harness.dependencies), false);
   assert.equal(await fillPhotoClickThroughUrl(harness.page, "https://forum.example/thread", harness.dependencies), false);
   assert.deepEqual(harness.state.fills, []);
@@ -146,7 +147,7 @@ test("normalizeRunnerPlan decodes queue item runner payload", () => {
         postType: "photo",
         runnerPayload: JSON.stringify({
           target: { name: "target" },
-          advertisement: { postType: "photo", forumUrl: "https://forum.example/thread", tags: ["one", "two"], imageName: "ad.png" },
+          advertisement: { postType: "photo", forumUrl: "https://forum.example/thread", imageClickThroughUrl: "https://forum.example/image-target", tags: ["one", "two"], imageName: "ad.png" },
           fields: { caption: "<p>Hello</p>", imageDataUrl: "data:image/png;base64,aGVsbG8=" },
         }),
       },
@@ -157,7 +158,7 @@ test("normalizeRunnerPlan decodes queue item runner payload", () => {
   assert.equal(plan.items[0].postType, "photo");
   assert.equal(fieldsForItem(plan.items[0]).title, "");
   assert.match(fieldsForItem(plan.items[0]).bodyHtml, /<p>Hello<\/p>/);
-  assert.equal(fieldsForItem(plan.items[0]).imageLinkUrl, "https://forum.example/thread");
+  assert.equal(fieldsForItem(plan.items[0]).imageLinkUrl, "https://forum.example/image-target");
   assert.deepEqual(fieldsForItem(plan.items[0]).tags, ["one", "two"]);
 });
 
@@ -170,6 +171,25 @@ test("fieldsForItem prefers explicit image click-through URL", () => {
   });
 
   assert.equal(fields.imageLinkUrl, "https://forum.example/photo-link");
+});
+
+test("fieldsForItem does not reinterpret the forum URL as an image destination", () => {
+  const fields = fieldsForItem({
+    payload: {
+      fields: { body: "Body" },
+      advertisement: { forumUrl: "https://forum.example/thread", tags: [] },
+    },
+  });
+
+  assert.equal(fields.imageLinkUrl, "");
+});
+
+test("requested photo click-through failure blocks submit while blank and non-photo links do not", () => {
+  assert.match(requiredPhotoClickThroughFailure("photo", "https://destination.example/photo", false), /Could not set/);
+  assert.equal(requiredPhotoClickThroughFailure("photo", "", false), "");
+  assert.equal(requiredPhotoClickThroughFailure("text", "https://destination.example/photo", false), "");
+  assert.equal(requiredPhotoClickThroughFailure("video", "https://destination.example/photo", false), "");
+  assert.equal(requiredPhotoClickThroughFailure("photo", "https://destination.example/photo", true), "");
 });
 
 test("photo click-through context matching avoids unrelated URL fields", () => {

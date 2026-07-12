@@ -232,6 +232,7 @@ def initialize(connection: ConnectionLike) -> None:
             content TEXT NOT NULL DEFAULT '',
             destination_blog TEXT NOT NULL DEFAULT '',
             forum_url TEXT NOT NULL DEFAULT '',
+            image_click_through_url TEXT NOT NULL DEFAULT '',
             image_caption TEXT NOT NULL DEFAULT '',
             image_name TEXT NOT NULL DEFAULT '',
             image_data_url TEXT NOT NULL DEFAULT '',
@@ -253,6 +254,7 @@ def initialize(connection: ConnectionLike) -> None:
             name TEXT NOT NULL,
             content TEXT NOT NULL DEFAULT '',
             forum_url TEXT NOT NULL DEFAULT '',
+            image_click_through_url TEXT NOT NULL DEFAULT '',
             queue_name TEXT NOT NULL DEFAULT '',
             created_at TIMESTAMPTZ NOT NULL,
             updated_at TIMESTAMPTZ NOT NULL,
@@ -468,6 +470,8 @@ def initialize(connection: ConnectionLike) -> None:
     for table in ("advertisements", "templates", "submission_queue", "tumblr_accounts", "runner_logs"):
         connection.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS workspace_id TEXT NOT NULL DEFAULT 'default'")
     connection.execute("ALTER TABLE advertisements ADD COLUMN IF NOT EXISTS campaign_name TEXT NOT NULL DEFAULT ''")
+    connection.execute("ALTER TABLE advertisements ADD COLUMN IF NOT EXISTS image_click_through_url TEXT NOT NULL DEFAULT ''")
+    connection.execute("ALTER TABLE templates ADD COLUMN IF NOT EXISTS image_click_through_url TEXT NOT NULL DEFAULT ''")
     connection.execute("ALTER TABLE advertisements ADD COLUMN IF NOT EXISTS archived BOOLEAN NOT NULL DEFAULT FALSE")
     for table in (
         "advertisement_tags",
@@ -1173,6 +1177,7 @@ def row_to_advertisement(row: Any, tags: list[str] | None = None) -> dict[str, A
     data = row_to_dict(row)
     data["workspace_id"] = str(data.get("workspace_id") or "default")
     data["tags"] = tags if tags is not None else parse_tags(data.get("tags", []))
+    data["image_click_through_url"] = str(data.get("image_click_through_url") or "")
     if data.get("post_type") not in POST_TYPES:
         data["post_type"] = "photo"
     return data
@@ -1182,6 +1187,7 @@ def row_to_template(row: Any, tags: list[str] | None = None) -> dict[str, Any]:
     data = row_to_dict(row)
     data["workspace_id"] = str(data.get("workspace_id") or "default")
     data["queue_name"] = str(data.get("queue_name") or "").strip()
+    data["image_click_through_url"] = str(data.get("image_click_through_url") or "")
     data["tags"] = tags if tags is not None else parse_tags(data.get("tags", []))
     return data
 
@@ -1243,6 +1249,7 @@ def advertisement_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "content": str(payload.get("content", "")),
         "destination_blog": str(payload.get("destination_blog", "")).strip(),
         "forum_url": str(payload.get("forum_url", "")).strip(),
+        "image_click_through_url": str(payload.get("image_click_through_url") or payload.get("imageClickThroughUrl") or "").strip(),
         "tags": parse_tags(payload.get("tags", [])),
         "image_caption": str(payload.get("image_caption", "")),
         "image_name": str(payload.get("image_name", "")),
@@ -1261,6 +1268,7 @@ def template_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "name": str(payload.get("name", "")).strip(),
         "content": str(payload.get("content", "")),
         "forum_url": str(payload.get("forum_url", "")).strip(),
+        "image_click_through_url": str(payload.get("image_click_through_url") or payload.get("imageClickThroughUrl") or "").strip(),
         "queue_name": str(payload.get("queue_name") or payload.get("queueName") or "").strip(),
         "tags": parse_tags(payload.get("tags", [])),
     }
@@ -2013,11 +2021,11 @@ def upsert_advertisement(connection: ConnectionLike, payload: dict[str, Any]) ->
     connection.execute(
         """
         INSERT INTO advertisements (
-            id, workspace_id, post_type, title, campaign_name, content, destination_blog, forum_url,
+            id, workspace_id, post_type, title, campaign_name, content, destination_blog, forum_url, image_click_through_url,
             image_caption, image_name, image_data_url, video_url, video_name,
             status, archived, created_at, updated_at
         )
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT(workspace_id, id) DO UPDATE SET
             post_type = excluded.post_type,
             title = excluded.title,
@@ -2025,6 +2033,7 @@ def upsert_advertisement(connection: ConnectionLike, payload: dict[str, Any]) ->
             content = excluded.content,
             destination_blog = excluded.destination_blog,
             forum_url = excluded.forum_url,
+            image_click_through_url = excluded.image_click_through_url,
             image_caption = excluded.image_caption,
             image_name = excluded.image_name,
             image_data_url = excluded.image_data_url,
@@ -2043,6 +2052,7 @@ def upsert_advertisement(connection: ConnectionLike, payload: dict[str, Any]) ->
             advertisement["content"],
             advertisement["destination_blog"],
             advertisement["forum_url"],
+            advertisement["image_click_through_url"],
             advertisement["image_caption"],
             advertisement["image_name"],
             advertisement["image_data_url"],
@@ -2082,12 +2092,13 @@ def upsert_template(connection: ConnectionLike, payload: dict[str, Any]) -> dict
 
     connection.execute(
         """
-        INSERT INTO templates (id, workspace_id, name, content, forum_url, queue_name, created_at, updated_at)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        INSERT INTO templates (id, workspace_id, name, content, forum_url, image_click_through_url, queue_name, created_at, updated_at)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT(workspace_id, id) DO UPDATE SET
             name = excluded.name,
             content = excluded.content,
             forum_url = excluded.forum_url,
+            image_click_through_url = excluded.image_click_through_url,
             queue_name = excluded.queue_name,
             updated_at = excluded.updated_at
         """,
@@ -2097,6 +2108,7 @@ def upsert_template(connection: ConnectionLike, payload: dict[str, Any]) -> dict
             template["name"],
             template["content"],
             template["forum_url"],
+            template["image_click_through_url"],
             template["queue_name"],
             created_at,
             now,

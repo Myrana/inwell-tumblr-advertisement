@@ -16,6 +16,9 @@ export type DraftReadinessScore = {
 
 export function validateAdvertisement(advertisement: Advertisement) {
   const bodyText = htmlToPlainText(composerContentFor(advertisement));
+  const imageClickThroughUrl = advertisement.imageClickThroughUrl?.trim() ?? "";
+  const imageClickThroughIsHttp = !imageClickThroughUrl || /^https?:\/\/[^\s]+$/i.test(imageClickThroughUrl);
+  const imageClickThroughIsSubmitPage = /tumblr\.com\/submit(?:[/?#]|$)/i.test(imageClickThroughUrl);
   return [
     !advertisement.title.trim() ? "Add a submission name." : "",
     !advertisement.forumUrl.trim() ? "Add a forum URL." : "",
@@ -23,6 +26,10 @@ export function validateAdvertisement(advertisement: Advertisement) {
     !bodyText ? "Add post content." : "",
     advertisement.postType === "photo" && !advertisement.imageDataUrl.trim() && !advertisement.imageName.trim()
       ? "Choose an image for the photo post."
+      : "",
+    advertisement.postType === "photo" && !imageClickThroughIsHttp ? "Use a complete http:// or https:// image click-through URL." : "",
+    advertisement.postType === "photo" && imageClickThroughIsSubmitPage
+      ? "Use a reader destination for the image click-through URL, not a Tumblr submit page."
       : "",
     advertisement.postType === "video" && !advertisement.videoUrl.trim() && !advertisement.videoName.trim()
       ? "Add a video URL or upload a video file."
@@ -84,6 +91,7 @@ export function buildPreparedPost(advertisement: Advertisement) {
       : [
           "Tumblr Photo Post",
           advertisement.imageName.trim() ? `Image: ${advertisement.imageName.trim()}` : "",
+          advertisement.imageClickThroughUrl?.trim() ? `Image destination: ${advertisement.imageClickThroughUrl.trim()}` : "",
           "",
           richBody,
           ...sharedLines,

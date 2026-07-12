@@ -1048,6 +1048,9 @@ test("templates can be edited on their page and applied from the submission work
   await page.getByRole("button", { name: "New Submission" }).click();
   await page.getByRole("button", { name: "Toggle submission details section" }).click();
   await page.getByLabel("Target Tumblr blog").selectOption("custom-ads");
+  assert.equal(await page.getByLabel("Image click-through URL").inputValue(), "");
+  await page.getByRole("button", { name: "Use forum link" }).click();
+  assert.equal(await page.getByLabel("Image click-through URL").inputValue(), "https://forum.example/original");
   assert.equal(await page.getByText("Inkwell Ads").count(), 0);
   assert.equal(await page.getByText("jcink-directory").count(), 0);
   assert.equal(await page.getByText("roleplay-finder").count(), 0);

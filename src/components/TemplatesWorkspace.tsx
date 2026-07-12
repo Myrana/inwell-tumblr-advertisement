@@ -93,7 +93,7 @@ export function TemplatesWorkspace({
     const query = templateSearch.trim().toLowerCase();
     const filtered = query
       ? templates.filter((template) =>
-          [template.name, template.content, template.queueName, template.forumUrl, ...(template.tags ?? [])]
+          [template.name, template.content, template.queueName, template.forumUrl, template.imageClickThroughUrl, ...(template.tags ?? [])]
             .filter(Boolean)
             .some((value) => value.toLowerCase().includes(query)),
         )

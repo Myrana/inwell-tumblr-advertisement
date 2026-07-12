@@ -353,7 +353,7 @@ export function fieldsForItem(item) {
     title: String(advertisement.savedOptionName || ""),
     videoUrl: String(fields.videoUrl || advertisement.videoUrl || ""),
     imageDataUrl: String(fields.imageDataUrl || advertisement.imageDataUrl || ""),
-    imageLinkUrl: String(fields.imageLinkUrl || advertisement.forumUrl || ""),
+    imageLinkUrl: String(fields.imageLinkUrl || advertisement.imageClickThroughUrl || ""),
     imageName: String(advertisement.imageName || "tumblr-upload.png"),
     tags: Array.isArray(advertisement.tags) ? advertisement.tags.map(String) : [],
   };
@@ -368,7 +368,7 @@ export function isPhotoClickThroughContext(value, allowGenericUrl = false) {
     return false;
   }
 
-  return /click.?through|photo link|image link|link url|source url|content source|set a link|add a link/.test(context)
+  return /click.?through|photo link|image link|image destination|photo destination|source url|content source/.test(context)
     || (allowGenericUrl && /^url$|^https?:\/\/|url to link|link$/.test(context));
 }
 
@@ -386,9 +386,15 @@ export async function fillPhotoClickThroughUrl(page, value, dependencies) {
   return opened ? fillPhotoLinkInput(page, url, true, dependencies) : false;
 }
 
+export function requiredPhotoClickThroughFailure(postType, value, filled) {
+  return postType === "photo" && String(value || "").trim() && !filled
+    ? "Could not set the requested photo image click-through URL. Review the Tumblr photo link before submitting."
+    : "";
+}
+
 export async function openPhotoLinkControl(page, { pageTargets, accessibleContext }) {
   for (const target of await pageTargets(page)) {
-    const controls = target.locator("button, a, [role='button']");
+    const controls = target.locator("button, [role='button']");
     const count = await controls.count();
     for (let index = 0; index < count; index += 1) {
       const control = controls.nth(index);
