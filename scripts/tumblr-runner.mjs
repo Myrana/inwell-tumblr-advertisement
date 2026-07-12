@@ -23,6 +23,7 @@ import {
   parseArgs,
   postTypeCandidateIndex,
   reviewPagesOpenMessage,
+  requiredPhotoClickThroughFailure,
   shouldDeferReadyReview,
   tumblrPostSelectOptionSelector,
 } from "./tumblr-runner-core.mjs";
@@ -260,6 +261,25 @@ async function runQueueItem(context, item, options) {
     imageLinkFilled,
     termsAccepted,
   });
+
+  const imageLinkFailure = requiredPhotoClickThroughFailure(item.postType, fields.imageLinkUrl, imageLinkFilled);
+  if (imageLinkFailure) {
+    console.log(`[manual-action] ${item.targetName}: ${imageLinkFailure}`);
+    await reportRunnerEvent(
+      options,
+      item,
+      options.headless ? "failed" : "needs-review",
+      options.headless ? headlessBlockerMessage(imageLinkFailure) : imageLinkFailure,
+      options.headless ? "error" : "warning",
+      options.headless ? { reason_code: headlessBlockerCodes.manualReviewRequired, imageLinkFilled } : { imageLinkFilled },
+    );
+    await failHeadlessReview(page, options, imageLinkFailure);
+    if (shouldDeferReadyReview(options)) {
+      return { readyForReview: true, page, status: "needs-review" };
+    }
+    await pauseForOperator(page, options);
+    return { readyForReview: false, status: options.headless ? "failed" : "needs-review" };
+  }
 
   if (await pageNeedsManualAction(page)) {
     const message = "Page requires review before submit.";

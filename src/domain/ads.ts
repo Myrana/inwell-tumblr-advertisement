@@ -33,6 +33,7 @@ export const emptyAd = (destinationBlog = blogs[0] ?? ""): Advertisement => ({
   content: "",
   destinationBlog,
   forumUrl: "",
+  imageClickThroughUrl: "",
   tags: [],
   imageCaption: "",
   imageName: starterImageName,
@@ -57,6 +58,7 @@ export function normalizeAd(value: Partial<Advertisement> | null | undefined): A
     content: normalizedText(value?.content),
     destinationBlog: removedSeedTargetIds.has(destinationBlog) ? "" : destinationBlog,
     forumUrl: normalizedText(value?.forumUrl),
+    imageClickThroughUrl: normalizedText(value?.imageClickThroughUrl),
     tags: Array.isArray(value?.tags) ? value.tags.filter((tag): tag is string => typeof tag === "string") : fallback.tags,
     imageCaption: normalizedText(value?.imageCaption),
     imageName: normalizedText(value?.imageName, fallback.imageName),
@@ -90,6 +92,7 @@ export function fromApiAdvertisement(value: ApiAdvertisement): Advertisement {
     content: value.content,
     destinationBlog: value.destination_blog,
     forumUrl: value.forum_url,
+    imageClickThroughUrl: value.image_click_through_url ?? "",
     tags: value.tags,
     imageCaption: value.image_caption,
     imageName: value.image_name,
@@ -111,6 +114,7 @@ export function toApiAdvertisement(advertisement: Advertisement): ApiAdvertiseme
     content: advertisement.content,
     destination_blog: advertisement.destinationBlog,
     forum_url: advertisement.forumUrl,
+    image_click_through_url: advertisement.imageClickThroughUrl,
     tags: advertisement.tags,
     image_caption: advertisement.imageCaption,
     image_name: advertisement.imageName,
@@ -134,6 +138,7 @@ export function hasLibraryContent(advertisement: Advertisement) {
       htmlToPlainText(composerContentFor(advertisement)) ||
       advertisement.destinationBlog.trim() ||
       advertisement.forumUrl.trim() ||
+      advertisement.imageClickThroughUrl.trim() ||
       advertisement.tags.length ||
       advertisement.postType !== "photo" ||
       advertisement.imageName.trim() !== starterImageName ||

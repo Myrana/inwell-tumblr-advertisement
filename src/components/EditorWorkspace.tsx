@@ -456,6 +456,25 @@ export function EditorWorkspace({
                           Upload image
                           <input type="file" accept="image/*" onChange={onImageUpload} />
                         </label>
+                        <div className="image-click-through-field">
+                          <label htmlFor="image-click-through-url">Image click-through URL</label>
+                          <input
+                            id="image-click-through-url"
+                            type="url"
+                            value={activeAd.imageClickThroughUrl}
+                            onChange={(event) => onUpdateActiveAd({ imageClickThroughUrl: event.target.value })}
+                            placeholder="https://your-forum.com/thread/123"
+                          />
+                          <span className="field-hint">Optional. Readers open this page when they click the Tumblr image.</span>
+                          <button
+                            className="secondary compact-button"
+                            type="button"
+                            onClick={() => onUpdateActiveAd({ imageClickThroughUrl: activeAd.forumUrl })}
+                            disabled={!activeAd.forumUrl.trim()}
+                          >
+                            Use forum link
+                          </button>
+                        </div>
                       </div>
                     ) : null}
 

@@ -366,15 +366,16 @@ class FakePostgresConnection:
                 "content": params[5],
                 "destination_blog": params[6],
                 "forum_url": params[7],
-                "image_caption": params[8],
-                "image_name": params[9],
-                "image_data_url": params[10],
-                "video_url": params[11],
-                "video_name": params[12],
-                "status": params[13],
-                "archived": params[14],
-                "created_at": params[15],
-                "updated_at": params[16],
+                "image_click_through_url": params[8],
+                "image_caption": params[9],
+                "image_name": params[10],
+                "image_data_url": params[11],
+                "video_url": params[12],
+                "video_name": params[13],
+                "status": params[14],
+                "archived": params[15],
+                "created_at": params[16],
+                "updated_at": params[17],
             }
             self.advertisements[ScopedRows.key(row["workspace_id"], row["id"])] = row
             return FakeCursor()
@@ -689,16 +690,17 @@ class FakePostgresConnection:
             if "do nothing" in normalized and ScopedRows.key(workspace_id, params[0]) in self.templates:
                 return FakeCursor()
 
-            if "workspace_id" in normalized and len(params) == 8:
+            if "workspace_id" in normalized and len(params) == 9:
                 row = {
                     "id": params[0],
                     "workspace_id": params[1],
                     "name": params[2],
                     "content": params[3],
                     "forum_url": params[4],
-                    "queue_name": params[5],
-                    "created_at": params[6],
-                    "updated_at": params[7],
+                    "image_click_through_url": params[5],
+                    "queue_name": params[6],
+                    "created_at": params[7],
+                    "updated_at": params[8],
                 }
             elif "workspace_id" in normalized:
                 row = {
@@ -1338,6 +1340,7 @@ class PersistenceTests(unittest.TestCase):
                 "content": "<p>Optional copy</p>",
                 "destination_blog": "inwell-ads",
                 "forum_url": "https://forum.example.test",
+                "image_click_through_url": "https://destination.example.test/photo",
                 "tags": ["#jcink", "#forum rp"],
                 "image_caption": "Picture post caption",
                 "image_name": "banner.png",
@@ -1356,6 +1359,7 @@ class PersistenceTests(unittest.TestCase):
         self.assertEqual(saved["tags"], ["#jcink", "#forum rp"])
         self.assertEqual([row["tag"] for row in self.connection.advertisement_tags.values()], ["#jcink", "#forum rp"])
         self.assertEqual(saved["image_caption"], "Picture post caption")
+        self.assertEqual(saved["image_click_through_url"], "https://destination.example.test/photo")
         self.assertEqual(saved["video_url"], "https://video.example.test/watch")
         self.assertEqual(saved["video_name"], "tour.mp4")
         self.assertFalse(saved["archived"])
@@ -1419,6 +1423,7 @@ class PersistenceTests(unittest.TestCase):
                 "name": "Custom template",
                 "content": "Reusable advertisement copy",
                 "forum_url": "https://custom.example.test",
+                "image_click_through_url": "https://destination.example.test/template",
                 "queue_name": "Wanted Ads",
                 "tags": ["#custom"],
             },
@@ -1426,6 +1431,7 @@ class PersistenceTests(unittest.TestCase):
 
         self.assertEqual(saved["name"], "Custom template")
         self.assertEqual(saved["queue_name"], "Wanted Ads")
+        self.assertEqual(saved["image_click_through_url"], "https://destination.example.test/template")
         self.assertEqual(saved["tags"], ["#custom"])
         self.assertEqual(
             [row["tag"] for row in self.connection.template_tags.values() if row["template_id"] == "template-custom"],

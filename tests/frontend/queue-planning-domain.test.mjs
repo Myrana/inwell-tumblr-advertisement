@@ -29,6 +29,8 @@ test("queue planning rejects archived ready ads until they are restored", { time
 
   const result = await page.evaluate(async () => {
     const { planQueueTargetAdditions } = await import("/src/domain/queuePlanning.ts");
+    const { buildRunnerPayload } = await import("/src/domain/queue.ts");
+    const { validateAdvertisement } = await import("/src/domain/post.ts");
     const target = {
       id: "target-blog",
       name: "Target Blog",
@@ -56,6 +58,13 @@ test("queue planning rejects archived ready ads until they are restored", { time
       updatedAt: "2026-06-20T12:00:00.000Z",
     });
 
+    const photoAd = {
+      ...readyAd(false),
+      postType: "photo",
+      imageClickThroughUrl: "https://destination.example/photo",
+      imageName: "photo.png",
+      imageDataUrl: "data:image/png;base64,aGVsbG8=",
+    };
     return {
       archivedPlan: planQueueTargetAdditions({
         ad: readyAd(true),
@@ -69,6 +78,9 @@ test("queue planning rejects archived ready ads until they are restored", { time
         targets: [target],
         tumblrAccountId: "tumblr-account",
       }),
+      photoRunnerPayload: JSON.parse(buildRunnerPayload(photoAd, target, "prepared")),
+      invalidDestinationValidation: validateAdvertisement({ ...photoAd, imageClickThroughUrl: "javascript:alert(1)" }),
+      submitDestinationValidation: validateAdvertisement({ ...photoAd, imageClickThroughUrl: "https://example.tumblr.com/submit" }),
     };
   });
 
@@ -77,4 +89,8 @@ test("queue planning rejects archived ready ads until they are restored", { time
   assert.equal(result.activePlan.status, "ready");
   assert.equal(result.activePlan.items.length, 1);
   assert.equal(result.activePlan.items[0].adId, "ready-ad");
+  assert.equal(result.photoRunnerPayload.fields.imageLinkUrl, "https://destination.example/photo");
+  assert.equal(result.photoRunnerPayload.advertisement.forumUrl, "https://forum.example/thread");
+  assert.deepEqual(result.invalidDestinationValidation, ["Use a complete http:// or https:// image click-through URL."]);
+  assert.deepEqual(result.submitDestinationValidation, ["Use a reader destination for the image click-through URL, not a Tumblr submit page."]);
 });

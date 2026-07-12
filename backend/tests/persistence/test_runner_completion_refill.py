@@ -64,6 +64,7 @@ class RunnerCompletionRefillPersistenceTests(unittest.TestCase):
             "content": content,
             "destination_blog": destination_blog,
             "forum_url": f"https://forums.example/{ad_id}",
+            "image_click_through_url": f"https://forums.example/{ad_id}/image",
             "image_caption": image_caption,
             "image_name": image_name or f"{ad_id}.png",
             "image_data_url": image_data_url,
