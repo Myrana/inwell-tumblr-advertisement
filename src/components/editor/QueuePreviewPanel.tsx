@@ -1,9 +1,12 @@
 import { Send } from "lucide-react";
 import { TumblrSubmitTarget } from "../../domain/types";
+import { Advertisement } from "../../domain/types";
+import { LinkSummary } from "./LinkSummary";
 import "./queuePreview.css";
 
 type QueuePreviewPanelProps = {
   queueName: string;
+  advertisement: Advertisement;
   targets: TumblrSubmitTarget[];
   onCancel: () => void;
   onConfirm: () => void;
@@ -11,6 +14,7 @@ type QueuePreviewPanelProps = {
 
 export function QueuePreviewPanel({
   queueName,
+  advertisement,
   targets,
   onCancel,
   onConfirm,
@@ -31,7 +35,13 @@ export function QueuePreviewPanel({
         {targets.map((target) => (
           <li key={target.id}>
             <strong>{target.name}</strong>
-            <span>{target.submitUrl}</span>
+            {advertisement.postType === "photo" ? <span>Photo: {advertisement.imageName || "Uploaded image"}</span> : null}
+            <LinkSummary
+              compact
+              submitUrl={target.submitUrl}
+              forumUrl={advertisement.forumUrl}
+              imageClickThroughUrl={advertisement.postType === "photo" ? advertisement.imageClickThroughUrl : ""}
+            />
           </li>
         ))}
       </ul>

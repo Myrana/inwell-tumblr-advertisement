@@ -7,6 +7,7 @@ import { scoreDraftReadiness, validateAdvertisement } from "../domain/post";
 import { Advertisement, PostType, QueueDefinition, SavedTemplate, TumblrSubmitTarget } from "../domain/types";
 import { useQueuePreview } from "../hooks/useQueuePreview";
 import { QueuePreviewPanel } from "./editor/QueuePreviewPanel";
+import { LinkSummary, safeExternalUrl } from "./editor/LinkSummary";
 import { TemplateLibrary } from "./TemplateLibrary";
 import "./editor/editorWorkspace.css";
 
@@ -120,6 +121,7 @@ export function EditorWorkspace({
   const readinessPercent = Math.round(readiness.percent);
   const { clearPreview, openPreview, previewTargets } = useQueuePreview();
   const previewableTargets = targetOptions.filter((target) => target.id && target.submitUrl);
+  const safeImageDestination = activeAd.postType === "photo" ? safeExternalUrl(activeAd.imageClickThroughUrl) : "";
   const visibleChecklistTags = checklistTags
     .filter((tag) => tag.toLowerCase().includes(tagSearch.trim().toLowerCase()))
     .sort((first, second) => Number(activeAd.tags.includes(second)) - Number(activeAd.tags.includes(first)) || first.localeCompare(second));
@@ -229,6 +231,7 @@ export function EditorWorkspace({
         </div>
 
         <QueuePreviewPanel
+          advertisement={activeAd}
           queueName={selectedQueueName}
           targets={previewTargets}
           onCancel={clearPreview}
@@ -446,7 +449,13 @@ export function EditorWorkspace({
                     {activeAd.postType === "photo" ? (
                       <div className="tumblr-photo-stage">
                         {activeAd.imageDataUrl ? (
-                          <img className="tumblr-media-preview-image" src={activeAd.imageDataUrl} alt="" />
+                          safeImageDestination ? (
+                            <a href={safeImageDestination} target="_blank" rel="noreferrer" aria-label="Open image click-through destination">
+                              <img className="tumblr-media-preview-image" src={activeAd.imageDataUrl} alt="" />
+                            </a>
+                          ) : (
+                            <img className="tumblr-media-preview-image" src={activeAd.imageDataUrl} alt="" />
+                          )
                         ) : (
                           <ImagePlus size={42} />
                         )}
@@ -475,8 +484,14 @@ export function EditorWorkspace({
                             Use forum link
                           </button>
                         </div>
-                      </div>
-                    ) : null}
+                        </div>
+                      ) : null}
+
+                    <LinkSummary
+                      submitUrl={activeSubmitTarget.submitUrl}
+                      forumUrl={activeAd.forumUrl}
+                      imageClickThroughUrl={activeAd.postType === "photo" ? activeAd.imageClickThroughUrl : ""}
+                    />
 
                     {activeAd.postType === "video" ? (
                       <div className="tumblr-photo-stage">

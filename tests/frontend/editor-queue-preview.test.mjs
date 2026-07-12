@@ -97,16 +97,17 @@ test("editor batch queue preview supports cancel and multi-target confirm", { ti
         advertisements: [
           {
             id: "batch-preview-ad",
-            post_type: "text",
+            post_type: "photo",
             title: "Batch preview ad",
             campaign_name: "",
             content: "<p>Batch ready body</p>",
             destination_blog: "blog-one",
             forum_url: "https://forum.example/batch",
+            image_click_through_url: "https://destination.example/batch-photo",
             tags: ["rp"],
             image_caption: "",
-            image_name: "",
-            image_data_url: "",
+            image_name: "batch-preview.png",
+            image_data_url: "/sample-forum-ad.png",
             video_url: "",
             video_name: "",
             status: "ready",
@@ -162,9 +163,45 @@ test("editor batch queue preview supports cancel and multi-target confirm", { ti
   await page.getByLabel("Content quality checklist").getByRole("button", { name: "Media" }).click();
   await page.locator(".tumblr-body-field").waitFor();
   await page.getByLabel("Queue destination").selectOption("Want ads");
+  const imageDestinationLink = page.getByRole("link", { name: "Open image click-through destination" });
+  assert.equal(await imageDestinationLink.getAttribute("href"), "https://destination.example/batch-photo");
+  assert.equal(await imageDestinationLink.getAttribute("target"), "_blank");
+  assert.equal(await imageDestinationLink.getAttribute("rel"), "noreferrer");
+  const safeUrlCases = await page.evaluate(async () => {
+    const { safeExternalUrl } = await import("/src/components/editor/LinkSummary.tsx");
+    return {
+      http: safeExternalUrl(" http://example.com/path "),
+      https: safeExternalUrl("https://example.com/path"),
+      malformed: safeExternalUrl("not a url"),
+      javascript: safeExternalUrl("javascript:alert(1)"),
+      data: safeExternalUrl("data:text/html,hello"),
+      blank: safeExternalUrl("   "),
+    };
+  });
+  assert.deepEqual(safeUrlCases, {
+    http: "http://example.com/path",
+    https: "https://example.com/path",
+    malformed: "",
+    javascript: "",
+    data: "",
+    blank: "",
+  });
+  await page.getByLabel("Image click-through URL").fill("javascript:alert(1)");
+  await page.getByLabel("Link summary").first().getByText("Invalid or unsafe URL").waitFor();
+  assert.equal(await page.getByRole("link", { name: "Open image click-through destination" }).count(), 0);
+  await page.getByLabel("Image click-through URL").fill("https://destination.example/batch-photo");
+  const editorLinkSummary = page.getByLabel("Link summary").first();
+  await editorLinkSummary.getByText("Tumblr submission page").waitFor();
+  await editorLinkSummary.getByText("https://forum.example/batch").waitFor();
+  await editorLinkSummary.getByText("https://destination.example/batch-photo").waitFor();
   await page.getByRole("button", { name: "Preview all blogs" }).click();
-  await page.getByLabel("Queue preview").getByText("Blog One").waitFor();
-  await page.getByLabel("Queue preview").getByText("Blog Two").waitFor();
+  const queuePreview = page.getByLabel("Queue preview");
+  await queuePreview.getByText("Blog One").waitFor();
+  await queuePreview.getByText("Blog Two").waitFor();
+  assert.equal(await queuePreview.getByText("Photo: batch-preview.png").count(), 2);
+  assert.equal(await queuePreview.getByText("https://destination.example/batch-photo").count(), 2);
+  assert.equal(await queuePreview.getByText("https://blog-one.tumblr.com/submit").count(), 1);
+  assert.equal(await queuePreview.getByText("https://blog-two.tumblr.com/submit").count(), 1);
   await page.getByRole("button", { name: "Cancel" }).click();
   await page.getByLabel("Queue preview").waitFor({ state: "detached" });
   assert.equal(savedQueueItems.length, 0);
@@ -221,7 +258,7 @@ test("saved draft and editor preview queueing share payload shape", { timeout: 4
     fulfillJson(route, {
       advertisements: [{
         id: "shared-queue-ad",
-        post_type: "text",
+        post_type: "photo",
         title: "Shared queue ad",
         campaign_name: "Shared campaign",
         content: "<p>Shared ready body</p>",
@@ -229,8 +266,8 @@ test("saved draft and editor preview queueing share payload shape", { timeout: 4
         forum_url: "https://forum.example/shared",
         tags: ["rp"],
         image_caption: "",
-        image_name: "",
-        image_data_url: "",
+        image_name: "shared-queue.png",
+        image_data_url: "/sample-forum-ad.png",
         video_url: "",
         video_name: "",
         status: "ready",
@@ -264,7 +301,11 @@ test("saved draft and editor preview queueing share payload shape", { timeout: 4
   await page.getByText("Queued Shared queue ad in Want ads.").waitFor();
 
   await page.getByLabel("Workspace views").getByRole("button", { name: "New Submission", exact: true }).click();
+  assert.equal(await page.getByRole("link", { name: "Open image click-through destination" }).count(), 0);
   await page.getByRole("button", { name: "Preview queue" }).click();
+  const blankImageDestination = page.getByLabel("Queue preview").getByLabel("Link summary").locator("div", { hasText: "Image click-through URL" });
+  await blankImageDestination.getByText("Not set").waitFor();
+  assert.equal(await blankImageDestination.getByRole("link").count(), 0);
   await page.getByRole("button", { name: "Add 1 to queue" }).click();
   await page.getByText("Added to Want ads").waitFor();
 
