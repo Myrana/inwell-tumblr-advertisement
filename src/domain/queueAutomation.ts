@@ -451,8 +451,6 @@ export function runnerExecutionReadiness(options: {
   const attentionCount = attentionQueueItems(options.activeQueue).length;
   const selectedAccountReady = options.selectedConnectedAccount ?? options.connectedAccountCount > 0;
   const selectedAccountName = options.selectedAccountName || "Selected account";
-  const manualCanRun = Boolean(selectedAccountReady && runnableCount > 0);
-  const scheduledCanRun = manualCanRun && options.scheduledRunnerReady;
 
   if (!selectedAccountReady) {
     return {

@@ -59,7 +59,7 @@ test("visual shell CSS keeps calm backgrounds and sidebar offsets in one place",
   const queueWorkspaceBeforeBlock = styles.match(/\.queue-workspace::before\s*\{[\s\S]*?\n\}/)?.[0] ?? "";
 
   assert.match(appShellBlock, /linear-gradient\(180deg, #f6f8fa 0%, #eef3f5 100%\)/);
-  assert.match(appShellBlock, /--sidebar-width: 248px;/);
+  assert.match(appShellBlock, /--sidebar-width: 224px;/);
   assert.match(appShellBlock, /grid-template-columns: var\(--sidebar-width\) minmax\(0, 1fr\)/);
   assert.doesNotMatch(appShellBlock, /radial-gradient|ellipse/);
   assert.match(darkAppShellBlock, /linear-gradient\(180deg, #101923 0%, #0f151d 100%\)/);
