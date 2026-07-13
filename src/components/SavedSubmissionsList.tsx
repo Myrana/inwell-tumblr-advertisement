@@ -1,8 +1,11 @@
 import { AlertTriangle, Archive, Eye, Link, MoreHorizontal, RotateCcw, Send, Trash2 } from "lucide-react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { DuplicateContentMatch } from "../domain/duplicates";
 import { formatDate, formatStatus } from "../domain/format";
 import { scoreDraftReadiness } from "../domain/post";
 import { Advertisement, QueueDefinition } from "../domain/types";
+import { QueueDraftResult } from "../hooks/useEditorQueueActions";
+import { safeExternalUrl } from "./editor/LinkSummary";
 
 type SavedSubmissionsListProps = {
   activeAdId: string;
@@ -15,7 +18,7 @@ type SavedSubmissionsListProps = {
   selectedQueueName: string;
   onArchiveDraft: (id: string, archived: boolean) => void;
   onDeleteDraft: (id: string) => void;
-  onQueueDraft: (id: string, queueName: string) => void;
+  onQueueDraft: (id: string, queueName: string, navigate?: boolean) => Promise<QueueDraftResult>;
   onSelectDraft: (id: string) => void;
   onSelectedQueueNameChange: (queueName: string) => void;
   onStartQueue: (id: string) => void;
@@ -30,10 +33,12 @@ type SavedSubmissionActionsProps = {
   selectedQueueName: string;
   onArchiveDraft: (id: string, archived: boolean) => void;
   onDeleteDraft: (id: string) => void;
-  onQueueDraft: (id: string, queueName: string) => void;
+  onQueueDraft: (id: string, queueName: string, navigate?: boolean) => Promise<QueueDraftResult>;
   onSelectDraft: (id: string) => void;
   onSelectedQueueNameChange: (queueName: string) => void;
   onStartQueue: (id: string) => void;
+  queueDraftPending: boolean;
+  setQueueDraftPending: (id: string, pending: boolean) => void;
 };
 
 function plainTextExcerpt(html: string) {
@@ -61,6 +66,20 @@ export function SavedSubmissionsList({
   onStartQueue,
   onToggleDraftSelection,
 }: SavedSubmissionsListProps) {
+  const [queueDraftPendingIds, setQueueDraftPendingIds] = useState(new Set<string>());
+
+  function setQueueDraftPending(adId: string, pending: boolean) {
+    setQueueDraftPendingIds((current) => {
+      const next = new Set(current);
+      if (pending) {
+        next.add(adId);
+      } else {
+        next.delete(adId);
+      }
+      return next;
+    });
+  }
+
   return (
     <>
       {ads.map((ad) => {
@@ -125,6 +144,8 @@ export function SavedSubmissionsList({
               onSelectDraft={onSelectDraft}
               onSelectedQueueNameChange={onSelectedQueueNameChange}
               onStartQueue={onStartQueue}
+              queueDraftPending={queueDraftPendingIds.has(ad.id)}
+              setQueueDraftPending={setQueueDraftPending}
             />
           </article>
         );
@@ -145,13 +166,83 @@ function SavedSubmissionActions({
   onSelectDraft,
   onSelectedQueueNameChange,
   onStartQueue,
+  queueDraftPending,
+  setQueueDraftPending,
 }: SavedSubmissionActionsProps) {
+  const isMountedRef = useRef(true);
+  const queueSubmitInFlight = useRef(false);
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  function getQueueButtonLabel() {
+    return ad.archived ? "Restore to queue" : "Queue";
+  }
+
+  function canSubmitQueue() {
+    return canQueueAd && !queueDraftPending && !queueSubmitInFlight.current;
+  }
+
+  function submitQueueDraft(queueName: string) {
+    if (!canSubmitQueue()) {
+      return;
+    }
+
+    setQueueDraftPending(ad.id, true);
+    queueSubmitInFlight.current = true;
+    void (async () => {
+      try {
+        await onQueueDraft(ad.id, queueName);
+      } finally {
+        if (!isMountedRef.current) {
+          return;
+        }
+        setQueueDraftPending(ad.id, false);
+        queueSubmitInFlight.current = false;
+      }
+    })();
+  }
+
+  function handleDirectQueue() {
+    if (!canSubmitQueue()) {
+      return;
+    }
+
+    if (queueOptions.length > 1) {
+      onStartQueue(ad.id);
+      return;
+    }
+
+    submitQueueDraft(selectedQueueName);
+  }
+
+  function handleQueueSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    submitQueueDraft(selectedQueueName);
+  }
+
   return (
     <>
       <div className="draft-row-actions">
-        <a href={ad.forumUrl || "#"} aria-label="Forum URL">
-          <Link size={18} />
-        </a>
+        {(() => {
+          const safeForumUrl = safeExternalUrl(ad.forumUrl);
+          if (safeForumUrl) {
+            return (
+              <a href={safeForumUrl} aria-label="Forum URL" target="_blank" rel="noreferrer">
+                <Link size={18} />
+              </a>
+            );
+          }
+
+          return (
+            <span className="muted" aria-label="Forum URL unavailable" title="Forum link is unavailable or unsafe.">
+              <Link size={18} />
+            </span>
+          );
+        })()}
         <details className="draft-card-preview">
           <summary>
             <Eye size={16} />
@@ -163,9 +254,9 @@ function SavedSubmissionActions({
             <span>{plainTextExcerpt(ad.content) || "No advertisement copy saved yet."}</span>
           </div>
         </details>
-        <button className="primary compact-button" type="button" onClick={() => onStartQueue(ad.id)} disabled={!canQueueAd}>
+        <button className="primary compact-button" type="button" onClick={handleDirectQueue} disabled={!canSubmitQueue()}>
           <Send size={16} />
-          {ad.archived ? "Restore to queue" : "Queue"}
+          {getQueueButtonLabel()}
         </button>
         <button className="secondary compact-button" type="button" onClick={() => onSelectDraft(ad.id)}>
           Edit
@@ -190,10 +281,7 @@ function SavedSubmissionActions({
         <form
           className="content-queue-picker"
           aria-label={`Choose queue for ${ad.title || "content library item"}`}
-          onSubmit={(event) => {
-            event.preventDefault();
-            onQueueDraft(ad.id, selectedQueueName);
-          }}
+          onSubmit={handleQueueSubmit}
         >
           <label>
             Queue destination
@@ -205,7 +293,7 @@ function SavedSubmissionActions({
               ))}
             </select>
           </label>
-          <button className="primary compact-button" type="submit" disabled={!canQueueAd}>
+          <button className="primary compact-button" type="submit" disabled={!canSubmitQueue()}>
             Queue here
           </button>
         </form>

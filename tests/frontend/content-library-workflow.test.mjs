@@ -65,6 +65,7 @@ test("content library rows can queue a saved submission", { timeout: 40000 }, as
   const savedQueueItems = [];
   const savedQueueState = new Map();
   const savedAdvertisements = [];
+  let failingQueueAdId = "";
   page.on("pageerror", (error) => pageErrors.push(error));
   await page.route("http://127.0.0.1:8021/api/**", (route) => route.abort());
   await page.route("http://127.0.0.1:17842/status", (route) => route.abort());
@@ -72,6 +73,9 @@ test("content library rows can queue a saved submission", { timeout: 40000 }, as
   await routeEmptyWorkspaceApis(page);
   await page.route("http://127.0.0.1:8021/api/queue/**", (route) => {
     const savedQueueItem = route.request().postDataJSON();
+    if (savedQueueItem.ad_id === failingQueueAdId) {
+      return route.fulfill({ status: 500, contentType: "application/json", headers: apiHeaders, body: JSON.stringify({ error: "Queue save failed" }) });
+    }
     savedQueueItems.push(savedQueueItem);
     savedQueueState.set(`${savedQueueItem.ad_id}:${savedQueueItem.target_id}:${savedQueueItem.queue_name}`, savedQueueItem);
     return route.fulfill({
@@ -101,7 +105,7 @@ test("content library rows can queue a saved submission", { timeout: 40000 }, as
             videoUrl: "",
             videoName: "",
             status: "draft",
-            updatedAt: "2026-06-20T12:00:00.000Z",
+            updatedAt: "2026-06-20T12:10:00.000Z",
           },
           {
             id: "saved-ad-two",
@@ -134,7 +138,7 @@ test("content library rows can queue a saved submission", { timeout: 40000 }, as
             videoUrl: "",
             videoName: "",
             status: "draft",
-            updatedAt: "2026-06-20T12:10:00.000Z",
+            updatedAt: "2026-06-20T12:00:00.000Z",
           },
         ],
       }),
@@ -181,7 +185,7 @@ test("content library rows can queue a saved submission", { timeout: 40000 }, as
             video_url: "",
             video_name: "",
             status: "draft",
-            updated_at: "2026-06-20T12:00:00.000Z",
+            updated_at: "2026-06-20T12:10:00.000Z",
           },
           {
             id: "saved-ad-two",
@@ -215,7 +219,7 @@ test("content library rows can queue a saved submission", { timeout: 40000 }, as
             video_url: "",
             video_name: "",
             status: "draft",
-            updated_at: "2026-06-20T12:10:00.000Z",
+            updated_at: "2026-06-20T12:00:00.000Z",
           },
         ],
       }),
@@ -312,8 +316,22 @@ test("content library rows can queue a saved submission", { timeout: 40000 }, as
   await page.getByLabel("Saved sorting controls").getByLabel("Select all visible items").check();
   await page.getByLabel("Selected library actions").getByText("1 selected").waitFor();
   await page.getByLabel("Batch queue destination").selectOption("Want ads");
+  const selectedQueueButton = page.getByLabel("Selected library actions").getByRole("button", { name: "Queue selected ready" });
+  await selectedQueueButton.click();
+  const keyboardPreview = page.getByRole("dialog", { name: "Batch queue preview" });
+  assert.equal(await page.getByLabel("Content library").getAttribute("inert"), "");
+  await keyboardPreview.getByRole("button", { name: "Add 1 to queue" }).waitFor();
+  assert.equal(await keyboardPreview.getByRole("button", { name: "Add 1 to queue" }).evaluate((element) => element === document.activeElement), true);
+  await page.keyboard.press("Shift+Tab");
+  assert.equal(await keyboardPreview.getByRole("button", { name: "Cancel" }).evaluate((element) => element === document.activeElement), true);
+  await page.keyboard.press("Tab");
+  await page.keyboard.press("Escape");
+  assert.equal(await keyboardPreview.count(), 0);
+  await page.waitForFunction(() => document.activeElement?.getAttribute("aria-label") === null && document.activeElement?.textContent?.includes("Queue selected ready"));
+  assert.equal(savedQueueItems.length, 0);
+  await selectedQueueButton.click();
   const searchedBatchQueue = page.waitForResponse((response) => response.url().includes("/api/queue/") && response.request().method() === "PUT");
-  await page.getByLabel("Selected library actions").getByRole("button", { name: "Queue selected ready" }).click();
+  await page.getByRole("dialog", { name: "Batch queue preview" }).getByRole("button", { name: "Add 1 to queue" }).click();
   await searchedBatchQueue;
   assert.deepEqual(savedQueueItems.map((item) => item.ad_id), ["saved-ad-two"]);
   await openWorkspaceView(page, "Content Library");
@@ -333,6 +351,8 @@ test("content library rows can queue a saved submission", { timeout: 40000 }, as
   await page.getByLabel("Selected library actions").getByRole("button", { name: "Queue selected ready" }).waitFor();
   const commandCenterQueueStart = savedQueueItems.length;
   await page.getByLabel("Library command center").getByRole("button", { name: "Queue All Ready" }).click();
+  await page.getByRole("dialog", { name: "Batch queue preview" }).getByText("Possible duplicate").first().waitFor();
+  await page.getByRole("dialog", { name: "Batch queue preview" }).getByRole("button", { name: "Add 2 to queue" }).click();
   await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
   assert.deepEqual(savedQueueItems.slice(commandCenterQueueStart).map((item) => item.ad_id).sort(), ["saved-ad", "saved-ad-two"]);
   await openWorkspaceView(page, "Content Library");
@@ -343,6 +363,7 @@ test("content library rows can queue a saved submission", { timeout: 40000 }, as
   assert.equal(await page.getByRole("button", { name: "Queue ready campaign" }).isDisabled(), false);
   const hiddenSelectionCampaignQueue = page.waitForResponse((response) => response.url().includes("/api/queue/") && response.request().method() === "PUT");
   await page.getByRole("button", { name: "Queue ready campaign" }).click();
+  await page.getByRole("dialog", { name: "Batch queue preview" }).getByRole("button", { name: "Add 1 to queue" }).click();
   await hiddenSelectionCampaignQueue;
   assert.deepEqual(savedQueueItems.map((item) => item.ad_id), ["saved-ad-two", "saved-ad", "saved-ad-two", "saved-ad-two"]);
   await openWorkspaceView(page, "Content Library");
@@ -354,11 +375,16 @@ test("content library rows can queue a saved submission", { timeout: 40000 }, as
   assert.equal(await page.getByLabel("Selected library actions").getByRole("button", { name: "Queue selected ready" }).isDisabled(), true);
   assert.equal(await page.getByRole("button", { name: "Queue ready drafts" }).isDisabled(), false);
   assert.deepEqual(savedQueueItems.map((item) => item.ad_id), ["saved-ad-two", "saved-ad", "saved-ad-two", "saved-ad-two"]);
-  await needsWorkRow.getByLabel("Select saved item").uncheck();
   await savedRow.getByLabel("Select saved item").check();
+  await page.getByLabel("Selected library actions").getByRole("button", { name: "Queue selected ready" }).click();
+  await page.getByRole("dialog", { name: "Batch queue preview" }).getByLabel("Skipped queue additions").getByText("Needs forum link").waitFor();
+  await page.getByRole("dialog", { name: "Batch queue preview" }).getByRole("button", { name: "Cancel" }).click();
+  assert.deepEqual(savedQueueItems.map((item) => item.ad_id), ["saved-ad-two", "saved-ad", "saved-ad-two", "saved-ad-two"]);
+  await needsWorkRow.getByLabel("Select saved item").uncheck();
   const selectedBatchQueue = page.waitForResponse((response) => response.url().includes("/api/queue/") && response.request().method() === "PUT");
   await page.getByLabel("Batch queue destination").selectOption("Want ads");
   await page.getByLabel("Selected library actions").getByRole("button", { name: "Queue selected ready" }).click();
+  await page.getByRole("dialog", { name: "Batch queue preview" }).getByRole("button", { name: "Add 1 to queue" }).click();
   await selectedBatchQueue;
   assert.deepEqual(savedQueueItems.map((item) => item.ad_id), ["saved-ad-two", "saved-ad", "saved-ad-two", "saved-ad-two", "saved-ad"]);
   await openWorkspaceView(page, "Content Library");
@@ -372,6 +398,7 @@ test("content library rows can queue a saved submission", { timeout: 40000 }, as
   await page.getByLabel("Saved sorting controls").getByLabel("Sort library").selectOption("campaign-asc");
   await page.getByLabel("Batch queue destination").selectOption("Want ads");
   await page.getByRole("button", { name: "Queue ready campaign" }).click();
+  await page.getByRole("dialog", { name: "Batch queue preview" }).getByRole("button", { name: "Add 1 to queue" }).click();
   await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
   await page.getByText("Queued Second saved post in Want ads.").waitFor();
   assert.deepEqual(savedQueueItems.map((item) => item.ad_id), ["saved-ad-two", "saved-ad", "saved-ad-two", "saved-ad-two", "saved-ad", "saved-ad-two"]);
@@ -389,7 +416,1439 @@ test("content library rows can queue a saved submission", { timeout: 40000 }, as
     ["saved-ad", "saved-ad-two"],
   );
   assert.equal(await page.getByLabel("Active queue").inputValue(), "Want ads");
+  savedQueueItems.length = 0;
+  savedQueueState.clear();
+  await page.reload();
+  await page.getByRole("heading", { name: "Operations dashboard", level: 1 }).waitFor();
+  await openWorkspaceView(page, "Content Library");
+  await page.getByLabel("Campaign library").getByRole("button", { name: /All campaigns/ }).click();
+  failingQueueAdId = "saved-ad-two";
+  const failedBatchResponse = page.waitForResponse((response) => response.url().includes("/api/queue/") && response.status() === 500);
+  await page.getByRole("button", { name: "Queue ready drafts" }).click();
+  await page.getByRole("dialog", { name: "Batch queue preview" }).getByRole("button", { name: "Add 2 to queue" }).click();
+  await failedBatchResponse;
+  const failedPreview = page.getByRole("dialog", { name: "Batch queue preview" });
+  await failedPreview.getByRole("alert").getByText(/queued before the batch stopped/i).waitFor();
+  assert.deepEqual(savedQueueItems.map((item) => item.ad_id), ["saved-ad"]);
+  assert.deepEqual(Array.from(savedQueueState.values()).map((item) => item.ad_id), ["saved-ad"]);
+  const failedQueueItem = failedPreview.locator("li", { hasText: "Second saved post" }).first();
+  await failedQueueItem.getByText(/Failed:/i).waitFor();
+  await failedPreview.getByRole("button", { name: "Cancel" }).click();
+  await openWorkspaceView(page, "Queue");
+  await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
+  assert.equal(await page.locator(".queue-item").count(), 1);
+  await openWorkspaceView(page, "Content Library");
+  const failedDraftRow = page.locator(".draft-row").filter({ has: page.locator(".draft-card-title", { hasText: "Second saved post" }) });
+  await failedDraftRow.getByLabel("Select saved item").check();
+  await page.getByLabel("Batch queue destination").selectOption("Want ads");
+  failingQueueAdId = "";
+  const successfulCountBeforeRetry = savedQueueItems.filter((item) => item.ad_id === "saved-ad").length;
+  await page.getByLabel("Selected library actions").getByRole("button", { name: "Queue selected ready" }).click();
+  await page.getByRole("dialog", { name: "Batch queue preview" }).getByRole("button", { name: "Add 1 to queue" }).click();
+  await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
+  assert.equal(savedQueueItems.filter((item) => item.ad_id === "saved-ad").length, successfulCountBeforeRetry);
+  assert.deepEqual(savedQueueItems.map((item) => item.ad_id).sort(), ["saved-ad", "saved-ad-two"]);
   assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
+});
+
+test("content library queue picker failures show queue status feedback", { timeout: 40000 }, async (t) => {
+  const server = spawn("npx vite --host 127.0.0.1 --port 8128 --strictPort", {
+    cwd: process.cwd(),
+    shell: true,
+    stdio: "ignore",
+  });
+
+  t.after(() => {
+    stopProcessTree(server);
+  });
+
+  await waitForServer(appUrl);
+
+  const browser = await chromium.launch();
+  t.after(async () => {
+    await browser.close();
+  });
+
+  const page = await browser.newPage();
+  const pageErrors = [];
+  page.on("pageerror", (error) => pageErrors.push(error));
+  const failedQueueTargetId = "saved-ad-fail";
+  const savedQueueItems = [];
+
+  await page.route("http://127.0.0.1:8021/api/**", (route) => route.abort());
+  await page.route("http://127.0.0.1:17842/status", (route) => route.abort());
+  await routeAuthenticatedSession(page);
+  await routeEmptyWorkspaceApis(page);
+
+  await page.route("http://127.0.0.1:8021/api/queue/**", (route) => {
+    if (route.request().method() !== "PUT") {
+      return route.fulfill({
+        contentType: "application/json",
+        headers: apiHeaders,
+        body: JSON.stringify({ queue: [] }),
+      });
+    }
+
+    const queueItem = route.request().postDataJSON();
+    if (queueItem.ad_id === failedQueueTargetId) {
+      return route.fulfill({
+        status: 500,
+        contentType: "application/json",
+        headers: apiHeaders,
+        body: JSON.stringify({ error: "Queue save failed" }),
+      });
+    }
+
+    savedQueueItems.push(queueItem);
+    return route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({ queue_item: queueItem }),
+    });
+  });
+
+  await page.addInitScript(() => {
+    const failureAdId = "saved-ad-fail";
+    localStorage.setItem(
+      "inwell-ad-assistant-state",
+      JSON.stringify({
+        activeAdId: "saved-ad-ok",
+        ads: [
+          {
+            id: failureAdId,
+            postType: "text",
+            title: "Row queue failure post",
+            campaignName: "Status campaign",
+            content: "<p>Queue failure regression fixture</p>",
+            destinationBlog: "allthingsroleplay",
+            forumUrl: "https://forum.example/thread",
+            tags: ["wanted"],
+            imageCaption: "",
+            imageName: "",
+            imageDataUrl: "",
+            videoUrl: "",
+            videoName: "",
+            status: "draft",
+            updatedAt: "2026-06-20T12:10:00.000Z",
+          },
+          {
+            id: "saved-ad-ok",
+            postType: "text",
+            title: "Row queue success post",
+            campaignName: "Status campaign",
+            content: "<p>Successful queue fixture</p>",
+            destinationBlog: "allthingsroleplay",
+            forumUrl: "https://forum.example/thread",
+            tags: ["wanted"],
+            imageCaption: "",
+            imageName: "",
+            imageDataUrl: "",
+            videoUrl: "",
+            videoName: "",
+            status: "draft",
+            updatedAt: "2026-06-20T12:05:00.000Z",
+          },
+        ],
+      }),
+    );
+    localStorage.setItem(
+      "inwell-tumblr-submit-targets",
+      JSON.stringify([
+        {
+          id: "allthingsroleplay",
+          name: "allthingsroleplay",
+          profileName: "All Things Roleplay ads",
+          submitUrl: "https://allthingsroleplay.tumblr.com/submit",
+          forumUrl: "https://forum.example/thread",
+          postingRules: "Use photo posts and credit the forum.",
+        },
+      ]),
+    );
+    localStorage.setItem(
+      "inwell-tumblr-queue-definitions",
+      JSON.stringify([
+        { id: "default-queue", name: "Default queue" },
+        { id: "want-ads", name: "Want ads" },
+      ]),
+    );
+  });
+
+  await page.route("http://127.0.0.1:8021/api/advertisements", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({
+        advertisements: [
+          {
+            id: failedQueueTargetId,
+            post_type: "text",
+            title: "Row queue failure post",
+            campaign_name: "Status campaign",
+            content: "<p>Queue failure regression fixture</p>",
+            destination_blog: "allthingsroleplay",
+            forum_url: "https://forum.example/thread",
+            tags: ["wanted"],
+            image_caption: "",
+            image_name: "",
+            image_data_url: "",
+            video_url: "",
+            video_name: "",
+            status: "draft",
+            updated_at: "2026-06-20T12:10:00.000Z",
+          },
+          {
+            id: "saved-ad-ok",
+            post_type: "text",
+            title: "Row queue success post",
+            campaign_name: "Status campaign",
+            content: "<p>Successful queue fixture</p>",
+            destination_blog: "allthingsroleplay",
+            forum_url: "https://forum.example/thread",
+            tags: ["wanted"],
+            image_caption: "",
+            image_name: "",
+            image_data_url: "",
+            video_url: "",
+            video_name: "",
+            status: "draft",
+            updated_at: "2026-06-20T12:05:00.000Z",
+          },
+        ],
+      }),
+    }),
+  );
+  await page.route("http://127.0.0.1:8021/api/advertisements/*", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({
+        advertisement: {
+          id: "saved-ad-ok",
+          post_type: "text",
+          title: "Row queue success post",
+          campaign_name: "Status campaign",
+          content: "<p>Successful queue fixture</p>",
+          destination_blog: "allthingsroleplay",
+          forum_url: "https://forum.example/thread",
+          tags: ["wanted"],
+          image_caption: "",
+          image_name: "",
+          image_data_url: "",
+          video_url: "",
+          video_name: "",
+          status: "draft",
+          updated_at: "2026-06-20T12:05:00.000Z",
+        },
+      }),
+    }),
+  );
+  await page.route("http://127.0.0.1:8021/api/settings", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({
+        settings: {
+          submitTargets: [
+            {
+              id: "allthingsroleplay",
+              name: "allthingsroleplay",
+              profileName: "All Things Roleplay ads",
+              submitUrl: "https://allthingsroleplay.tumblr.com/submit",
+              forumUrl: "https://forum.example/thread",
+              postingRules: "Use photo posts and credit the forum.",
+            },
+          ],
+          queueDefinitions: [
+            { id: "default-queue", name: "Default queue" },
+            { id: "want-ads", name: "Want ads" },
+          ],
+          tagProfiles: {},
+        },
+      }),
+    }),
+  );
+
+  await page.goto(appUrl);
+  await openWorkspaceView(page, "Content Library");
+  const failingRow = page.locator(".draft-row").filter({ has: page.locator("strong", { hasText: "Row queue failure post" }) });
+  await failingRow.getByRole("button", { name: /Queue/ }).click();
+
+  const queueFailureResponse = page.waitForResponse(
+    (response) => response.url().includes("/api/queue/") && response.request().method() === "PUT" && response.status() >= 500,
+  );
+  await failingRow.getByRole("form", { name: "Choose queue for Row queue failure post" }).getByRole("button", { name: "Queue here" }).click();
+  await queueFailureResponse;
+  assert.equal(await page.getByRole("heading", { name: "Submission queue", level: 1 }).count(), 0);
+  await openWorkspaceView(page, "Queues");
+  await page.getByText(/Could not queue Row queue failure post/i).waitFor();
+  assert.equal(savedQueueItems.length, 0);
+  assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
+});
+
+test("batch queue validation failures stay in preview and preserve active editor state", { timeout: 40000 }, async (t) => {
+  const server = spawn("npx vite --host 127.0.0.1 --port 8128 --strictPort", {
+    cwd: process.cwd(),
+    shell: true,
+    stdio: "ignore",
+  });
+
+  t.after(() => {
+    stopProcessTree(server);
+  });
+
+  await waitForServer(appUrl);
+
+  const browser = await chromium.launch();
+  t.after(async () => {
+    await browser.close();
+  });
+
+  const page = await browser.newPage();
+  const pageErrors = [];
+  const savedQueueItems = [];
+  page.on("pageerror", (error) => pageErrors.push(error));
+  await page.route("http://127.0.0.1:8021/api/**", (route) => route.abort());
+  await page.route("http://127.0.0.1:17842/status", (route) => route.abort());
+  await routeAuthenticatedSession(page);
+  await routeEmptyWorkspaceApis(page);
+  const validationBlockedId = "validation-archive-blocked";
+
+  await page.route("http://127.0.0.1:8021/api/queue/**", (route) => {
+    if (route.request().method() !== "PUT") {
+      return route.fulfill({
+        contentType: "application/json",
+        headers: apiHeaders,
+        body: JSON.stringify({ queue: [] }),
+      });
+    }
+
+    const queueItem = route.request().postDataJSON();
+    savedQueueItems.push(queueItem);
+    return route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({ queue_item: queueItem }),
+    });
+  });
+  await page.route(
+    `http://127.0.0.1:8021/api/advertisements/${validationBlockedId}`,
+    (route) => {
+      if (route.request().method() === "PUT") {
+        return route.fulfill({
+          contentType: "application/json",
+          headers: apiHeaders,
+          body: JSON.stringify({ advertisement: route.request().postDataJSON() }),
+        });
+      }
+      route.continue();
+    },
+  );
+  await page.route("http://127.0.0.1:8021/api/advertisements", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({
+        advertisements: [
+          {
+            id: "active-editor-ad",
+            post_type: "text",
+            title: "Active editor ad",
+            campaign_name: "Validation batch",
+            content: "<p>Baseline ad used to track active editor state.</p>",
+            destination_blog: "allthingsroleplay",
+            forum_url: "https://forum.example/thread",
+            tags: ["wanted"],
+            image_caption: "",
+            image_name: "",
+            image_data_url: "",
+            video_url: "",
+            video_name: "",
+            status: "draft",
+            updated_at: "2026-06-20T12:00:00.000Z",
+          },
+          {
+            id: "validation-success-one",
+            post_type: "text",
+            title: "Queue-valid first draft",
+            campaign_name: "Validation batch",
+            content: "<p>First draft in batch should queue.</p>",
+            destination_blog: "allthingsroleplay",
+            forum_url: "https://forum.example/thread",
+            tags: ["wanted"],
+            image_caption: "",
+            image_name: "",
+            image_data_url: "",
+            video_url: "",
+            video_name: "",
+            status: "draft",
+            updated_at: "2026-06-20T12:10:00.000Z",
+          },
+          {
+            id: "validation-archive-blocked",
+            post_type: "text",
+            title: "Archived draft should block queueing",
+            campaign_name: "Validation batch",
+            content: "<p>Validation failure path should block this one.</p>",
+            destination_blog: "allthingsroleplay",
+            forum_url: "https://forum.example/thread",
+            tags: ["wanted"],
+            image_caption: "",
+            image_name: "",
+            image_data_url: "",
+            video_url: "",
+            video_name: "",
+            archived: false,
+            status: "draft",
+            updated_at: "2026-06-20T12:08:00.000Z",
+          },
+          {
+            id: "validation-will-not-attempt",
+            post_type: "text",
+            title: "Queue-valid second draft",
+            campaign_name: "Validation batch",
+            content: "<p>Should not be queued when previous draft fails.</p>",
+            destination_blog: "allthingsroleplay",
+            forum_url: "https://forum.example/thread",
+            tags: ["wanted"],
+            image_caption: "",
+            image_name: "",
+            image_data_url: "",
+            video_url: "",
+            video_name: "",
+            status: "draft",
+            updated_at: "2026-06-20T12:05:00.000Z",
+          },
+        ],
+      }),
+    }),
+  );
+  await page.route("http://127.0.0.1:8021/api/settings", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({
+        settings: {
+          submitTargets: [{
+            id: "allthingsroleplay",
+            name: "allthingsroleplay",
+            profileName: "All Things Roleplay ads",
+            submitUrl: "https://allthingsroleplay.tumblr.com/submit",
+            forumUrl: "https://forum.example/thread",
+            postingRules: "Use photo posts and credit the forum.",
+          }],
+          queueDefinitions: [{ id: "default-queue", name: "Default queue" }],
+          tagProfiles: {},
+        },
+      }),
+    }),
+  );
+
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      "inwell-ad-assistant-state",
+      JSON.stringify({
+        activeAdId: "active-editor-ad",
+        ads: [
+          {
+            id: "active-editor-ad",
+            postType: "text",
+            title: "Active editor ad",
+            campaignName: "Validation batch",
+            content: "<p>Baseline ad used to track active editor state.</p>",
+            destinationBlog: "allthingsroleplay",
+            forumUrl: "https://forum.example/thread",
+            tags: ["wanted"],
+            imageCaption: "",
+            imageName: "",
+            imageDataUrl: "",
+            videoUrl: "",
+            videoName: "",
+            status: "draft",
+            updatedAt: "2026-06-20T12:00:00.000Z",
+          },
+          {
+            id: "validation-success-one",
+            postType: "text",
+            title: "Queue-valid first draft",
+            campaignName: "Validation batch",
+            content: "<p>First draft in batch should queue.</p>",
+            destinationBlog: "allthingsroleplay",
+            forumUrl: "https://forum.example/thread",
+            tags: ["wanted"],
+            imageCaption: "",
+            imageName: "",
+            imageDataUrl: "",
+            videoUrl: "",
+            videoName: "",
+            status: "draft",
+            updatedAt: "2026-06-20T12:10:00.000Z",
+          },
+          {
+            id: "validation-archive-blocked",
+            postType: "text",
+            title: "Archived draft should block queueing",
+            campaignName: "Validation batch",
+            content: "<p>Validation failure path should block this one.</p>",
+            destinationBlog: "allthingsroleplay",
+            forumUrl: "https://forum.example/thread",
+            tags: ["wanted"],
+            imageCaption: "",
+            imageName: "",
+            imageDataUrl: "",
+            videoUrl: "",
+            videoName: "",
+            archived: false,
+            status: "draft",
+            updatedAt: "2026-06-20T12:08:00.000Z",
+          },
+          {
+            id: "validation-will-not-attempt",
+            postType: "text",
+            title: "Queue-valid second draft",
+            campaignName: "Validation batch",
+            content: "<p>Should not be queued when previous draft fails.</p>",
+            destinationBlog: "allthingsroleplay",
+            forumUrl: "https://forum.example/thread",
+            tags: ["wanted"],
+            imageCaption: "",
+            imageName: "",
+            imageDataUrl: "",
+            videoUrl: "",
+            videoName: "",
+            status: "draft",
+            updatedAt: "2026-06-20T12:05:00.000Z",
+          },
+        ],
+      }),
+    );
+    localStorage.setItem(
+      "inwell-tumblr-submit-targets",
+      JSON.stringify([{
+        id: "allthingsroleplay",
+        name: "allthingsroleplay",
+        profileName: "All Things Roleplay ads",
+        submitUrl: "https://allthingsroleplay.tumblr.com/submit",
+        forumUrl: "https://forum.example/thread",
+        postingRules: "Use photo posts and credit the forum.",
+      }]),
+    );
+    localStorage.setItem("inwell-tumblr-queue-definitions", JSON.stringify([{ id: "default-queue", name: "Default queue" }]));
+  });
+
+  await page.goto(appUrl);
+  await openWorkspaceView(page, "Content Library");
+  const firstDraft = page.locator(".draft-row", { hasText: "Queue-valid first draft" });
+  const blockedDraft = page.locator(".draft-row", { hasText: "Archived draft should block queueing" });
+  const finalDraft = page.locator(".draft-row", { hasText: "Queue-valid second draft" });
+  await firstDraft.getByLabel("Select saved item").check();
+  await blockedDraft.getByLabel("Select saved item").check();
+  await finalDraft.getByLabel("Select saved item").check();
+
+  await page.getByLabel("Selected library actions").getByRole("button", { name: "Queue selected ready" }).click();
+  const validationPreview = page.getByRole("dialog", { name: "Batch queue preview" });
+  await validationPreview.getByRole("button", { name: "Add 3 to queue" }).waitFor();
+  const archiveBlocked = page.waitForResponse((response) =>
+    response.url().includes(`/api/advertisements/${validationBlockedId}`) && response.request().method() === "PUT" && response.status() === 200,
+  );
+  await blockedDraft.evaluate((row) => {
+    const actionSummary = row.querySelector(".draft-card-overflow summary");
+    actionSummary?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    const archiveButton = Array.from(row.querySelectorAll("button")).find((button) => button.textContent?.trim() === "Archive");
+    if (!archiveButton) {
+      throw new Error("Archive button not found");
+    }
+    archiveButton.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  });
+  await archiveBlocked;
+  const previewResult = page.waitForResponse((response) => response.url().includes("/api/queue/") && response.status() === 200);
+  await validationPreview.evaluate((preview) => {
+    const button = Array.from(preview.querySelectorAll("button")).find((item) => item.textContent?.trim() === "Add 3 to queue");
+    if (!button) {
+      throw new Error("Batch queue confirm button not found.");
+    }
+    button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  });
+  await previewResult;
+  await validationPreview.getByRole("alert").getByText(/queued before the batch stopped/i).waitFor();
+  const readyQueueItems = validationPreview.locator("section[aria-label='Ready queue additions']");
+  const blockedDraftStatus = readyQueueItems.locator("li", { hasText: "Archived draft should block queueing" }).first();
+  const unattemptedDraftStatus = readyQueueItems.locator("li", { hasText: "Queue-valid second draft" }).first();
+  await blockedDraftStatus.waitFor();
+  await unattemptedDraftStatus.waitFor();
+  await blockedDraftStatus.getByText(/Failed:/i).waitFor();
+  await unattemptedDraftStatus.getByText(/Not attempted:/i).waitFor();
+  assert.equal(await readyQueueItems.getByText("Queue-valid first draft").count(), 0);
+  assert.equal(await page.getByRole("heading", { name: "Submission queue", level: 1 }).count(), 0);
+  assert.deepEqual(savedQueueItems.map((item) => item.ad_id), ["validation-success-one"]);
+
+  const activeRow = page.locator(".draft-row.selected", { hasText: "Active editor ad" });
+  assert.equal(await activeRow.count(), 1, "Active editor row should remain selected after batch queue failure");
+  assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
+});
+
+test("rapid queue here clicks keep batch queue writes to one request", { timeout: 40000 }, async (t) => {
+  const server = spawn("npx vite --host 127.0.0.1 --port 8128 --strictPort", {
+    cwd: process.cwd(),
+    shell: true,
+    stdio: "ignore",
+  });
+
+  t.after(() => {
+    stopProcessTree(server);
+  });
+
+  await waitForServer(appUrl);
+
+  const browser = await chromium.launch();
+  t.after(async () => {
+    await browser.close();
+  });
+
+  const page = await browser.newPage();
+  const pageErrors = [];
+  const savedQueueItems = [];
+  page.on("pageerror", (error) => pageErrors.push(error));
+  await page.route("http://127.0.0.1:8021/api/**", (route) => route.abort());
+  await page.route("http://127.0.0.1:17842/status", (route) => route.abort());
+  await routeAuthenticatedSession(page);
+  await routeEmptyWorkspaceApis(page);
+
+  await page.route("http://127.0.0.1:8021/api/queue/**", async (route) => {
+    if (route.request().method() !== "PUT") {
+      return route.fulfill({
+        contentType: "application/json",
+        headers: apiHeaders,
+        body: JSON.stringify({ queue: [] }),
+      });
+    }
+
+    const queueItem = route.request().postDataJSON();
+    savedQueueItems.push(queueItem);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    return route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({ queue_item: queueItem }),
+    });
+  });
+  await page.route("http://127.0.0.1:8021/api/advertisements", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({
+        advertisements: [
+          {
+            id: "rapid-queue-ad",
+            post_type: "text",
+            title: "Rapid queue ad",
+            campaign_name: "Queue stability",
+            content: "<p>Single draft for rapid queue click test.</p>",
+            destination_blog: "allthingsroleplay",
+            forum_url: "https://forum.example/thread",
+            tags: ["wanted"],
+            image_caption: "",
+            image_name: "",
+            image_data_url: "",
+            video_url: "",
+            video_name: "",
+            status: "draft",
+            updated_at: "2026-06-20T12:10:00.000Z",
+          },
+        ],
+      }),
+    }),
+  );
+  await page.route("http://127.0.0.1:8021/api/settings", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({
+        settings: {
+          submitTargets: [{
+            id: "allthingsroleplay",
+            name: "allthingsroleplay",
+            profileName: "All Things Roleplay ads",
+            submitUrl: "https://allthingsroleplay.tumblr.com/submit",
+            forumUrl: "https://forum.example/thread",
+            postingRules: "Use photo posts and credit the forum.",
+          }],
+          queueDefinitions: [
+            { id: "default-queue", name: "Default queue" },
+            { id: "want-ads", name: "Want ads" },
+          ],
+          tagProfiles: {},
+        },
+      }),
+    }),
+  );
+
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      "inwell-ad-assistant-state",
+      JSON.stringify({
+        activeAdId: "rapid-queue-ad",
+        ads: [
+          {
+            id: "rapid-queue-ad",
+            postType: "text",
+            title: "Rapid queue ad",
+            campaignName: "Queue stability",
+            content: "<p>Single draft for rapid queue click test.</p>",
+            destinationBlog: "allthingsroleplay",
+            forumUrl: "https://forum.example/thread",
+            tags: ["wanted"],
+            imageCaption: "",
+            imageName: "",
+            imageDataUrl: "",
+            videoUrl: "",
+            videoName: "",
+            status: "draft",
+            updatedAt: "2026-06-20T12:10:00.000Z",
+          },
+        ],
+      }),
+    );
+    localStorage.setItem(
+      "inwell-tumblr-submit-targets",
+      JSON.stringify([{
+        id: "allthingsroleplay",
+        name: "allthingsroleplay",
+        profileName: "All Things Roleplay ads",
+        submitUrl: "https://allthingsroleplay.tumblr.com/submit",
+        forumUrl: "https://forum.example/thread",
+        postingRules: "Use photo posts and credit the forum.",
+      }]),
+    );
+    localStorage.setItem("inwell-tumblr-queue-definitions", JSON.stringify([
+      { id: "default-queue", name: "Default queue" },
+      { id: "want-ads", name: "Want ads" },
+    ]));
+  });
+
+  await page.goto(appUrl);
+  await openWorkspaceView(page, "Content Library");
+  const row = page.locator(".draft-row", { hasText: "Rapid queue ad" });
+  await row.getByRole("button", { name: "Queue" }).click();
+
+  const queueHereButton = row.getByRole("form", { name: "Choose queue for Rapid queue ad" }).getByRole("button", { name: "Queue here" });
+  await queueHereButton.waitFor();
+  const queueResponse = page.waitForResponse((response) => response.url().includes("/api/queue/") && response.request().method() === "PUT");
+  const firstClick = queueHereButton.click();
+  await page.waitForRequest((request) => request.url().includes("/api/queue/") && request.method() === "PUT");
+  const secondClickAllowed = await queueHereButton.click({ timeout: 120 }).then(
+    () => true,
+    () => false,
+  );
+  assert.equal(secondClickAllowed, false);
+  await Promise.all([firstClick, queueResponse]);
+  assert.equal(savedQueueItems.length, 1);
+  await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
+  assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
+});
+
+test("unsafe forum URLs in the content library are blocked", { timeout: 40000 }, async (t) => {
+  const server = spawn("npx vite --host 127.0.0.1 --port 8128 --strictPort", {
+    cwd: process.cwd(),
+    shell: true,
+    stdio: "ignore",
+  });
+
+  t.after(() => {
+    stopProcessTree(server);
+  });
+
+  await waitForServer(appUrl);
+
+  const browser = await chromium.launch();
+  t.after(async () => {
+    await browser.close();
+  });
+
+  const page = await browser.newPage();
+  const pageErrors = [];
+  const queuedItems = [];
+  page.on("pageerror", (error) => pageErrors.push(error));
+  await page.route("http://127.0.0.1:8021/api/**", (route) => {
+    if (route.request().url().includes("/api/queue/")) {
+      if (route.request().method() === "PUT") {
+        const queueItem = route.request().postDataJSON();
+        queuedItems.push(queueItem);
+        return route.fulfill({
+          contentType: "application/json",
+          headers: apiHeaders,
+          body: JSON.stringify({ queue_item: queueItem }),
+        });
+      }
+
+      return route.fulfill({
+        contentType: "application/json",
+        headers: apiHeaders,
+        body: JSON.stringify({ queue: [] }),
+      });
+    }
+
+    return route.abort();
+  });
+  await page.route("http://127.0.0.1:17842/status", (route) => route.abort());
+  await routeAuthenticatedSession(page);
+  await routeEmptyWorkspaceApis(page);
+  await page.route("http://127.0.0.1:8021/api/advertisements", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({
+        advertisements: [
+          {
+            id: "unsafe-url-ad",
+            post_type: "text",
+            title: "Unsafe forum URL post",
+            campaign_name: "Safety campaign",
+            content: "<p>Unsafe URL test</p>",
+            destination_blog: "allthingsroleplay",
+            forum_url: "javascript:alert(1)",
+            tags: ["wanted"],
+            image_caption: "",
+            image_name: "",
+            image_data_url: "",
+            video_url: "",
+            video_name: "",
+            status: "draft",
+            updated_at: "2026-06-20T12:10:00.000Z",
+          },
+        ],
+      }),
+    }),
+  );
+  await page.route("http://127.0.0.1:8021/api/settings", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({
+        settings: {
+          submitTargets: [{
+            id: "allthingsroleplay",
+            name: "allthingsroleplay",
+            profileName: "All Things Roleplay ads",
+            submitUrl: "https://allthingsroleplay.tumblr.com/submit",
+            forumUrl: "https://forum.example/thread",
+            postingRules: "Use photo posts and credit the forum.",
+          }],
+          queueDefinitions: [{ id: "default-queue", name: "Default queue" }],
+          tagProfiles: {},
+        },
+      }),
+    }),
+  );
+
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      "inwell-ad-assistant-state",
+      JSON.stringify({
+        activeAdId: "unsafe-url-ad",
+        ads: [
+          {
+            id: "unsafe-url-ad",
+            postType: "text",
+            title: "Unsafe forum URL post",
+            campaignName: "Safety campaign",
+            content: "<p>Unsafe URL test</p>",
+            destinationBlog: "allthingsroleplay",
+            forumUrl: "javascript:alert(1)",
+            tags: ["wanted"],
+            imageCaption: "",
+            imageName: "",
+            imageDataUrl: "",
+            videoUrl: "",
+            videoName: "",
+            status: "draft",
+            updatedAt: "2026-06-20T12:00:00.000Z",
+          },
+        ],
+      }),
+    );
+  });
+
+  await page.goto(appUrl);
+  await openWorkspaceView(page, "Content Library");
+  const unsafeRow = page.locator(".draft-row", { hasText: "Unsafe forum URL post" });
+  await unsafeRow.getByText("100% ready").waitFor();
+  assert.equal(await unsafeRow.getByRole("link", { name: "Forum URL", exact: true }).count(), 0);
+  assert.equal(await unsafeRow.getByLabel("Forum URL unavailable").count(), 1);
+  assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
+});
+
+test("batch queue destination follows renamed queues without stale references", { timeout: 40000 }, async (t) => {
+  const server = spawn("npx vite --host 127.0.0.1 --port 8128 --strictPort", {
+    cwd: process.cwd(),
+    shell: true,
+    stdio: "ignore",
+  });
+
+  t.after(() => {
+    stopProcessTree(server);
+  });
+
+  await waitForServer(appUrl);
+
+  const browser = await chromium.launch();
+  t.after(async () => {
+    await browser.close();
+  });
+
+  const page = await browser.newPage();
+  const pageErrors = [];
+  page.on("pageerror", (error) => pageErrors.push(error));
+  await page.route("http://127.0.0.1:8021/api/queue/**", (route) => {
+    if (route.request().method() === "PUT") {
+      let queueItem = {};
+      try {
+        queueItem = route.request().postDataJSON();
+      } catch {
+        try {
+          queueItem = JSON.parse(route.request().postData() || "{}");
+        } catch {
+          queueItem = {};
+        }
+      }
+      return route.fulfill({
+        contentType: "application/json",
+        headers: apiHeaders,
+        body: JSON.stringify({ queue_item: queueItem }),
+      });
+    }
+
+    return route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({ queue: [] }),
+    });
+  });
+  await page.route("http://127.0.0.1:8021/api/**", (route) => route.abort());
+  await page.route("http://127.0.0.1:17842/status", (route) => route.abort());
+  await routeAuthenticatedSession(page);
+  await routeEmptyWorkspaceApis(page);
+  await page.route("http://127.0.0.1:8021/api/advertisements", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({
+        advertisements: [
+          {
+            id: "rename-ready-1",
+            post_type: "text",
+            title: "Ready one",
+            campaign_name: "Rename campaign",
+            content: "<p>Renamed queue test one</p>",
+            destination_blog: "allthingsroleplay",
+            forum_url: "https://forum.example/thread",
+            tags: ["wanted"],
+            image_caption: "",
+            image_name: "",
+            image_data_url: "",
+            video_url: "",
+            video_name: "",
+            status: "draft",
+            updated_at: "2026-06-20T12:00:00.000Z",
+          },
+          {
+            id: "rename-ready-2",
+            post_type: "text",
+            title: "Ready two",
+            campaign_name: "Rename campaign",
+            content: "<p>Renamed queue test two</p>",
+            destination_blog: "allthingsroleplay",
+            forum_url: "https://forum.example/thread",
+            tags: ["wanted"],
+            image_caption: "",
+            image_name: "",
+            image_data_url: "",
+            video_url: "",
+            video_name: "",
+            status: "draft",
+            updated_at: "2026-06-20T12:05:00.000Z",
+          },
+        ],
+      }),
+    }),
+  );
+  await page.route("http://127.0.0.1:8021/api/settings", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({
+        settings: {
+          submitTargets: [{
+            id: "allthingsroleplay",
+            name: "allthingsroleplay",
+            profileName: "All Things Roleplay ads",
+            submitUrl: "https://allthingsroleplay.tumblr.com/submit",
+            forumUrl: "https://forum.example/thread",
+            postingRules: "Use photo posts and credit the forum.",
+          }],
+          queueDefinitions: [{ id: "default-queue", name: "Default queue" }],
+          tagProfiles: {},
+        },
+      }),
+    }),
+  );
+
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      "inwell-ad-assistant-state",
+      JSON.stringify({
+        activeAdId: "rename-ready-1",
+        ads: [
+          {
+            id: "rename-ready-1",
+            postType: "text",
+            title: "Ready one",
+            campaignName: "Rename campaign",
+            content: "<p>Renamed queue test one</p>",
+            destinationBlog: "allthingsroleplay",
+            forumUrl: "https://forum.example/thread",
+            tags: ["wanted"],
+            imageCaption: "",
+            imageName: "",
+            imageDataUrl: "",
+            videoUrl: "",
+            videoName: "",
+            status: "draft",
+            updatedAt: "2026-06-20T12:00:00.000Z",
+          },
+          {
+            id: "rename-ready-2",
+            postType: "text",
+            title: "Ready two",
+            campaignName: "Rename campaign",
+            content: "<p>Renamed queue test two</p>",
+            destinationBlog: "allthingsroleplay",
+            forumUrl: "https://forum.example/thread",
+            tags: ["wanted"],
+            imageCaption: "",
+            imageName: "",
+            imageDataUrl: "",
+            videoUrl: "",
+            videoName: "",
+            status: "draft",
+            updatedAt: "2026-06-20T12:05:00.000Z",
+          },
+        ],
+      }),
+    );
+  });
+
+  await page.goto(appUrl);
+  await openWorkspaceView(page, "Content Library");
+  assert.equal(await page.getByLabel("Batch queue destination").inputValue(), "Default queue");
+  await openWorkspaceView(page, "Queues");
+  await page.locator(".queue-management-row", { hasText: "Default queue" }).getByRole("button", { name: "Open queue" }).click();
+  await page.getByRole("button", { name: "Save name" }).scrollIntoViewIfNeeded();
+  await page.getByLabel("Queue name").fill("Featured queue");
+  await page.getByRole("button", { name: "Save name" }).click();
+  await page.getByText("Renamed Default queue to Featured queue.").waitFor({ timeout: 4000 });
+  await openWorkspaceView(page, "Content Library");
+  const queueWrite = page.waitForRequest((request) => request.url().includes("/api/queue/") && request.method() === "PUT");
+  await page.locator(".draft-row", { hasText: "Ready one" }).getByRole("button", { name: "Queue" }).click();
+  const queueWriteRequest = await queueWrite;
+  let queueWriteBody = {};
+  try {
+    queueWriteBody = JSON.parse(queueWriteRequest.postData() || "{}");
+  } catch {
+    queueWriteBody = queueWriteRequest.postDataJSON();
+  }
+  assert.equal(queueWriteBody.queue_name, "Featured queue");
+  await openWorkspaceView(page, "Queue");
+  await page.getByLabel("Active queue").waitFor();
+  assert.equal(await page.getByLabel("Active queue").inputValue(), "Featured queue");
+  await openWorkspaceView(page, "Content Library");
+  await page.getByRole("button", { name: "Queue ready drafts" }).click();
+  const renamePreview = page.getByRole("dialog", { name: "Batch queue preview" });
+  await renamePreview.waitFor();
+  await renamePreview.getByText("Featured queue").waitFor();
+  await renamePreview.getByRole("button", { name: "Cancel" }).click();
+  assert.equal(await page.getByLabel("Batch queue destination").inputValue(), "Featured queue");
+  assert.equal(pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
+});
+
+test("batch queue failure with missing queue stays on content library", { timeout: 40000 }, async (t) => {
+  const server = spawn("npx vite --host 127.0.0.1 --port 8128 --strictPort", {
+    cwd: process.cwd(),
+    shell: true,
+    stdio: "ignore",
+  });
+
+  t.after(() => {
+    stopProcessTree(server);
+  });
+
+  await waitForServer(appUrl);
+
+  const browser = await chromium.launch();
+  t.after(async () => {
+    await browser.close();
+  });
+
+  const page = await browser.newPage();
+  const pageErrors = [];
+  page.on("pageerror", (error) => pageErrors.push(error));
+  await page.route("http://127.0.0.1:8021/api/**", (route) => route.abort());
+  await page.route("http://127.0.0.1:17842/status", (route) => route.abort());
+  await routeAuthenticatedSession(page);
+  await routeEmptyWorkspaceApis(page);
+  await page.route("http://127.0.0.1:8021/api/advertisements", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({
+        advertisements: [
+          {
+            id: "missing-queue-ad",
+            post_type: "text",
+            title: "Missing queue item",
+            campaign_name: "Validation campaign",
+            content: "<p>Missing queue batch test</p>",
+            destination_blog: "allthingsroleplay",
+            forum_url: "https://forum.example/thread",
+            tags: ["wanted"],
+            image_caption: "",
+            image_name: "",
+            image_data_url: "",
+            video_url: "",
+            video_name: "",
+            status: "draft",
+            updated_at: "2026-06-20T12:10:00.000Z",
+          },
+        ],
+      }),
+    }),
+  );
+  await page.route("http://127.0.0.1:8021/api/settings", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({
+        settings: {
+          submitTargets: [{
+            id: "allthingsroleplay",
+            name: "allthingsroleplay",
+            profileName: "All Things Roleplay ads",
+            submitUrl: "https://allthingsroleplay.tumblr.com/submit",
+            forumUrl: "https://forum.example/thread",
+            postingRules: "Use photo posts and credit the forum.",
+          }],
+          queueDefinitions: [{ id: "default-queue", name: "Default queue" }],
+          tagProfiles: {},
+        },
+      }),
+    }),
+  );
+
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      "inwell-ad-assistant-state",
+      JSON.stringify({
+        activeAdId: "missing-queue-ad",
+        ads: [
+          {
+            id: "missing-queue-ad",
+            postType: "text",
+            title: "Missing queue item",
+            campaignName: "Validation campaign",
+            content: "<p>Missing queue batch test</p>",
+            destinationBlog: "allthingsroleplay",
+            forumUrl: "https://forum.example/thread",
+            tags: ["wanted"],
+            imageCaption: "",
+            imageName: "",
+            imageDataUrl: "",
+            videoUrl: "",
+            videoName: "",
+            status: "draft",
+            updatedAt: "2026-06-20T12:00:00.000Z",
+          },
+        ],
+      }),
+    );
+  });
+
+  await page.goto(appUrl);
+  await openWorkspaceView(page, "Content Library");
+  await page.getByRole("button", { name: "Queue ready drafts" }).click();
+  const missingQueuePreview = page.getByRole("dialog", { name: "Batch queue preview" });
+  await missingQueuePreview.getByRole("button", { name: "Add 1 to queue" }).waitFor();
+  await missingQueuePreview.getByRole("button", { name: "Cancel" }).click();
+  await openWorkspaceView(page, "Queues");
+  const missingQueueRow = page.locator(".queue-management-row", { hasText: "Default queue" });
+  await missingQueueRow.locator(".queue-item-actions button").last().click();
+  await page.getByText("Deleted Default queue.").waitFor({ timeout: 4000 });
+  await openWorkspaceView(page, "Content Library");
+
+  assert.equal(await page.getByRole("button", { name: "Queue ready drafts" }).isDisabled(), true);
+  await page.getByRole("heading", { name: "Content library", level: 2 }).waitFor();
+  assert.equal(await page.getByRole("heading", { name: "Submission queue", level: 1 }).count(), 0);
+  assert.equal(await pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
+});
+
+test("mixed batch queue results keep failed items in preview", { timeout: 40000 }, async (t) => {
+  const server = spawn("npx vite --host 127.0.0.1 --port 8128 --strictPort", {
+    cwd: process.cwd(),
+    shell: true,
+    stdio: "ignore",
+  });
+
+  t.after(() => {
+    stopProcessTree(server);
+  });
+
+  await waitForServer(appUrl);
+
+  const browser = await chromium.launch();
+  t.after(async () => {
+    await browser.close();
+  });
+
+  const page = await browser.newPage();
+  const pageErrors = [];
+  const savedQueueItems = [];
+  const queueWriteAttemptsById = new Map();
+  page.on("pageerror", (error) => pageErrors.push(error));
+  await page.route("http://127.0.0.1:8021/api/**", (route) => route.abort());
+  await page.route("http://127.0.0.1:17842/status", (route) => route.abort());
+  await routeAuthenticatedSession(page);
+  await routeEmptyWorkspaceApis(page);
+
+  await page.route("http://127.0.0.1:8021/api/queue/**", (route) => {
+    if (route.request().method() !== "PUT") {
+      return route.fulfill({
+        contentType: "application/json",
+        headers: apiHeaders,
+        body: JSON.stringify({ queue: [] }),
+      });
+    }
+
+    const queueItem = route.request().postDataJSON();
+    const previousAttempts = queueWriteAttemptsById.get(queueItem.ad_id) ?? 0;
+    const nextAttempt = previousAttempts + 1;
+    queueWriteAttemptsById.set(queueItem.ad_id, nextAttempt);
+
+    if (queueItem.ad_id === "mixed-fail" && nextAttempt === 1) {
+      return route.fulfill({
+        status: 500,
+        contentType: "application/json",
+        headers: apiHeaders,
+        body: JSON.stringify({ error: "Queue save failed" }),
+      });
+    }
+
+    savedQueueItems.push(queueItem);
+    return route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({ queue_item: queueItem }),
+    });
+  });
+
+  await page.route("http://127.0.0.1:8021/api/advertisements", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({
+        advertisements: [
+          {
+            id: "mixed-success-one",
+            post_type: "text",
+            title: "Mixed batch first",
+            campaign_name: "Mixed campaign",
+            content: "<p>Batch pass then fail then pass</p>",
+            destination_blog: "allthingsroleplay",
+            forum_url: "https://forum.example/thread",
+            tags: ["wanted"],
+            image_caption: "",
+            image_name: "",
+            image_data_url: "",
+            video_url: "",
+            video_name: "",
+            status: "draft",
+            updated_at: "2026-06-20T12:10:00.000Z",
+          },
+          {
+            id: "mixed-fail",
+            post_type: "text",
+            title: "Mixed batch second",
+            campaign_name: "Mixed campaign",
+            content: "<p>Batch fail</p>",
+            destination_blog: "allthingsroleplay",
+            forum_url: "https://forum.example/thread",
+            tags: ["wanted"],
+            image_caption: "",
+            image_name: "",
+            image_data_url: "",
+            video_url: "",
+            video_name: "",
+            status: "draft",
+            updated_at: "2026-06-20T12:08:00.000Z",
+          },
+          {
+            id: "mixed-success-two",
+            post_type: "text",
+            title: "Mixed batch third",
+            campaign_name: "Mixed campaign",
+            content: "<p>Batch stop before this one</p>",
+            destination_blog: "allthingsroleplay",
+            forum_url: "https://forum.example/thread",
+            tags: ["wanted"],
+            image_caption: "",
+            image_name: "",
+            image_data_url: "",
+            video_url: "",
+            video_name: "",
+            status: "draft",
+            updated_at: "2026-06-20T12:05:00.000Z",
+          },
+        ],
+      }),
+    }),
+  );
+  await page.route("http://127.0.0.1:8021/api/settings", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      headers: apiHeaders,
+      body: JSON.stringify({
+        settings: {
+          submitTargets: [{
+            id: "allthingsroleplay",
+            name: "allthingsroleplay",
+            profileName: "All Things Roleplay ads",
+            submitUrl: "https://allthingsroleplay.tumblr.com/submit",
+            forumUrl: "https://forum.example/thread",
+            postingRules: "Use photo posts and credit the forum.",
+          }],
+          queueDefinitions: [{ id: "default-queue", name: "Default queue" }],
+          tagProfiles: {},
+        },
+      }),
+    }),
+  );
+
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      "inwell-ad-assistant-state",
+      JSON.stringify({
+        activeAdId: "mixed-success-one",
+        ads: [
+          {
+            id: "mixed-success-one",
+            postType: "text",
+            title: "Mixed batch first",
+            campaignName: "Mixed campaign",
+            content: "<p>Batch pass then fail then pass</p>",
+            destinationBlog: "allthingsroleplay",
+            forumUrl: "https://forum.example/thread",
+            tags: ["wanted"],
+            imageCaption: "",
+            imageName: "",
+            imageDataUrl: "",
+            videoUrl: "",
+            videoName: "",
+            status: "draft",
+            updatedAt: "2026-06-20T12:10:00.000Z",
+          },
+          {
+            id: "mixed-fail",
+            postType: "text",
+            title: "Mixed batch second",
+            campaignName: "Mixed campaign",
+            content: "<p>Batch fail</p>",
+            destinationBlog: "allthingsroleplay",
+            forumUrl: "https://forum.example/thread",
+            tags: ["wanted"],
+            imageCaption: "",
+            imageName: "",
+            imageDataUrl: "",
+            videoUrl: "",
+            videoName: "",
+            status: "draft",
+            updatedAt: "2026-06-20T12:08:00.000Z",
+          },
+          {
+            id: "mixed-success-two",
+            postType: "text",
+            title: "Mixed batch third",
+            campaignName: "Mixed campaign",
+            content: "<p>Batch stop before this one</p>",
+            destinationBlog: "allthingsroleplay",
+            forumUrl: "https://forum.example/thread",
+            tags: ["wanted"],
+            imageCaption: "",
+            imageName: "",
+            imageDataUrl: "",
+            videoUrl: "",
+            videoName: "",
+            status: "draft",
+            updatedAt: "2026-06-20T12:05:00.000Z",
+          },
+        ],
+      }),
+    );
+    localStorage.setItem(
+      "inwell-tumblr-submit-targets",
+      JSON.stringify([
+        {
+          id: "allthingsroleplay",
+          name: "allthingsroleplay",
+          profileName: "All Things Roleplay ads",
+          submitUrl: "https://allthingsroleplay.tumblr.com/submit",
+          forumUrl: "https://forum.example/thread",
+          postingRules: "Use photo posts and credit the forum.",
+        },
+      ]),
+    );
+    localStorage.setItem(
+      "inwell-tumblr-queue-definitions",
+      JSON.stringify([{ id: "default-queue", name: "Default queue" }]),
+    );
+  });
+
+  await page.goto(appUrl);
+  await openWorkspaceView(page, "Content Library");
+  const mixedFirstDraft = page.locator(".draft-row", { hasText: "Mixed batch first" });
+  const mixedSecondDraft = page.locator(".draft-row", { hasText: "Mixed batch second" });
+  const mixedThirdDraft = page.locator(".draft-row", { hasText: "Mixed batch third" });
+  await mixedFirstDraft.getByLabel("Select saved item").check();
+  await mixedSecondDraft.getByLabel("Select saved item").check();
+  await mixedThirdDraft.getByLabel("Select saved item").check();
+  await page.getByLabel("Selected library actions").getByRole("button", { name: "Queue selected ready" }).click();
+  const mixedPreview = page.getByRole("dialog", { name: "Batch queue preview" });
+  await mixedPreview.getByRole("button", { name: "Add 3 to queue" }).waitFor();
+  await mixedPreview.getByRole("button", { name: "Add 3 to queue" }).click();
+  await mixedPreview.getByRole("alert").getByText(/need retry/i).waitFor();
+  const readyBatchItems = mixedPreview.locator("section[aria-label='Ready queue additions']");
+  const failDraftOne = readyBatchItems.locator("li", { hasText: "Mixed batch second" }).first();
+  const failDraftTwo = readyBatchItems.locator("li", { hasText: "Mixed batch third" }).first();
+  await failDraftOne.waitFor();
+  await failDraftTwo.waitFor();
+  await failDraftOne.getByText(/Failed:/i).waitFor();
+  await failDraftTwo.getByText(/Not attempted:/i).waitFor();
+  const retryResultOne = page.waitForResponse((response) => {
+    if (response.url().includes("/api/queue/") && response.request().method() === "PUT" && response.status() === 200) {
+      const requestBody = response.request().postDataJSON();
+      return requestBody.ad_id === "mixed-fail";
+    }
+    return false;
+  });
+  const retryResultTwo = page.waitForResponse((response) => {
+    if (response.url().includes("/api/queue/") && response.request().method() === "PUT" && response.status() === 200) {
+      const requestBody = response.request().postDataJSON();
+      return requestBody.ad_id === "mixed-success-two";
+    }
+    return false;
+  });
+  await mixedPreview.getByRole("button", { name: "Add 2 to queue" }).click();
+  await Promise.all([retryResultOne, retryResultTwo]);
+  assert.deepEqual(savedQueueItems.map((item) => item.ad_id), ["mixed-success-one", "mixed-fail", "mixed-success-two"]);
+  assert.equal(savedQueueItems.filter((item) => item.ad_id === "mixed-success-one").length, 1, "Previously queued item should not be retried");
+  await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
+  assert.equal(await pageErrors.length, 0, pageErrors.map((error) => error.message).join("\n"));
 });
 
 

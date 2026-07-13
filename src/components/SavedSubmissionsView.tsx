@@ -1,6 +1,7 @@
 import { AlertTriangle, Archive, FilePlus2, GalleryHorizontal, Layers3, List, Search, Send } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { SavedSubmissionsList } from "./SavedSubmissionsList";
+import { BatchQueuePreviewPanel } from "./library/BatchQueuePreviewPanel";
 import {
   ArchiveFilter,
   CampaignFilterKey,
@@ -12,6 +13,8 @@ import {
 } from "./savedSubmissionsViewModel";
 import { DuplicateContentMatch } from "../domain/duplicates";
 import { Advertisement, QueueDefinition } from "../domain/types";
+import { useSavedSubmissionsBatchQueue } from "../hooks/useSavedSubmissionsBatchQueue";
+import { QueueDraftResult } from "../hooks/useEditorQueueActions";
 import "./savedSubmissionsView.css";
 
 type SavedSubmissionsViewProps = {
@@ -22,7 +25,8 @@ type SavedSubmissionsViewProps = {
   onDeleteDraft: (id: string) => void;
   onCreateDraft: () => void;
   onArchiveDraft: (id: string, archived: boolean) => void;
-  onQueueDraft: (id: string, queueName: string) => void;
+  onBatchQueued: () => void;
+  onQueueDraft: (id: string, queueName: string, navigate?: boolean) => Promise<QueueDraftResult>;
   onSelectDraft: (id: string) => void;
 };
 
@@ -34,6 +38,7 @@ export function SavedSubmissionsView({
   onDeleteDraft,
   onCreateDraft,
   onArchiveDraft,
+  onBatchQueued,
   onQueueDraft,
   onSelectDraft,
 }: SavedSubmissionsViewProps) {
@@ -41,7 +46,6 @@ export function SavedSubmissionsView({
   const [archiveFilter, setArchiveFilter] = useState<ArchiveFilter>("active");
   const [queuePickerAdId, setQueuePickerAdId] = useState("");
   const [selectedQueueName, setSelectedQueueName] = useState(activeQueueName);
-  const [batchQueueName, setBatchQueueName] = useState(activeQueueName || queueOptions[0]?.name || "");
   const [selectedDraftIds, setSelectedDraftIds] = useState<string[]>([]);
   const [sortMode, setSortMode] = useState<LibrarySortMode>("updated-desc");
   const [searchTerm, setSearchTerm] = useState("");
@@ -65,7 +69,6 @@ export function SavedSubmissionsView({
     selectedCampaignLabel,
     selectedDisplayedCount,
     selectedReadyDraftCount,
-    selectedReadyDrafts,
     sortedLibraryAds,
     sortedReadyAds,
     unassignedAds,
@@ -73,6 +76,28 @@ export function SavedSubmissionsView({
     searchTerm: normalizedSearchTerm,
   } = buildSavedSubmissionsViewModel(ads, selectedCampaignKey, archiveFilter, sortMode, selectedDraftIds, searchTerm, workFilter);
   const selectedQueueableCount = selectedReadyDraftCount;
+  const {
+    batchQueueDraftOutcomes,
+    batchQueueError,
+    batchQueueName,
+    batchQueuePending,
+    batchPreview,
+    cancelBatchPreview,
+    confirmBatchQueue,
+    previewQueueDrafts,
+    setBatchQueueName,
+  } = useSavedSubmissionsBatchQueue({
+    activeQueueName,
+    onBatchQueued,
+    onQueueDraft,
+    queueOptions,
+    queueableAdIds,
+  });
+
+  useEffect(() => {
+    const resolvedQueueName = queueOptions.find((queue) => queue.name === activeQueueName)?.name || queueOptions[0]?.name || "";
+    setSelectedQueueName((current) => (queueOptions.some((queue) => queue.name === current) ? current : resolvedQueueName));
+  }, [activeQueueName, queueOptions]);
 
   function toggleDraftSelection(adId: string, selected: boolean) {
     setSelectedDraftIds((current) => (selected ? Array.from(new Set([...current, adId])) : current.filter((id) => id !== adId)));
@@ -93,24 +118,20 @@ export function SavedSubmissionsView({
       return;
     }
 
-    onQueueDraft(adId, activeQueueName || queueOptions[0]?.name || "");
-  }
-
-  function queueDrafts(drafts: Advertisement[]) {
-    const queueName = batchQueueName || activeQueueName || queueOptions[0]?.name || "";
-    drafts.forEach((ad) => onQueueDraft(ad.id, queueName));
+    void onQueueDraft(adId, activeQueueName || queueOptions[0]?.name || "");
   }
 
   function queueDisplayedReadyDrafts() {
-    queueDrafts(sortedReadyAds);
+    previewQueueDrafts(sortedReadyAds);
   }
 
   function queueSelectedReadyDrafts() {
-    queueDrafts(selectedReadyDrafts);
+    previewQueueDrafts(sortedLibraryAds.filter((draft) => selectedDraftIds.includes(draft.id)));
   }
 
   return (
-    <section className="draft-table" aria-label="Content library">
+    <>
+    <section className="draft-table" aria-label="Content library" {...(batchPreview ? { inert: "" } : {})}>
       <div className="panel-heading">
         <div>
           <span className="panel-kicker">Advertisement Library</span>
@@ -283,6 +304,20 @@ export function SavedSubmissionsView({
         </div>
       )}
     </section>
+    {batchPreview ? (
+      <BatchQueuePreviewPanel
+        queueName={batchPreview.queueName}
+        readyDrafts={batchPreview.readyDrafts}
+        skippedDrafts={batchPreview.skippedDrafts}
+        duplicateAdIds={new Set(duplicateMatches.flatMap((match) => match.adIds))}
+        draftOutcomes={batchQueueDraftOutcomes}
+        errorMessage={batchQueueError}
+        pending={batchQueuePending}
+        onCancel={cancelBatchPreview}
+        onConfirm={confirmBatchQueue}
+      />
+    ) : null}
+    </>
   );
 }
 
