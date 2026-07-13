@@ -127,7 +127,10 @@ import {
 import { startLocalCompanionRun } from "./domain/localRunner";
 import { scheduleRunnerReadinessFromState } from "./domain/localRunnerReadiness";
 
-function applyArchiveDraftState(current: StoredState, id: string, archived: boolean) {
+function applyArchiveDraftState(current: StoredState, id: string, archived: boolean): {
+  nextStored: StoredState;
+  updatedDraft: Advertisement | null;
+} {
   const normalized = normalizeStoredState(current);
   let updatedDraft: Advertisement | null = null;
   const nextStored = {
@@ -136,12 +139,13 @@ function applyArchiveDraftState(current: StoredState, id: string, archived: bool
       if (ad.id !== id) {
         return ad;
       }
-      updatedDraft = {
+      const nextDraft: Advertisement = {
         ...ad,
         archived,
         updatedAt: new Date().toISOString(),
-      };
-      return updatedDraft;
+      }
+      updatedDraft = nextDraft;
+      return nextDraft;
     }),
   };
   return { nextStored, updatedDraft };
@@ -669,9 +673,15 @@ function App() {
   }, [activeView, runnerState?.running]);
 
   function syncAdvertisement(advertisement: Advertisement) {
-    void saveAdvertisement(advertisement)
-      .then(() => setApiAvailable(true))
-      .catch(() => setApiAvailable(false));
+    return saveAdvertisement(advertisement)
+      .then(() => {
+        setApiAvailable(true);
+        return true;
+      })
+      .catch(() => {
+        setApiAvailable(false);
+        return false;
+      });
   }
 
   function authLockMessage(error: unknown, fallback: string) {
@@ -972,6 +982,10 @@ function App() {
     if (!updatedDraft) {
       return;
     }
+    const attemptedDraft = updatedDraft;
+    const previousDraft = stored.ads.find((ad: Advertisement) => ad.id === id);
+    const archivedBeforeAttempt = previousDraft?.archived ?? false;
+    const updatedAtBeforeAttempt = previousDraft?.updatedAt ?? attemptedDraft.updatedAt;
     if (backendOwnsWorkspaceState) {
       setSaveStatus(archived ? "Archiving saved ad..." : "Restoring saved ad...");
       try {
@@ -989,7 +1003,34 @@ function App() {
 
     storedRef.current = nextStored;
     setStored(nextStored);
-    syncAdvertisement(updatedDraft);
+    const synced = await syncAdvertisement(attemptedDraft);
+    if (!synced) {
+      const latestState = storedRef.current;
+      const latestDraftState = latestState.ads.find((ad: Advertisement) => ad.id === id);
+      if (
+        latestDraftState &&
+        latestDraftState.archived === archived &&
+        latestDraftState.updatedAt === attemptedDraft.updatedAt
+      ) {
+        const revertedStored = {
+          ...latestState,
+          ads: latestState.ads.map((ad) =>
+            ad.id !== id
+              ? ad
+              : {
+                  ...ad,
+                  archived: archivedBeforeAttempt,
+                  updatedAt: updatedAtBeforeAttempt,
+                },
+          ),
+        };
+        storedRef.current = revertedStored;
+        setStored(revertedStored);
+      }
+
+      setSaveStatus(archived ? "Could not archive saved ad. Try again." : "Could not restore saved ad. Try again.");
+      return;
+    }
     setSaveStatus(archived ? "Archived saved ad" : "Restored saved ad");
   }
 

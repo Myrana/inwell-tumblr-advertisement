@@ -25,6 +25,14 @@ type UseEditorQueueActionsParams = {
   setValidation: (validation: string[]) => void;
 };
 
+export type QueueDraftResult =
+  | { ok: true }
+  | {
+    ok: false;
+    reason: "missing-queue" | "validation-error" | "ad-not-found" | "queue-save-failed" | "queue-empty";
+    message?: string;
+  };
+
 export function useEditorQueueActions({
   activeAd,
   activeQueueName,
@@ -41,7 +49,7 @@ export function useEditorQueueActions({
   setSubmissionQueue,
   setValidation,
 }: UseEditorQueueActionsParams) {
-  function queueTargets(targets: TumblrSubmitTarget[]) {
+  async function queueTargets(targets: TumblrSubmitTarget[]) {
     const plan = planQueueTargetAdditions({
       ad: activeAd,
       queueName: activeQueueName,
@@ -59,26 +67,60 @@ export function useEditorQueueActions({
       return;
     }
 
-    setSubmissionQueue((current) => {
-      return applyQueueTargetReplacements({
-        adId: activeAd.id,
-        currentQueue: current,
-        nextItems: plan.items,
-        queueName: activeQueueName,
-      });
-    });
-    plan.items.forEach(syncQueueItem);
-    setQueueStatus(`Queued ${plan.items.length} target${plan.items.length === 1 ? "" : "s"} in ${activeQueueName}.`);
+    const queueTargetLabel = activeAd.title || targets[0]?.name || "ad";
+
+    let failed = false;
+    let successfulQueuedTargets = 0;
+
+    for (const item of plan.items) {
+      try {
+        const savedItem = await syncQueueItem(item);
+        if (!savedItem) {
+          failed = true;
+          setQueueStatus(`Could not queue ${queueTargetLabel}. Please try again.`);
+          break;
+        }
+
+        setSubmissionQueue((current) =>
+          applyQueueTargetReplacements({
+            adId: activeAd.id,
+            currentQueue: current,
+            nextItems: [savedItem],
+            queueName: activeQueueName,
+          }),
+        );
+        successfulQueuedTargets += 1;
+      } catch (error) {
+        failed = true;
+        const message = error instanceof Error ? error.message : `${error ?? "Unknown error"}`;
+        setQueueStatus(`Could not queue ${queueTargetLabel}. ${message}`);
+        break;
+      }
+    }
+
+    if (failed) {
+      if (successfulQueuedTargets > 0) {
+        setQueueStatus(`Queued ${successfulQueuedTargets} target${successfulQueuedTargets === 1 ? "" : "s"} before the queue operation failed.`);
+      }
+      return;
+    }
+
+    const queuedTargetCount = plan.items.length;
+    setQueueStatus(`Queued ${queuedTargetCount} target${queuedTargetCount === 1 ? "" : "s"} in ${activeQueueName}.`);
+
     if (activeView === "editor") {
-      setEditorQueueConfirmation({ count: plan.items.length, queueName: activeQueueName });
+      setEditorQueueConfirmation({ count: queuedTargetCount, queueName: activeQueueName });
+      return;
     }
   }
 
-  async function queueSavedDraft(id: string, queueName = activeQueueName, navigate = true) {
+  async function queueSavedDraft(id: string, queueName = activeQueueName, navigate = true): Promise<QueueDraftResult> {
     const ad = stored.ads.find((item) => item.id === id);
     if (!ad) {
-      return false;
+      return { ok: false, reason: "ad-not-found" };
     }
+
+    const shouldNavigate = navigate !== false;
     const target = submitTargets.find((item) => item.id === ad.destinationBlog) ?? fallbackTarget(ad.destinationBlog);
     const plan = planQueueTargetAdditions({
       ad,
@@ -89,20 +131,44 @@ export function useEditorQueueActions({
 
     if (plan.status === "missing-queue") {
       setQueueStatus(plan.message);
-      setActiveView("queue-settings");
-      return false;
+      if (shouldNavigate) {
+        setActiveView("queue-settings");
+      }
+      return { ok: false, reason: "missing-queue", message: plan.message };
     }
     if (plan.status === "validation-error") {
-      setStored((current) => ({ ...current, activeAdId: id }));
-      setValidation(plan.validation);
-      setActiveView("editor");
-      return false;
+      if (shouldNavigate) {
+        setStored((current) => ({ ...current, activeAdId: id }));
+        setValidation(plan.validation);
+        setActiveView("editor");
+      }
+      return {
+        ok: false,
+        reason: "validation-error",
+        message: plan.validation.join(". "),
+      };
     }
 
-    const savedItems = await Promise.all(plan.items.map(syncQueueItem));
-    if (savedItems.some((item) => !item)) {
-      setQueueStatus(`Could not queue ${ad.title || target.name}. Try again.`);
-      return false;
+    const queueLabel = ad.title || target.name;
+    const savedItems: SubmissionQueueItem[] = [];
+    for (const item of plan.items) {
+      try {
+        const savedItem = await syncQueueItem(item);
+        if (!savedItem) {
+          setQueueStatus(`Could not queue ${queueLabel}. Please try again.`);
+          return { ok: false, reason: "queue-save-failed", message: "Could not save queue item." };
+        }
+        savedItems.push(savedItem);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : `${error ?? "Unknown error"}`;
+        setQueueStatus(`Could not queue ${queueLabel}. ${message}`);
+        return { ok: false, reason: "queue-save-failed", message };
+      }
+    }
+
+    if (!savedItems.length) {
+      setQueueStatus(`Could not queue ${queueLabel}. Try again.`);
+      return { ok: false, reason: "queue-empty", message: "Nothing was queued." };
     }
     setSubmissionQueue((current) => applyQueueTargetReplacements({
       adId: ad.id,
@@ -112,8 +178,8 @@ export function useEditorQueueActions({
     }));
     setSelectedQueueName(queueName);
     setQueueStatus(`Queued ${ad.title || target.name} in ${queueName}.`);
-    if (navigate) setActiveView("queue");
-    return true;
+    if (shouldNavigate) setActiveView("queue");
+    return { ok: true };
   }
 
   return {

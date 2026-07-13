@@ -2,12 +2,20 @@ import { AlertTriangle, Send } from "lucide-react";
 import { KeyboardEvent, useEffect, useRef } from "react";
 import type { Advertisement } from "../../domain/types";
 
+type BatchQueueDraftStatus = "failed" | "not-attempted";
+
+type BatchQueueDraftOutcome = {
+  status: BatchQueueDraftStatus;
+  reason: string;
+};
+
 type BatchQueuePreviewPanelProps = {
   queueName: string;
   readyDrafts: Advertisement[];
   skippedDrafts: Advertisement[];
   duplicateAdIds: Set<string>;
-  failedIds: Set<string>;
+  draftOutcomes: Record<string, BatchQueueDraftOutcome>;
+  errorMessage: string;
   pending: boolean;
   onCancel: () => void;
   onConfirm: () => void;
@@ -18,7 +26,8 @@ export function BatchQueuePreviewPanel({
   readyDrafts,
   skippedDrafts,
   duplicateAdIds,
-  failedIds,
+  draftOutcomes,
+  errorMessage,
   pending,
   onCancel,
   onConfirm,
@@ -64,14 +73,30 @@ export function BatchQueuePreviewPanel({
         <section aria-label="Ready queue additions">
           <strong>Ready to queue</strong>
           <ul>
-            {readyDrafts.map((draft) => (
-              <li key={draft.id}>
-                <span>{draft.title || "Untitled advertisement"}</span>
-                <small>{draft.destinationBlog || "No destination"} · {draft.postType}</small>
-                {duplicateAdIds.has(draft.id) ? <em><AlertTriangle size={13} /> Possible duplicate</em> : null}
-                {failedIds.has(draft.id) ? <em><AlertTriangle size={13} /> Could not save</em> : null}
-              </li>
-            ))}
+            {readyDrafts.map((draft) => {
+              const outcome = draftOutcomes[draft.id];
+              return (
+                <li key={draft.id}>
+                  <span>{draft.title || "Untitled advertisement"}</span>
+                  <small>{draft.destinationBlog || "No destination"} - {draft.postType}</small>
+                  {duplicateAdIds.has(draft.id) ? (
+                    <em>
+                      <AlertTriangle size={13} /> Possible duplicate
+                    </em>
+                  ) : null}
+                  {outcome?.status === "failed" ? (
+                    <em>
+                      <AlertTriangle size={13} /> Failed: {outcome.reason}
+                    </em>
+                  ) : null}
+                  {outcome?.status === "not-attempted" ? (
+                    <em>
+                      <AlertTriangle size={13} /> Not attempted: {outcome.reason}
+                    </em>
+                  ) : null}
+                </li>
+              );
+            })}
           </ul>
         </section>
 
@@ -79,16 +104,22 @@ export function BatchQueuePreviewPanel({
           <section aria-label="Skipped queue additions">
             <strong>Skipped because they need work</strong>
             <ul>
-              {skippedDrafts.map((draft) => <li key={draft.id}>{draft.title || "Untitled advertisement"}</li>)}
+              {skippedDrafts.map((draft) => (
+                <li key={draft.id}>{draft.title || "Untitled advertisement"}</li>
+              ))}
             </ul>
           </section>
         ) : null}
 
+        {errorMessage ? <p className="batch-queue-preview-error" role="alert">{errorMessage}</p> : null}
+
         <div className="batch-queue-preview-actions">
           <button className="primary compact-button" type="button" onClick={onConfirm} disabled={!readyDrafts.length || pending}>
-            {pending ? "Adding…" : `Add ${readyDrafts.length} to queue`}
+            {pending ? "Adding..." : `Add ${readyDrafts.length} to queue`}
           </button>
-          <button className="secondary compact-button" type="button" onClick={onCancel} disabled={pending}>Cancel</button>
+          <button className="secondary compact-button" type="button" onClick={onCancel} disabled={pending}>
+            Cancel
+          </button>
         </div>
       </div>
     </div>

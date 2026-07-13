@@ -444,3 +444,4 @@ html[data-theme="dark"] .library-view-toggle button.active {
 .batch-queue-preview li small { color: var(--muted); }
 .batch-queue-preview li em { display: inline-flex; align-items: center; gap: 4px; color: var(--coral); font-style: normal; }
 .batch-queue-preview-actions { justify-content: flex-end; margin-top: 18px; }
+.batch-queue-preview-error { margin-top: 14px; color: var(--coral); font-weight: 800; }
