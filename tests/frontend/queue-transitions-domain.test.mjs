@@ -168,6 +168,139 @@ test("buildQueueTransition refills submitted bulk items per queue depth", async 
   assert.equal(transition.nextQueue.find((item) => item.id === "queue-other")?.status, "queued");
 });
 
+test("buildQueueTransition refills completed multi-target slots", async (t) => {
+  const currentQueue = [
+    queueItem({ id: "queue-one", adId: "ad-source", targetId: "refillblog", targetName: "Refill Blog" }),
+    queueItem({ id: "queue-two", adId: "ad-source", targetId: "otherblog", targetName: "Other Blog" }),
+  ];
+  const { queueTransitions } = await withQueueTransitionModules(t);
+  const transition = queueTransitions.buildQueueTransition({
+    currentQueue,
+    ids: ["queue-one", "queue-two"],
+    notes: "Bulk submitted.",
+    sourceAds: [readyAd("ad-next", "Next multi-target ad", "refillblog")],
+    status: "submitted",
+    submitTargets,
+    timestamp: "2026-06-20T13:00:00.000Z",
+    tumblrAccountId: "tumblr-default",
+  });
+
+  assert.deepEqual(transition.refillItems.map((item) => item.adId), ["ad-next", "ad-next"]);
+  assert.deepEqual(transition.refillItems.map((item) => item.targetId).sort(), ["otherblog", "refillblog"]);
+  assert.deepEqual(transition.nextQueue.filter((item) => item.status === "queued").map((item) => item.targetName).sort(), ["Other Blog", "Refill Blog"]);
+});
+
+test("buildQueueTransition requeues completed target slots when no ready replacement exists", async (t) => {
+  const currentQueue = [
+    queueItem({
+      id: "queue-completed",
+      adId: "ad-source",
+      targetId: "refillblog",
+      targetName: "Refill Blog",
+      runnerPayload: JSON.stringify({ target: { id: "refillblog" }, fields: { body: "Keep rotating this target." } }),
+    }),
+  ];
+  const { queueTransitions } = await withQueueTransitionModules(t);
+  const transition = queueTransitions.buildQueueTransition({
+    currentQueue,
+    ids: ["queue-completed"],
+    notes: "Submitted.",
+    sourceAds: [],
+    status: "submitted",
+    submitTargets,
+    timestamp: "2026-06-20T13:00:00.000Z",
+    tumblrAccountId: "tumblr-default",
+  });
+  const requeuedItem = transition.refillItems[0];
+
+  assert.equal(transition.updatedItems[0].status, "submitted");
+  assert.equal(requeuedItem.status, "queued");
+  assert.equal(requeuedItem.adId, "ad-source");
+  assert.equal(requeuedItem.targetId, "refillblog");
+  assert.equal(requeuedItem.targetName, "Refill Blog");
+  assert.equal(requeuedItem.runnerPayload, currentQueue[0].runnerPayload);
+  assert.match(requeuedItem.id, /^queue-completed-requeue-/);
+  assert.equal(transition.nextQueue.filter((item) => item.id === "queue-completed" && item.status === "submitted").length, 1);
+  assert.equal(transition.nextQueue.filter((item) => item.targetId === "refillblog" && item.status === "queued").length, 1);
+});
+
+test("buildQueueTransition requeues every same-target completed slot when no ready replacement exists", async (t) => {
+  const currentQueue = [
+    queueItem({ id: "queue-completed-one", adId: "ad-one", targetId: "refillblog", targetName: "Refill Blog" }),
+    queueItem({ id: "queue-completed-two", adId: "ad-two", targetId: "refillblog", targetName: "Refill Blog" }),
+  ];
+  const { queueTransitions } = await withQueueTransitionModules(t);
+  const transition = queueTransitions.buildQueueTransition({
+    currentQueue,
+    ids: ["queue-completed-one", "queue-completed-two"],
+    notes: "Submitted.",
+    sourceAds: [],
+    status: "submitted",
+    submitTargets,
+    timestamp: "2026-06-20T13:00:00.000Z",
+    tumblrAccountId: "tumblr-default",
+  });
+
+  assert.deepEqual(transition.updatedItems.map((item) => item.status), ["submitted", "submitted"]);
+  assert.equal(transition.refillItems.length, 2);
+  assert.deepEqual(transition.refillItems.map((item) => item.status), ["queued", "queued"]);
+  assert.deepEqual(transition.refillItems.map((item) => item.targetId), ["refillblog", "refillblog"]);
+  assert.deepEqual(transition.refillItems.map((item) => item.adId).sort(), ["ad-one", "ad-two"]);
+});
+
+test("buildQueueTransition mixes ready refill and completed-slot requeue by target slot", async (t) => {
+  const currentQueue = [
+    queueItem({ id: "queue-refill-target", adId: "ad-source-one", targetId: "refillblog", targetName: "Refill Blog" }),
+    queueItem({ id: "queue-fallback-target", adId: "ad-source-two", targetId: "otherblog", targetName: "Other Blog" }),
+    queueItem({
+      id: "queue-recent-other",
+      adId: "ad-next",
+      targetId: "otherblog",
+      targetName: "Other Blog",
+      status: "posted",
+      postedAt: "2026-06-19T13:00:00.000Z",
+    }),
+  ];
+  const { queueTransitions } = await withQueueTransitionModules(t);
+  const transition = queueTransitions.buildQueueTransition({
+    currentQueue,
+    ids: ["queue-refill-target", "queue-fallback-target"],
+    notes: "Submitted.",
+    sourceAds: [readyAd("ad-next", "Next ready ad", "refillblog")],
+    status: "submitted",
+    submitTargets,
+    timestamp: "2026-06-20T13:00:00.000Z",
+    tumblrAccountId: "tumblr-default",
+  });
+
+  assert.deepEqual(transition.refillItems.map((item) => item.targetId).sort(), ["otherblog", "refillblog"]);
+  assert.equal(transition.refillItems.find((item) => item.targetId === "refillblog")?.adId, "ad-next");
+  assert.equal(transition.refillItems.find((item) => item.targetId === "otherblog")?.adId, "ad-source-two");
+  assert.match(transition.refillItems.find((item) => item.targetId === "otherblog")?.id ?? "", /^queue-fallback-target-requeue-/);
+});
+
+test("buildQueueTransition auto-requeues posted completions", async (t) => {
+  const currentQueue = [
+    queueItem({ id: "queue-posted", adId: "ad-posted", targetId: "refillblog", targetName: "Refill Blog" }),
+  ];
+  const { queueTransitions } = await withQueueTransitionModules(t);
+  const transition = queueTransitions.buildQueueTransition({
+    currentQueue,
+    ids: ["queue-posted"],
+    notes: "Posted.",
+    sourceAds: [],
+    status: "posted",
+    submitTargets,
+    timestamp: "2026-06-20T13:00:00.000Z",
+    tumblrAccountId: "tumblr-default",
+  });
+
+  assert.equal(transition.updatedItems[0].status, "posted");
+  assert.equal(transition.refillItems[0].status, "queued");
+  assert.equal(transition.refillItems[0].targetId, "refillblog");
+  assert.equal(transition.refillItems[0].postedAt, "");
+});
+
 test("buildQueueTransition skips refills for non-completion statuses and missing ids", async (t) => {
   const currentQueue = [queueItem({ id: "queue-one", adId: "ad-one" })];
   const { queueTransitions } = await withQueueTransitionModules(t);

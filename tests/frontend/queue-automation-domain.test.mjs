@@ -201,6 +201,29 @@ test("ready ad refill ignores parked review items when filling runnable capacity
   assert.deepEqual(savedItems.map((item) => item.adId), ["ad-new-one", "ad-new-two"]);
 });
 
+test("ready ad refill can target completed multi-target queue slots", async (t) => {
+  const queueAutomation = await withQueueAutomationModule(t);
+  const sourceAds = [readyAd("ad-next", "Next multi-target ad")];
+  const submitTargets = [
+    { id: "refillblog", name: "Refill Blog", submitUrl: "https://refillblog.tumblr.com/submit" },
+    { id: "otherblog", name: "Other Blog", submitUrl: "https://otherblog.tumblr.com/submit" },
+  ];
+  const refill = queueAutomation.refillQueueFromReadyDrafts({
+    queue: [],
+    sourceAds,
+    submitTargets,
+    queueName: "Default queue",
+    tumblrAccountId: "tumblr-default",
+    targetDepth: 2,
+    targetIds: ["refillblog", "otherblog"],
+    now: new Date("2026-06-20T12:00:00.000Z"),
+  });
+
+  assert.deepEqual(refill.addedItems.map((item) => item.adId), ["ad-next", "ad-next"]);
+  assert.deepEqual(refill.addedItems.map((item) => item.targetId).sort(), ["otherblog", "refillblog"]);
+  assert.deepEqual(refill.addedItems.map((item) => item.targetName).sort(), ["Other Blog", "Refill Blog"]);
+});
+
 test("auto-fill partial save failure returns reconciled queue for retry planning", async (t) => {
   const queueAutomation = await withQueueAutomationModule(t);
   const sourceAds = [
@@ -274,6 +297,31 @@ test("queue flow summary splits lanes and exposes refill activity", async (t) =>
   assert.equal(summary.lanes.attention.length, 1);
   assert.match(summary.refillActivity, /Latest refill added Refill Blog/);
   assert.deepEqual(summary.timeline.map((step) => step.label), ["Ready", "Running", "Completed", "Replacement"]);
+});
+
+test("queue flow summary recognizes auto-requeued replacement activity", async (t) => {
+  const queueAutomation = await withQueueAutomationModule(t);
+  const summary = queueAutomation.queueFlowSummary({
+    activeQueueName: "Default queue",
+    activeQueue: [
+      queueItem({
+        id: "queue-completed-requeue-1781974800000-1",
+        adId: "ad-requeued",
+        targetName: "Refill Blog",
+        notes: "Auto-requeued after successful submission to keep this target in rotation.",
+      }),
+    ],
+    queueScheduleEnabled: true,
+    runnerDetail: "Watching.",
+    runnerReady: true,
+    savedDraftCount: 0,
+    selectedConnectedAccount: true,
+    sourceAds: [],
+    submitTargets: [{ id: "refillblog", name: "Refill Blog", submitUrl: "https://refillblog.tumblr.com/submit" }],
+  });
+
+  assert.match(summary.refillActivity, /Latest refill added Refill Blog/);
+  assert.equal(summary.timeline.find((step) => step.label === "Replacement").value, "1");
 });
 
 test("queue flow summary explains empty automation blockers", async (t) => {
