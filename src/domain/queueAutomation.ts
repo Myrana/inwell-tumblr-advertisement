@@ -182,6 +182,7 @@ export function previewQueueRefillFromReadyDrafts(options: {
   submitTargets: TumblrSubmitTarget[];
   queueName: string;
   targetDepth: number;
+  targetIds?: string[];
   now?: Date;
   cooldownDays?: number;
 }): QueueRefillPreview {
@@ -203,6 +204,7 @@ function planQueueRefillFromReadyDrafts(options: {
   submitTargets: TumblrSubmitTarget[];
   queueName: string;
   targetDepth: number;
+  targetIds?: string[];
   now?: Date;
   cooldownDays?: number;
 }): QueueRefillPlan {
@@ -234,15 +236,19 @@ function planQueueRefillFromReadyDrafts(options: {
       break;
     }
 
-    const target = options.submitTargets.find((item) => item.id === ad.destinationBlog) ?? fallbackTarget(ad.destinationBlog);
-    if (hasRecentOrActiveMatch([...options.queue, ...previewItems], ad.id, target.id, options.queueName, now, cooldownMs)) {
-      skippedReasons.push(`${ad.title || ad.id} recently ran for ${target.name}.`);
-      continue;
-    }
+    for (const target of refillTargetsForAd(ad, options.submitTargets, options.targetIds)) {
+      if (needed > 0 && candidates.length >= needed) {
+        break;
+      }
+      if (hasRecentOrActiveMatch([...options.queue, ...previewItems], ad.id, target.id, options.queueName, now, cooldownMs)) {
+        skippedReasons.push(`${ad.title || ad.id} recently ran for ${target.name}.`);
+        continue;
+      }
 
-    const label = ad.title || ad.id;
-    candidates.push({ advertisement: ad, label, target });
-    previewItems.push(displayOnlyQueueMatch(ad, target, options.queueName, now));
+      const label = options.targetIds?.length ? `${ad.title || ad.id} -> ${target.name}` : ad.title || ad.id;
+      candidates.push({ advertisement: ad, label, target });
+      previewItems.push(displayOnlyQueueMatch(ad, target, options.queueName, now));
+    }
   }
 
   return {
@@ -273,7 +279,10 @@ export function queueFlowSummary(options: {
   const counts = queueStatusCounts(options.activeQueue);
   const lanes = queueFlowLanes(options.activeQueue);
   const latestCompletion = latestCompletedQueueItem(lanes.history);
-  const refillItems = options.activeQueue.filter((item) => item.notes.toLowerCase().includes("auto-added") || item.id.includes("-refill-"));
+  const refillItems = options.activeQueue.filter((item) => {
+    const notes = item.notes.toLowerCase();
+    return notes.includes("auto-added") || notes.includes("auto-requeued") || item.id.includes("-refill-") || item.id.includes("-requeue-");
+  });
   const readyAds = options.sourceAds.filter((ad) => ad.status === "ready" && !ad.archived);
   const eligibleReadyAds = readyAds.filter(isQueueableAdvertisement);
   const ineligibleReadyAds = readyAds.filter((ad) => !isQueueableAdvertisement(ad));
@@ -571,6 +580,7 @@ export function refillQueueFromReadyDrafts(options: {
   queueName: string;
   tumblrAccountId: string;
   targetDepth: number;
+  targetIds?: string[];
   now?: Date;
   cooldownDays?: number;
 }): QueueRefillResult {
@@ -581,6 +591,7 @@ export function refillQueueFromReadyDrafts(options: {
     submitTargets: options.submitTargets,
     queueName: options.queueName,
     targetDepth: options.targetDepth,
+    targetIds: options.targetIds,
     now,
     cooldownDays: options.cooldownDays,
   });
@@ -622,6 +633,16 @@ function hasRecentOrActiveMatch(
     const completedAt = item.postedAt || item.updatedAt || item.createdAt;
     return cooldownMs > 0 && now.getTime() - new Date(completedAt).getTime() < cooldownMs;
   });
+}
+
+function refillTargetsForAd(
+  advertisement: Advertisement,
+  submitTargets: TumblrSubmitTarget[],
+  targetIds?: string[],
+) {
+  const ids = targetIds?.length ? targetIds : [advertisement.destinationBlog];
+  const uniqueIds = Array.from(new Set(ids.map((id) => id.trim()).filter(Boolean)));
+  return uniqueIds.map((targetId) => submitTargets.find((item) => item.id === targetId) ?? fallbackTarget(targetId));
 }
 
 function queueEmptyReasons(options: {
