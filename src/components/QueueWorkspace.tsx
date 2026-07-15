@@ -11,6 +11,7 @@ import { QueueItemMetaRow } from "./queue/QueueItemMetaRow";
 import { QueueItemThumbnail } from "./queue/QueueItemThumbnail";
 import { QueueFlowOverview, QueueFlowSummaryPanel } from "./queue/QueueFlowSummaryPanel";
 import { QueueScheduleReadinessGrid } from "./queue/QueueScheduleReadinessGrid";
+import { WorkspaceActionButton, WorkspaceActionRow } from "./ui/WorkspaceActions";
 import "./queue/queueWorkspace.css";
 import {
   QueueDefinition,
@@ -284,10 +285,9 @@ export function QueueWorkspace({
                 : "Clear failed or review-needed submissions before relying on automation."}
             </span>
           </div>
-          <button className="primary compact-button" type="button" onClick={() => setSectionOpen("submissions", true)}>
-            <PlayCircle size={16} />
+          <WorkspaceActionButton variant="primary" compact icon={<PlayCircle size={16} />} onClick={() => setSectionOpen("submissions", true)}>
             Review queue
-          </button>
+          </WorkspaceActionButton>
         </section>
       ) : null}
 
@@ -296,10 +296,9 @@ export function QueueWorkspace({
           <strong>{queueRunnerBannerTitle}</strong>
           <span>{queueRunnerBannerDetail}</span>
         </div>
-        <button className={queueRunnerReady ? "tertiary-action compact-button" : "primary compact-button"} type="button" onClick={queueRunnerAction.action}>
-          <PlayCircle size={16} />
+        <WorkspaceActionButton variant={queueRunnerReady ? "tertiary" : "primary"} compact icon={<PlayCircle size={16} />} onClick={queueRunnerAction.action}>
           {queueRunnerAction.label}
-        </button>
+        </WorkspaceActionButton>
       </section>
 
       <section className="workflow-section queue-workflow-section">
@@ -415,10 +414,9 @@ export function QueueWorkspace({
                     <span>{scheduleRunnerReadiness.detail || runnerActivity.detail}</span>
                     <small>If the scheduled time already passed today, open Runner controls and run this queue once after the runner is watching.</small>
                   </div>
-                  <button className="secondary compact-button" type="button" onClick={onOpenRunner}>
-                    <PlayCircle size={16} />
+                  <WorkspaceActionButton variant="secondary" compact icon={<PlayCircle size={16} />} onClick={onOpenRunner}>
                     Open runner
-                  </button>
+                  </WorkspaceActionButton>
                 </div>
               ) : null}
               <p className="queue-empty">This schedule applies only to {activeQueueName || "the selected queue"}.</p>
@@ -463,9 +461,9 @@ export function QueueWorkspace({
                   Notes
                   <input value={bulkQueueNotes} onChange={(event) => setBulkQueueNotes(event.target.value)} />
                 </label>
-                <button className="secondary compact-button" type="button" onClick={applyBulkQueueUpdate} disabled={!selectedActiveQueueCount || queueActionsBusy}>
+                <WorkspaceActionButton variant="secondary" compact onClick={applyBulkQueueUpdate} disabled={!selectedActiveQueueCount || queueActionsBusy}>
                   Update {selectedActiveQueueCount || "selected"}
-                </button>
+                </WorkspaceActionButton>
               </div>
             ) : null}
             <div className="queue-list">
@@ -498,10 +496,9 @@ export function QueueWorkspace({
                           {item.submitUrl}
                         </a>
                       </div>
-                      <button className="secondary" type="button" onClick={() => onEditQueueItem(item.id)}>
-                        <Pencil size={16} />
+                      <WorkspaceActionButton variant="secondary" icon={<Pencil size={16} />} onClick={() => onEditQueueItem(item.id)}>
                         Edit submission
-                      </button>
+                      </WorkspaceActionButton>
                     </div>
                     {item.status === "failed" || item.status === "needs-review" ? null : <p>{item.notes}</p>}
                     {item.status === "failed" || item.status === "needs-review" ? (
@@ -511,33 +508,30 @@ export function QueueWorkspace({
                           <span>{queueItemExplanation(item)}</span>
                           <small>{recoveryGuidance(item)}</small>
                         </div>
-                        <div className="queue-item-actions queue-item-review-actions">
-                          <button
-                            className="secondary"
-                            type="button"
+                        <WorkspaceActionRow className="queue-item-actions queue-item-review-actions">
+                          <WorkspaceActionButton
+                            variant="secondary"
+                            icon={<TestTube2 size={16} />}
                             disabled={queueActionsBusy}
                             onClick={() => void runQueueAction(() => onRetryQueueItemTestRun(item.id))}
                           >
-                            <TestTube2 size={16} />
                             Retry test run
-                          </button>
-                          <button
-                            className="secondary"
-                            type="button"
+                          </WorkspaceActionButton>
+                          <WorkspaceActionButton
+                            variant="secondary"
                             disabled={queueActionsBusy}
                             onClick={() => void runQueueAction(() => onUpdateQueueItem(item.id, "queued", "Requeued for the next automation run."))}
                           >
                             Requeue
-                          </button>
-                          <button
-                            className="secondary"
-                            type="button"
+                          </WorkspaceActionButton>
+                          <WorkspaceActionButton
+                            variant="secondary"
                             disabled={queueActionsBusy}
                             onClick={() => void runQueueAction(() => onUpdateQueueItem(item.id, "posted", "Marked posted after Tumblr accepted the form."))}
                           >
                             Mark posted
-                          </button>
-                        </div>
+                          </WorkspaceActionButton>
+                        </WorkspaceActionRow>
                       </div>
                     ) : null}
                     {logGroups.find((group) => group.item.id === item.id)?.logs.length ? (
@@ -566,16 +560,14 @@ export function QueueWorkspace({
                       ))}
                     </ul>
                   ) : null}
-                  <div className="empty-action-row">
-                    <button className="primary compact-button" type="button" onClick={onCreateSubmission}>
-                      <FilePlus2 size={16} />
+                  <WorkspaceActionRow className="empty-action-row">
+                    <WorkspaceActionButton variant="primary" compact icon={<FilePlus2 size={16} />} onClick={onCreateSubmission}>
                       Write advertisement
-                    </button>
-                    <button className="tertiary-action compact-button" type="button" onClick={onManageBlogs}>
-                      <ListChecks size={16} />
+                    </WorkspaceActionButton>
+                    <WorkspaceActionButton variant="tertiary" compact icon={<ListChecks size={16} />} onClick={onManageBlogs}>
                       Blog tracker
-                    </button>
-                  </div>
+                    </WorkspaceActionButton>
+                  </WorkspaceActionRow>
                 </div>
               )}
             </div>
@@ -594,10 +586,9 @@ export function QueueWorkspace({
             {postHistoryItems.length ? (
               <>
                 <div className="post-history-actions">
-                  <button className="secondary compact-button" type="button" onClick={() => void copyAllDiscordCompletionMessages()}>
-                    <Clipboard size={16} />
+                  <WorkspaceActionButton variant="secondary" compact icon={<Clipboard size={16} />} onClick={() => void copyAllDiscordCompletionMessages()}>
                     {copiedAllDiscordUpdates ? "All Discord updates copied" : "Copy all Discord updates"}
-                  </button>
+                  </WorkspaceActionButton>
                 </div>
                 {postHistoryCopyStatus ? <p className="queue-status" role="status">{postHistoryCopyStatus}</p> : null}
                 <div className="post-history-list compact-history">
@@ -626,14 +617,12 @@ export function QueueWorkspace({
                               Posted Tumblr link
                             </a>
                           ) : null}
-                          <button className="secondary compact-button" type="button" onClick={() => onEditQueueItem(item.id)}>
-                            <Pencil size={16} />
+                          <WorkspaceActionButton variant="secondary" compact icon={<Pencil size={16} />} onClick={() => onEditQueueItem(item.id)}>
                             Edit archived post
-                          </button>
-                          <button className="secondary compact-button" type="button" onClick={() => void copyDiscordCompletionMessage(item)}>
-                            <Clipboard size={16} />
+                          </WorkspaceActionButton>
+                          <WorkspaceActionButton variant="secondary" compact icon={<Clipboard size={16} />} onClick={() => void copyDiscordCompletionMessage(item)}>
                             {copiedDiscordItemId === item.id ? "Discord update copied" : "Copy Discord update"}
-                          </button>
+                          </WorkspaceActionButton>
                         </div>
                       </article>
                     );
@@ -644,16 +633,14 @@ export function QueueWorkspace({
               <div className="queue-empty action-empty">
                 <strong>No completed submissions yet.</strong>
                 <span>Completed Tumblr submissions will appear here after they are marked submitted or posted.</span>
-                <div className="empty-action-row">
-                  <button className="tertiary-action compact-button" type="button" onClick={onOpenRunner}>
-                    <PlayCircle size={16} />
+                <WorkspaceActionRow className="empty-action-row">
+                  <WorkspaceActionButton variant="tertiary" compact icon={<PlayCircle size={16} />} onClick={onOpenRunner}>
                     Runner controls
-                  </button>
-                  <button className="tertiary-action compact-button" type="button" onClick={onCreateSubmission}>
-                    <FilePlus2 size={16} />
+                  </WorkspaceActionButton>
+                  <WorkspaceActionButton variant="tertiary" compact icon={<FilePlus2 size={16} />} onClick={onCreateSubmission}>
                     Write advertisement
-                  </button>
-                </div>
+                  </WorkspaceActionButton>
+                </WorkspaceActionRow>
               </div>
             )}
           </div>

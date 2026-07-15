@@ -6,6 +6,7 @@ import { scoreDraftReadiness } from "../domain/post";
 import { Advertisement, QueueDefinition } from "../domain/types";
 import { QueueDraftResult } from "../hooks/useEditorQueueActions";
 import { safeExternalUrl } from "./editor/LinkSummary";
+import { WorkspaceActionButton } from "./ui/WorkspaceActions";
 
 type SavedSubmissionsListProps = {
   activeAdId: string;
@@ -254,26 +255,23 @@ function SavedSubmissionActions({
             <span>{plainTextExcerpt(ad.content) || "No advertisement copy saved yet."}</span>
           </div>
         </details>
-        <button className="primary compact-button" type="button" onClick={handleDirectQueue} disabled={!canSubmitQueue()}>
-          <Send size={16} />
+        <WorkspaceActionButton variant="primary" compact icon={<Send size={16} />} onClick={handleDirectQueue} disabled={!canSubmitQueue()}>
           {getQueueButtonLabel()}
-        </button>
-        <button className="secondary compact-button" type="button" onClick={() => onSelectDraft(ad.id)}>
+        </WorkspaceActionButton>
+        <WorkspaceActionButton variant="secondary" compact onClick={() => onSelectDraft(ad.id)}>
           Edit
-        </button>
+        </WorkspaceActionButton>
         <details className="draft-card-overflow">
           <summary aria-label="More advertisement actions" title="More advertisement actions">
             <MoreHorizontal size={18} />
           </summary>
           <div>
-            <button className="secondary compact-button" type="button" onClick={() => onArchiveDraft(ad.id, !ad.archived)}>
-              {ad.archived ? <RotateCcw size={16} /> : <Archive size={16} />}
+            <WorkspaceActionButton variant="secondary" compact icon={ad.archived ? <RotateCcw size={16} /> : <Archive size={16} />} onClick={() => onArchiveDraft(ad.id, !ad.archived)}>
               {ad.archived ? "Unarchive" : "Archive"}
-            </button>
-            <button className="secondary compact-button" type="button" onClick={() => onDeleteDraft(ad.id)}>
-              <Trash2 size={16} />
+            </WorkspaceActionButton>
+            <WorkspaceActionButton variant="secondary" compact icon={<Trash2 size={16} />} onClick={() => onDeleteDraft(ad.id)}>
               Delete
-            </button>
+            </WorkspaceActionButton>
           </div>
         </details>
       </div>
@@ -293,9 +291,9 @@ function SavedSubmissionActions({
               ))}
             </select>
           </label>
-          <button className="primary compact-button" type="submit" disabled={!canSubmitQueue()}>
+          <WorkspaceActionButton variant="primary" compact type="submit" disabled={!canSubmitQueue()}>
             Queue here
-          </button>
+          </WorkspaceActionButton>
         </form>
       ) : null}
     </>

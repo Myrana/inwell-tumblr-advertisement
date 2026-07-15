@@ -5,6 +5,7 @@ import type { ScheduleRunnerReadiness } from "../domain/localRunnerReadiness";
 import { attentionQueueItems, queueReadiness, runnableQueueItems } from "../domain/queueAutomation";
 import { runnerAccountReadiness } from "../domain/tumblrAccounts";
 import { Advertisement, RunnerActivity, SubmissionQueueItem, TumblrAccount, WorkspaceView } from "../domain/types";
+import { WorkspaceActionButton, WorkspaceActionRow } from "./ui/WorkspaceActions";
 import "./operations/operationsDashboard.css";
 
 type OperationsDashboardProps = {
@@ -94,10 +95,9 @@ export function OperationsDashboard({
               <h2>Set up your first Tumblr ad</h2>
               <p>Connect an account, write or load an example advertisement, then queue it to a blog.</p>
             </div>
-            <button className="secondary compact-button" type="button" onClick={onCreateSampleAd}>
-              <FilePlus2 size={16} />
+            <WorkspaceActionButton variant="secondary" compact icon={<FilePlus2 size={16} />} onClick={onCreateSampleAd}>
               Start with example ad
-            </button>
+            </WorkspaceActionButton>
           </div>
           <div className="first-run-steps">
             <article>
@@ -106,9 +106,9 @@ export function OperationsDashboard({
                 <strong>Connect Tumblr account</strong>
                 <p>Add a Tumblr login so the local runner can prepare or submit queue items.</p>
               </div>
-              <button className="primary compact-button" type="button" onClick={() => onNavigate("accounts")}>
+              <WorkspaceActionButton variant="primary" compact onClick={() => onNavigate("accounts")}>
                 Connect account
-              </button>
+              </WorkspaceActionButton>
             </article>
             <article>
               <span>2</span>
@@ -116,9 +116,9 @@ export function OperationsDashboard({
                 <strong>Write first advertisement</strong>
                 <p>Create your ad, add forum details, and save the tags readers should see.</p>
               </div>
-              <button className="secondary compact-button" type="button" onClick={() => onNavigate("editor")}>
+              <WorkspaceActionButton variant="secondary" compact onClick={() => onNavigate("editor")}>
                 Write ad
-              </button>
+              </WorkspaceActionButton>
             </article>
             <article>
               <span>3</span>
@@ -126,9 +126,9 @@ export function OperationsDashboard({
                 <strong>Queue to a blog</strong>
                 <p>Use Blog tracker to organize blog lanes, then send the finished ad to a queue.</p>
               </div>
-              <button className="secondary compact-button" type="button" onClick={() => onNavigate("queue-settings")}>
+              <WorkspaceActionButton variant="secondary" compact onClick={() => onNavigate("queue-settings")}>
                 Open Blog tracker
-              </button>
+              </WorkspaceActionButton>
             </article>
           </div>
         </section>
@@ -142,9 +142,9 @@ export function OperationsDashboard({
           </div>
           <strong>{savedDraftCount ? `${savedDraftCount} ready to shape` : "Start with a draft"}</strong>
           <p>{savedDraftCount ? "Review saved copy, finish campaign details, and move the strongest ads into the queue." : "Write the first advertisement before setting up a runner flow."}</p>
-          <button className="primary compact-button" type="button" onClick={() => onNavigate(savedDraftCount ? "saved" : "editor")}>
+          <WorkspaceActionButton variant="primary" compact onClick={() => onNavigate(savedDraftCount ? "saved" : "editor")}>
             {savedDraftCount ? "Prep content" : "Write Advertisement"}
-          </button>
+          </WorkspaceActionButton>
         </article>
 
         <article className="focus-card" aria-label="Queue focus">
@@ -154,9 +154,9 @@ export function OperationsDashboard({
           </div>
           <strong>{queuedCount ? `${queuedCount} runnable` : "Nothing queued yet"}</strong>
           <p>{activeQueueName ? `${activeQueueItems.length} total items in ${activeQueueName}.` : "Choose or create a queue lane."}</p>
-          <button className="text-link" type="button" onClick={() => onNavigate("queue")}>
+          <WorkspaceActionButton variant="text" onClick={() => onNavigate("queue")}>
             Open queue
-          </button>
+          </WorkspaceActionButton>
         </article>
 
         <article className={`focus-card focus-card-runner ${runnerStatusTone}`} aria-label="Runner focus">
@@ -166,9 +166,9 @@ export function OperationsDashboard({
           </div>
           <strong>{readiness.scheduledCanRun ? "Runner is watching" : readiness.canRun ? "Runner needs recovery" : friendlyReadinessTitle(readiness.title)}</strong>
           <p>{readiness.canRun ? readiness.detail : readiness.detail || runnerConnectionLabel || scheduleRunnerReadiness.detail}</p>
-          <button className={readiness.canRun ? "primary compact-button" : "text-link"} type="button" onClick={() => onNavigate(readiness.primaryAction.view)}>
+          <WorkspaceActionButton variant={readiness.canRun ? "primary" : "text"} compact={readiness.canRun} onClick={() => onNavigate(readiness.primaryAction.view)}>
             {readiness.primaryAction.label}
-          </button>
+          </WorkspaceActionButton>
         </article>
       </section>
 
@@ -186,9 +186,9 @@ export function OperationsDashboard({
             {readiness.blockers.slice(0, 3).map((blocker) => (
               <li key={blocker}>
                 <span>{blocker}</span>
-                <button className="text-link" type="button" onClick={() => onNavigate(readinessActionFor(blocker).view)}>
+                <WorkspaceActionButton variant="text" onClick={() => onNavigate(readinessActionFor(blocker).view)}>
                   {readinessActionFor(blocker).label}
-                </button>
+                </WorkspaceActionButton>
               </li>
             ))}
           </ul>
@@ -201,15 +201,15 @@ export function OperationsDashboard({
           <ul className="run-readiness-blockers" aria-label="Run blockers">
             <li>
               <span>{readiness.detail}</span>
-              <button className="text-link" type="button" onClick={() => onNavigate("runner")}>
+              <WorkspaceActionButton variant="text" onClick={() => onNavigate("runner")}>
                 Open runner
-              </button>
+              </WorkspaceActionButton>
             </li>
           </ul>
         )}
-        <button className="secondary compact-button" type="button" onClick={() => onNavigate(readiness.canRun ? "runner" : readiness.primaryAction.view)}>
+        <WorkspaceActionButton variant="secondary" compact onClick={() => onNavigate(readiness.canRun ? "runner" : readiness.primaryAction.view)}>
           {readiness.canRun ? "Runner controls" : readiness.primaryAction.label}
-        </button>
+        </WorkspaceActionButton>
       </section>
 
       <div className="operations-bottom-grid" aria-label="Supporting dashboard details">
@@ -382,27 +382,27 @@ function OperationsHero({
         <h2>{workspaceGreeting()}, {firstName}</h2>
         <p>You have {savedDraftCount} draft{savedDraftCount === 1 ? "" : "s"} ready to review, {queuedCopy}, {connectedAccounts} connected account{connectedAccounts === 1 ? "" : "s"}, and the runner is {runnerStatus.toLowerCase()}.</p>
         <p className="operations-hero-note">{summaryText}</p>
-        <div className="operations-hero-actions">
-          <button className="primary compact-button command-action" type="button" onClick={() => onNavigate("editor")}>
+        <WorkspaceActionRow className="operations-hero-actions">
+          <WorkspaceActionButton variant="primary" compact className="command-action" onClick={() => onNavigate("editor")}>
             Write Advertisement
-          </button>
-          <button className="secondary compact-button command-action" type="button" onClick={() => onNavigate("saved")}>
+          </WorkspaceActionButton>
+          <WorkspaceActionButton variant="secondary" compact className="command-action" onClick={() => onNavigate("saved")}>
             Review Drafts
-          </button>
-          <button className="secondary compact-button command-action" type="button" onClick={() => onNavigate("queue")}>
+          </WorkspaceActionButton>
+          <WorkspaceActionButton variant="secondary" compact className="command-action" onClick={() => onNavigate("queue")}>
             Open Queue
-          </button>
-          <button className={runnerTone === "ready" ? "secondary compact-button command-action" : "primary compact-button command-action"} type="button" onClick={() => onNavigate(runnerActionView)}>
+          </WorkspaceActionButton>
+          <WorkspaceActionButton variant={runnerTone === "ready" ? "secondary" : "primary"} compact className="command-action" onClick={() => onNavigate(runnerActionView)}>
             {runnerActionLabel}
-          </button>
-        </div>
+          </WorkspaceActionButton>
+        </WorkspaceActionRow>
         <div className="operations-hero-secondary" aria-label="Secondary operations links">
-          <button className="text-link" type="button" onClick={() => onNavigate("accounts")}>
+          <WorkspaceActionButton variant="text" onClick={() => onNavigate("accounts")}>
             Account health
-          </button>
-          <button className="text-link" type="button" onClick={() => onNavigate("settings")}>
+          </WorkspaceActionButton>
+          <WorkspaceActionButton variant="text" onClick={() => onNavigate("settings")}>
             Settings
-          </button>
+          </WorkspaceActionButton>
         </div>
       </div>
       <section className="operations-status-strip" aria-label="Operations status summary">
@@ -478,9 +478,9 @@ function CampaignReadinessCard({ campaignSnapshots, savedDraftCount, onNavigate 
           ) : (
             <span>{savedDraftCount} saved drafts available</span>
           )}
-          <button className="text-link" type="button" onClick={() => onNavigate("saved")}>
+          <WorkspaceActionButton variant="text" onClick={() => onNavigate("saved")}>
             Open library
-          </button>
+          </WorkspaceActionButton>
         </div>
       </div>
     </section>
@@ -530,9 +530,9 @@ function RecentActivityCard({
           </article>
         ))}
       </div>
-      <button className="text-link" type="button" onClick={() => onNavigate("logs")}>
+      <WorkspaceActionButton variant="text" onClick={() => onNavigate("logs")}>
         View all activity
-      </button>
+      </WorkspaceActionButton>
     </section>
   );
 }
@@ -553,11 +553,11 @@ function QuickLinksCard({ onNavigate }: { onNavigate: (view: WorkspaceView) => v
       </div>
       <div className="quick-links-grid">
         {links.map((link) => (
-          <button key={link.label} type="button" onClick={() => onNavigate(link.view)}>
+          <WorkspaceActionButton key={link.label} onClick={() => onNavigate(link.view)}>
             {link.icon}
             <strong>{link.label}</strong>
             <small>{link.detail}</small>
-          </button>
+          </WorkspaceActionButton>
         ))}
       </div>
     </section>

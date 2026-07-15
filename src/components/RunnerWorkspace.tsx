@@ -6,6 +6,7 @@ import { attentionQueueItems, runnableQueueItems, runnerExecutionReadiness as bu
 import { latestRunnerRunId, runnerLogRunGroups } from "../domain/runnerLogs";
 import { runnerAccountReadiness } from "../domain/tumblrAccounts";
 import { RunnerFlowStrip } from "./runner/RunnerFlowStrip";
+import { WorkspaceActionButton, WorkspaceActionRow } from "./ui/WorkspaceActions";
 import "./runner/runnerWorkspace.css";
 import {
   QueueDefinition,
@@ -163,16 +164,14 @@ export function RunnerWorkspace({
             {runnerExecutionReadiness.detail} {runnerActivity.detail}
           </p>
         </div>
-        <div className="runner-hero-actions">
-          <button className="primary" type="button" onClick={onStartRunner} disabled={!manualActionAvailable}>
-            <Play size={18} />
+        <WorkspaceActionRow className="runner-hero-actions">
+          <WorkspaceActionButton variant="primary" icon={<Play size={18} />} onClick={onStartRunner} disabled={!manualActionAvailable}>
             Run queue
-          </button>
-          <button className="secondary" type="button" onClick={onStartTestRun} disabled={!manualActionAvailable}>
-            <TestTube2 size={18} />
+          </WorkspaceActionButton>
+          <WorkspaceActionButton variant="secondary" icon={<TestTube2 size={18} />} onClick={onStartTestRun} disabled={!manualActionAvailable}>
             Test run
-          </button>
-        </div>
+          </WorkspaceActionButton>
+        </WorkspaceActionRow>
       </section>
 
       <section className="runner-mission-summary" aria-label="Runner health summary">
@@ -225,24 +224,22 @@ export function RunnerWorkspace({
               <span>Prepare Tumblr first, then approve live posting only when the queue looks right.</span>
             </article>
           </div>
-          <div className="runner-install-actions">
-            <button className="primary compact-button" type="button" onClick={onDownloadLocalRunner}>
-              <Download size={16} />
+          <WorkspaceActionRow className="runner-install-actions">
+            <WorkspaceActionButton variant="primary" compact icon={<Download size={16} />} onClick={onDownloadLocalRunner}>
               Download runner
-            </button>
+            </WorkspaceActionButton>
             {showLaunchLocalRunner ? (
-              <button className="secondary compact-button" type="button" onClick={onLaunchLocalRunner}>
-                <PlugZap size={16} />
+              <WorkspaceActionButton variant="secondary" compact icon={<PlugZap size={16} />} onClick={onLaunchLocalRunner}>
                 Start runner
-              </button>
+              </WorkspaceActionButton>
             ) : null}
-            <button className="tertiary-action compact-button" type="button" onClick={onNavigateAccounts}>
+            <WorkspaceActionButton variant="tertiary" compact onClick={onNavigateAccounts}>
               Manage accounts
-            </button>
-            <button className="tertiary-action compact-button" type="button" onClick={onNavigateQueue}>
+            </WorkspaceActionButton>
+            <WorkspaceActionButton variant="tertiary" compact onClick={onNavigateQueue}>
               Open queue
-            </button>
-          </div>
+            </WorkspaceActionButton>
+          </WorkspaceActionRow>
         </section>
       ) : null}
 
@@ -280,30 +277,25 @@ export function RunnerWorkspace({
             </div>
           </div>
           <div className="workflow-section-body">
-            <div className="queue-action-row runner-action-grid">
-              <button className="primary" type="button" onClick={onStartRunner} disabled={!manualActionAvailable}>
-                <Play size={18} />
+            <WorkspaceActionRow className="queue-action-row runner-action-grid">
+              <WorkspaceActionButton variant="primary" icon={<Play size={18} />} onClick={onStartRunner} disabled={!manualActionAvailable}>
                 Run
-              </button>
-              <button className="secondary" type="button" onClick={onStartTestRun} disabled={!manualActionAvailable}>
-                <TestTube2 size={18} />
+              </WorkspaceActionButton>
+              <WorkspaceActionButton variant="secondary" icon={<TestTube2 size={18} />} onClick={onStartTestRun} disabled={!manualActionAvailable}>
                 Test run
-              </button>
+              </WorkspaceActionButton>
               {showLaunchLocalRunner ? (
-                <button className="tertiary-action" type="button" onClick={onLaunchLocalRunner}>
-                  <PlugZap size={18} />
+                <WorkspaceActionButton variant="tertiary" icon={<PlugZap size={18} />} onClick={onLaunchLocalRunner}>
                   Start
-                </button>
+                </WorkspaceActionButton>
               ) : null}
-              <button className="tertiary-action" type="button" onClick={onDownloadLocalRunner}>
-                <Download size={18} />
+              <WorkspaceActionButton variant="tertiary" icon={<Download size={18} />} onClick={onDownloadLocalRunner}>
                 Download
-              </button>
-              <button className="tertiary-action" type="button" onClick={onCopyLocalRunnerSetup} disabled={!accountReadiness.ready}>
-                <Terminal size={18} />
+              </WorkspaceActionButton>
+              <WorkspaceActionButton variant="tertiary" icon={<Terminal size={18} />} onClick={onCopyLocalRunnerSetup} disabled={!accountReadiness.ready}>
                 Setup
-              </button>
-            </div>
+              </WorkspaceActionButton>
+            </WorkspaceActionRow>
             {queueStatus ? <p className="queue-status">{queueStatus}</p> : null}
           </div>
         </section>
@@ -370,9 +362,9 @@ export function RunnerWorkspace({
               <strong>Latest logs</strong>
               <small>{latestRunId ? `Run ${latestRunId}` : "No run recorded yet"}</small>
             </div>
-            <button className="secondary compact-button" type="button" onClick={onNavigateLogs}>
+            <WorkspaceActionButton variant="secondary" compact onClick={onNavigateLogs}>
               Open logs
-            </button>
+            </WorkspaceActionButton>
           </div>
           <div className="workflow-section-body">
             {latestRunGroup ? (
@@ -388,15 +380,14 @@ export function RunnerWorkspace({
             ) : (
               <p className="queue-empty">Run or test the queue to create runner logs.</p>
             )}
-            <div className="runner-link-row">
-              <button className="tertiary-action compact-button" type="button" onClick={onNavigateQueue}>
-                <Send size={16} />
+            <WorkspaceActionRow className="runner-link-row">
+              <WorkspaceActionButton variant="tertiary" compact icon={<Send size={16} />} onClick={onNavigateQueue}>
                 Open queue
-              </button>
-              <button className="tertiary-action compact-button" type="button" onClick={onNavigateAccounts}>
+              </WorkspaceActionButton>
+              <WorkspaceActionButton variant="tertiary" compact onClick={onNavigateAccounts}>
                 Manage accounts
-              </button>
-            </div>
+              </WorkspaceActionButton>
+            </WorkspaceActionRow>
           </div>
         </section>
 
