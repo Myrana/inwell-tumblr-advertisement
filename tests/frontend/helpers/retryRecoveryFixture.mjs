@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 
-export async function setupRetryRecoveryPage(t, deps) {
+export async function setupRetryRecoveryPage(t, deps, options = {}) {
   const page = await deps.openFrontendTestPage(t);
   const pageErrors = [];
   const companionState = createCompanionState();
-  const queueState = createRetryQueueState();
+  const queueState = createRetryQueueState(options);
 
   page.on("pageerror", (error) => pageErrors.push(error));
   await page.route("http://127.0.0.1:8021/api/**", (route) => route.abort());
@@ -52,9 +52,16 @@ function createCompanionState() {
   };
 }
 
-function createRetryQueueState() {
+function createRetryQueueState(options = {}) {
   const failedQueueItem = buildFailedQueueItem();
-  let queueItems = [{ ...failedQueueItem }];
+  const additionalFailedItem = options.additionalFailedItem ? buildFailedQueueItem({
+    id: "queue-run-second-failed",
+    ad_id: "ad-run-second",
+    target_id: "secondfailed",
+    target_name: "secondfailed",
+    notes: "Runner failed: second item still needs review",
+  }) : null;
+  let queueItems = [{ ...failedQueueItem }, ...(additionalFailedItem ? [{ ...additionalFailedItem }] : [])];
   let failNextQueuedRetrySave = false;
   let retryQueueSaveCompleted = false;
 
@@ -62,7 +69,7 @@ function createRetryQueueState() {
     failedQueueItem,
     getItems: () => queueItems,
     reset: () => {
-      queueItems = [{ ...failedQueueItem }];
+      queueItems = [{ ...failedQueueItem }, ...(additionalFailedItem ? [{ ...additionalFailedItem }] : [])];
     },
     failNextRetryQueueSave: () => {
       failNextQueuedRetrySave = true;
@@ -85,7 +92,7 @@ function createRetryQueueState() {
   };
 }
 
-function buildFailedQueueItem() {
+function buildFailedQueueItem(overrides = {}) {
   return {
     id: "queue-run-allthingsroleplay",
     ad_id: "ad-run",
@@ -104,6 +111,7 @@ function buildFailedQueueItem() {
     failed_at: "2026-06-18T21:04:00.000Z",
     notes: "Runner failed: browserContext.newPage: Target page, context or browser has been closed",
     runner_payload: JSON.stringify({ fields: { body: "Queue body" } }),
+    ...overrides,
   };
 }
 
@@ -340,5 +348,5 @@ async function installRetryClipboardAndLocalState(page) {
 async function openRetryQueue(page, openWorkspaceView) {
   await openWorkspaceView(page, "Queues");
   await page.locator(".queue-management-row", { hasText: "Default queue" }).getByRole("button", { name: "Open queue" }).click();
-  await page.getByText("Why this failed").waitFor();
+  await page.getByText("Why this failed").first().waitFor();
 }

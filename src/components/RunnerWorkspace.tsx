@@ -108,8 +108,9 @@ export function RunnerWorkspace({
     selectedAccountName: selectedConnectedAccount?.displayName || "",
     selectedConnectedAccount: accountReadiness.ready,
   });
-  const manualActionAvailable = runnerExecutionReadiness.manualCanRun || canAutoFillQueue;
-  const queueReadyForAutomation = runnableItems.length > 0;
+  const queueReviewBlocked = attentionItems.length > 0;
+  const manualActionAvailable = runnerExecutionReadiness.manualCanRun || (canAutoFillQueue && !queueReviewBlocked);
+  const queueReadyForAutomation = runnableItems.length > 0 && !queueReviewBlocked;
   const queueAutomationDetail = attentionItems.length
     ? `${runnableItems.length} runnable; ${attentionItems.length} review item${attentionItems.length === 1 ? "" : "s"} parked`
     : `${runnableItems.length} runnable`;
@@ -127,8 +128,10 @@ export function RunnerWorkspace({
     },
     {
       label: "Queue content",
-      ready: runnableItems.length > 0,
-      detail: `${runnableItems.length} runnable in ${activeQueueName || "selected queue"}.`,
+      ready: queueReadyForAutomation,
+      detail: queueReviewBlocked
+        ? `${runnableItems.length} runnable; ${attentionItems.length} review item${attentionItems.length === 1 ? "" : "s"} must be cleared.`
+        : `${runnableItems.length} runnable in ${activeQueueName || "selected queue"}.`,
     },
     {
       label: "Live posting",

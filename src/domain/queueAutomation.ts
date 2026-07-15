@@ -119,7 +119,6 @@ export type AutomationQueuePreparationResult =
     };
 
 export type PrepareAutomationQueueForRunOptions = {
-  allowWithoutRunnable?: boolean;
   queue: SubmissionQueueItem[];
   sourceAds: Advertisement[];
   submitTargets: TumblrSubmitTarget[];
@@ -328,7 +327,7 @@ export function queueFlowSummary(options: {
     latestCompletion,
     refillActivity: queueRefillActivity(refillItems, refillPreview, options.activeQueueName, emptyReasons),
     statusLabels: queueLifecycleStatusLabels,
-    timeline: queueFlowTimeline(counts, refillItems.length, refillPreview),
+    timeline: queueFlowTimeline(counts, refillItems.length, refillPreview, lanes.attention.length),
   };
 }
 
@@ -386,24 +385,23 @@ export function queueReadiness(options: {
   } else if (!accountReady) {
     blockers.push(options.accountBlocker || "Select a connected Tumblr account.");
   }
-  if (!runnableCount) {
-    blockers.push("Add queued or scheduled submissions.");
-  }
-  if (!executionReadiness.scheduledCanRun) {
-    blockers.push("Start or repair the local runner for scheduled automation.");
-  }
-
-  if (attentionCount > 0 && runnableCount === 0) {
+  if (attentionCount > 0) {
     blockers.push("Review failed or needs-review submissions.");
     return {
       canRun: false,
       status: "review",
-      title: `${attentionCount} item${attentionCount === 1 ? "" : "s"} need review`,
+      title: `${attentionCount} item${attentionCount === 1 ? " needs" : "s need"} review`,
       detail: "Clear failed or review-needed submissions before relying on automation.",
       primaryAction: { label: "Review queue", view: "queue" },
       scheduledCanRun: false,
       blockers,
     };
+  }
+  if (!runnableCount) {
+    blockers.push("Add queued or scheduled submissions.");
+  }
+  if (!executionReadiness.scheduledCanRun) {
+    blockers.push("Start or repair the local runner for scheduled automation.");
   }
 
   if (!options.activeQueueName || !options.activeQueue.length) {
@@ -470,7 +468,7 @@ export function runnerExecutionReadiness(options: {
       detail: options.accountBlocker || "Choose a connected account before starting queue automation.",
     };
   }
-  if (attentionCount > 0 && runnableCount === 0) {
+  if (attentionCount > 0) {
     return {
       ready: false,
       manualCanRun: false,
@@ -517,6 +515,17 @@ export function automationQueueRunStatusMessage(addedCount: number, attentionCou
 }
 
 export async function prepareAutomationQueueForRun(options: PrepareAutomationQueueForRunOptions): Promise<AutomationQueuePreparationResult> {
+  const selectedQueue = options.queue.filter((item) => item.queueName === options.queueName);
+  const selectedReviewItems = attentionQueueItems(selectedQueue);
+  if (selectedReviewItems.length) {
+    return {
+      status: "blocked",
+      message: "Review failed or needs-review submissions before starting the runner.",
+      reconciledQueue: options.queue,
+      savedItems: [],
+    };
+  }
+
   const refill = refillQueueFromReadyDrafts({
     queue: options.queue,
     sourceAds: options.sourceAds,
@@ -549,13 +558,17 @@ export async function prepareAutomationQueueForRun(options: PrepareAutomationQue
   const readyItems = runnableQueueItems(activeQueue);
   const reviewItems = attentionQueueItems(activeQueue);
 
-  if (!readyItems.length && reviewItems.length && !options.allowWithoutRunnable) {
+  if (reviewItems.length) {
     return {
       status: "blocked",
-      message: "Only failed or needs-review submissions are in this queue. Review or requeue one item, or add ready ads for auto-fill.",
+      message: readyItems.length
+        ? "Review failed or needs-review submissions before starting the runner."
+        : "Only failed or needs-review submissions are in this queue. Review or requeue one item, or add ready ads for auto-fill.",
+      reconciledQueue: persistedQueue,
+      savedItems,
     };
   }
-  if (!readyItems.length && !options.allowWithoutRunnable) {
+  if (!readyItems.length) {
     return {
       status: "blocked",
       message: savedItems.length ? "Auto-fill ran, but no runnable queue items were saved." : "Add ready ads or queued targets before starting the runner.",
@@ -716,7 +729,7 @@ function queueAutomationState(options: {
   runnerReady: boolean;
   selectedConnectedAccount: boolean;
 }): QueueFlowSummary["automation"] {
-  const automationReady = options.queueScheduleEnabled && options.runnerReady && options.selectedConnectedAccount && options.runnableCount > 0;
+  const automationReady = options.queueScheduleEnabled && options.runnerReady && options.selectedConnectedAccount && options.runnableCount > 0 && options.attentionCount === 0;
   if (automationReady) {
     return {
       label: "Automation ready",
@@ -724,6 +737,13 @@ function queueAutomationState(options: {
         options.attentionCount ? ` while ${options.attentionCount} item${options.attentionCount === 1 ? " stays" : "s stay"} parked` : ""
       }.`,
       tone: "ready",
+    };
+  }
+  if (options.queueScheduleEnabled && options.attentionCount > 0) {
+    return {
+      label: "Automation waiting",
+      detail: `${options.attentionCount} failed or needs-review item${options.attentionCount === 1 ? "" : "s"} must be reviewed before automation can run.`,
+      tone: "blocked",
     };
   }
   if (options.queueScheduleEnabled) {
@@ -803,8 +823,9 @@ function queueRefillActivity(
   return emptyReasons[0] || "No refill activity yet.";
 }
 
-function queueFlowTimeline(counts: QueueStatusCounts, refillItemCount: number, refillPreview: QueueRefillPreview): QueueFlowSummary["timeline"] {
+function queueFlowTimeline(counts: QueueStatusCounts, refillItemCount: number, refillPreview: QueueRefillPreview, attentionCount: number): QueueFlowSummary["timeline"] {
   const replacementCount = refillItemCount || refillPreview.availableCount || (refillPreview.state === "at-capacity" ? refillPreview.candidateCount : 0);
+  const readyCount = counts.queued + counts.scheduled;
   const replacementDetail = refillItemCount
     ? "Backend refill has added queue work."
     : refillPreview.availableCount
@@ -816,9 +837,11 @@ function queueFlowTimeline(counts: QueueStatusCounts, refillItemCount: number, r
   return [
     {
       label: "Ready",
-      value: String(counts.queued + counts.scheduled),
-      detail: "Queued or scheduled items the runner can pick up.",
-      tone: counts.queued + counts.scheduled ? "ready" : "warning",
+      value: String(readyCount),
+      detail: attentionCount
+        ? `${attentionCount} failed or needs-review item${attentionCount === 1 ? "" : "s"} must be reviewed first.`
+        : "Queued or scheduled items the runner can pick up.",
+      tone: attentionCount ? "blocked" : readyCount ? "ready" : "warning",
     },
     {
       label: "Running",

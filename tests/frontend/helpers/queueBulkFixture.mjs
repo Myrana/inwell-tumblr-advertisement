@@ -10,7 +10,7 @@ export async function setupBackendQueueBulkCompletionPage(t, deps, options = {})
   const queueState = createQueueBulkState(options);
 
   page.on("pageerror", (error) => pageErrors.push(error));
-  await routeQueueBulkApis(page, deps, queueState, failureMode, runnerRequests, savedQueuePayloads, saveRequestWaiters);
+  await routeQueueBulkApis(page, deps, queueState, failureMode, runnerRequests, savedQueuePayloads, saveRequestWaiters, options);
 
   await page.goto(deps.appUrl);
   await openBulkQueueEditor(page, deps.openWorkspaceView);
@@ -118,14 +118,14 @@ function buildAd(id, title, destinationBlog) {
   };
 }
 
-async function routeQueueBulkApis(page, deps, queueState, failureMode, runnerRequests, savedQueuePayloads, saveRequestWaiters) {
+async function routeQueueBulkApis(page, deps, queueState, failureMode, runnerRequests, savedQueuePayloads, saveRequestWaiters, options) {
   await page.route("http://127.0.0.1:8021/api/**", (route) => route.abort());
   await page.route("http://127.0.0.1:17842/status", (route) => route.abort());
   await routeQueueBulkRunnerSideEffects(page, deps.apiHeaders, runnerRequests);
   await deps.routeAuthenticatedSession(page);
   await routeQueueList(page, deps.apiHeaders, queueState, failureMode);
   await routeQueueSaves(page, deps.apiHeaders, queueState, failureMode, savedQueuePayloads, saveRequestWaiters);
-  await routeQueueBulkWorkspaceApis(page, deps.apiHeaders);
+  await routeQueueBulkWorkspaceApis(page, deps.apiHeaders, options);
 }
 
 async function routeQueueBulkRunnerSideEffects(page, apiHeaders, runnerRequests) {
@@ -220,7 +220,7 @@ function nextQueueSaveFailure(failureMode, payload) {
   return null;
 }
 
-async function routeQueueBulkWorkspaceApis(page, apiHeaders) {
+async function routeQueueBulkWorkspaceApis(page, apiHeaders, options = {}) {
   await page.route("http://127.0.0.1:8021/api/advertisements", (route) =>
     route.fulfill({
       contentType: "application/json",
@@ -245,7 +245,7 @@ async function routeQueueBulkWorkspaceApis(page, apiHeaders) {
           queueDefinitions: [{ id: "default-queue", name: "Default queue" }],
           tagProfiles: {},
           runnerSettings: {},
-          scheduleSettings: {},
+          queueScheduleSettings: options.scheduleSettings ?? {},
         },
       }),
     }),

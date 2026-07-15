@@ -279,11 +279,7 @@ export function QueueWorkspace({
           <AlertTriangle size={24} />
           <div>
             <strong>{attentionItems.length} item{attentionItems.length === 1 ? "" : "s"} need review</strong>
-            <span>
-              {automationRunnableItems.length
-                ? "Review items are parked; runnable submissions can continue."
-                : "Clear failed or review-needed submissions before relying on automation."}
-            </span>
+            <span>Clear failed or review-needed submissions before relying on automation.</span>
           </div>
           <WorkspaceActionButton variant="primary" compact icon={<PlayCircle size={16} />} onClick={() => setSectionOpen("submissions", true)}>
             Review queue

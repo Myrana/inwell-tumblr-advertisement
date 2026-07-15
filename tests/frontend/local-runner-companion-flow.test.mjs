@@ -415,8 +415,9 @@ test("scheduled queue shows runner recovery when daily automation is blocked off
   await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
   await page.getByRole("button", { name: "Toggle schedule section" }).click();
 
+  const readinessGrid = page.getByLabel("Daily automation readiness");
   await page.getByText("Daily automation is waiting for the local runner").waitFor();
-  await page.getByText("Headless mode is enabled. Start the local runner to run in the background.").waitFor();
+  await readinessGrid.getByText("Headless mode is enabled. Start the local runner to run in the background.").waitFor();
   await page.getByText("If the scheduled time already passed today", { exact: false }).waitFor();
 
   await page.getByRole("button", { name: "Open runner" }).click();
@@ -449,8 +450,9 @@ test("scheduled queue shows recovery when local runner is online but not watchin
   await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
   await page.getByRole("button", { name: "Toggle schedule section" }).click();
 
-  await page.getByText("Runner idle").waitFor();
-  await page.getByText("Local runner is online but is not watching this queue.").waitFor();
+  const readinessGrid = page.getByLabel("Daily automation readiness");
+  await readinessGrid.getByText("Runner idle").waitFor();
+  await readinessGrid.getByText("Local runner is online but is not watching this queue.").waitFor();
   await page.getByText("Daily automation is waiting for the local runner").waitFor();
 });
 
@@ -480,8 +482,9 @@ test("scheduled queue shows recovery when local runner watches a different queue
   await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
   await page.getByRole("button", { name: "Toggle schedule section" }).click();
 
-  await page.getByText("Wrong queue").waitFor();
-  await page.getByText("Local runner is watching Other queue. Switch it to Default queue before the daily run.").waitFor();
+  const readinessGrid = page.getByLabel("Daily automation readiness");
+  await readinessGrid.getByText("Wrong queue").waitFor();
+  await readinessGrid.getByText("Local runner is watching Other queue. Switch it to Default queue before the daily run.").waitFor();
   await page.getByText("Daily automation is waiting for the local runner").waitFor();
 });
 
@@ -530,8 +533,9 @@ test("scheduled queue prioritizes local companion recovery states", { timeout: 4
     await page.getByRole("heading", { name: "Submission queue", level: 1 }).waitFor();
     await page.getByRole("button", { name: "Toggle schedule section" }).click();
 
-    await page.getByText(scenario.label).waitFor();
-    await page.getByText(scenario.detail).waitFor();
+    const readinessGrid = page.getByLabel("Daily automation readiness");
+    await readinessGrid.getByText(scenario.label).waitFor();
+    await readinessGrid.getByText(scenario.detail).waitFor();
     await page.getByText("Daily automation is waiting for the local runner").waitFor();
     await page.getByRole("button", { name: "Open runner" }).click();
     await page.getByLabel("Runner controls").getByRole("button", { name: "Test run", exact: true }).waitFor();
