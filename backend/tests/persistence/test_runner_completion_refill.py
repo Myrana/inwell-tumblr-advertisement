@@ -440,7 +440,7 @@ class RunnerCompletionRefillPersistenceTests(unittest.TestCase):
         self.assertEqual(replacements[0]["status"], "scheduled")
         self.assertEqual(call_count, 1)
 
-    def test_runner_log_completion_does_not_refill_without_ready_ads(self) -> None:
+    def test_runner_log_completion_does_not_schedule_ineligible_ads(self) -> None:
         workspace_id = "workspace-no-ready"
         self.seed_submit_target(workspace_id, "draft-target")
         self.seed_ready_ad(workspace_id, "ad-draft", "draft-target", status="draft")
@@ -449,10 +449,73 @@ class RunnerCompletionRefillPersistenceTests(unittest.TestCase):
         self.submitted_log(workspace_id, "queue-no-ready", "2026-07-11T12:05:00+00:00")
 
         rows = [row for row in self.connection.submission_queue.values() if row.get("workspace_id") == workspace_id]
-        self.assertEqual(len(rows), 1)
-        self.assertEqual(rows[0]["status"], "submitted")
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(self.connection.submission_queue[(workspace_id, "queue-no-ready")]["status"], "submitted")
+        fallback = [row for row in rows if row.get("id") != "queue-no-ready"][0]
+        self.assertEqual(fallback["ad_id"], "active-ad")
+        self.assertEqual(fallback["status"], "queued")
 
-    def test_runner_log_completion_does_not_refill_disabled_schedule(self) -> None:
+    def test_runner_log_completion_requeues_completed_item_without_ready_ads(self) -> None:
+        workspace_id = "workspace-requeue-no-ready"
+        queue_name = "Fallback queue"
+        self.seed_running_queue_item(
+            workspace_id,
+            "queue-fallback",
+            ad_id="ad-fallback",
+            target_id="fallback-target",
+            queue_name=queue_name,
+            tumblr_account_id="tumblr-fallback",
+        )
+
+        self.submitted_log(workspace_id, "queue-fallback", "2026-07-11T12:05:00+00:00")
+
+        rows = [row for row in self.connection.submission_queue.values() if row.get("workspace_id") == workspace_id]
+        self.assertEqual(len(rows), 2)
+        original = self.connection.submission_queue[(workspace_id, "queue-fallback")]
+        self.assertEqual(original["status"], "submitted")
+        requeued = [row for row in rows if row["id"] != "queue-fallback"][0]
+        self.assertTrue(str(requeued["id"]).startswith("queue-fallback-requeue-"))
+        self.assertEqual(requeued["status"], "queued")
+        self.assertEqual(requeued["ad_id"], "ad-fallback")
+        self.assertEqual(requeued["target_id"], "fallback-target")
+        self.assertEqual(requeued["queue_name"], queue_name)
+        self.assertEqual(requeued["tumblr_account_id"], "tumblr-fallback")
+        self.assertIsNone(requeued["scheduled_for"])
+        self.assertIsNone(requeued["last_run_at"])
+        self.assertIsNone(requeued["posted_at"])
+        self.assertIsNone(requeued["failed_at"])
+        self.assertIn("Auto-requeued", requeued["notes"])
+
+    def test_runner_log_completion_requeues_when_queue_depth_remains_underfilled(self) -> None:
+        workspace_id = "workspace-underfilled-fallback"
+        queue_name = "Underfilled queue"
+        self.seed_running_queue_item(workspace_id, "queue-underfilled", queue_name=queue_name)
+        upsert_queue_item(
+            self.connection,
+            {
+                "id": "queue-existing",
+                "workspace_id": workspace_id,
+                "ad_id": "ad-existing",
+                "target_id": "existing-target",
+                "target_name": "existing-target",
+                "queue_name": queue_name,
+                "submit_url": "https://existing-target.tumblr.com/submit",
+                "post_type": "photo",
+                "status": "queued",
+                "runner_payload": "{}",
+            },
+        )
+
+        self.submitted_log(workspace_id, "queue-underfilled", "2026-07-11T12:05:00+00:00")
+
+        rows = [row for row in self.connection.submission_queue.values() if row.get("workspace_id") == workspace_id]
+        self.assertEqual(len(rows), 3)
+        self.assertEqual(self.connection.submission_queue[(workspace_id, "queue-underfilled")]["status"], "submitted")
+        runnable = [row for row in rows if row.get("status") in {"queued", "scheduled"}]
+        self.assertEqual(len(runnable), 2)
+        self.assertEqual({row["ad_id"] for row in runnable}, {"active-ad", "ad-existing"})
+
+    def test_runner_log_completion_requeues_without_scheduled_refill_when_schedule_disabled(self) -> None:
         workspace_id = "workspace-disabled-schedule"
         queue_name = "Disabled queue"
         self.seed_submit_target(workspace_id, "ready-target")
@@ -463,6 +526,13 @@ class RunnerCompletionRefillPersistenceTests(unittest.TestCase):
         self.submitted_log(workspace_id, "queue-disabled", "2026-07-11T14:00:00+00:00")
 
         self.assertEqual(self.replacements(workspace_id, "ad-ready-"), [])
+        fallback = [
+            row
+            for row in self.connection.submission_queue.values()
+            if row.get("workspace_id") == workspace_id and row.get("id") != "queue-disabled"
+        ][0]
+        self.assertEqual(fallback["ad_id"], "active-ad")
+        self.assertEqual(fallback["status"], "queued")
 
     def test_stale_runner_timestamp_schedules_from_trusted_receipt_time(self) -> None:
         workspace_id = "workspace-stale-completion"
@@ -633,6 +703,13 @@ class RunnerCompletionRefillPersistenceTests(unittest.TestCase):
 
         replacements = self.replacements(workspace_id, "ad-boundary-")
         self.assertEqual(len(replacements), 0)
+        rows = [row for row in self.connection.submission_queue.values() if row.get("workspace_id") == workspace_id]
+        self.assertEqual(len(rows), 3)
+        self.assertEqual(self.connection.submission_queue[(workspace_id, "queue-boundary")]["status"], "submitted")
+        self.assertEqual(self.connection.submission_queue[(workspace_id, "queue-boundary-completed")]["status"], "scheduled")
+        fallback = [row for row in rows if str(row.get("id", "")).startswith("queue-boundary-requeue-")][0]
+        self.assertEqual(fallback["status"], "queued")
+        self.assertEqual(fallback["ad_id"], "ad-active")
 
     def test_runner_refill_skips_ineligible_ready_ads(self) -> None:
         workspace_id = "workspace-ineligible"

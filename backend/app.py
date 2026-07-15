@@ -2375,6 +2375,7 @@ def touch_queue_item_completed_status(
     data = row_to_queue_item(transitioned, load_runner_payload(connection, queue_item_id, str(transitioned_data.get("workspace_id") or "default")))
     queue_name = str(data.get("queue_name") or "Default queue")
     services = queue_refill_services()
+    completion_timestamp = utc_now()
     target_depth = max(
         1,
         queue_refill.queue_refill_target_depth_before_completion(
@@ -2383,14 +2384,42 @@ def touch_queue_item_completed_status(
             queue_item_id,
         ),
     )
-    queue_refill.refill_queue_after_completion(
+    refill_items = queue_refill.refill_queue_after_completion(
         connection,
         workspace_id=workspace_id,
         queue_name=queue_name,
         tumblr_account_id=str(data.get("tumblr_account_id") or ""),
         target_depth=target_depth,
-        timestamp=utc_now(),
+        timestamp=completion_timestamp,
         services=services,
+    )
+    queue_items = queue_refill.queue_items_for_workspace(connection, workspace_id, services)
+    if not refill_items and queue_refill.runnable_queue_depth(queue_items, queue_name) < target_depth:
+        requeue_completed_queue_item(connection, data, timestamp=completion_timestamp)
+
+
+def requeue_completed_queue_item(connection: ConnectionLike, item: dict[str, Any], *, timestamp: datetime) -> dict[str, Any]:
+    requeue_id = f"{item['id']}-requeue-{int(timestamp.timestamp() * 1000)}"
+    return upsert_queue_item(
+        connection,
+        {
+            **item,
+            "id": requeue_id,
+            "status": "queued",
+            "scheduled_for": None,
+            "scheduledFor": "",
+            "created_at": timestamp,
+            "createdAt": timestamp,
+            "updated_at": timestamp,
+            "updatedAt": timestamp,
+            "last_run_at": None,
+            "lastRunAt": "",
+            "posted_at": None,
+            "postedAt": "",
+            "failed_at": None,
+            "failedAt": "",
+            "notes": "Auto-requeued after successful submission to keep this target in rotation.",
+        },
     )
 
 
