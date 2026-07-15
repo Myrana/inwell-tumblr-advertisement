@@ -49,10 +49,10 @@ export function useEditorQueueActions({
   setSubmissionQueue,
   setValidation,
 }: UseEditorQueueActionsParams) {
-  async function queueTargets(targets: TumblrSubmitTarget[]) {
+  async function queueTargets(targets: TumblrSubmitTarget[], queueName = activeQueueName) {
     const plan = planQueueTargetAdditions({
       ad: activeAd,
-      queueName: activeQueueName,
+      queueName,
       targets,
       tumblrAccountId: runnerSettings.tumblrAccountId,
     });
@@ -86,7 +86,7 @@ export function useEditorQueueActions({
             adId: activeAd.id,
             currentQueue: current,
             nextItems: [savedItem],
-            queueName: activeQueueName,
+            queueName,
           }),
         );
         successfulQueuedTargets += 1;
@@ -106,10 +106,11 @@ export function useEditorQueueActions({
     }
 
     const queuedTargetCount = plan.items.length;
-    setQueueStatus(`Queued ${queuedTargetCount} target${queuedTargetCount === 1 ? "" : "s"} in ${activeQueueName}.`);
+    setSelectedQueueName(queueName);
+    setQueueStatus(`Queued ${queuedTargetCount} target${queuedTargetCount === 1 ? "" : "s"} in ${queueName}.`);
 
     if (activeView === "editor") {
-      setEditorQueueConfirmation({ count: queuedTargetCount, queueName: activeQueueName });
+      setEditorQueueConfirmation({ count: queuedTargetCount, queueName });
       return;
     }
   }

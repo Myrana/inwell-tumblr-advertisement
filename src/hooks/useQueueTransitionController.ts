@@ -19,7 +19,7 @@ type QueueTransitionControllerOptions = {
   setApiAvailable: (available: boolean) => void;
   setQueueStatus: (message: string) => void;
   setSubmissionQueue: Dispatch<SetStateAction<SubmissionQueueItem[]>>;
-  startRunner: (options?: { allowWithoutRunnable?: boolean; submit?: boolean }) => Promise<void>;
+  startRunner: (options?: { queueOverride?: SubmissionQueueItem[]; submit?: boolean }) => Promise<void>;
   stored: StoredState;
   submissionQueue: SubmissionQueueItem[];
   submitTargets: TumblrSubmitTarget[];
@@ -170,8 +170,9 @@ export function useQueueTransitionController({
         setQueueStatus("Could not save the requeued submission before retrying. Try again.");
         return;
       }
+      const retryQueue = submissionQueue.map((item) => (item.id === savedItem.id ? savedItem : item));
       setQueueStatus("Starting a recovery test run. It will prepare Tumblr without submitting.");
-      await startRunner({ allowWithoutRunnable: true, submit: false });
+      await startRunner({ queueOverride: retryQueue, submit: false });
     } finally {
       unlockScopes(scopes);
     }

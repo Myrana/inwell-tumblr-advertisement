@@ -46,7 +46,7 @@ test("daily automation readiness grid reflects blocked, empty, and runnable stat
     },
     {
       options: { accounts: connectedAccounts, runnerSettings: selectedRunnerSettings, runnerOnline: true, runnerWatching: true, scheduleEnabled: true, queueItems: [defaultApiQueueItem({ status: "failed" })] },
-      expected: ["Runner readiness", "Ready", "Queue readiness", "0 runnable", "Automation state", "Needs review"],
+      expected: ["Runner readiness", "Ready", "Queue readiness", "Needs review", "Review failed or needs-review submissions first.", "Automation state", "Needs review"],
       rejected: ["Will run"],
     },
     {
@@ -58,12 +58,12 @@ test("daily automation readiness grid reflects blocked, empty, and runnable stat
         scheduleEnabled: true,
         queueItems: [defaultApiQueueItem(), defaultApiQueueItem({ id: "queue-failed", status: "failed" })],
       },
-      expected: ["Runner readiness", "Ready", "Queue readiness", "1 runnable", "Automation state", "Will run", "Daily automation will skip 1 review item."],
-      rejected: ["Clear failed or review-needed submissions first."],
+      expected: ["Runner readiness", "Ready", "Queue readiness", "Needs review", "Review failed or needs-review submissions first.", "Automation state", "Needs review", "Clear failed or review-needed submissions first."],
+      rejected: ["Will run", "Daily automation will skip 1 review item."],
     },
     {
       options: { accounts: connectedAccounts, runnerSettings: selectedRunnerSettings, runnerOnline: true, runnerWatching: true, scheduleEnabled: true, queueItems: [defaultApiQueueItem({ status: "needs-review" })] },
-      expected: ["Runner readiness", "Ready", "Queue readiness", "0 runnable", "Automation state", "Needs review"],
+      expected: ["Runner readiness", "Ready", "Queue readiness", "Needs review", "Review failed or needs-review submissions first.", "Automation state", "Needs review"],
       rejected: ["Will run"],
     },
     {
@@ -75,8 +75,8 @@ test("daily automation readiness grid reflects blocked, empty, and runnable stat
         scheduleEnabled: true,
         queueItems: [defaultApiQueueItem(), defaultApiQueueItem({ id: "queue-review", status: "needs-review" })],
       },
-      expected: ["Runner readiness", "Ready", "Queue readiness", "1 runnable", "Automation state", "Will run", "Daily automation will skip 1 review item."],
-      rejected: ["Clear failed or review-needed submissions first."],
+      expected: ["Runner readiness", "Ready", "Queue readiness", "Needs review", "Review failed or needs-review submissions first.", "Automation state", "Needs review", "Clear failed or review-needed submissions first."],
+      rejected: ["Will run", "Daily automation will skip 1 review item."],
     },
     {
       options: { accounts: connectedAccounts, runnerSettings: selectedRunnerSettings, runnerOnline: true, runnerWatching: true, scheduleEnabled: true, queueItems: [defaultApiQueueItem({ status: "running" })] },
@@ -112,8 +112,8 @@ test("daily automation readiness grid reflects blocked, empty, and runnable stat
         scheduleEnabled: true,
         queueItems: [defaultApiQueueItem(), defaultApiQueueItem({ id: "queue-failed", status: "failed" })],
       },
-      expected: ["Runner readiness", "Ready", "Queue readiness", "1 runnable", "Automation state", "Needs account", "Connect a Tumblr account."],
-      rejected: ["Will run", "Needs review", "Clear failed or review-needed submissions first."],
+      expected: ["Runner readiness", "Ready", "Queue readiness", "Needs review", "Review failed or needs-review submissions first.", "Automation state", "Needs account", "Connect a Tumblr account."],
+      rejected: ["Will run", "Clear failed or review-needed submissions first."],
     },
     {
       options: {
@@ -217,8 +217,8 @@ test("runner flow strip summarizes readiness, live approval, and latest run outc
         runnerSettings: liveRunnerSettings,
         queueItems: [defaultApiQueueItem(), defaultApiQueueItem({ id: "queue-failed", status: "failed" })],
       },
-      expected: ["Runner can continue with runnable items while review items stay parked."],
-      rejected: ["Review failed or needs-review queue items first."],
+      expected: ["Clear 1 failed or review-needed item before running Default queue."],
+      rejected: ["Runner can continue with runnable items while review items stay parked."],
     },
     {
       options: {
@@ -226,8 +226,8 @@ test("runner flow strip summarizes readiness, live approval, and latest run outc
         runnerSettings: liveRunnerSettings,
         queueItems: [defaultApiQueueItem(), defaultApiQueueItem({ id: "queue-review", status: "needs-review" })],
       },
-      expected: ["Runner can continue with runnable items while review items stay parked."],
-      rejected: ["Review failed or needs-review queue items first."],
+      expected: ["Clear 1 failed or review-needed item before running Default queue."],
+      rejected: ["Runner can continue with runnable items while review items stay parked."],
     },
     {
       options: {
@@ -344,9 +344,9 @@ test("runner hero and health summary require full execution readiness", { timeou
         runnerSettings: selectedRunnerSettings,
         queueItems: [defaultApiQueueItem(), defaultApiQueueItem({ id: "queue-failed", status: "failed" })],
       },
-      title: "Automation is ready to watch the queue",
-      detail: "Runner Tumblr can run 1 queued advertisement while 1 item stays in review.",
-      ready: true,
+      title: "Automation needs queue review",
+      detail: "Clear 1 failed or review-needed item before running Default queue.",
+      ready: false,
     },
     {
       name: "missing selected account",
@@ -420,6 +420,20 @@ test("runner hero and health summary require full execution readiness", { timeou
       assert.equal(await hero.getByRole("button", { name: "Run queue" }).isDisabled(), !scenario.manualReady, scenario.name);
       assert.equal(await lowerControls.getByRole("button", { name: "Run", exact: true }).isDisabled(), !scenario.manualReady, scenario.name);
       assert.equal(await lowerControls.getByRole("button", { name: "Test run" }).isDisabled(), !scenario.manualReady, scenario.name);
+      if (scenario.name === "runnable queue with parked review item") {
+        const readinessPanel = page.getByLabel("Runner readiness");
+        const queueContentItem = readinessPanel.locator("article", { hasText: "Queue content" });
+        assert.doesNotMatch(await queueContentItem.getAttribute("class"), /\bready\b/, scenario.name);
+        await queueContentItem.getByText("1 runnable; 1 review item must be cleared.").waitFor();
+        const diagnostics = page.getByLabel("System diagnostics");
+        const queueIntegrity = diagnostics.locator("article", { hasText: "Queue integrity" });
+        assert.doesNotMatch(await queueIntegrity.getAttribute("class"), /\bready\b/, scenario.name);
+        await queueIntegrity.getByText("1 runnable; 1 review item parked").waitFor();
+        await diagnostics.getByText("Healthy", { exact: true }).waitFor({ state: "detached" });
+        const validateQueueStep = page.getByLabel("Automation timeline").locator("article", { hasText: "Validate queue" });
+        assert.doesNotMatch(await validateQueueStep.getAttribute("class"), /\bready\b/, scenario.name);
+        await validateQueueStep.getByText("1 runnable; 1 review item parked").waitFor();
+      }
       const selectedAccountId = scenario.options?.runnerSettings?.tumblrAccountId ?? "";
       const setupReady = scenario.setupReady ?? Boolean(selectedAccountId && scenario.options?.accounts?.some((account) => account.id === selectedAccountId && account.status === "connected"));
       assert.equal(await lowerControls.getByRole("button", { name: "Setup" }).isDisabled(), !setupReady, scenario.name);
@@ -614,9 +628,13 @@ test("queue runner banner follows queue execution readiness", { timeout: 40000 }
         runnerSettings,
         queueItems: [defaultApiQueueItem(), defaultApiQueueItem({ id: "queue-failed", status: "failed" })],
       },
-      expected: "Runner is available for this queue",
-      detail: "1 runnable item can post while 1 item stays in review.",
-      ready: true,
+      expected: "1 item needs review",
+      detail: "Clear failed or review-needed submissions before relying on automation.",
+      action: "Review queue",
+      opensHeading: "Submission queue",
+      opensHeadingLevel: 2,
+      rejected: "Runner is available for this queue",
+      ready: false,
     },
     {
       options: { accounts: staleConnectedAccounts, runnerSettings },

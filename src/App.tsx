@@ -448,10 +448,16 @@ function App() {
   }, [backendOwnsWorkspaceState, queueOptions]);
 
   useEffect(() => {
-    if (selectedQueueName !== activeQueueName) {
-      setSelectedQueueName(activeQueueName);
+    if (!queueOptions.length) {
+      if (selectedQueueName) {
+        setSelectedQueueName("");
+      }
+      return;
     }
-  }, [activeQueueName, selectedQueueName]);
+    if (!queueOptions.some((queue) => queue.name === selectedQueueName)) {
+      setSelectedQueueName(queueOptions[0]?.name ?? "");
+    }
+  }, [queueOptions, selectedQueueName]);
 
   useEffect(() => {
     if (backendOwnsWorkspaceState) {
@@ -751,6 +757,15 @@ function App() {
   }
 
   function syncQueueItem(item: SubmissionQueueItem) {
+    if (!backendOwnsWorkspaceState) {
+      setSubmissionQueue((current) =>
+        current.some((queueItem) => queueItem.id === item.id)
+          ? current.map((queueItem) => (queueItem.id === item.id ? item : queueItem))
+          : [item, ...current],
+      );
+      return Promise.resolve(item);
+    }
+
     return saveQueueItem(item)
       .then((saved) => {
         setSubmissionQueue((current) =>
@@ -1330,11 +1345,11 @@ function App() {
     setAccountStatus(`${connected.displayName} is ready for queue runs.`);
   }
 
-  async function prepareAutomationQueue(options: { allowWithoutRunnable?: boolean } = {}) {
+  async function prepareAutomationQueue(options: { queueOverride?: SubmissionQueueItem[] } = {}) {
     const accountReadiness = runnerAccountReadiness(tumblrAccounts, runnerSettingsRef.current.tumblrAccountId);
+    const queue = options.queueOverride ?? submissionQueue;
     const preparation = await prepareAutomationQueueForRun({
-      allowWithoutRunnable: options.allowWithoutRunnable,
-      queue: submissionQueue,
+      queue,
       sourceAds: normalizeStoredState(storedRef.current).ads,
       submitTargets,
       queueName: activeQueueName,
@@ -1439,14 +1454,14 @@ function App() {
     return false;
   }
 
-  async function prepareLocalRunnerCommand(options: { allowWithoutRunnable?: boolean; copy?: boolean; target?: "run" | "setup"; fallbackReason?: string; submit?: boolean; testRun?: boolean; preparedQueue?: PreparedAutomationQueue } = {}) {
+  async function prepareLocalRunnerCommand(options: { copy?: boolean; target?: "run" | "setup"; fallbackReason?: string; submit?: boolean; testRun?: boolean; preparedQueue?: PreparedAutomationQueue; queueOverride?: SubmissionQueueItem[] } = {}) {
     if (!requireSelectedConnectedRunnerAccount()) {
       return;
     }
     const target = options.target ?? "run";
     const preparedQueue = target === "setup"
       ? null
-      : options.preparedQueue ?? await prepareAutomationQueue({ allowWithoutRunnable: options.allowWithoutRunnable });
+      : options.preparedQueue ?? await prepareAutomationQueue({ queueOverride: options.queueOverride });
     if (target !== "setup" && !preparedQueue) {
       return;
     }
@@ -1488,13 +1503,13 @@ function App() {
     }
   }
 
-  async function startRunner(options: { allowWithoutRunnable?: boolean; submit?: boolean } = {}) {
+  async function startRunner(options: { queueOverride?: SubmissionQueueItem[]; submit?: boolean } = {}) {
     const submit = options.submit ?? runnerSettingsRef.current.submit;
     const testRun = options.submit === false;
     if (!requireSelectedConnectedRunnerAccount()) {
       return;
     }
-    const preparedQueue = await prepareAutomationQueue({ allowWithoutRunnable: options.allowWithoutRunnable });
+    const preparedQueue = await prepareAutomationQueue({ queueOverride: options.queueOverride });
     if (!preparedQueue) {
       return;
     }
@@ -1534,7 +1549,7 @@ function App() {
     await prepareLocalRunnerCommand({
       copy: true,
       target: "run",
-      allowWithoutRunnable: options.allowWithoutRunnable,
+      queueOverride: options.queueOverride,
       preparedQueue,
       submit,
       testRun,
@@ -1765,7 +1780,7 @@ function App() {
             newSubmitUrl={newSubmitUrl}
             queueConfirmation={editorQueueConfirmation}
             queueOptions={queueOptions}
-            selectedQueueName={activeQueueName}
+            selectedQueueName={selectedQueueName || activeQueueName}
             submissionComplete={submissionComplete}
             submitTargetStatus={submitTargetStatus}
             targetOptions={targetOptions}

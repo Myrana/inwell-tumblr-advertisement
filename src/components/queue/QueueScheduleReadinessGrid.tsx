@@ -21,15 +21,15 @@ export function QueueScheduleReadinessGrid({
   runnerReady,
   willRun,
 }: QueueScheduleReadinessGridProps) {
+  const reviewBlocked = attentionItemCount > 0;
+  const automationWillRun = willRun && !reviewBlocked;
   const automationState = enabled
     ? {
-        className: willRun ? "queue-schedule-card ready" : "queue-schedule-card blocked",
-        label: willRun ? "Will run" : automationBlockedLabel || (attentionItemCount ? "Needs review" : "Will not run yet"),
-        detail: willRun
-          ? attentionItemCount
-            ? `Daily automation will skip ${attentionItemCount} review item${attentionItemCount === 1 ? "" : "s"}.`
-            : "Daily automation has the required pieces."
-          : automationBlockedDetail || (attentionItemCount
+        className: automationWillRun ? "queue-schedule-card ready" : "queue-schedule-card blocked",
+        label: automationWillRun ? "Will run" : automationBlockedLabel || (reviewBlocked ? "Needs review" : "Will not run yet"),
+        detail: automationWillRun
+          ? "Daily automation has the required pieces."
+          : automationBlockedDetail || (reviewBlocked
             ? "Clear failed or review-needed submissions first."
             : "Fix the blocked readiness item first."),
       }
@@ -55,6 +55,17 @@ export function QueueScheduleReadinessGrid({
           label: "Blocked",
           detail: "Use the recovery panel below.",
         };
+  const queueState = reviewBlocked
+    ? {
+        className: "queue-schedule-card blocked",
+        label: "Needs review",
+        detail: "Review failed or needs-review submissions first.",
+      }
+    : {
+        className: runnableItemCount ? "queue-schedule-card ready" : "queue-schedule-card warning",
+        label: `${runnableItemCount} runnable`,
+        detail: runnableItemCount ? "Queued or scheduled content is available." : "Queue content before the next run.",
+      };
 
   return (
     <div className="queue-schedule-readiness-grid" aria-label="Daily automation readiness">
@@ -68,10 +79,10 @@ export function QueueScheduleReadinessGrid({
         <strong>{runnerState.label}</strong>
         <small>{runnerState.detail}</small>
       </article>
-      <article className={runnableItemCount ? "queue-schedule-card ready" : "queue-schedule-card warning"}>
+      <article className={queueState.className}>
         <span>Queue readiness</span>
-        <strong>{runnableItemCount} runnable</strong>
-        <small>{runnableItemCount ? "Queued or scheduled content is available." : "Queue content before the next run."}</small>
+        <strong>{queueState.label}</strong>
+        <small>{queueState.detail}</small>
       </article>
       <article className={automationState.className}>
         <span>Automation state</span>

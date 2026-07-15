@@ -90,7 +90,7 @@ async function withQueueAutomationModule(t) {
   return import(pathToFileURL(join(outDir, "queueAutomation.js")).href);
 }
 
-test("runner readiness skips parked review items when runnable work exists", async (t) => {
+test("runner readiness blocks parked review items before runnable work can continue", async (t) => {
   const queueAutomation = await withQueueAutomationModule(t);
   const mixedQueue = [
     queueItem({ id: "queue-ready" }),
@@ -106,10 +106,11 @@ test("runner readiness skips parked review items when runnable work exists", asy
     selectedConnectedAccount: true,
   });
 
-  assert.equal(readiness.ready, true);
-  assert.equal(readiness.manualCanRun, true);
-  assert.equal(readiness.scheduledCanRun, true);
-  assert.equal(readiness.detail, "Runner Tumblr can run 1 queued advertisement while 1 item stays in review.");
+  assert.equal(readiness.ready, false);
+  assert.equal(readiness.manualCanRun, false);
+  assert.equal(readiness.scheduledCanRun, false);
+  assert.equal(readiness.title, "Automation needs queue review");
+  assert.equal(readiness.detail, "Clear 1 failed or review-needed item before running Default queue.");
 });
 
 test("runner readiness blocks when only review items are available", async (t) => {
@@ -194,11 +195,32 @@ test("ready ad refill ignores parked review items when filling runnable capacity
     },
   });
 
-  assert.equal(preparation.status, "ready");
-  assert.equal(preparation.preparedQueue.addedCount, 2);
-  assert.equal(preparation.preparedQueue.readyCount, 2);
-  assert.equal(preparation.preparedQueue.attentionCount, 2);
-  assert.deepEqual(savedItems.map((item) => item.adId), ["ad-new-one", "ad-new-two"]);
+  assert.equal(preparation.status, "blocked");
+  assert.equal(preparation.message, "Review failed or needs-review submissions before starting the runner.");
+  assert.equal(preparation.savedItems.length, 0);
+  assert.equal(preparation.reconciledQueue, parkedQueue);
+  assert.deepEqual(savedItems, []);
+});
+
+test("runner preparation blocks parked review items even when runnable work exists", async (t) => {
+  const queueAutomation = await withQueueAutomationModule(t);
+  const mixedQueue = [
+    queueItem({ id: "queue-ready" }),
+    queueItem({ id: "queue-failed", status: "failed" }),
+  ];
+  const preparation = await queueAutomation.prepareAutomationQueueForRun({
+    queue: mixedQueue,
+    sourceAds: [],
+    submitTargets: [{ id: "refillblog", name: "Refill Blog", submitUrl: "https://refillblog.tumblr.com/submit" }],
+    queueName: "Default queue",
+    tumblrAccountId: "tumblr-default",
+    saveQueueItem: async (item) => item,
+  });
+
+  assert.equal(preparation.status, "blocked");
+  assert.equal(preparation.message, "Review failed or needs-review submissions before starting the runner.");
+  assert.equal(preparation.reconciledQueue.length, 2);
+  assert.deepEqual(preparation.savedItems, []);
 });
 
 test("ready ad refill can target completed multi-target queue slots", async (t) => {
@@ -291,10 +313,14 @@ test("queue flow summary splits lanes and exposes refill activity", async (t) =>
   });
 
   assert.equal(summary.statusLabels.queued, "Ready");
-  assert.equal(summary.automation.label, "Automation ready");
+  assert.equal(summary.automation.label, "Automation waiting");
+  assert.equal(summary.automation.detail, "1 failed or needs-review item must be reviewed before automation can run.");
   assert.equal(summary.lanes.runnable.length, 2);
   assert.equal(summary.lanes.running.length, 1);
   assert.equal(summary.lanes.attention.length, 1);
+  assert.equal(summary.timeline[0].label, "Ready");
+  assert.equal(summary.timeline[0].tone, "blocked");
+  assert.equal(summary.timeline[0].detail, "1 failed or needs-review item must be reviewed first.");
   assert.match(summary.refillActivity, /Latest refill added Refill Blog/);
   assert.deepEqual(summary.timeline.map((step) => step.label), ["Ready", "Running", "Completed", "Replacement"]);
 });

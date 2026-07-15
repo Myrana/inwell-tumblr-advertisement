@@ -61,16 +61,26 @@ test("queue review banner summarizes attention items and opens submissions", { t
   const bulkQueue = await setupBackendQueueBulkCompletionPage(t, queueBulkFixtureDeps, {
     firstItemStatus: "failed",
     firstItemNotes: "Browser closed before posting.",
+    scheduleSettings: {
+      enabled: true,
+      perQueue: {
+        "Default queue": { enabled: true, dailyTime: "09:00" },
+      },
+    },
   });
 
   const banner = bulkQueue.page.getByLabel("Queue review required");
   await banner.getByText("1 item need review").waitFor();
-  await banner.getByText("Review items are parked; runnable submissions can continue.").waitFor();
+  await banner.getByText("Clear failed or review-needed submissions before relying on automation.").waitFor();
+  await banner.getByText("Review items are parked; runnable submissions can continue.").waitFor({ state: "detached" });
   await bulkQueue.page.getByRole("button", { name: "Toggle queued submissions section" }).click();
   await bulkQueue.page.getByLabel("Queue bulk editor").waitFor({ state: "detached" });
   await banner.getByRole("button", { name: "Review queue" }).click();
   await bulkQueue.page.getByLabel("Queue bulk editor").waitFor();
   await bulkQueue.page.locator(".queue-item", { hasText: "Why this failed" }).waitFor();
+  await bulkQueue.page.getByLabel("Queue automation state").getByText("Automation waiting").waitFor();
+  await bulkQueue.page.getByLabel("Queue automation state").getByText("1 failed or needs-review item must be reviewed before automation can run.").waitFor();
+  await bulkQueue.page.getByLabel("Queue automation state").getByText("Automation ready").waitFor({ state: "detached" });
   assert.equal(bulkQueue.pageErrors.length, 0, bulkQueue.pageErrors.map((error) => error.message).join("\n"));
 });
 
@@ -249,7 +259,9 @@ test("queue completion keeps overlapping single-item and bulk refill commits con
   });
   const failedItem = bulkQueue.page.locator(".queue-item", { hasText: "Refill Blog" }).filter({ hasText: "Why this failed" });
   const retryButton = failedItem.getByRole("button", { name: "Retry test run" });
-  const markPostedClick = failedItem.getByRole("button", { name: "Mark posted" }).click();
+  const markPostedButton = failedItem.getByRole("button", { name: "Mark posted" });
+  await markPostedButton.waitFor();
+  const markPostedClick = markPostedButton.click({ force: true });
   await bulkQueue.waitForSaveRequestCount(1);
   await bulkQueue.page.getByText("Queue update in progress for this queue.").waitFor();
   assert.equal(await retryButton.isDisabled(), true);
@@ -312,6 +324,18 @@ test("retry test run copies the local command when the companion is unavailable"
   assert.equal(retry.getLocalCommandRequestCount(), 1);
   await retry.page.getByText("Queue at least one target before starting the runner.").waitFor({ state: "detached" });
   await retry.page.getByText(/start a test run that prepares Tumblr without submitting/).waitFor();
+  assert.equal(retry.pageErrors.length, 0, retry.pageErrors.map((error) => error.message).join("\n"));
+});
+
+test("retry test run stops while another failed item remains in the queue", { timeout: 40000 }, async (t) => {
+  const retry = await setupRetryRecoveryPage(t, retryRecoveryFixtureDeps, { additionalFailedItem: true });
+
+  retry.setCompanionAvailable(true);
+  await retry.page.getByRole("button", { name: "Retry test run" }).first().click();
+  await retry.page.getByText("Review failed or needs-review submissions before starting the runner.").waitFor();
+  assert.equal(retry.companionRunPayloads.length, 0);
+  assert.equal(retry.getLocalCommandRequestCount(), 0);
+  await retry.page.locator(".queue-item", { hasText: "secondfailed" }).waitFor();
   assert.equal(retry.pageErrors.length, 0, retry.pageErrors.map((error) => error.message).join("\n"));
 });
 

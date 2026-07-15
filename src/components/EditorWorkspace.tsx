@@ -48,7 +48,7 @@ type EditorWorkspaceProps = {
   onApplyMediaAsset: (asset: MediaLibraryAsset) => void;
   onImageUpload: (event: ChangeEvent<HTMLInputElement>) => void;
   onApplyTemplate: (template: SavedTemplate) => void;
-  onQueueTargets: (targets: TumblrSubmitTarget[]) => void;
+  onQueueTargets: (targets: TumblrSubmitTarget[], queueName?: string) => void;
   onDismissQueueConfirmation: () => void;
   onSelectQueue: (queueName: string) => void;
   onSelectSubmitTarget: (targetId: string) => void;
@@ -139,7 +139,7 @@ export function EditorWorkspace({
     if (!previewTargets.length) {
       return;
     }
-    onQueueTargets(previewTargets);
+    onQueueTargets(previewTargets, selectedQueueName);
     clearPreview();
   }
 
