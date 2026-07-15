@@ -1547,6 +1547,23 @@ pre {
   overflow-wrap: anywhere;
 }
 
+.workspace-action-button {
+  flex: 0 0 auto;
+  line-height: 1.15;
+}
+
+.workspace-action-button svg {
+  flex: 0 0 auto;
+}
+
+.workspace-action-row {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .tertiary-action {
   min-height: 36px;
   padding: 0 2px;

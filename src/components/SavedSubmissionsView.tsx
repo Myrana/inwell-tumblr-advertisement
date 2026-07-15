@@ -15,6 +15,7 @@ import { DuplicateContentMatch } from "../domain/duplicates";
 import { Advertisement, QueueDefinition } from "../domain/types";
 import { useSavedSubmissionsBatchQueue } from "../hooks/useSavedSubmissionsBatchQueue";
 import { QueueDraftResult } from "../hooks/useEditorQueueActions";
+import { WorkspaceActionButton, WorkspaceActionRow } from "./ui/WorkspaceActions";
 import "./savedSubmissionsView.css";
 
 type SavedSubmissionsViewProps = {
@@ -180,10 +181,9 @@ export function SavedSubmissionsView({
               ))}
             </select>
           </label>
-          <button className="primary compact-button" type="button" onClick={queueDisplayedReadyDrafts} disabled={!sortedReadyAds.length || !batchQueueName}>
-            <Send size={16} />
+          <WorkspaceActionButton variant="primary" compact icon={<Send size={16} />} onClick={queueDisplayedReadyDrafts} disabled={!sortedReadyAds.length || !batchQueueName}>
             {selectedCampaignKey === "all" ? "Queue ready drafts" : "Queue ready campaign"}
-          </button>
+          </WorkspaceActionButton>
         </div>
       ) : null}
       {libraryAds.length ? (
@@ -230,9 +230,9 @@ export function SavedSubmissionsView({
             {workFilter === "needs-work" ? (
               <div className="library-filter-notice" role="status">
                 <span>Showing advertisements that need edits.</span>
-                <button className="secondary compact-button" type="button" onClick={() => setWorkFilter("all")}>
+                <WorkspaceActionButton variant="secondary" compact onClick={() => setWorkFilter("all")}>
                   Show all
-                </button>
+                </WorkspaceActionButton>
               </div>
             ) : null}
             <LibrarySelectionToolbar
@@ -297,10 +297,9 @@ export function SavedSubmissionsView({
         <div className="library-empty">
           <strong>Your notebook is empty.</strong>
           <span>No content saved yet. Create your first advertisement and begin building your archive.</span>
-          <button className="primary compact-button" type="button" onClick={onCreateDraft}>
-            <FilePlus2 size={16} />
+          <WorkspaceActionButton variant="primary" compact icon={<FilePlus2 size={16} />} onClick={onCreateDraft}>
             Create advertisement
-          </button>
+          </WorkspaceActionButton>
         </div>
       )}
     </section>
@@ -375,20 +374,17 @@ function LibraryCommandCenter({
           <span>Campaigns</span>
         </article>
       </div>
-      <div className="library-command-actions">
-        <button className="secondary compact-button" type="button" onClick={onReviewIncompleteAds} disabled={!needsWorkCount}>
-          <AlertTriangle size={16} />
+      <WorkspaceActionRow className="library-command-actions">
+        <WorkspaceActionButton variant="secondary" compact icon={<AlertTriangle size={16} />} onClick={onReviewIncompleteAds} disabled={!needsWorkCount}>
           Review Incomplete
-        </button>
-        <button className="primary compact-button" type="button" onClick={onQueueDisplayedReadyDrafts} disabled={!displayedReadyCount || !hasQueueDestination}>
-          <Send size={16} />
+        </WorkspaceActionButton>
+        <WorkspaceActionButton variant="primary" compact icon={<Send size={16} />} onClick={onQueueDisplayedReadyDrafts} disabled={!displayedReadyCount || !hasQueueDestination}>
           Queue All Ready
-        </button>
-        <button className="secondary compact-button" type="button" onClick={onCreateDraft}>
-          <FilePlus2 size={16} />
+        </WorkspaceActionButton>
+        <WorkspaceActionButton variant="secondary" compact icon={<FilePlus2 size={16} />} onClick={onCreateDraft}>
           Create New Advertisement
-        </button>
-      </div>
+        </WorkspaceActionButton>
+      </WorkspaceActionRow>
     </section>
   );
 }
@@ -416,13 +412,12 @@ function LibrarySelectionToolbar({
     <div className="library-selection-toolbar" aria-label="Selected library actions">
       <strong>{selectedCount} selected</strong>
       <span>{selectedReadyCount} ready for {queueName || "the selected queue"}</span>
-      <button className="primary compact-button" type="button" onClick={onQueueSelectedReadyDrafts} disabled={!selectedReadyCount || !queueName}>
-        <Send size={16} />
+      <WorkspaceActionButton variant="primary" compact icon={<Send size={16} />} onClick={onQueueSelectedReadyDrafts} disabled={!selectedReadyCount || !queueName}>
         Queue selected ready
-      </button>
-      <button className="secondary compact-button" type="button" onClick={onClearSelection}>
+      </WorkspaceActionButton>
+      <WorkspaceActionButton variant="secondary" compact onClick={onClearSelection}>
         Clear selection
-      </button>
+      </WorkspaceActionButton>
     </div>
   );
 }
@@ -528,12 +523,12 @@ function DuplicateReviewPanel({ duplicateItemCount, duplicateMatches, onArchiveD
           <article key={match.groupKey}>
             <span>{match.labels.join(" / ")}</span>
             <div>
-              <button className="secondary compact-button" type="button" onClick={() => onSelectDraft(firstAdId)} disabled={!firstAdId}>
+              <WorkspaceActionButton variant="secondary" compact onClick={() => onSelectDraft(firstAdId)} disabled={!firstAdId}>
                 Edit first
-              </button>
-              <button className="secondary compact-button" type="button" onClick={() => onArchiveDraft(lastAdId, true)} disabled={!lastAdId}>
+              </WorkspaceActionButton>
+              <WorkspaceActionButton variant="secondary" compact onClick={() => onArchiveDraft(lastAdId, true)} disabled={!lastAdId}>
                 Archive latest
-              </button>
+              </WorkspaceActionButton>
             </div>
           </article>
         );

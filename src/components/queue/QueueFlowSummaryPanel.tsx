@@ -2,6 +2,7 @@ import { FilePlus2, PlayCircle } from "lucide-react";
 import { formatSubmissionStatus } from "../../domain/format";
 import type { QueueFlowSummary } from "../../domain/queueAutomation";
 import type { SubmissionQueueItem, SubmissionStatus } from "../../domain/types";
+import { WorkspaceActionButton, WorkspaceActionRow } from "../ui/WorkspaceActions";
 
 type QueueFlowSummaryPanelProps = {
   activeQueueName: string;
@@ -70,16 +71,14 @@ function QueueCommandCenter({
           </article>
         ))}
       </div>
-      <div className="queue-command-actions">
-        <button className="primary compact-button" type="button" onClick={onCreateSubmission}>
-          <FilePlus2 size={16} />
+      <WorkspaceActionRow className="queue-command-actions">
+        <WorkspaceActionButton variant="primary" compact icon={<FilePlus2 size={16} />} onClick={onCreateSubmission}>
           Write Advertisement
-        </button>
-        <button className="tertiary-action compact-button" type="button" onClick={onOpenRunner}>
-          <PlayCircle size={16} />
+        </WorkspaceActionButton>
+        <WorkspaceActionButton variant="tertiary" compact icon={<PlayCircle size={16} />} onClick={onOpenRunner}>
           Runner Controls
-        </button>
-      </div>
+        </WorkspaceActionButton>
+      </WorkspaceActionRow>
     </section>
   );
 }
