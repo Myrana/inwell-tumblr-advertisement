@@ -1,33 +1,13 @@
 #!/usr/bin/env node
-import path from "node:path";
-import { chromium } from "playwright";
 import { parseArgs } from "./tumblr-runner-core.mjs";
+import { openChromeLogin } from "./tumblr-chrome.mjs";
 
 async function main() {
   const options = parseArgs(["--plan", "manual-login-placeholder", ...process.argv.slice(2)]);
-  const context = await chromium.launchPersistentContext(path.resolve(options.userDataDir), {
-    headless: false,
-    slowMo: options.slowMo,
-  });
-
-  const page = await context.newPage();
-  await page.goto("https://www.tumblr.com/login", { waitUntil: "domcontentloaded", timeout: 60000 });
-  console.log("[login] A Playwright Chromium window is open.");
-  console.log("[login] Log into Tumblr manually in that window, including any captcha or verification.");
-  console.log("[login] Keep the dashboard open until it is stable.");
-
-  if (process.stdin.isTTY) {
-    console.log("[login] Press Enter here to close the helper.");
-    await new Promise((resolve) => {
-      process.stdin.resume();
-      process.stdin.once("data", resolve);
-    });
-  } else {
-    console.log("[login] Close the browser window when login is complete.");
-    await new Promise((resolve) => context.once("close", resolve));
-  }
-
-  await context.close();
+  await openChromeLogin(options.userDataDir);
+  console.log("[login] Google Chrome is open with the saved Inkwell profile.");
+  console.log("[login] Log into Tumblr manually, including any verification, and wait for the dashboard.");
+  console.log("[login] Close all windows for this Inkwell profile before running the queue so Chrome can save and release the session.");
 }
 
 main().catch((error) => {

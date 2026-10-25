@@ -4,6 +4,7 @@ import { existsSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { chromium } from "playwright";
+import { chromeRunnerOptions } from "./tumblr-chrome.mjs";
 import {
   appearsLoggedInToTumblr,
   appearsRateLimitedByTumblr,
@@ -98,10 +99,8 @@ async function openRunnerBrowser(options) {
   }
 
   await fs.mkdir(options.userDataDir, { recursive: true });
-  const context = await chromium.launchPersistentContext(options.userDataDir, {
-    headless: options.headless,
-    slowMo: options.slowMo,
-    viewport: { width: 1365, height: 1000 },
+  const context = await chromium.launchPersistentContext(options.userDataDir, chromeRunnerOptions(options)).catch((error) => {
+    throw new Error(`Could not open the saved Google Chrome session. Install Chrome, close all Inkwell login windows, and retry. If login is required, open Tumblr login first and use the same profile. ${error.message}`);
   });
   return {
     context,

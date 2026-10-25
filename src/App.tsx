@@ -1236,11 +1236,11 @@ function App() {
         ...account,
         status: "checking",
         lastCheckedAt: new Date().toISOString(),
-        notes: "Tumblr login window opened on this computer. Finish login, leave Tumblr dashboard open, then mark this account connected.",
+        notes: "Tumblr login window opened on this computer. Finish login, wait for the dashboard, then close the Inkwell Chrome windows and mark this account connected.",
       };
       setTumblrAccounts((current) => upsertTumblrAccount(current, checking));
       syncTumblrAccount(checking);
-      setAccountStatus(login.message || "Tumblr login window opened on this computer. Finish login, then mark this account connected.");
+      setAccountStatus("Tumblr login window opened on this computer. Finish login, wait for the dashboard, then close the Inkwell Chrome windows before running the queue. Mark this account connected after login.");
     } catch (error) {
       const message = error instanceof ApiError ? error.message : "Local companion was not detected on this computer.";
       setLocalCompanion(null);
