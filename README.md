@@ -23,13 +23,9 @@ The submission queue can launch the local Playwright browser runner from the app
 1. Queue one or more Tumblr targets in the app.
 2. Confirm the Queue page runner settings, including media folder, slow motion, and whether the runner should click Submit after filling.
 3. Click `Run queue`.
-4. Install the Playwright browser once if the runner has not been installed:
+4. Install Google Chrome on the computer running the local companion.
 
-```powershell
-npm.cmd run tumblr:install-browsers
-```
-
-The runner opens Tumblr submit pages in a persistent local browser profile at
+The runner uses installed Google Chrome and opens Tumblr submit pages in a persistent local browser profile at
 `.tumblr-runner-profile`, so you can log into Tumblr once and reuse that session.
 It fills supported text, photo, video URL, and tag fields when the public submit
 form exposes normal controls. By default it pauses before final submission so
@@ -38,11 +34,27 @@ you can review the form.
 When Tumblr drops or refuses the saved profile session, run login and queue
 execution again from the app after logging in.
 
-To open the persistent Playwright browser profile and log into Tumblr manually:
+To open Google Chrome directly and log into Tumblr manually, without Playwright
+controlling the login window:
 
 ```powershell
 npm.cmd run tumblr:login
 ```
+
+Wait for the Tumblr dashboard, then close all Inkwell Chrome windows before
+running the queue. Login and queue execution must use the same profile folder.
+For the local companion's default profile use:
+
+```powershell
+npm.cmd run tumblr:login -- --user-data-dir .tumblr-runner-profile-local
+```
+
+The app's Tumblr Accounts login action selects that account's profile automatically.
+Your everyday Chrome windows have a separate profile and do not share this login.
+If Chrome is installed in a custom location, set `INWELL_CHROME_PATH` to its
+executable for both login and the runner. Existing saved sessions may need one
+fresh login after switching from bundled Chromium to Google Chrome. Tumblr may
+still require manual verification; this change does not guarantee acceptance.
 
 The runner stops for manual action when Tumblr shows login, captcha, changed form
 markup, missing upload controls, target-blog terms, or any other state that needs

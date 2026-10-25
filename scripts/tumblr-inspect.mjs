@@ -1,15 +1,13 @@
 #!/usr/bin/env node
 import path from "node:path";
 import { chromium } from "playwright";
+import { chromeRunnerOptions } from "./tumblr-chrome.mjs";
 import { loadRunnerPlan, parseArgs, summarizeFrames } from "./tumblr-runner-core.mjs";
 
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   const plan = await loadRunnerPlan(options.planPath);
-  const context = await chromium.launchPersistentContext(path.resolve(options.userDataDir), {
-    headless: true,
-    slowMo: options.slowMo,
-  });
+  const context = await chromium.launchPersistentContext(path.resolve(options.userDataDir), chromeRunnerOptions({ ...options, headless: true }));
 
   try {
     for (const item of plan.items) {

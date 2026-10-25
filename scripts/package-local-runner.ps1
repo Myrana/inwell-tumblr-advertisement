@@ -19,6 +19,7 @@ $runnerScripts = @(
   "tumblr-local-runner.mjs",
   "discord-run-summary.mjs",
   "tumblr-login.mjs",
+  "tumblr-chrome.mjs",
   "tumblr-runner.mjs",
   "tumblr-runner-core.mjs",
   "tumblr-runner-results.mjs",
@@ -56,7 +57,7 @@ This companion package runs Tumblr queue submissions from a Windows desktop brow
 1. Install Node.js 20 or newer.
 2. Open PowerShell in this folder.
 3. Run `npm install`.
-4. Run `npm run tumblr:install-browsers`.
+4. Install Google Chrome. After Tumblr login reaches the dashboard, close the Inkwell Chrome windows before running the queue.
 5. In Inkwell, open your queue and use `Copy setup command` to copy the private setup command.
 6. Paste that command in this folder to install the Windows login task.
 

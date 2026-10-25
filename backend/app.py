@@ -2925,6 +2925,8 @@ def local_runner_package(api_base_url: str, workspace_id: str, queue_name: str, 
     readme = f"""# Inkwell Local Runner
 
 This folder installs the Windows companion that lets Inkwell run your Tumblr queue from this computer.
+Install Google Chrome before opening Tumblr login or running a queue.
+After login reaches the dashboard, close the Inkwell Chrome windows before running the queue.
 
 ## First run
 
@@ -2974,6 +2976,7 @@ pause
             "tumblr-login.mjs",
             "tumblr-runner.mjs",
             "tumblr-runner-core.mjs",
+            "tumblr-chrome.mjs",
             "tumblr-runner-results.mjs",
             "install-local-runner-autostart.ps1",
         ):
